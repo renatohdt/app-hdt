@@ -1,0 +1,21 @@
+<svg width="960" height="540" viewBox="0 0 960 540" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="960" height="540" rx="32" fill="#0E0E0E"/>
+  <rect x="40" y="40" width="880" height="460" rx="28" fill="url(#paint0_linear)"/>
+  <path d="M370 315C390 248 449 212 513 212C580 212 632 252 650 315" stroke="#FFD7C8" stroke-width="24" stroke-linecap="round"/>
+  <path d="M376 317C404 347 446 364 497 364C552 364 601 344 644 313" stroke="#FF5A1F" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="326" cy="319" r="26" fill="#FF5A1F"/>
+  <circle cx="670" cy="309" r="26" fill="#FF2D0A"/>
+  <path d="M430 173C430 126 468 88 515 88C562 88 600 126 600 173V245H430V173Z" fill="#2A2A2A" stroke="#F6E6DE" stroke-width="18"/>
+  <path d="M455 173C455 140 482 113 515 113C548 113 575 140 575 173V220H455V173Z" fill="#1A1A1A"/>
+  <text x="80" y="96" fill="#FFF4EF" font-family="Arial, sans-serif" font-size="30" font-weight="700">Wrist test</text>
+  <text x="80" y="136" fill="#B9B9B9" font-family="Arial, sans-serif" font-size="22">Wrap thumb and middle finger around your wrist, then compare overlap.</text>
+  <text x="80" y="456" fill="#FFB49B" font-family="Arial, sans-serif" font-size="20">Do not touch</text>
+  <text x="430" y="456" fill="#FFB49B" font-family="Arial, sans-serif" font-size="20">Just touch</text>
+  <text x="705" y="456" fill="#FFB49B" font-family="Arial, sans-serif" font-size="20">Overlap</text>
+  <defs>
+    <linearGradient id="paint0_linear" x1="480" y1="40" x2="480" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#191919"/>
+      <stop offset="1" stop-color="#101010"/>
+    </linearGradient>
+  </defs>
+</svg>
