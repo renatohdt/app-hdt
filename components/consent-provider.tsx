@@ -16,8 +16,14 @@ import {
   type StoredConsentPreferences,
   writeStoredConsentPreferences
 } from "@/lib/consent-storage";
-import { clientLogError } from "@/lib/client-logger";
+import { clientLogError, clientLogInfo } from "@/lib/client-logger";
 import { FACEBOOK_PIXEL_ID } from "@/lib/facebook-pixel";
+
+declare global {
+  interface Window {
+    __googleAdsenseScriptLoaded?: boolean;
+  }
+}
 
 type ConsentApiResponse = {
   success?: boolean;
@@ -343,6 +349,17 @@ function ConsentManagedScripts({
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1213559545344901"
           crossOrigin="anonymous"
           strategy="afterInteractive"
+          onLoad={() => {
+            window.__googleAdsenseScriptLoaded = true;
+            window.dispatchEvent(new CustomEvent("google-adsense:loaded"));
+            clientLogInfo("ADS SCRIPT LOADED", {
+              script_id: "google-adsense",
+              src: "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1213559545344901"
+            });
+          }}
+          onError={(error) => {
+            clientLogError("ADS SCRIPT LOAD ERROR", error);
+          }}
         />
       ) : null}
 

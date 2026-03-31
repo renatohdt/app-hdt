@@ -383,7 +383,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
           </div>
         </Card>
 
-        <div className="flex justify-center pb-4">
+        <div className="w-full pb-4">
           <GoogleAd />
         </div>
       </Container>

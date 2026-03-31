@@ -11,7 +11,7 @@ import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
 import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib/supabase-browser";
-import { clientLogError } from "@/lib/client-logger";
+import { clientLogError, clientLogInfo } from "@/lib/client-logger";
 import { QuizAnswers } from "@/lib/types";
 import { initialAnswers, quizSteps } from "@/lib/quiz";
 
@@ -182,6 +182,13 @@ export function QuizForm() {
             throw new Error(getSupabaseBrowserSetupError() ?? "Falha ao inicializar o cliente de autenticacao.");
           }
 
+          clientLogInfo("QUIZ SIGN UP STARTED", {
+            email: account.email,
+            name: account.name,
+            has_health_consent: healthConsentGranted,
+            has_marketing_consent: hasPreferenceDecision ? consentPreferences.marketing === true : null
+          });
+
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email: account.email,
             password: account.password,
@@ -199,6 +206,11 @@ export function QuizForm() {
           if (!signUpData.user?.id || !signUpData.session) {
             throw new Error("Conta criada, mas a sessao nao foi iniciada corretamente.");
           }
+
+          clientLogInfo("QUIZ SIGN UP USER CREATED", {
+            user_id: signUpData.user.id,
+            email: signUpData.user.email ?? account.email
+          });
 
           const response = await fetchWithAuth("/api/quiz", {
             method: "POST",

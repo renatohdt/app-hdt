@@ -36,6 +36,13 @@ export async function POST(request: Request) {
     const userId = auth.user.id;
     const requestedConsents = normalizeConsentInput(body.consents);
     const healthConsentGranted = requestedConsents.health === true;
+
+    logInfo("AUTH", "Signup completion flow started", {
+      user_id: userId,
+      marketing_consent: requestedConsents.marketing === true,
+      health_consent: healthConsentGranted
+    });
+
     const bodyTypeFields = normalizeBodyTypeFields({
       wrist: typeof body.wrist === "string" ? body.wrist : undefined,
       body_type_raw: typeof body.body_type_raw === "string" ? body.body_type_raw : undefined,
@@ -101,6 +108,10 @@ export async function POST(request: Request) {
         logError("AUTH", "User profile insert failed", { user_id: userId });
         return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
       }
+
+      logInfo("AUTH", "User profile created successfully", {
+        user_id: insertedUser.id
+      });
 
       savedUser = insertedUser;
     }
@@ -189,6 +200,10 @@ export async function POST(request: Request) {
     }
 
     if (requestedConsents.marketing === true) {
+      logInfo("LEADLOVERS", "LeadLovers dispatch requested", {
+        user_id: savedUser.id
+      });
+
       try {
         await sendLeadLoversLead({
           email: auth.user.email,
@@ -198,6 +213,11 @@ export async function POST(request: Request) {
       } catch {
         logError("LEADLOVERS", "Lead send failed", { user_id: savedUser.id });
       }
+    } else {
+      logInfo("LEADLOVERS", "LeadLovers dispatch skipped", {
+        user_id: savedUser.id,
+        reason: "marketing_consent_not_granted"
+      });
     }
 
     const workoutPayload = {
