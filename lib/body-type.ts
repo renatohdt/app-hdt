@@ -1,4 +1,4 @@
-﻿import type { BodyType, QuizAnswers, Wrist } from "@/lib/types";
+import type { BodyType, QuizAnswers, Wrist } from "@/lib/types";
 
 const RAW_TO_BODY_TYPE: Record<string, BodyType> = {
   not_touch: "endomorph",
@@ -20,7 +20,7 @@ const BODY_TYPE_LABELS: Record<BodyType, string> = {
   endomorph: "Endomorfo",
   mesomorph: "Mesomorfo",
   ectomorph: "Ectomorfo",
-  unknown: "Nao informado"
+  unknown: "Não informado"
 };
 
 export function normalizeBodyTypeRaw(value?: string | null) {

@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run text:check",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "text:check": "node scripts/check-ptbr-text.mjs",
     "retention:cleanup": "node scripts/run-retention-cleanup.mjs",
     "retention:cleanup:dry": "node scripts/run-retention-cleanup.mjs --dry-run"
   },

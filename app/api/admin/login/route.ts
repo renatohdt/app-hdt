@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const adminSessionSecret = getAdminSessionSecret();
     if (!adminSessionSecret) {
       logWarn("ADMIN", "Admin session secret missing");
-      return jsonError("Nao foi possivel validar o acesso admin agora.", 500);
+      return jsonError("Não foi possível validar o acesso admin agora.", 500);
     }
 
     const envAdmin = getEnvAdminConfig();
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
         has_admin_email: envAdmin.hasEmail,
         has_admin_password: envAdmin.hasPassword
       });
-      return jsonError("Nao foi possivel validar o acesso admin agora.", 500);
+      return jsonError("Não foi possível validar o acesso admin agora.", 500);
     }
 
     if (envAdmin.hasEmail && envAdmin.hasPassword) {
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         has_supabase_auth: Boolean(supabaseAuth),
         has_supabase_admin: Boolean(supabaseAdmin)
       });
-      return jsonError("Nao foi possivel validar o acesso admin agora.", 500);
+      return jsonError("Não foi possível validar o acesso admin agora.", 500);
     }
 
     const { data, error } = await supabaseAuth.auth.signInWithPassword({
@@ -121,7 +121,7 @@ export async function POST(request: Request) {
 
     if (roleError) {
       logError("ADMIN", "Role lookup failed during login", { email });
-      return jsonError("Nao foi possivel validar o acesso admin agora.", 500);
+      return jsonError("Não foi possível validar o acesso admin agora.", 500);
     }
 
     const role = typeof userRow?.role === "string" ? userRow.role.trim().toLowerCase() : "";
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     logError("ADMIN", "Admin login route failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel entrar no admin agora.", 500);
+    return jsonError("Não foi possível entrar no admin agora.", 500);
   }
 }
 

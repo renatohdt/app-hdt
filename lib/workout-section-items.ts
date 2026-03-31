@@ -152,15 +152,15 @@ function buildBlockLabel(blockType: CombinedBlockType, exercises: WorkoutExercis
 
 function buildCombinedBlockNotes(blockType: CombinedBlockType, exerciseCount: number) {
   if (blockType === "circuit") {
-    return "Execute os exercicios em sequencia, mantendo ritmo controlado, e descanse apenas ao fim da volta.";
+    return "Execute os exercícios em sequência, mantendo ritmo controlado, e descanse apenas ao fim da volta.";
   }
 
   if (blockType === "tri-set") {
-    return "Complete os tres exercicios em sequencia antes de descansar ao final da volta.";
+    return "Complete os três exercícios em sequência antes de descansar ao final da volta.";
   }
 
   if (blockType === "bi-set") {
-    return "Una os dois exercicios sem pausa longa para aumentar a densidade mantendo a tecnica.";
+    return "Una os dois exercícios sem pausa longa para aumentar a densidade, mantendo a técnica.";
   }
 
   return exerciseCount > 1

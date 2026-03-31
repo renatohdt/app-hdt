@@ -7,7 +7,7 @@ export default function AdminUsersPage() {
       <SectionTitle
         eyebrow="Administracao"
         title="Usuários"
-        description="Tabela simples com dados principais e acesso rapido ao detalhe de cada usuario."
+        description="Tabela simples com dados principais e acesso rápido ao detalhe de cada usuário."
       />
 
       <AdminUsersList />

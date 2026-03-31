@@ -8,7 +8,7 @@ import { Button } from "@/components/ui";
 const links = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/users", label: "Usuarios" },
-  { href: "/admin/exercises", label: "Exercicios" },
+  { href: "/admin/exercises", label: "Exercícios" },
   { href: "/admin/errors", label: "Erros" }
 ];
 

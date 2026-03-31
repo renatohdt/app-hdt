@@ -40,7 +40,7 @@ const defaultExerciseLibrary: ExerciseRecord[] = [
   { id: "15", name: "Remada Curvada", muscle: "back", type: "compound", location: ["gym"], level: ["intermediate", "advanced"], video_url: null },
   { id: "16", name: "Saltos no Caixote", muscle: "quadriceps", type: "functional", location: ["home", "gym"], level: ["intermediate", "advanced"], video_url: null },
   { id: "17", name: "Rosca Direta", muscle: "biceps", type: "isolation", location: ["home", "gym"], level: ["beginner", "intermediate"], video_url: null },
-  { id: "18", name: "Triceps Corda", muscle: "triceps", type: "isolation", location: ["gym"], level: ["beginner", "intermediate"], video_url: null },
+  { id: "18", name: "Tríceps Corda", muscle: "triceps", type: "isolation", location: ["gym"], level: ["beginner", "intermediate"], video_url: null },
   { id: "19", name: "Polichinelo", muscle: "abs", type: "functional", location: ["home"], level: ["beginner", "intermediate"], video_url: null },
   { id: "20", name: "Agachamento com Salto", muscle: "glutes", type: "functional", location: ["home"], level: ["intermediate", "advanced"], video_url: null }
 ];
@@ -508,7 +508,7 @@ function formatGoal(goal: Goal) {
   const labels: Record<Goal, string> = {
     lose_weight: "Emagrecimento",
     gain_muscle: "Hipertrofia",
-    body_recomposition: "Definicao",
+    body_recomposition: "Definição",
     improve_conditioning: "Condicionamento"
   };
 
@@ -518,8 +518,8 @@ function formatGoal(goal: Goal) {
 function formatLevel(level: TrainingLevel) {
   const labels: Record<TrainingLevel, string> = {
     beginner: "Iniciante",
-    intermediate: "Intermediario",
-    advanced: "Avancado"
+    intermediate: "Intermediário",
+    advanced: "Avançado"
   };
 
   return labels[level];
@@ -527,8 +527,8 @@ function formatLevel(level: TrainingLevel) {
 
 function formatStyle(style: TrainingStyle) {
   const labels: Record<TrainingStyle, string> = {
-    fat_loss: "Maior gasto calorico",
-    hypertrophy: "Maior tensao mecanica",
+    fat_loss: "Maior gasto calórico",
+    hypertrophy: "Maior tensão mecânica",
     conditioning: "Maior condicionamento"
   };
 
@@ -539,15 +539,15 @@ function formatMuscle(muscle: string) {
   const labels: Record<string, string> = {
     chest: "Peito",
     back: "Costas",
-    quadriceps: "Quadriceps",
+    quadriceps: "Quadríceps",
     hamstrings: "Posterior de coxa",
-    glutes: "Gluteos",
+    glutes: "Glúteos",
     shoulders: "Ombros",
-    biceps: "Biceps",
-    triceps: "Triceps",
-    calves: "Gemeos",
-    abs: "Abdomen",
-    forearms: "Antebraco"
+    biceps: "Bíceps",
+    triceps: "Tríceps",
+    calves: "Gêmeos",
+    abs: "Abdômen",
+    forearms: "Antebraço"
   };
 
   return labels[muscle] ?? muscle;

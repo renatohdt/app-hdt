@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -81,7 +81,7 @@ function DashboardContent() {
           return null;
         }
 
-        throw new Error(result.error ?? "Nao foi possivel carregar o treino.");
+        throw new Error(result.error ?? "Não foi possível carregar o treino.");
       }
 
       const result = await parseJsonResponse<{ success: true; data: WorkoutPayload }>(response);
@@ -131,7 +131,7 @@ function DashboardContent() {
         }
       } catch (requestError) {
         if (active) {
-          setError(getRequestErrorMessage(requestError, "Nao foi possivel carregar o treino."));
+          setError(getRequestErrorMessage(requestError, "Não foi possível carregar o treino."));
         }
       } finally {
         if (active) {
@@ -183,13 +183,13 @@ function DashboardContent() {
       >(response);
 
       if (!response.ok || !result.success) {
-        throw new Error(("error" in result ? result.error : undefined) ?? "Nao foi possivel gerar o treino agora.");
+        throw new Error(("error" in result ? result.error : undefined) ?? "Não foi possível gerar o treino agora.");
       }
 
       setPayload(result.data);
       setNoWorkout(result.data.hasWorkout === false || !result.data.workout);
     } catch (requestError) {
-      setError(getRequestErrorMessage(requestError, "Nao foi possivel gerar o treino agora."));
+      setError(getRequestErrorMessage(requestError, "Não foi possível gerar o treino agora."));
     } finally {
       setGeneratingWorkout(false);
     }
@@ -257,7 +257,7 @@ function DashboardContent() {
       <PageShell>
         <Container className="py-12">
           <Card className="mx-auto max-w-3xl space-y-4">
-            <h1 className="text-2xl font-semibold text-white">Seu treino ainda nao esta pronto</h1>
+            <h1 className="text-2xl font-semibold text-white">Seu treino ainda não está pronto</h1>
             <p className="text-sm text-white/64">
               Complete ou revise seus dados para gerar um treino personalizado.
             </p>
@@ -270,7 +270,7 @@ function DashboardContent() {
                 {generatingWorkout ? "Gerando treino..." : "Gerar treino agora"}
               </Button>
             </div>
-            <p className="text-xs text-white/45">Voce sera redirecionado para seu perfil em instantes.</p>
+            <p className="text-xs text-white/45">Você será redirecionado para seu perfil em instantes.</p>
           </Card>
         </Container>
       </PageShell>
@@ -282,11 +282,11 @@ function DashboardContent() {
       <PageShell>
         <Container className="py-12">
           <Card className="mx-auto max-w-3xl space-y-4">
-            <h1 className="text-2xl font-semibold text-white">Seu treino ainda nao esta pronto</h1>
+            <h1 className="text-2xl font-semibold text-white">Seu treino ainda não está pronto</h1>
             <p className="text-sm text-white/64">
               Complete ou revise seus dados para gerar um treino personalizado.
             </p>
-            <p className="text-sm text-red-300">{error ?? "Treino nao encontrado."}</p>
+            <p className="text-sm text-red-300">{error ?? "Treino não encontrado."}</p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button variant="secondary" onClick={() => router.push("/perfil")}>
                 Ajustar meus dados

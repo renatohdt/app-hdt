@@ -7,6 +7,7 @@ import GoogleAd from "@/components/GoogleAd";
 import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { formatBodyTypeLabel } from "@/lib/body-type";
+import { normalizePtBrUiText } from "@/lib/pt-br-text";
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 import { formatBlockTypeLabel, isAdvancedBlockType, isCombinedBlockType } from "@/lib/workout-strategy";
 import { Badge, BadgeGroup, Button, Card, Container, PageShell } from "@/components/ui";
@@ -41,7 +42,7 @@ type WorkoutScreenData = {
 
 const fallbackArticles: ArticleRecommendation[] = [
   {
-    title: "Treino para iniciantes: como manter consistencia em casa",
+    title: "Treino para iniciantes: como manter consistência em casa",
     url: "https://horadotreino.com.br/treino-para-iniciantes-em-casa/",
     image: ARTICLE_PLACEHOLDER_IMAGE,
     tags: ["popular"],
@@ -333,7 +334,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
               EXCLUSIVO
             </span>
             <h2 className="max-w-xl text-2xl font-semibold text-white sm:text-3xl">
-              Quer um treino 100% personalizado para voce?
+              Quer um treino 100% personalizado para você?
             </h2>
             <p className="mt-3 max-w-xl text-sm text-white/78 sm:text-base">
               Treine com um personal que entende seus objetivos e monta seu plano do zero.
@@ -597,7 +598,7 @@ function ExerciseDisclosureCard({
     ...(techniqueText
       ? [
           {
-            label: "Como fazer a tecnica",
+            label: "Como fazer a técnica",
             content: techniqueText
           }
         ]
@@ -851,11 +852,11 @@ function buildExerciseSafetyText(
   blockType: ReturnType<typeof normalizeBlockTypeFallback>
 ) {
   if (blockType === "drop-set") {
-    return "Reduza a carga apenas se conseguir manter amplitude, controle e padrÃ£o de movimento.";
+    return "Reduza a carga apenas se conseguir manter amplitude, controle e padrão de movimento.";
   }
 
   if (blockType === "rest-pause") {
-    return "Interrompa a sequÃªncia se perder postura, ritmo ou controle tÃ©cnico.";
+    return "Interrompa a sequência se perder postura, ritmo ou controle técnico.";
   }
 
   if (exercise.type === "mobility") {
@@ -998,13 +999,13 @@ function formatRoundsValue(value?: string | null) {
 }
 
 function formatCoachCopy(value?: string | null) {
-  const raw = value?.trim();
+  const raw = normalizePtBrUiText(value);
 
   if (!raw) {
     return "";
   }
 
-  let text = raw.replace(/\s+/g, " ").replace(/\s+([,.;!?])/g, "$1");
+  let text = raw;
 
   const replacements: Array<[RegExp, string]> = [
     [/\bsessao\b/gi, "sessão"],
@@ -1087,7 +1088,7 @@ function formatGoal(goal?: string) {
   const labels: Record<string, string> = {
     lose_weight: "Emagrecimento",
     gain_muscle: "Hipertrofia",
-    body_recomposition: "Definicao",
+    body_recomposition: "Definição",
     improve_conditioning: "Condicionamento"
   };
 
@@ -1098,8 +1099,8 @@ function formatLevel(level?: string) {
   const labels: Record<string, string> = {
     no_training: "Iniciante",
     lt_6_months: "Iniciante",
-    "6_to_12_months": "Intermediario",
-    gt_1_year: "Avancado"
+    "6_to_12_months": "Intermediário",
+    gt_1_year: "Avançado"
   };
 
   return level ? labels[level] ?? "Nivel" : "Nivel";
@@ -1113,9 +1114,9 @@ function formatFocus(focus: string) {
   const labels: Record<string, string> = {
     chest: "Peito",
     back: "Costas",
-    quadriceps: "Quadriceps",
+    quadriceps: "Quadríceps",
     hamstrings: "Posterior",
-    glutes: "Gluteos",
+    glutes: "Glúteos",
     shoulders: "Ombros",
     full_body: "Corpo inteiro",
     conditioning: "Condicionamento"
@@ -1178,12 +1179,12 @@ function buildTechniqueObservation(
 function isGenericObservationText(value: string) {
   const normalized = normalizeSemanticText(value);
   const genericPatterns = [
-    "exercicio basico",
+    "exercício básico",
     "movimento para",
     "movimento de",
     "movimento basico",
-    "exercicio complementar",
-    "exercicio para",
+    "exercício complementar",
+    "exercício para",
     "fortalecimento",
     "cadeia posterior",
     "membros inferiores",
@@ -1192,7 +1193,7 @@ function isGenericObservationText(value: string) {
     "ritmo consistente",
     "amplitude segura",
     "postura estavel",
-    "tecnica proposta",
+    "técnica proposta",
     "tensao continua"
   ];
 

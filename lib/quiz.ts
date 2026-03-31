@@ -3,22 +3,22 @@ import { QuizAnswers } from "@/lib/types";
 export const quizSteps = [
   {
     key: "goal",
-    title: "Qual e o seu principal objetivo com o treino?",
-    description: "Usamos isso para definir a direcao do seu treino.",
+    title: "Qual é o seu principal objetivo com o treino?",
+    description: "Usamos isso para definir a direção do seu treino.",
     type: "choice",
     options: [
       { label: "Emagrecer", value: "lose_weight" },
       { label: "Ganhar massa muscular", value: "gain_muscle" },
-      { label: "Definicao", value: "body_recomposition" },
+      { label: "Definição", value: "body_recomposition" },
       { label: "Melhorar o condicionamento", value: "improve_conditioning" }
     ]
   },
   {
     key: "experience",
-    title: "Ha quanto tempo voce treina?",
+    title: "Há quanto tempo você treina?",
     type: "choice",
     options: [
-      { label: "Ainda nao treino", value: "no_training" },
+      { label: "Ainda não treino", value: "no_training" },
       { label: "Menos de 6 meses", value: "lt_6_months" },
       { label: "De 6 meses a 1 ano", value: "6_to_12_months" },
       { label: "Mais de 1 ano", value: "gt_1_year" }
@@ -26,8 +26,8 @@ export const quizSteps = [
   },
   {
     key: "gender",
-    title: "Genero",
-    description: "Usamos isso para ajustar a comunicacao e a distribuicao inicial do plano.",
+    title: "Gênero",
+    description: "Usamos isso para ajustar a comunicação e a distribuição inicial do plano.",
     type: "choice",
     options: [
       { label: "Masculino", value: "male" },
@@ -36,34 +36,34 @@ export const quizSteps = [
   },
   {
     key: "physical",
-    title: "Seus dados fisicos",
-    description: "Essas informacoes ajudam a montar um treino mais preciso.",
+    title: "Seus dados físicos",
+    description: "Essas informações ajudam a montar um treino mais preciso.",
     type: "physical"
   },
   {
     key: "profession",
-    title: "Qual e a sua profissao?",
+    title: "Qual é a sua profissão?",
     type: "text",
-    placeholder: "Ex: trabalho sentado, professor, etc"
+    placeholder: "Ex.: trabalho sentado, professor, etc."
   },
   {
     key: "situation",
-    title: "Qual situacao mais combina com voce?",
+    title: "Qual situação mais combina com você?",
     type: "choice",
     options: [
-      { label: "Eu comeco, mas nao consigo manter consistencia", value: "cant_stay_consistent" },
-      { label: "Eu treino, mas nao vejo resultados", value: "no_results" },
-      { label: "Nao sei se estou treinando corretamente", value: "dont_know_correctly" },
+      { label: "Eu começo, mas não consigo manter consistência", value: "cant_stay_consistent" },
+      { label: "Eu treino, mas não vejo resultados", value: "no_results" },
+      { label: "Não sei se estou treinando corretamente", value: "dont_know_correctly" },
       { label: "Sinto que poderia ter resultados melhores", value: "could_get_better" }
     ]
   },
   {
     key: "mindMuscle",
-    title: "Voce sente o musculo trabalhando durante os exercicios?",
+    title: "Você sente o músculo trabalhando durante os exercícios?",
     type: "choice",
     options: [
       { label: "Sim, claramente", value: "clear" },
-      { label: "As vezes", value: "sometimes" },
+      { label: "Às vezes", value: "sometimes" },
       { label: "Raramente", value: "rarely" },
       { label: "Nunca", value: "never" }
     ]
@@ -71,27 +71,27 @@ export const quizSteps = [
   {
     key: "wrist",
     title: "Com base na imagem, como os dedos se encontram no seu punho?",
-    description: "Envolva o punho com o polegar e o dedo medio.",
+    description: "Envolva o punho com o polegar e o dedo médio.",
     type: "choice",
     image: "https://horadotreino.com.br/wp-content/uploads/2026/03/treino-em-casa-gratis2.webp",
     options: [
-      { label: "Os dedos nao encostam", value: "dont_touch" },
+      { label: "Os dedos não encostam", value: "dont_touch" },
       { label: "Os dedos apenas encostam", value: "just_touch" },
-      { label: "Os dedos se sobrepoem", value: "overlap" }
+      { label: "Os dedos se sobrepõem", value: "overlap" }
     ]
   },
   {
     key: "injuries",
-    title: "Voce possui alguma lesao ou dor?",
-    description: "Essa etapa e opcional.",
+    title: "Você possui alguma lesão ou dor?",
+    description: "Essa etapa é opcional.",
     type: "textarea",
     placeholder: "Ex: dor no joelho, lombar, ombro...",
     optional: true
   },
   {
     key: "equipment",
-    title: "Quais desses materiais voce possui na sua casa?",
-    description: "Voce pode marcar mais de uma opcao.",
+    title: "Quais desses materiais você possui na sua casa?",
+    description: "Você pode marcar mais de uma opção.",
     type: "multi",
     options: [
       {
@@ -100,7 +100,7 @@ export const quizSteps = [
         icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-halteres.webp"
       },
       {
-        label: "Elasticos",
+        label: "Elásticos",
         value: "elasticos",
         icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-elasticos.webp"
       },
@@ -133,7 +133,7 @@ export const quizSteps = [
   },
   {
     key: "days",
-    title: "Quantos dias por semana voce consegue treinar?",
+    title: "Quantos dias por semana você consegue treinar?",
     type: "slider",
     min: 1,
     max: 7,
@@ -142,7 +142,7 @@ export const quizSteps = [
   },
   {
     key: "time",
-    title: "Quanto tempo voce tem para treinar?",
+    title: "Quanto tempo você tem para treinar?",
     type: "slider",
     min: 15,
     max: 90,
@@ -151,12 +151,12 @@ export const quizSteps = [
   },
   {
     key: "structuredPlan",
-    title: "Voce ja seguiu um plano de treino estruturado?",
+    title: "Você já seguiu um plano de treino estruturado?",
     type: "choice",
     options: [
       { label: "Sim, com um personal trainer", value: "coach" },
-      { label: "Sim, por conta propria", value: "self" },
-      { label: "Nao", value: "no" }
+      { label: "Sim, por conta própria", value: "self" },
+      { label: "Não", value: "no" }
     ]
   },
   {

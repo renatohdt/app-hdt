@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
-      return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Nao foi possivel carregar seu treino agora.", 500);
+      return jsonError("Não foi possível carregar seu treino agora.", 500);
     }
 
     const requestedUserId = request.nextUrl.searchParams.get("userId");
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (userError || !user) {
-      return jsonError("Sua sessao expirou. Faca login novamente.", 404);
+      return jsonError("Sua sessão expirou. Faça login novamente.", 404);
     }
 
     const { data: workout, error: workoutError } = await supabase
@@ -51,12 +51,12 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (workoutError) {
-      return jsonError("Nao foi possivel carregar seu treino agora.", 500);
+      return jsonError("Não foi possível carregar seu treino agora.", 500);
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, user.id);
     if (!savedAnswers) {
-      return jsonError("Nao foi possivel carregar seus dados agora.", 404);
+      return jsonError("Não foi possível carregar seus dados agora.", 404);
     }
 
     const healthConsentGranted = await hasUserConsent(supabase, user.id, "health");
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch {
-    return jsonError("Nao foi possivel carregar seu treino agora.", 500);
+    return jsonError("Não foi possível carregar seu treino agora.", 500);
   }
 }
 
@@ -106,12 +106,12 @@ export async function POST(request: Request) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
-      return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+      return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
     }
 
     const body = (await request.json().catch(() => ({}))) as { userId?: string };
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 
     if (!rateLimit.allowed) {
       logWarn("AI", "Workout generation rate limited", { user_id: userId });
-      return jsonError("Voce atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
+      return jsonError("Você atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
     }
 
     const { data: user, error: userError } = await supabase
@@ -137,12 +137,12 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (userError || !user) {
-      return jsonError("Sua sessao expirou. Faca login novamente.", 404);
+      return jsonError("Sua sessão expirou. Faça login novamente.", 404);
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, user.id);
     if (!savedAnswers) {
-      return jsonError("Nao foi possivel carregar seus dados agora.", 404);
+      return jsonError("Não foi possível carregar seus dados agora.", 404);
     }
 
     const healthConsentGranted = await hasUserConsent(supabase, user.id, "health");
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
     if (exercisesError) {
       logError("AI", "Exercise catalog load failed", { user_id: userId });
-      return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+      return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
     }
 
     const filteredExercises = filterExercisesForAI(answers, exercises ?? []);
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
 
     if (existingWorkoutError) {
       logError("AI", "Workout lookup failed", { user_id: user.id });
-      return jsonError("Nao foi possivel salvar seu treino no momento.", 500);
+      return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 
     const reusableWorkout = existingWorkout?.hash === workoutHash ? existingWorkout : null;
@@ -190,16 +190,16 @@ export async function POST(request: Request) {
         logInfo("AI", "Workout generation completed", { user_id: userId });
       } catch (error) {
         if (isOpenAIQuotaError(error)) {
-          return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 503);
+          return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 503);
         }
 
         logError("AI", "Workout generation failed", { user_id: userId });
-        return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+        return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
       }
     }
 
     if (!workout) {
-      return jsonError("Nao foi possivel salvar seu treino no momento.", 500);
+      return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 
     logInfo("AI", "Workout normalized", {
@@ -220,7 +220,7 @@ export async function POST(request: Request) {
       : await supabase.from("workouts").insert(workoutPayload);
 
     if (workoutResult.error) {
-      return jsonError("Nao foi possivel salvar seu treino no momento.", 500);
+      return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 
     return NextResponse.json({
@@ -253,6 +253,6 @@ export async function POST(request: Request) {
       }
     });
   } catch {
-    return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+    return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
   }
 }

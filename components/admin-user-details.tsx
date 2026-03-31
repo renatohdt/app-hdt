@@ -62,7 +62,7 @@ export function AdminUserDetails({ userId }: { userId: string }) {
         }
 
         if (!response.ok || !result.success || !result.data) {
-          throw new Error(result.error ?? "Nao foi possivel carregar o usuario.");
+          throw new Error(result.error ?? "Não foi possível carregar o usuário.");
         }
 
         if (active) {
@@ -71,7 +71,7 @@ export function AdminUserDetails({ userId }: { userId: string }) {
         }
       } catch (requestError) {
         if (active) {
-          setError(getRequestErrorMessage(requestError, "Nao foi possivel carregar o usuario."));
+          setError(getRequestErrorMessage(requestError, "Não foi possível carregar o usuário."));
         }
       }
     }
@@ -99,13 +99,13 @@ export function AdminUserDetails({ userId }: { userId: string }) {
       }>(response);
 
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error ?? "Nao foi possivel revelar os dados ampliados.");
+        throw new Error(result.error ?? "Não foi possível revelar os dados ampliados.");
       }
 
       setData(result.data);
       setError(null);
     } catch (requestError) {
-      setError(getRequestErrorMessage(requestError, "Nao foi possivel revelar os dados ampliados."));
+      setError(getRequestErrorMessage(requestError, "Não foi possível revelar os dados ampliados."));
     } finally {
       setIsLoadingSensitive(false);
     }
@@ -139,12 +139,12 @@ export function AdminUserDetails({ userId }: { userId: string }) {
           <p className="text-sm text-white/72">E-mail: {user.emailMasked}</p>
           <p className="text-sm text-white/72">Faixa etaria: {user.summary.ageLabel}</p>
           <p className="text-sm text-white/72">Objetivo: {user.summary.goal}</p>
-          <p className="text-sm text-white/72">Genero: {user.summary.gender}</p>
+          <p className="text-sm text-white/72">Gênero: {user.summary.gender}</p>
           <p className="text-sm text-white/72">Biotipo: {user.summary.bodyType}</p>
           <p className="text-sm text-white/72">Nivel: {user.summary.level}</p>
           <p className="text-sm text-white/72">Dias: {user.summary.days}</p>
           <p className="text-sm text-white/72">Tempo: {user.summary.time}</p>
-          <p className="text-sm text-white/72">Dados de saude: {user.summary.healthStatus}</p>
+          <p className="text-sm text-white/72">Dados de saúde: {user.summary.healthStatus}</p>
         </Card>
 
         <Card className="space-y-4 xl:col-span-1">
@@ -153,11 +153,11 @@ export function AdminUserDetails({ userId }: { userId: string }) {
           <p className="text-sm text-white/72">Total de sessoes: {workout.sectionCount}</p>
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.16em] text-white/45">Focos</p>
-            <p className="text-sm text-white/72">{workout.focus.length ? workout.focus.join(", ") : "Nao informado"}</p>
+            <p className="text-sm text-white/72">{workout.focus.length ? workout.focus.join(", ") : "Não informado"}</p>
           </div>
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.16em] text-white/45">Sessoes</p>
-            <p className="text-sm text-white/72">{workout.sections.length ? workout.sections.join(", ") : "Nenhuma sessao registrada"}</p>
+            <p className="text-sm text-white/72">{workout.sections.length ? workout.sections.join(", ") : "Nenhuma sessão registrada"}</p>
           </div>
         </Card>
 

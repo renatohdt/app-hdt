@@ -166,7 +166,7 @@ export function QuizForm() {
       startTransition(async () => {
         try {
           if (!isValidEmail(account.email)) {
-            throw new Error("Digite um e-mail valido.");
+            throw new Error("Digite um e-mail válido.");
           }
 
           if (account.password.trim().length < 6) {
@@ -179,7 +179,7 @@ export function QuizForm() {
 
           const supabase = createSupabaseBrowserClient();
           if (!supabase) {
-            throw new Error(getSupabaseBrowserSetupError() ?? "Falha ao inicializar o cliente de autenticacao.");
+            throw new Error(getSupabaseBrowserSetupError() ?? "Falha ao inicializar o cliente de autenticação.");
           }
 
           clientLogInfo("QUIZ SIGN UP STARTED", {
@@ -204,7 +204,7 @@ export function QuizForm() {
           }
 
           if (!signUpData.user?.id || !signUpData.session) {
-            throw new Error("Conta criada, mas a sessao nao foi iniciada corretamente.");
+            throw new Error("Conta criada, mas a sessão não foi iniciada corretamente.");
           }
 
           clientLogInfo("QUIZ SIGN UP USER CREATED", {
@@ -230,7 +230,7 @@ export function QuizForm() {
 
           if (!response.ok) {
             const payload = await parseJsonResponse<{ success: false; error?: string }>(response);
-            throw new Error(payload.error ?? "Erro na requisicao");
+            throw new Error(payload.error ?? "Erro na requisição.");
           }
 
           const payload = await parseJsonResponse<{
@@ -272,7 +272,7 @@ export function QuizForm() {
       <div className="mb-8 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Formulario</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Formulário</p>
             <p className="mt-2 text-sm text-white/60">
               Etapa {safeStepIndex + 1} de {quizSteps.length}
             </p>
@@ -301,7 +301,7 @@ export function QuizForm() {
             <div className="relative mx-auto max-w-2xl overflow-hidden rounded-[24px] border border-white/10 bg-black/35 p-2 sm:p-3">
               <Image
                 src={step.image}
-                alt="Referencia do teste de punho"
+                alt="Referência do teste de punho"
                 width={1200}
                 height={720}
                 sizes="(max-width: 640px) calc(100vw - 56px), (max-width: 1024px) min(100vw - 80px, 720px), 720px"
@@ -427,12 +427,12 @@ export function QuizForm() {
               className="min-h-16 w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 text-white outline-none transition focus:border-primary"
             />
             <div className="rounded-[24px] border border-primary/18 bg-primary/10 px-5 py-4 text-sm leading-6 text-white/76">
-              Seu treino e gerado com apoio de inteligencia artificial a partir das respostas do formulario. Voce pode solicitar revisao humana ou contestar a recomendacao na area de privacidade.
+              Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação na área de privacidade.
             </div>
             <p className="text-sm text-white/60">
-              Ao continuar, voce pode consultar nossa{" "}
+              Ao continuar, você pode consultar nossa{" "}
               <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
-                politica de privacidade
+                política de privacidade
               </Link>{" "}
               e acessar a{" "}
               <Link href="/privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
@@ -465,7 +465,7 @@ export function QuizForm() {
             <div className="space-y-4">
               <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-6 text-white/72">
                 <p>
-                  Aviso: Usamos seus dados fisicos e eventuais limitacoes para personalizar o treino com mais seguranca. Informacoes sobre dores, lesoes e saude sao opcionais e serao tratadas como dados sensiveis, com acesso restrito.
+                  Aviso: Usamos seus dados físicos e eventuais limitações para personalizar o treino com mais segurança. Informações sobre dores, lesões e saúde são opcionais e serão tratadas como dados sensíveis, com acesso restrito.
                 </p>
               </div>
               <label className="flex items-start gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-6 text-white/78">
@@ -486,18 +486,18 @@ export function QuizForm() {
                   className="mt-1 h-4 w-4 rounded border-white/20 accent-[#22c55e]"
                 />
                 <span>
-                  Autorizo o tratamento das minhas informacoes de saude e limitacoes fisicas para personalizacao do treino e prevencao de recomendacoes inadequadas.
+                  Autorizo o tratamento das minhas informações de saúde e limitações físicas para personalização do treino e prevenção de recomendações inadequadas.
                 </span>
               </label>
               <textarea
                 value={String(answers[step.key as keyof QuizAnswers] ?? "")}
                 onChange={(event) => updateCurrentAnswer(event.target.value)}
-                placeholder={healthConsentGranted ? step.placeholder : "Marque o consentimento acima para informar dores, lesoes ou limitacoes."}
+                placeholder={healthConsentGranted ? step.placeholder : "Marque o consentimento acima para informar dores, lesões ou limitações."}
                 rows={5}
                 disabled={!healthConsentGranted}
                 className="w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-white outline-none transition focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
               />
-              <p className="text-sm text-white/52">Se preferir, deixe esse campo em branco e siga sem informar dados de saude.</p>
+              <p className="text-sm text-white/52">Se preferir, deixe esse campo em branco e siga sem informar dados de saúde.</p>
             </div>
           </div>
         ) : (
@@ -535,7 +535,7 @@ export function QuizForm() {
       {isPending ? (
         <div className="mt-6 rounded-[24px] border border-primary/20 bg-primary/10 p-4">
           <p className="text-sm font-semibold text-primary">Montando seu treino personalizado...</p>
-          <p className="mt-1 text-sm text-white/64">Analisando seus dados para criar algo mais preciso para voce.</p>
+          <p className="mt-1 text-sm text-white/64">Analisando seus dados para criar algo mais preciso para você.</p>
           <div className="mt-4 space-y-2">
             {loadingMessages.map((message, index) => {
               const isActive = index === loadingStep;
@@ -568,7 +568,7 @@ export function QuizForm() {
   );
 }
 
-const loadingMessages = ["Analisando perfil", "Selecionando exercicios", "Montando treino"];
+const loadingMessages = ["Analisando perfil", "Selecionando exercícios", "Montando treino"];
 
 function PhysicalSlider({
   label,

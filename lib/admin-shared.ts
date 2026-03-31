@@ -42,7 +42,7 @@ export function getGoalLabel(goal?: QuizAnswers["goal"]) {
   const labels = {
     lose_weight: "Emagrecimento",
     gain_muscle: "Hipertrofia",
-    body_recomposition: "Definicao",
+    body_recomposition: "Definição",
     improve_conditioning: "Condicionamento"
   };
 
@@ -66,8 +66,8 @@ export function getLevelLabel(experience?: QuizAnswers["experience"]) {
   const labels = {
     no_training: "Iniciante",
     lt_6_months: "Iniciante",
-    "6_to_12_months": "Intermediario",
-    gt_1_year: "Avancado"
+    "6_to_12_months": "Intermediário",
+    gt_1_year: "Avançado"
   };
 
   return experience ? labels[experience] : "-";

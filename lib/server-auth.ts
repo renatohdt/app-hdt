@@ -48,7 +48,7 @@ export async function requireAuthenticatedUser(request: Request) {
   if (!user) {
     return {
       user: null,
-      response: jsonError("Sua sessao expirou. Faca login novamente.", 401)
+      response: jsonError("Sua sessão expirou. Faça login novamente.", 401)
     };
   }
 

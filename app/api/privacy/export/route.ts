@@ -61,12 +61,12 @@ type ExportPayload = {
 export async function GET(request: Request) {
   const auth = await requireAuthenticatedUser(request);
   if (auth.response || !auth.user) {
-    return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+    return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
   }
 
   const supabase = createSupabaseUserClient(request);
   if (!supabase) {
-    return jsonError("Nao foi possivel preparar a exportacao dos seus dados.", 500);
+    return jsonError("Não foi possível preparar a exportação dos seus dados.", 500);
   }
 
   const userId = auth.user.id;
@@ -116,7 +116,7 @@ export async function GET(request: Request) {
   ].filter(Boolean);
 
   if (errors.length) {
-    return jsonError("Nao foi possivel exportar seus dados no momento.", 500);
+    return jsonError("Não foi possível exportar seus dados no momento.", 500);
   }
 
   const quizAnswers = (answersResult.data?.answers ?? null) as Record<string, unknown> | null;

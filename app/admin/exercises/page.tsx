@@ -6,7 +6,7 @@ export default function AdminExercisesPage() {
     <section className="space-y-8">
       <SectionTitle
         eyebrow="Administracao"
-        title="Exercicios"
+        title="Exercícios"
         description="Cadastro rapido e tabela simples para revisar a biblioteca."
       />
 

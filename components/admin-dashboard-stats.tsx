@@ -37,16 +37,16 @@ export function AdminDashboardStats() {
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard label="Total de usuarios" value={stats.users} description="Base total de leads e alunos." />
+        <AdminStatCard label="Total de usuários" value={stats.users} description="Base total de leads e alunos." />
         <AdminStatCard label="Total de treinos" value={stats.workouts} description="Treinos gerados no banco." />
-        <AdminStatCard label="Total de exercicios" value={stats.exercises} description="Exercicios cadastrados na biblioteca." />
-        <AdminStatCard label="Quiz completos" value={stats.completions} description="Usuarios com respostas registradas." />
+        <AdminStatCard label="Total de exercícios" value={stats.exercises} description="Exercícios cadastrados na biblioteca." />
+        <AdminStatCard label="Quiz completos" value={stats.completions} description="Usuários com respostas registradas." />
       </div>
 
       <Card className="space-y-5">
         <div>
           <h2 className="text-2xl font-semibold">Funil basico</h2>
-          <p className="mt-2 text-sm text-white/64">Acompanhamento simples do fluxo principal com base na tabela de usuarios.</p>
+          <p className="mt-2 text-sm text-white/64">Acompanhamento simples do fluxo principal com base na tabela de usuários.</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">

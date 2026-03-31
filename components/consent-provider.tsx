@@ -302,7 +302,7 @@ export function ConsentProvider({
                 <>
                   <Button onClick={acceptAll}>Aceitar tudo</Button>
                   <Button variant="secondary" onClick={rejectNonEssential}>
-                    Recusar nao essenciais
+                    Recusar não essenciais
                   </Button>
                   <Button variant="ghost" onClick={openCustomization}>
                     Personalizar

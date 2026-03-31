@@ -69,7 +69,7 @@ export function PrivacyCenter() {
 
         const response = await fetchWithAuth("/api/consents");
         if (!response.ok) {
-          throw new Error("Nao foi possivel carregar suas preferencias de privacidade.");
+          throw new Error("Não foi possível carregar suas preferências de privacidade.");
         }
 
         const result = await parseJsonResponse<{ success: true; data: ConsentApiPayload }>(response);
@@ -88,7 +88,7 @@ export function PrivacyCenter() {
         if (active) {
           setFeedback({
             tone: "error",
-            text: error instanceof Error ? error.message : "Nao foi possivel carregar sua central de privacidade."
+            text: error instanceof Error ? error.message : "Não foi possível carregar sua central de privacidade."
           });
         }
       } finally {
@@ -117,17 +117,17 @@ export function PrivacyCenter() {
       {
         key: "analytics",
         title: "Analytics",
-        description: "Usado para medir uso de telas, eventos e conversoes internas do produto."
+        description: "Usado para medir uso de telas, eventos e conversões internas do produto."
       },
       {
         key: "ads",
         title: "Ads",
-        description: "Usado para Google AdSense e recursos publicitarios opcionais."
+        description: "Usado para Google AdSense e recursos publicitários opcionais."
       },
       {
         key: "marketing",
         title: "Marketing",
-        description: "Usado para Meta Pixel, automacoes e integrações de remarketing, como LeadLovers."
+        description: "Usado para Meta Pixel, automações e integrações de remarketing, como LeadLovers."
       }
     ],
     []
@@ -135,7 +135,7 @@ export function PrivacyCenter() {
 
   async function handleSaveConsents() {
     if (!hasConsentChanges) {
-      setFeedback({ tone: "info", text: "Nao ha alteracoes pendentes nos consentimentos opcionais." });
+      setFeedback({ tone: "info", text: "Não há alterações pendentes nos consentimentos opcionais." });
       return;
     }
 
@@ -163,17 +163,17 @@ export function PrivacyCenter() {
       }>(response);
 
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error ?? "Nao foi possivel atualizar seus consentimentos.");
+        throw new Error(result.error ?? "Não foi possível atualizar seus consentimentos.");
       }
 
       setConsentPayload(result.data);
-      setFeedback({ tone: "success", text: "Preferencias de privacidade atualizadas com sucesso." });
+      setFeedback({ tone: "success", text: "Preferências de privacidade atualizadas com sucesso." });
     } catch (error) {
       savePreferences(previousPreferences);
       setDraftPreferences(previousPreferences);
       setFeedback({
         tone: "error",
-        text: error instanceof Error ? error.message : "Nao foi possivel atualizar seus consentimentos."
+        text: error instanceof Error ? error.message : "Não foi possível atualizar seus consentimentos."
       });
     } finally {
       setSavingConsents(false);
@@ -188,7 +188,7 @@ export function PrivacyCenter() {
       const response = await fetchWithAuth("/api/privacy/export");
       if (!response.ok) {
         const result = await parseJsonResponse<{ success: false; error?: string }>(response);
-        throw new Error(result.error ?? "Nao foi possivel exportar seus dados.");
+        throw new Error(result.error ?? "Não foi possível exportar seus dados.");
       }
 
       const text = await response.text();
@@ -202,11 +202,11 @@ export function PrivacyCenter() {
       anchor.click();
       window.URL.revokeObjectURL(url);
 
-      setFeedback({ tone: "success", text: "Exportacao iniciada. O arquivo JSON foi preparado para download." });
+      setFeedback({ tone: "success", text: "Exportação iniciada. O arquivo JSON foi preparado para download." });
     } catch (error) {
       setFeedback({
         tone: "error",
-        text: error instanceof Error ? error.message : "Nao foi possivel exportar seus dados."
+        text: error instanceof Error ? error.message : "Não foi possível exportar seus dados."
       });
     } finally {
       setExportingData(false);
@@ -217,7 +217,7 @@ export function PrivacyCenter() {
     if (reviewReason.trim().length < 10) {
       setFeedback({
         tone: "error",
-        text: "Descreva o motivo da revisao humana com um pouco mais de contexto."
+        text: "Descreva o motivo da revisão humana com um pouco mais de contexto."
       });
       return;
     }
@@ -243,18 +243,18 @@ export function PrivacyCenter() {
       }>(response);
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Nao foi possivel registrar sua solicitacao.");
+        throw new Error(result.error ?? "Não foi possível registrar sua solicitação.");
       }
 
       setReviewReason("");
       setFeedback({
         tone: "success",
-        text: result.data?.message ?? "Solicitacao de revisao humana registrada com sucesso."
+        text: result.data?.message ?? "Solicitação de revisão humana registrada com sucesso."
       });
     } catch (error) {
       setFeedback({
         tone: "error",
-        text: error instanceof Error ? error.message : "Nao foi possivel registrar sua solicitacao."
+        text: error instanceof Error ? error.message : "Não foi possível registrar sua solicitação."
       });
     } finally {
       setSubmittingReview(false);
@@ -277,12 +277,12 @@ export function PrivacyCenter() {
       }>(response);
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Nao foi possivel excluir sua conta.");
+        throw new Error(result.error ?? "Não foi possível excluir sua conta.");
       }
 
       setFeedback({
         tone: "success",
-        text: result.data?.message ?? "Sua conta foi excluida com sucesso."
+        text: result.data?.message ?? "Sua conta foi excluída com sucesso."
       });
 
       await signOutAndRedirect({
@@ -292,7 +292,7 @@ export function PrivacyCenter() {
     } catch (error) {
       setFeedback({
         tone: "error",
-        text: error instanceof Error ? error.message : "Nao foi possivel excluir sua conta."
+        text: error instanceof Error ? error.message : "Não foi possível excluir sua conta."
       });
       setDeletingAccount(false);
     }
@@ -320,7 +320,7 @@ export function PrivacyCenter() {
             <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
             <h1 className="text-3xl font-semibold text-white">Entre para acessar sua central de privacidade</h1>
             <p className="text-sm text-white/66">
-              Aqui voce pode exportar seus dados, rever consentimentos e solicitar revisao humana do treino automatizado.
+              Aqui você pode exportar seus dados, rever consentimentos e solicitar revisão humana do treino automatizado.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href="/login" className="inline-flex">
@@ -328,7 +328,7 @@ export function PrivacyCenter() {
               </Link>
               <Link href="/politica-de-privacidade" className="inline-flex">
                 <Button variant="secondary" className="w-full sm:w-auto">
-                  Ver politica de privacidade
+                  Ver política de privacidade
                 </Button>
               </Link>
             </div>
@@ -363,7 +363,7 @@ export function PrivacyCenter() {
           <div className="space-y-2">
             <h2 className="text-xl font-semibold text-white">Consentimentos atuais</h2>
             <p className="text-sm text-white/64">
-              Atualize os consentimentos opcionais sempre que quiser. A revogacao passa a valer imediatamente para novas execucoes do app.
+              Atualize os consentimentos opcionais sempre que quiser. A revogação passa a valer imediatamente para novas execuções do app.
             </p>
           </div>
 
@@ -400,21 +400,21 @@ export function PrivacyCenter() {
               onClick={() => setDraftPreferences(preferences)}
               disabled={savingConsents || !hasConsentChanges}
             >
-              Descartar alteracoes
+              Descartar alterações
             </Button>
           </div>
         </Card>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Dados sensiveis e IA</h2>
+            <h2 className="text-xl font-semibold text-white">Dados sensíveis e IA</h2>
             <div className="space-y-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Dados sensiveis</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Dados sensíveis</p>
               <p className="text-sm text-white/78">
                 Usamos seus dados físicos e eventuais limitações para personalizar o treino com mais segurança. Informações sobre dores, lesões e saúde são opcionais e são tratadas como dados sensíveis, com acesso restrito.
               </p>
               <p className="text-sm text-white/58">
-                Status atual: {healthConsentGranted ? "consentimento registrado para dados sensiveis." : "nenhum consentimento sensivel ativo no momento."}
+                Status atual: {healthConsentGranted ? "consentimento registrado para dados sensíveis." : "nenhum consentimento sensível ativo no momento."}
               </p>
             </div>
 
@@ -424,36 +424,36 @@ export function PrivacyCenter() {
                 Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação.
               </p>
               <p className="text-sm text-white/58">
-                Aviso registrado: {aiNoticeAcknowledged ? "sim." : "ainda nao identificado."}
+                Aviso registrado: {aiNoticeAcknowledged ? "sim." : "ainda não identificado."}
               </p>
             </div>
           </Card>
 
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Exportacao de dados</h2>
+            <h2 className="text-xl font-semibold text-white">Exportação de dados</h2>
             <p className="text-sm text-white/64">
               Gere um arquivo JSON com perfil, respostas do quiz, treinos, consentimentos, eventos e metadados relevantes da sua conta.
             </p>
             <Button onClick={handleExportData} disabled={exportingData}>
-              {exportingData ? "Preparando exportacao..." : "Baixar meus dados"}
+              {exportingData ? "Preparando exportação..." : "Baixar meus dados"}
             </Button>
           </Card>
         </div>
 
         <Card className="space-y-4">
-          <h2 className="text-xl font-semibold text-white">Solicitar revisao humana</h2>
+          <h2 className="text-xl font-semibold text-white">Solicitar revisão humana</h2>
           <p className="text-sm text-white/64">
-            Se voce discordar do treino automatizado ou quiser contexto adicional, registre sua solicitacao abaixo.
+            Se você discordar do treino automatizado ou quiser contexto adicional, registre sua solicitação abaixo.
           </p>
           <textarea
             rows={5}
             value={reviewReason}
             onChange={(event) => setReviewReason(event.target.value)}
-            placeholder="Explique o que voce gostaria de contestar ou revisar no treino atual."
+            placeholder="Explique o que você gostaria de contestar ou revisar no treino atual."
             className="min-h-[140px] w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white outline-none transition focus:border-primary"
           />
           <Button onClick={handleSubmitReviewRequest} disabled={submittingReview}>
-            {submittingReview ? "Enviando solicitacao..." : "Solicitar revisao humana"}
+            {submittingReview ? "Enviando solicitação..." : "Solicitar revisão humana"}
           </Button>
         </Card>
 
@@ -463,7 +463,7 @@ export function PrivacyCenter() {
             Ao excluir sua conta, apagaremos seus dados de acesso, respostas do quiz, treinos e histórico interno, salvo o que precisarmos manter por obrigação legal ou segurança.
           </p>
           <p className="text-sm text-white/58">
-            Integracoes externas de marketing, anuncios e analytics podem exigir tratamento operacional complementar fora do app.
+            Integrações externas de marketing, anúncios e analytics podem exigir tratamento operacional complementar fora do app.
           </p>
           <Button variant="secondary" onClick={handleDeleteAccount} disabled={deletingAccount}>
             {deletingAccount ? "Excluindo conta..." : "Excluir minha conta"}

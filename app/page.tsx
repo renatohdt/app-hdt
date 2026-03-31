@@ -111,30 +111,23 @@ export default function HomePage() {
             </Link>
           </header>
 
-          <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-            <div className="space-y-5 text-center lg:pt-10 lg:text-left">
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-6xl">
-                Treino personalizado para fazer em casa, com método, estratégia e inteligência artificial.
-              </h1>
-              <p className="max-w-2xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
-                Responda ao formulário e receba um plano de treino criado com base no seu objetivo, rotina, nível de
-                experiência e limitações. Nada de treino genérico. Aqui você recebe uma estrutura pensada para a sua
-                realidade, para evoluir com mais segurança, consistência e resultado.
-              </p>
-              <div className="max-w-2xl space-y-4 text-sm leading-6 text-white/64 sm:text-base sm:leading-7">
-                <p>
-                  Nosso método combina a lógica de um personal trainer com a agilidade da inteligência artificial para
-                  montar treinos mais inteligentes, organizados e adaptados ao que você realmente precisa. Seja para
-                  emagrecer, ganhar massa muscular, definir o corpo ou melhorar o condicionamento, o plano é
-                  construído para funcionar na prática, dentro da sua rotina e com foco em treino em casa.
-                </p>
-                <p className="hidden sm:block">
-                  Treinar em casa não precisa significar improviso. Quando existe método, progressão e personalização,
-                  o treino deixa de ser aleatório e passa a ter direção. É isso que aumenta a chance de manter
-                  constância, evitar erros e alcançar resultado de verdade.
+          <section className="grid gap-8 lg:grid-cols-[0.88fr_1.12fr] lg:items-start lg:gap-10">
+            <div className="mx-auto flex w-full max-w-[20.5rem] flex-col items-center space-y-4 px-1 text-center sm:max-w-[28rem] sm:px-0 lg:mx-0 lg:max-w-[34rem] lg:items-start lg:pt-7 lg:text-left">
+              <div className="space-y-3">
+                <h1 className="mx-auto max-w-[11.5ch] text-[clamp(1.95rem,7.4vw,4.35rem)] font-semibold leading-[1.05] tracking-tight text-white lg:mx-0 lg:max-w-[12ch] lg:leading-[1.02]">
+                  Seu treino ideal para fazer em casa.
+                </h1>
+                <p className="mx-auto max-w-[19rem] text-[1.02rem] font-medium leading-6 text-white/82 sm:max-w-[26rem] sm:text-[1.2rem] sm:leading-7 lg:mx-0 lg:max-w-[30rem] lg:text-[1.35rem] lg:leading-8">
+                  Personalizado com inteligência artificial e lógica de personal trainer.
                 </p>
               </div>
-              <p className="max-w-2xl pt-1 text-sm font-medium text-white/84">
+
+              <p className="mx-auto max-w-[19.5rem] text-sm leading-6 text-white/66 sm:max-w-[26rem] sm:text-base sm:leading-7 lg:mx-0 lg:max-w-[30rem]">
+                Responda ao formulário e receba grátis seu plano inicial de treino, criado de acordo com seu objetivo,
+                rotina e nível.
+              </p>
+
+              <p className="mx-auto max-w-[18.5rem] pt-0.5 text-[13px] font-medium leading-5 text-white/48 sm:max-w-[24rem] sm:text-[15px] sm:leading-6 lg:mx-0 lg:max-w-[28rem] lg:pt-1">
                 Método desenvolvido por Renato Santiago, Personal Trainer.
               </p>
             </div>

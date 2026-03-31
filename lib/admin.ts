@@ -1,4 +1,4 @@
-﻿import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { QuizAnswers } from "@/lib/types";
 import { getUserAnswersMap } from "@/lib/user-answers";
@@ -108,7 +108,7 @@ export async function getAdminData() {
       errors: [
         {
           id: "config-error",
-          message: "Supabase nÃ£o configurado.",
+          message: "Supabase não configurado.",
           origin: "config",
           created_at: new Date().toISOString()
         }
@@ -152,13 +152,13 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       genderDistribution: [],
       goalDistribution: [],
       funnel: {
-        daily: buildFunnelPeriod([], startOfToday(), "Diario"),
+        daily: buildFunnelPeriod([], startOfToday(), "Diário"),
         weekly: buildFunnelPeriod([], startOfLastDays(7), "Semanal")
       },
       errors: [
         {
           id: "config-error",
-          message: "Supabase nÃ£o configurado.",
+          message: "Supabase não configurado.",
           origin: "config",
           created_at: new Date().toISOString()
         }
@@ -185,7 +185,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       genderDistribution: [],
       goalDistribution: [],
       funnel: {
-        daily: buildFunnelPeriod([], startOfToday(), "Diario"),
+        daily: buildFunnelPeriod([], startOfToday(), "Diário"),
         weekly: buildFunnelPeriod([], startOfLastDays(7), "Semanal")
       },
       errors: queryErrors
@@ -207,7 +207,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     genderDistribution: toDistribution(answersList.map((answers) => getGenderLabel(answers.gender))),
     goalDistribution: toDistribution(answersList.map((answers) => getGoalLabel(answers.goal))),
     funnel: {
-      daily: buildFunnelPeriod(events, startOfToday(), "Diario"),
+      daily: buildFunnelPeriod(events, startOfToday(), "Diário"),
       weekly: buildFunnelPeriod(events, startOfLastDays(7), "Semanal")
     },
     errors: [...queryErrors, ...getRecentSystemErrors(events)].slice(0, 10)
@@ -333,12 +333,12 @@ function buildFunnelPeriod(events: AdminEvent[], from: Date, label: string): Das
   const values = [
     {
       key: "home_view",
-      label: "Pagina inicial",
+      label: "Página inicial",
       value: countUniqueUsers(filtered, HOME_VIEW_EVENTS)
     },
     {
       key: "quiz_started",
-      label: "Iniciaram questionario",
+      label: "Iniciaram questionário",
       value: countUniqueUsers(filtered, QUIZ_START_EVENTS)
     },
     {
@@ -450,7 +450,7 @@ function getAgeBucket(answers: Partial<QuizAnswers> & Record<string, unknown>) {
     }
   }
 
-  return "NÃ£o informado";
+  return "Não informado";
 }
 
 function ageToBucket(age: number) {
@@ -560,11 +560,11 @@ export function getAlerts(users: AdminUser[], events: AdminEvent[]) {
   }).length;
 
   if (usersToday === 0) {
-    alerts.push("Nenhum novo usuario entrou hoje.");
+    alerts.push("Nenhum novo usuário entrou hoje.");
   }
 
   if (quizCompletedYesterday > 0 && quizCompletedToday < quizCompletedYesterday) {
-    alerts.push("Queda na conclusao do quiz em relacao a ontem.");
+    alerts.push("Queda na conclusão do quiz em relação a ontem.");
   }
 
   return alerts;
@@ -574,7 +574,7 @@ export function getGoalLabel(goal?: QuizAnswers["goal"]) {
   const labels = {
     lose_weight: "Emagrecimento",
     gain_muscle: "Hipertrofia",
-    body_recomposition: "Definicao",
+    body_recomposition: "Definição",
     improve_conditioning: "Condicionamento"
   };
 
@@ -587,7 +587,7 @@ export function getGenderLabel(gender?: QuizAnswers["gender"]) {
     female: "Feminino"
   };
 
-  return gender ? labels[gender] : "NÃ£o informado";
+  return gender ? labels[gender] : "Não informado";
 }
 
 export function getBodyTypeLabel(value?: QuizAnswers["wrist"] | QuizAnswers["body_type"] | string) {
@@ -598,8 +598,8 @@ export function getLevelLabel(experience?: QuizAnswers["experience"]) {
   const labels = {
     no_training: "Iniciante",
     lt_6_months: "Iniciante",
-    "6_to_12_months": "Intermediario",
-    gt_1_year: "Avancado"
+    "6_to_12_months": "Intermediário",
+    gt_1_year: "Avançado"
   };
 
   return experience ? labels[experience] : "-";

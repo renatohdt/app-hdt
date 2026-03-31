@@ -43,7 +43,7 @@ export function LoginForm() {
       });
 
       if (signInError || !data.session || !data.user) {
-        throw new Error("Usuário não encontrado ou credenciais inválidas");
+        throw new Error("Usuário não encontrado ou credenciais inválidas.");
       }
 
       router.push("/dashboard");
@@ -52,8 +52,8 @@ export function LoginForm() {
       clientLogError("LOGIN FLOW ERROR", submissionError);
       const friendlyMessage = getFriendlyAuthErrorMessage(submissionError);
       setError(
-        friendlyMessage === "Email ou senha inválidos."
-          ? "Usuário não encontrado ou credenciais inválidas"
+        friendlyMessage === "E-mail ou senha inválidos."
+          ? "Usuário não encontrado ou credenciais inválidas."
           : friendlyMessage
       );
     } finally {
@@ -83,8 +83,7 @@ export function LoginForm() {
         throw new Error(getSupabaseBrowserSetupError() ?? "Falha ao inicializar o cliente de autenticação.");
       }
 
-      const redirectTo =
-        typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
+      const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
 
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo
@@ -108,9 +107,7 @@ export function LoginForm() {
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Login</p>
         <h1 className="text-3xl font-semibold">Entre para acessar seu treino salvo</h1>
-        <p className="text-sm text-white/64">
-          Use o mesmo e-mail e senha cadastrados no formulário inicial.
-        </p>
+        <p className="text-sm text-white/64">Use o mesmo e-mail e senha cadastrados no formulário inicial.</p>
       </div>
 
       {error ? (
@@ -170,7 +167,7 @@ export function LoginForm() {
       <p className="mt-3 text-sm text-white/56">
         Consulte a{" "}
         <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
-          politica de privacidade
+          política de privacidade
         </Link>{" "}
         ou gerencie seus direitos na{" "}
         <Link href="/privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">

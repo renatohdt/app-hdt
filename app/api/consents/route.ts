@@ -18,12 +18,12 @@ type ConsentRequestBody = {
 export async function GET(request: Request) {
   const auth = await requireAuthenticatedUser(request);
   if (auth.response || !auth.user) {
-    return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+    return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
   }
 
   const supabase = createSupabaseUserClient(request);
   if (!supabase) {
-    return jsonError("Nao foi possivel carregar os consentimentos.", 500);
+    return jsonError("Não foi possível carregar os consentimentos.", 500);
   }
 
   try {
@@ -39,26 +39,26 @@ export async function GET(request: Request) {
       200
     );
   } catch {
-    return jsonError("Nao foi possivel carregar os consentimentos.", 500);
+    return jsonError("Não foi possível carregar os consentimentos.", 500);
   }
 }
 
 export async function POST(request: Request) {
   const auth = await requireAuthenticatedUser(request);
   if (auth.response || !auth.user) {
-    return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+    return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
   }
 
   const supabase = createSupabaseUserClient(request);
   if (!supabase) {
-    return jsonError("Nao foi possivel salvar os consentimentos.", 500);
+    return jsonError("Não foi possível salvar os consentimentos.", 500);
   }
 
   const body = (await request.json().catch(() => null)) as ConsentRequestBody | null;
   const normalizedConsents = normalizeConsentInput(body?.consents);
 
   if (!Object.keys(normalizedConsents).length) {
-    return jsonError("Nenhum consentimento valido foi informado.", 400);
+    return jsonError("Nenhum consentimento válido foi informado.", 400);
   }
 
   const result = await saveUserConsents(supabase, auth.user.id, normalizedConsents, {
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   });
 
   if (result.error) {
-    return jsonError("Nao foi possivel salvar os consentimentos.", 500);
+    return jsonError("Não foi possível salvar os consentimentos.", 500);
   }
 
   const consentMap = await getUserConsentMap(supabase, auth.user.id);

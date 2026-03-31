@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: Params) {
     const data = await getAdminUserDetail(params.id, includeSensitive);
 
     if (!data) {
-      return jsonError("Usuario nao encontrado.", 404);
+      return jsonError("Usuário não encontrado.", 404);
     }
 
     if (includeSensitive) {
@@ -42,6 +42,6 @@ export async function GET(request: Request, { params }: Params) {
     logError("ADMIN", "User details route failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel carregar o usuario.", 500);
+    return jsonError("Não foi possível carregar o usuário.", 500);
   }
 }

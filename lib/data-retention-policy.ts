@@ -31,7 +31,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
     destinationAfterWindow: "anonymize",
     automatedByDefault: false,
     notes:
-      "Nao existe expurgo automatico para contas ativas. A anonimizacao automatica so atua em registros previamente marcados com deleted_at/expires_at."
+      "Não existe expurgo automático para contas ativas. A anonimização automática só atua em registros previamente marcados com deleted_at/expires_at."
   },
   {
     table: "public.workouts",
@@ -41,7 +41,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
     destinationAfterWindow: "anonymize",
     automatedByDefault: false,
     notes:
-      "Nao ha limpeza automatica de treinos de contas ativas. A rotina anonimiza apenas registros ja marcados para descarte."
+      "Não há limpeza automática de treinos de contas ativas. A rotina anonimiza apenas registros já marcados para descarte."
   },
   {
     table: "public.analytics_events",
@@ -71,11 +71,11 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
     destinationAfterWindow: "operational_hold",
     automatedByDefault: false,
     notes:
-      "Nao ha expurgo automatico de consentimentos ativos. Campos de expiracao e deleted_at ficam preparados para uma politica juridica posterior."
+      "Não há expurgo automático de consentimentos ativos. Campos de expiração e deleted_at ficam preparados para uma política jurídica posterior."
   },
   {
     table: "public.workout_review_requests",
-    dataType: "Pedidos de revisao humana e contestacao do treino automatizado.",
+    dataType: "Pedidos de revisão humana e contestação do treino automatizado.",
     suggestedRetention: "24 meses para operacao e atendimento.",
     defaultWindowDays: 730,
     destinationAfterWindow: "delete",

@@ -40,7 +40,7 @@ export function AdminWorkoutsList() {
         }>(response);
 
         if (!response.ok || !result.success || !result.data) {
-          throw new Error(result.error ?? "Nao foi possivel carregar os treinos.");
+          throw new Error(result.error ?? "Não foi possível carregar os treinos.");
         }
 
         if (active) {
@@ -49,7 +49,7 @@ export function AdminWorkoutsList() {
         }
       } catch (requestError) {
         if (active) {
-          setError(getRequestErrorMessage(requestError, "Nao foi possivel carregar os treinos."));
+          setError(getRequestErrorMessage(requestError, "Não foi possível carregar os treinos."));
           setData({ users: [], workouts: [] });
         }
       }
@@ -69,7 +69,7 @@ export function AdminWorkoutsList() {
   }
 
   return (
-    <AdminTable headers={["Usuario", "Tipo", "Objetivo", "Criado em"]}>
+    <AdminTable headers={["Usuário", "Tipo", "Objetivo", "Criado em"]}>
       {data.workouts.length ? (
         data.workouts.map((workout) => {
           const user = userMap.get(workout.user_id);
@@ -77,9 +77,9 @@ export function AdminWorkoutsList() {
 
           return (
             <tr key={workout.id} className="border-b border-white/8 last:border-b-0">
-              <td className="px-5 py-4 text-sm text-white">{user?.name ?? "Usuario removido"}</td>
+              <td className="px-5 py-4 text-sm text-white">{user?.name ?? "Usuário removido"}</td>
               <td className="px-5 py-4 text-sm text-white/72">{type}</td>
-              <td className="px-5 py-4 text-sm text-white/72">{user?.summary.goal ?? "Nao informado"}</td>
+              <td className="px-5 py-4 text-sm text-white/72">{user?.summary.goal ?? "Não informado"}</td>
               <td className="px-5 py-4 text-sm text-white/72">{formatDate(workout.created_at)}</td>
             </tr>
           );

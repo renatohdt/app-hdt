@@ -23,6 +23,6 @@ export async function GET(request: Request) {
     logError("ADMIN", "Workouts route failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel carregar os treinos.", 500);
+    return jsonError("Não foi possível carregar os treinos.", 500);
   }
 }

@@ -1,7 +1,8 @@
-﻿import "server-only";
+import "server-only";
 import OpenAI from "openai";
 import { resolveBodyType } from "@/lib/body-type";
 import { createHmac } from "node:crypto";
+import { repairPtBrText } from "@/lib/pt-br-text";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import {
   buildCoachBrief,
@@ -88,7 +89,7 @@ function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY nao configurada.");
+    throw new Error("OPENAI_API_KEY não configurada.");
   }
 
   return new OpenAI({ apiKey });
@@ -170,7 +171,7 @@ export async function generateWorkoutWithAI(
   const filteredLibrary = filterExercisesForAI(answers, exerciseLibrary);
 
   if (!filteredLibrary.length) {
-    throw new Error("Nenhum exercicio elegivel foi encontrado para a IA.");
+    throw new Error("Nenhum exercício elegível foi encontrado para a IA.");
   }
 
   const availableExercises = filteredLibrary.map((exercise) => {
@@ -190,29 +191,30 @@ export async function generateWorkoutWithAI(
   });
 
   const promptMontagemTreino = [
-    "Voce e um personal trainer experiente.",
+    "Você é um personal trainer experiente.",
     "",
-    "Monte um plano de treino com logica real de prescricao, nao uma lista aleatoria de exercicios.",
-    "O treino precisa parecer prescrito por um personal trainer experiente: com inicio, bloco principal, acessorios e finalizacao coerente.",
+    "Monte um plano de treino com lógica real de prescrição, não uma lista aleatória de exercícios.",
+    "O treino precisa parecer prescrito por um personal trainer experiente: com início, bloco principal, acessórios e finalização coerente.",
+    "Responda sempre em português do Brasil, com acentuação, pontuação e caracteres UTF-8 corretos.",
     "",
     "REGRAS:",
-    "- decida a divisao com base na frequencia, nivel, tempo e equipamentos",
-    "- nao assuma full body para todos os perfis",
+    "- decida a divisão com base na frequência, nível, tempo e equipamentos",
+    "- não assuma full body para todos os perfis",
     "- organize em Treino A, Treino B, Treino C e assim por diante",
-    "- respeite recuperacao entre grupamentos primarios e secundarios",
-    "- use compostos antes de acessorios e isoladores",
-    "- inclua 1 exercicio de mobilidade ou ativacao por sessao",
-    "- sempre pense a sessao em 4 momentos: preparacao, bloco principal, acessorios/blocos combinados e finalizacao",
-    "- use APENAS os exercicios fornecidos",
-    "- nao invente exercicios",
-    "- nao repita o mesmo exercicio na mesma sessao",
+    "- respeite recuperação entre grupamentos primários e secundários",
+    "- use compostos antes de acessórios e isoladores",
+    "- inclua 1 exercício de mobilidade ou ativação por sessão",
+    "- sempre pense a sessão em 4 momentos: preparação, bloco principal, acessórios/blocos combinados e finalização",
+    "- use APENAS os exercícios fornecidos",
+    "- não invente exercícios",
+    "- não repita o mesmo exercício na mesma sessão",
     "- sets, reps e rest devem ser numeros inteiros fixos",
-    "- tecnicas avancadas devem ser pontuais e coerentes",
-    "- iniciantes podem receber superserie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderencia e continuar seguro",
-    "- intermediarios devem usar blocos combinados com frequencia moderada quando houver ganho de densidade ou melhor organizacao muscular",
-    "- avancados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessao em caos metabolico",
-    "- blocos combinados devem ser reais e coerentes, nao apenas exercicios aleatorios com o mesmo rótulo",
-    "- evite redundancia e respeite a relacao estimulo/fadiga",
+    "- técnicas avançadas devem ser pontuais e coerentes",
+    "- iniciantes podem receber supersérie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderência e continuar seguro",
+    "- intermediários devem usar blocos combinados com frequência moderada quando houver ganho de densidade ou melhor organização muscular",
+    "- avançados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessão em caos metabólico",
+    "- blocos combinados devem ser reais e coerentes, não apenas exercícios aleatórios com o mesmo rótulo",
+    "- evite redundância e respeite a relação estímulo/fadiga",
     "",
     "TIPOS DE BLOCO POSSIVEIS:",
     "- normal",
@@ -231,18 +233,18 @@ export async function generateWorkoutWithAI(
     "- circuit",
     "",
     "SE USAR BLOCO COMBINADO:",
-    "- una exercicios compativeis entre si",
+    "- una exercícios compatíveis entre si",
     "- organize a ordem corretamente",
     "- deixe claro quando o descanso acontece apenas ao final da volta",
-    "- reserve tecnicas mais agressivas para exercicios mais seguros e para alunos mais experientes",
+    "- reserve técnicas mais agressivas para exercícios mais seguros e para alunos mais experientes",
     "",
     "ESTRATEGIA BASE OBRIGATORIA:",
     JSON.stringify(buildCoachBrief(strategy), null, 2),
     "",
-    "DIAGNOSTICO DO USUARIO:",
+    "DIAGNÓSTICO DO USUÁRIO:",
     JSON.stringify(diagnosis, null, 2),
     "",
-    "DADOS DO USUARIO:",
+    "DADOS DO USUÁRIO:",
     JSON.stringify(
       {
         age: answers.age,
@@ -261,26 +263,26 @@ export async function generateWorkoutWithAI(
       2
     ),
     "",
-    "EXERCICIOS DISPONIVEIS:",
+    "EXERCÍCIOS DISPONÍVEIS:",
     JSON.stringify(availableExercises, null, 2),
     "",
     "RETORNE APENAS JSON NESTE FORMATO:",
     JSON.stringify(
       {
         splitType: strategy.splitType,
-        rationale: "justificativa curta da divisao",
+        rationale: "justificativa curta da divisão",
         sessionCount: strategy.dayCount,
-        progressionNotes: "observacao final de progressao",
+        progressionNotes: "observação final de progressão",
         plan: [
           {
             day: "A",
             title: "Treino A",
             splitType: strategy.splitType,
-            sessionFocus: "foco da sessao",
-            rationale: "por que essa sessao existe",
+            sessionFocus: "foco da sessão",
+            rationale: "por que essa sessão existe",
             exercises: [
               {
-                name: "nome do exercicio",
+                name: "nome do exercício",
                 blockType: "normal",
                 trainingTechnique: "tradicional",
                 primaryMuscles: ["quadriceps"],
@@ -288,8 +290,8 @@ export async function generateWorkoutWithAI(
                 sets: 3,
                 reps: 10,
                 rest: 60,
-                notes: "observacao curta",
-                rationale: "funcao do exercicio na sessao"
+                notes: "observação curta",
+                rationale: "função do exercício na sessão"
               }
             ]
           }
@@ -314,7 +316,7 @@ export async function generateWorkoutWithAI(
       messages: [
         {
           role: "system",
-          content: "Voce e um personal trainer especialista em treino personalizado."
+          content: "Você é um personal trainer especialista em treino personalizado e sempre responde em português do Brasil com acentuação correta."
         },
         {
           role: "user",
@@ -330,14 +332,14 @@ export async function generateWorkoutWithAI(
     });
 
     if (!treinoIA) {
-      throw new Error("A OpenAI nao retornou conteudo para o treino.");
+      throw new Error("A OpenAI não retornou conteúdo para o treino.");
     }
 
     const parsed = extractAiWorkoutResponse(treinoIA);
     const validated = validateAndBuildWorkoutPlan(parsed, answers, diagnosis, filteredLibrary, strategy);
 
     if (!validated) {
-      throw new Error("A resposta da IA nao passou na validacao do backend.");
+      throw new Error("A resposta da IA não passou na validação do backend.");
     }
 
     return validated;
@@ -349,7 +351,7 @@ export async function generateWorkoutWithAI(
     });
 
     if (isOpenAIQuotaError(error)) {
-      const quotaError = new Error("IA indisponivel no momento. Tente novamente mais tarde.") as OpenAIWorkoutError;
+      const quotaError = new Error("IA indisponível no momento. Tente novamente mais tarde.") as OpenAIWorkoutError;
       quotaError.code = "insufficient_quota";
       quotaError.status = 429;
       throw quotaError;
@@ -372,7 +374,7 @@ export async function runWorkoutTestPrompt(prompt = "Crie um treino de peito sim
   const content = response.choices[0]?.message?.content;
 
   if (!content) {
-    throw new Error("A OpenAI nao retornou conteudo.");
+    throw new Error("A OpenAI não retornou conteúdo.");
   }
 
   return content;
@@ -448,7 +450,7 @@ function validateAndBuildWorkoutPlan(
   }
 
   if (!normalizedPlan?.length) {
-    throw new Error("Formato invalido da IA");
+    throw new Error("Formato inválido da IA");
   }
 
   const exerciseMap = new Map<string, ExerciseLookup>(
@@ -513,7 +515,7 @@ function validateAndBuildWorkoutPlan(
   }
 
   if (!sections.length) {
-    throw new Error("Formato invalido da IA");
+    throw new Error("Formato inválido da IA");
   }
 
   return {
@@ -1426,7 +1428,7 @@ function matchesEquipment(exercise: ExerciseRecord, allowedEquipment: Set<string
 }
 
 function cleanText(value?: string | null) {
-  const normalized = value?.trim();
+  const normalized = repairPtBrText(value);
   return normalized ? normalized : "";
 }
 

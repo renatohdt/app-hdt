@@ -1,16 +1,18 @@
+import { repairPtBrText } from "@/lib/pt-br-text";
+
 export function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 export function getFriendlyAuthErrorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
+  const message = repairPtBrText(error instanceof Error ? error.message : String(error ?? ""));
   const normalized = message.toLowerCase();
 
   if (normalized.includes("already registered") || normalized.includes("already been registered")) {
     return "Este e-mail já está cadastrado.";
   }
 
-  if (normalized.includes("configuração do admin incompleta")) {
+  if (normalized.includes("configuração do admin incompleta") || normalized.includes("configuracao do admin incompleta")) {
     return "A configuração do admin no servidor está incompleta.";
   }
 
@@ -28,7 +30,7 @@ export function getFriendlyAuthErrorMessage(error: unknown) {
     normalized.includes("usuário não encontrado") ||
     normalized.includes("usuario nao encontrado")
   ) {
-    return "Usuário não encontrado ou credenciais inválidas";
+    return "Usuário não encontrado ou credenciais inválidas.";
   }
 
   if (normalized.includes("password should be at least") || normalized.includes("weak password")) {

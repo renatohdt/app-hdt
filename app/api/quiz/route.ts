@@ -24,12 +24,12 @@ export async function POST(request: Request) {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
       logWarn("AUTH", "Quiz submit denied", { reason: "unauthenticated" });
-      return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+      return jsonError("Não foi possível salvar seus dados no momento.", 500);
     }
 
     const body = (await request.json()) as QuizSubmissionBody;
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
 
     if (!rateLimit.allowed) {
       logWarn("AI", "Workout generation rate limited", { user_id: userId });
-      return jsonError("Voce atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
+      return jsonError("Você atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
     }
 
     const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : "Aluno";
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
 
     if (existingUserError) {
       logError("AUTH", "User profile lookup failed", { user_id: userId });
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+      return jsonError("Não foi possível salvar seus dados no momento.", 500);
     }
 
     let savedUser = existingUser;
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
       if (insertUserError || !insertedUser) {
         logError("AUTH", "User profile insert failed", { user_id: userId });
-        return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+        return jsonError("Não foi possível salvar seus dados no momento.", 500);
       }
 
       logInfo("AUTH", "User profile created successfully", {
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
 
     if (consentResult.error) {
       logError("PRIVACY", "Consent save failed", { user_id: savedUser.id });
-      return jsonError("Nao foi possivel salvar seus consentimentos no momento.", 500);
+      return jsonError("Não foi possível salvar seus consentimentos no momento.", 500);
     }
 
     const diagnosis = diagnoseUser(answers);
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
 
     if (exercisesError) {
       logError("AI", "Exercise catalog load failed", { user_id: userId });
-      return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+      return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
     }
 
     const filteredExercises = filterExercisesForAI(answers, exercises ?? []);
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
 
     if (existingWorkoutError) {
       logError("AI", "Workout lookup failed", { user_id: savedUser.id });
-      return jsonError("Nao foi possivel salvar seu treino no momento.", 500);
+      return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 
     const reusableWorkout = existingWorkout?.hash === workoutHash ? existingWorkout : null;
@@ -174,17 +174,17 @@ export async function POST(request: Request) {
       } catch (error) {
         if (isOpenAIQuotaError(error)) {
           logWarn("AI", "OpenAI unavailable", { user_id: userId });
-          return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 503);
+          return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 503);
         }
 
         logError("AI", "Workout generation failed", { user_id: userId });
-        return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+        return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
       }
     }
 
     if (!workout) {
       logError("AI", "Workout normalization failed", { user_id: userId });
-      return jsonError("Nao foi possivel salvar seu treino no momento.", 500);
+      return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 
     logInfo("AI", "Workout normalized", {
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
     const answersResult = await saveUserAnswers(supabase, savedUser.id, answers);
     if (answersResult.error) {
       logError("AUTH", "User answers save failed", { user_id: savedUser.id });
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+      return jsonError("Não foi possível salvar seus dados no momento.", 500);
     }
 
     if (requestedConsents.marketing === true) {
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
 
     if (workoutResult.error) {
       logError("AI", "Workout save failed", { user_id: savedUser.id });
-      return jsonError("Nao foi possivel salvar seu treino no momento.", 500);
+      return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 
     return NextResponse.json({
@@ -245,7 +245,7 @@ export async function POST(request: Request) {
     });
   } catch {
     logError("AI", "Workout validation failed", {});
-    return jsonError("Nao foi possivel gerar seu treino agora. Tente novamente.", 500);
+    return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
   }
 }
 

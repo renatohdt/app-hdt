@@ -11,19 +11,19 @@ type ReviewWorkoutRequestBody = {
 export async function POST(request: Request) {
   const auth = await requireAuthenticatedUser(request);
   if (auth.response || !auth.user) {
-    return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+    return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
   }
 
   const supabase = createSupabaseUserClient(request);
   if (!supabase) {
-    return jsonError("Nao foi possivel registrar sua solicitacao agora.", 500);
+    return jsonError("Não foi possível registrar sua solicitação agora.", 500);
   }
 
   const body = (await request.json().catch(() => null)) as ReviewWorkoutRequestBody | null;
   const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
 
   if (reason.length < 10) {
-    return jsonError("Descreva em poucas palavras o motivo da solicitacao de revisao humana.", 400);
+    return jsonError("Descreva em poucas palavras o motivo da solicitação de revisão humana.", 400);
   }
 
   const { data: workoutRow, error: workoutError } = await supabase
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (workoutError) {
-    return jsonError("Nao foi possivel localizar seu treino atual.", 500);
+    return jsonError("Não foi possível localizar seu treino atual.", 500);
   }
 
   const now = new Date().toISOString();
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
-    return jsonError("Nao foi possivel registrar sua solicitacao agora.", 500);
+    return jsonError("Não foi possível registrar sua solicitação agora.", 500);
   }
 
   return jsonSuccess(

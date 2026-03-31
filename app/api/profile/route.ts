@@ -76,12 +76,12 @@ export async function GET(request: Request) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
-      return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Nao foi possivel carregar seu perfil.", 500);
+      return jsonError("Não foi possível carregar seu perfil.", 500);
     }
 
     const userId = auth.user.id;
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
 
     if (userError || !userRow) {
       logWarn("PROFILE", "Profile load denied", { user_id: userId, reason: "missing_user_row" });
-      return jsonError("Nao foi possivel carregar seu perfil.", 404);
+      return jsonError("Não foi possível carregar seu perfil.", 404);
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, userId);
@@ -107,7 +107,7 @@ export async function GET(request: Request) {
       )
     );
   } catch {
-    return jsonError("Nao foi possivel carregar seu perfil.", 500);
+    return jsonError("Não foi possível carregar seu perfil.", 500);
   }
 }
 
@@ -115,17 +115,17 @@ export async function PATCH(request: Request) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
-      return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+      return jsonError("Não foi possível salvar seus dados no momento.", 500);
     }
 
     const body = (await request.json().catch(() => null)) as ProfileUpdateBody | null;
     if (!body) {
-      throw new ProfileValidationError("Nao foi possivel salvar seus dados no momento.");
+      throw new ProfileValidationError("Não foi possível salvar seus dados no momento.");
     }
 
     const userId = auth.user.id;
@@ -133,13 +133,13 @@ export async function PATCH(request: Request) {
 
     if (userError || !userRow) {
       logWarn("PROFILE", "Profile save denied", { user_id: userId, reason: "missing_user_row" });
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 404);
+      return jsonError("Não foi possível salvar seus dados no momento.", 404);
     }
 
     const currentAnswers = await getUserAnswersByUserId(supabase, userId);
     if (!currentAnswers) {
       logWarn("PROFILE", "Profile save denied", { user_id: userId, reason: "missing_answers" });
-      return jsonError("Nao foi possivel carregar seus dados no momento.", 404);
+      return jsonError("Não foi possível carregar seus dados no momento.", 404);
     }
 
     const { data: currentAuthUser } = await supabase.auth.getUser();
@@ -150,13 +150,13 @@ export async function PATCH(request: Request) {
     );
     const nextEmail = parseEmail(body.email, currentEmail);
     const nextName = parseRequiredText(body.name, "Informe seu nome.");
-    const nextGoal = parseEnumValue(body.goal, GOAL_OPTIONS, "Selecione um objetivo valido.");
-    const nextGender = parseEnumValue(body.gender, GENDER_OPTIONS, "Selecione um genero valido.");
-    const nextBodyType = parseEnumValue(body.body_type, BODY_TYPE_OPTIONS, "Selecione um biotipo valido.");
-    const nextAge = parseNumber(body.age, 12, 80, "Informe uma idade valida.");
-    const nextWeight = parseNumber(body.weight, 30, 200, "Informe um peso valido.");
-    const nextHeight = parseNumber(body.height, 140, 210, "Informe uma altura valida.");
-    const nextDays = parseNumber(body.days, 1, 7, "Informe uma frequencia valida.");
+    const nextGoal = parseEnumValue(body.goal, GOAL_OPTIONS, "Selecione um objetivo válido.");
+    const nextGender = parseEnumValue(body.gender, GENDER_OPTIONS, "Selecione um gênero válido.");
+    const nextBodyType = parseEnumValue(body.body_type, BODY_TYPE_OPTIONS, "Selecione um biotipo válido.");
+    const nextAge = parseNumber(body.age, 12, 80, "Informe uma idade válida.");
+    const nextWeight = parseNumber(body.weight, 30, 200, "Informe um peso válido.");
+    const nextHeight = parseNumber(body.height, 140, 210, "Informe uma altura válida.");
+    const nextDays = parseNumber(body.days, 1, 7, "Informe uma frequência válida.");
     const nextTime = parseTime(body.time);
     const nextProfession = parseText(body.profession);
     const nextInjuries = healthConsentGranted ? parseText(body.injuries) : "";
@@ -166,7 +166,7 @@ export async function PATCH(request: Request) {
     if (nextEmail !== currentEmail) {
       const adminSupabase = createSupabaseAdminClient();
       if (!adminSupabase) {
-        return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+        return jsonError("Não foi possível salvar seus dados no momento.", 500);
       }
 
       const { error: emailUpdateError } = await adminSupabase.auth.admin.updateUserById(userId, {
@@ -212,13 +212,13 @@ export async function PATCH(request: Request) {
 
     if (updateUserError || !updatedUser) {
       logError("PROFILE", "User row update failed", { user_id: userId });
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+      return jsonError("Não foi possível salvar seus dados no momento.", 500);
     }
 
     const answersResult = await saveUserAnswers(supabase, userId, nextAnswers);
     if (answersResult.error) {
       logError("PROFILE", "User answers update failed", { user_id: userId });
-      return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+      return jsonError("Não foi possível salvar seus dados no momento.", 500);
     }
 
     logInfo("PROFILE", "Profile updated", { user_id: userId });
@@ -238,7 +238,7 @@ export async function PATCH(request: Request) {
       return jsonError(error.message, error.status);
     }
 
-    return jsonError("Nao foi possivel salvar seus dados no momento.", 500);
+    return jsonError("Não foi possível salvar seus dados no momento.", 500);
   }
 }
 
@@ -292,7 +292,7 @@ function parseEmail(value: unknown, currentEmail: string) {
   const normalized = typeof value === "string" ? value.trim().toLowerCase() : currentEmail.trim().toLowerCase();
 
   if (!normalized || !isValidEmail(normalized)) {
-    throw new ProfileValidationError("Informe um e-mail valido.");
+    throw new ProfileValidationError("Informe um e-mail válido.");
   }
 
   return normalized;
@@ -309,10 +309,10 @@ function parseNumber(value: unknown, min: number, max: number, message: string) 
 }
 
 function parseTime(value: unknown) {
-  const parsed = parseNumber(value, 15, 90, "Informe um tempo valido.");
+  const parsed = parseNumber(value, 15, 90, "Informe um tempo válido.");
 
   if (!TIME_OPTIONS.includes(parsed)) {
-    throw new ProfileValidationError("Selecione um tempo de treino valido.");
+    throw new ProfileValidationError("Selecione um tempo de treino válido.");
   }
 
   return parsed;
@@ -357,12 +357,12 @@ function normalizeEmailUpdateError(message?: string) {
   const normalized = message?.toLowerCase() ?? "";
 
   if (normalized.includes("already") || normalized.includes("registered")) {
-    return "Este e-mail ja esta em uso.";
+    return "Este e-mail já está em uso.";
   }
 
   if (normalized.includes("invalid")) {
-    return "Nao foi possivel atualizar o e-mail informado.";
+    return "Não foi possível atualizar o e-mail informado.";
   }
 
-  return "Nao foi possivel atualizar seu e-mail no momento.";
+  return "Não foi possível atualizar seu e-mail no momento.";
 }

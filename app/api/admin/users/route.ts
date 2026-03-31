@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const { users, errors } = await getAdminData();
 
     if (errors.length && !users.length) {
-      return jsonError("Nao foi possivel carregar os usuarios.", 500);
+      return jsonError("Não foi possível carregar os usuários.", 500);
     }
 
     const sanitizedUsers = users.map((user) => ({
@@ -29,6 +29,6 @@ export async function GET(request: Request) {
     logError("ADMIN", "Users route failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel carregar os usuarios.", 500);
+    return jsonError("Não foi possível carregar os usuários.", 500);
   }
 }

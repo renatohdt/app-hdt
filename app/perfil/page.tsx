@@ -55,7 +55,7 @@ type FeedbackState = {
 const GOAL_OPTIONS = [
   { value: "lose_weight", label: "Emagrecimento" },
   { value: "gain_muscle", label: "Hipertrofia" },
-  { value: "body_recomposition", label: "Definicao" },
+  { value: "body_recomposition", label: "Definição" },
   { value: "improve_conditioning", label: "Condicionamento" }
 ];
 
@@ -85,7 +85,7 @@ const TIME_OPTIONS = [15, 30, 45, 60, 75, 90].map((value) => ({
 
 const EQUIPMENT_OPTIONS = [
   { value: "halteres", label: "Halteres" },
-  { value: "elasticos", label: "Elasticos" },
+  { value: "elasticos", label: "Elásticos" },
   { value: "fitball", label: "Fitball" },
   { value: "fita_suspensa", label: "Fita suspensa" },
   { value: "caneleira", label: "Caneleira" },
@@ -131,7 +131,7 @@ export default function PerfilPage() {
 
       if (!isSupabaseConfigured() || !supabase) {
         if (active) {
-          setError("Configuracao do Supabase indisponivel.");
+          setError("Configuração do Supabase indisponível.");
           setLoading(false);
         }
         return;
@@ -155,7 +155,7 @@ export default function PerfilPage() {
 
         if (!response.ok) {
           const result = await parseJsonResponse<{ success: false; error?: string }>(response);
-          throw new Error(result.error ?? "Nao foi possivel carregar seu perfil.");
+          throw new Error(result.error ?? "Não foi possível carregar seu perfil.");
         }
 
         const result = await parseJsonResponse<{ success: true; data: ProfilePayload }>(response);
@@ -167,7 +167,7 @@ export default function PerfilPage() {
         }
       } catch (requestError) {
         if (active) {
-          setError(requestError instanceof Error ? requestError.message : "Nao foi possivel carregar seu perfil.");
+          setError(requestError instanceof Error ? requestError.message : "Não foi possível carregar seu perfil.");
         }
       } finally {
         if (active) {
@@ -236,7 +236,7 @@ export default function PerfilPage() {
     }
 
     if (!isValidEmail(form.email)) {
-      setFeedback({ tone: "error", text: "Informe um e-mail valido." });
+      setFeedback({ tone: "error", text: "Informe um e-mail válido." });
       return;
     }
 
@@ -269,7 +269,7 @@ export default function PerfilPage() {
       const result = await parseJsonResponse<{ success: boolean; data?: ProfilePayload; error?: string }>(response);
 
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error ?? "Nao foi possivel salvar seu perfil.");
+        throw new Error(result.error ?? "Não foi possível salvar seu perfil.");
       }
 
       setPayload(result.data);
@@ -279,7 +279,7 @@ export default function PerfilPage() {
     } catch (saveError) {
       setFeedback({
         tone: "error",
-        text: saveError instanceof Error ? saveError.message : "Nao foi possivel salvar seu perfil."
+        text: saveError instanceof Error ? saveError.message : "Não foi possível salvar seu perfil."
       });
     } finally {
       setIsSaving(false);
@@ -316,7 +316,7 @@ export default function PerfilPage() {
       const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Nao foi possivel gerar seu treino agora.");
+        throw new Error(result.error ?? "Não foi possível gerar seu treino agora.");
       }
 
       router.push("/dashboard");
@@ -324,7 +324,7 @@ export default function PerfilPage() {
     } catch (generationError) {
       setFeedback({
         tone: "error",
-        text: generationError instanceof Error ? generationError.message : "Nao foi possivel gerar seu treino agora."
+        text: generationError instanceof Error ? generationError.message : "Não foi possível gerar seu treino agora."
       });
     } finally {
       setIsGenerating(false);
@@ -350,7 +350,7 @@ export default function PerfilPage() {
       <PageShell>
         <Container className="py-12">
           <Card className="mx-auto max-w-4xl space-y-3">
-            <h1 className="text-2xl font-semibold text-white">Nao foi possivel abrir seu perfil</h1>
+            <h1 className="text-2xl font-semibold text-white">Não foi possível abrir seu perfil</h1>
             <p className="text-sm text-white/64">{error ?? "Perfil indisponivel."}</p>
           </Card>
         </Container>
@@ -373,7 +373,7 @@ export default function PerfilPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-1">
               <p className="text-sm uppercase tracking-[0.24em] text-primary">Meu perfil</p>
-              <h1 className="text-3xl font-semibold text-white">Seus dados e preferencias</h1>
+              <h1 className="text-3xl font-semibold text-white">Seus dados e preferências</h1>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:justify-end">
@@ -404,7 +404,7 @@ export default function PerfilPage() {
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Informacoes basicas</h2>
+            <h2 className="text-xl font-semibold text-white">Informações básicas</h2>
             <ProfileGrid
               columns={1}
               items={[
@@ -417,7 +417,7 @@ export default function PerfilPage() {
                       placeholder="Seu nome"
                     />
                   ) : (
-                    <StaticValue>{payload.user.name || "Nao informado"}</StaticValue>
+                    <StaticValue>{payload.user.name || "Não informado"}</StaticValue>
                   )
                 },
                 {
@@ -427,10 +427,10 @@ export default function PerfilPage() {
                       type="email"
                       value={form.email}
                       onChange={(value) => updateForm(setForm, "email", value)}
-                      placeholder="voce@exemplo.com"
+                      placeholder="você@exemplo.com"
                     />
                   ) : (
-                    <StaticValue>{payload.user.email || "Nao informado"}</StaticValue>
+                    <StaticValue>{payload.user.email || "Não informado"}</StaticValue>
                   )
                 },
                 {
@@ -442,7 +442,7 @@ export default function PerfilPage() {
                       placeholder="Ex: trabalho sentado"
                     />
                   ) : (
-                    <StaticValue>{payload.answers.profession?.trim() || "Nao informado"}</StaticValue>
+                    <StaticValue>{payload.answers.profession?.trim() || "Não informado"}</StaticValue>
                   )
                 }
               ]}
@@ -450,7 +450,7 @@ export default function PerfilPage() {
           </Card>
 
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Dados fisicos</h2>
+            <h2 className="text-xl font-semibold text-white">Dados físicos</h2>
             <ProfileGrid
               columns={1}
               items={[
@@ -544,7 +544,7 @@ export default function PerfilPage() {
                 )
               },
               {
-                label: "Genero",
+                label: "Gênero",
                 content: isEditing ? (
                   <SelectField
                     value={form.gender}
@@ -556,7 +556,7 @@ export default function PerfilPage() {
                 )
               },
               {
-                label: "Biotipo fisico",
+                label: "Biotipo físico",
                 content: isEditing ? (
                   <SelectField
                     value={form.body_type}
@@ -635,14 +635,14 @@ export default function PerfilPage() {
             <p className="text-sm uppercase tracking-[0.24em] text-primary">Novo treino</p>
             <h2 className="text-xl font-semibold text-white">Gerar novo treino com os dados salvos</h2>
             <p className="text-sm text-white/64">
-              O treino so e recalculado quando voce clicar neste botao. Salvar o perfil nao dispara uma nova geracao.
+              O treino só é recalculado quando você clicar neste botão. Salvar o perfil não dispara uma nova geração.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-white/64">
               {isEditing
-                ? "Salve ou cancele a edicao atual antes de gerar um novo treino."
+                ? "Salve ou cancele a edição atual antes de gerar um novo treino."
                 : "Quando quiser atualizar seu plano, use os dados mais recentes que ficaram salvos no perfil."}
             </p>
 
@@ -661,7 +661,7 @@ export default function PerfilPage() {
             <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
             <h2 className="text-xl font-semibold text-white">Gerencie seus dados e consentimentos</h2>
             <p className="text-sm text-white/64">
-              Seu treino e gerado com apoio de inteligencia artificial a partir das respostas do formulario. Voce pode solicitar revisao humana ou contestar a recomendacao.
+              Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação.
             </p>
           </div>
 
@@ -671,7 +671,7 @@ export default function PerfilPage() {
             </Link>
             <Link href="/politica-de-privacidade" className="inline-flex">
               <Button variant="secondary" className="w-full sm:w-auto">
-                Ver politica de privacidade
+                Ver política de privacidade
               </Button>
             </Link>
           </div>
@@ -891,40 +891,40 @@ function normalizeEquipment(equipment?: string[]) {
 }
 
 function formatGoal(goal?: string) {
-  return GOAL_OPTIONS.find((option) => option.value === goal)?.label ?? "Nao informado";
+  return GOAL_OPTIONS.find((option) => option.value === goal)?.label ?? "Não informado";
 }
 
 function formatGender(gender?: string) {
-  return GENDER_OPTIONS.find((option) => option.value === gender)?.label ?? "Nao informado";
+  return GENDER_OPTIONS.find((option) => option.value === gender)?.label ?? "Não informado";
 }
 
 function formatBodyType(value?: string) {
-  return value ? formatBodyTypeLabel(value) : "Nao informado";
+  return value ? formatBodyTypeLabel(value) : "Não informado";
 }
 
 function formatDays(value?: number) {
   const days = Number(value);
-  return Number.isFinite(days) && days > 0 ? `${days} ${days === 1 ? "dia" : "dias"} por semana` : "Nao informado";
+  return Number.isFinite(days) && days > 0 ? `${days} ${days === 1 ? "dia" : "dias"} por semana` : "Não informado";
 }
 
 function formatTime(value?: number) {
   const minutes = Number(value);
-  return Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "Nao informado";
+  return Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "Não informado";
 }
 
 function formatAge(value?: number) {
   const age = Number(value);
-  return Number.isFinite(age) && age > 0 ? `${age} anos` : "Nao informado";
+  return Number.isFinite(age) && age > 0 ? `${age} anos` : "Não informado";
 }
 
 function formatWeight(value?: number) {
   const weight = Number(value);
-  return Number.isFinite(weight) && weight > 0 ? `${weight} kg` : "Nao informado";
+  return Number.isFinite(weight) && weight > 0 ? `${weight} kg` : "Não informado";
 }
 
 function formatHeight(value?: number) {
   const height = Number(value);
-  return Number.isFinite(height) && height > 0 ? `${height} cm` : "Nao informado";
+  return Number.isFinite(height) && height > 0 ? `${height} cm` : "Não informado";
 }
 
 function formatEquipment(value: string) {

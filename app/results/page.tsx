@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -47,7 +47,7 @@ function ResultsContent() {
 
     async function run() {
       if (!userId) {
-        setError("Usuario nao informado.");
+        setError("Usuário não informado.");
         setLoading(false);
         return;
       }
@@ -163,7 +163,7 @@ function ResultsContent() {
 function buildWorkoutSections(exercises: WorkoutExercise[]) {
   const chunks = [exercises.slice(0, 3), exercises.slice(3, 6), exercises.slice(6)];
   const labels = ["Treino A", "Treino B", "Treino C"];
-  const subtitles = ["Base principal", "Volume complementar", "Reforco e consistencia"];
+  const subtitles = ["Base principal", "Volume complementar", "Reforço e consistência"];
 
   return chunks
     .map((items, index) => ({
@@ -186,7 +186,7 @@ function ResultsLoadingState() {
             <p className="mt-6 text-sm uppercase tracking-[0.28em] text-primary">Analisando</p>
             <h1 className="mt-3 text-3xl font-semibold">Montando seu treino</h1>
             <p className="mt-3 max-w-md text-sm text-white/62">
-              Estamos organizando seu treino personalizado para voce comecar agora.
+              Estamos organizando seu treino personalizado para você começar agora.
             </p>
           </div>
         </Card>

@@ -34,7 +34,7 @@ export function AdminUsersList() {
         const result = await parseJsonResponse<{ success: boolean; data?: AdminUserRow[]; error?: string }>(response);
 
         if (!response.ok || !result.success) {
-          throw new Error(result.error ?? "Nao foi possivel carregar os usuarios.");
+          throw new Error(result.error ?? "Não foi possível carregar os usuários.");
         }
 
         if (active) {
@@ -44,7 +44,7 @@ export function AdminUsersList() {
       } catch (requestError) {
         if (active) {
           setUsers([]);
-          setError(getRequestErrorMessage(requestError, "Nao foi possivel carregar os usuarios."));
+          setError(getRequestErrorMessage(requestError, "Não foi possível carregar os usuários."));
         }
       }
     }
@@ -61,7 +61,7 @@ export function AdminUsersList() {
   }
 
   return (
-    <AdminTable headers={["E-mail", "Criado em", "Faixa etaria", "Objetivo", "Dias", "Tempo", "Genero", "Biotipo"]}>
+    <AdminTable headers={["E-mail", "Criado em", "Faixa etária", "Objetivo", "Dias", "Tempo", "Gênero", "Biotipo"]}>
       {users.length ? (
         users.map((user) => (
           <tr key={user.id} className="border-b border-white/8 last:border-b-0">
@@ -82,7 +82,7 @@ export function AdminUsersList() {
       ) : (
         <tr>
           <td colSpan={8} className="px-5 py-8 text-sm text-white/60">
-            {error ?? "Nenhum usuario encontrado."}
+            {error ?? "Nenhum usuário encontrado."}
           </td>
         </tr>
       )}

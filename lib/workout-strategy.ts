@@ -158,14 +158,14 @@ export function isAdvancedBlockType(value?: string | null) {
 
 export function formatSplitTypeLabel(value?: string | null) {
   const labels: Record<WorkoutSplitType, string> = {
-    full_body_single: "Full body unico",
+    full_body_single: "Full body único",
     full_body_repeated: "Full body repetido",
     full_body_ab: "Full body A/B",
-    full_body_emphasis: "Full body com enfases",
+    full_body_emphasis: "Full body com ênfases",
     upper_lower_full: "Upper / Lower / Full",
     upper_lower: "Upper / Lower",
     push_pull_legs_plus: "Push / Pull / Legs + complementares",
-    body_part_split: "Divisao por grupamentos"
+    body_part_split: "Divisão por grupamentos"
   };
 
   return value && value in labels ? labels[value as WorkoutSplitType] : "Plano personalizado";
@@ -290,45 +290,45 @@ function buildSessionBlueprints(
 ): SessionBlueprint[] {
   const base: Record<WorkoutSplitType, SessionBlueprint[]> = {
     full_body_single: [
-      session("A", "Treino A", "Full body completo com foco em grandes padroes", "Um unico treino precisa cobrir empurrar, puxar e pernas sem inflar o volume.", ["quadriceps", "chest", "back"], ["glutes", "shoulders", "abs"], ["mobility", "normal"])
+      session("A", "Treino A", "Full body completo com foco em grandes padrões", "Um único treino precisa cobrir empurrar, puxar e pernas sem inflar o volume.", ["quadriceps", "chest", "back"], ["glutes", "shoulders", "abs"], ["mobility", "normal"])
     ],
     full_body_repeated: [
-      session("A", "Treino A", "Full body base com enfase em agachar e empurrar", "A repeticao controlada acelera aprendizado motor e consistencia.", ["quadriceps", "chest", "back"], ["glutes", "triceps", "abs"], ["mobility", "normal"]),
-      session("B", "Treino B", "Full body base com enfase em puxar e cadeia posterior", "Mantem o corpo inteiro estimulado, mas alterna o foco para recuperar melhor.", ["hamstrings", "back", "glutes"], ["shoulders", "biceps", "abs"], ["mobility", "normal"])
+      session("A", "Treino A", "Full body base com ênfase em agachar e empurrar", "A repetição controlada acelera aprendizado motor e consistência.", ["quadriceps", "chest", "back"], ["glutes", "triceps", "abs"], ["mobility", "normal"]),
+      session("B", "Treino B", "Full body base com ênfase em puxar e cadeia posterior", "Mantém o corpo inteiro estimulado, mas alterna o foco para recuperar melhor.", ["hamstrings", "back", "glutes"], ["shoulders", "biceps", "abs"], ["mobility", "normal"])
     ],
     full_body_ab: [
-      session("A", "Treino A", "Full body com enfase em quadriceps, peito e costas", "Distribui volume alto nos grandes grupamentos sem sobrecarregar os mesmos secundarios no treino seguinte.", ["quadriceps", "chest", "back"], ["glutes", "triceps", "abs"], ["mobility", "normal", "superset"]),
-      session("B", "Treino B", "Full body com enfase em posterior, ombros e bracos", "Completa a semana com dominante de quadril e mais espaco para ombros e bracos.", ["hamstrings", "glutes", "shoulders"], ["back", "biceps", "triceps"], ["mobility", "normal", "superset"])
+      session("A", "Treino A", "Full body com ênfase em quadríceps, peito e costas", "Distribui volume alto nos grandes grupamentos sem sobrecarregar os mesmos secundários no treino seguinte.", ["quadriceps", "chest", "back"], ["glutes", "triceps", "abs"], ["mobility", "normal", "superset"]),
+      session("B", "Treino B", "Full body com ênfase em posterior, ombros e braços", "Completa a semana com dominante de quadril e mais espaço para ombros e braços.", ["hamstrings", "glutes", "shoulders"], ["back", "biceps", "triceps"], ["mobility", "normal", "superset"])
     ],
     full_body_emphasis: [
-      session("A", "Treino A", "Full body com enfase em quadriceps e empurrar", "Abre a semana com exercicios multiarticulares e volume controlado nas prioridades.", ["quadriceps", "chest", "shoulders"], ["triceps", "abs", "glutes"], ["mobility", "normal", "superset"]),
-      session("B", "Treino B", "Full body com enfase em puxar e posterior", "Equilibra a recuperacao dos ombros e melhora o volume de costas e cadeia posterior.", ["back", "hamstrings", "glutes"], ["biceps", "abs", "shoulders"], ["mobility", "normal", "superset"]),
-      session("C", "Treino C", "Full body com densidade e foco complementar", "Fecha a rotacao reforcando pontos fracos sem repetir o mesmo padrao pesado em dias seguidos.", ["chest", "back", "glutes"], ["quadriceps", "shoulders", "abs"], ["mobility", "normal", goalStyle === "conditioning" ? "circuit" : "bi-set"])
+      session("A", "Treino A", "Full body com ênfase em quadríceps e empurrar", "Abre a semana com exercícios multiarticulares e volume controlado nas prioridades.", ["quadriceps", "chest", "shoulders"], ["triceps", "abs", "glutes"], ["mobility", "normal", "superset"]),
+      session("B", "Treino B", "Full body com ênfase em puxar e posterior", "Equilibra a recuperação dos ombros e melhora o volume de costas e cadeia posterior.", ["back", "hamstrings", "glutes"], ["biceps", "abs", "shoulders"], ["mobility", "normal", "superset"]),
+      session("C", "Treino C", "Full body com densidade e foco complementar", "Fecha a rotação reforçando pontos fracos sem repetir o mesmo padrão pesado em dias seguidos.", ["chest", "back", "glutes"], ["quadriceps", "shoulders", "abs"], ["mobility", "normal", goalStyle === "conditioning" ? "circuit" : "bi-set"])
     ],
     upper_lower_full: [
-      session("A", "Treino A", "Upper equilibrado com prioridade para compostos", "Concentra os maiores movimentos de empurrar e puxar na mesma sessao.", ["chest", "back", "shoulders"], ["triceps", "biceps", "abs"], ["mobility", "normal", "superset"]),
-      session("B", "Treino B", "Lower com enfase em quadriceps e cadeia posterior", "Agrupa os movimentos de pernas para dar recuperacao real ao tronco e aos secundarios.", ["quadriceps", "hamstrings", "glutes"], ["calves", "abs"], ["mobility", "normal"]),
-      session("C", "Treino C", "Full body de reforco com foco em eficiencia", "Mantem frequencia alta dos basicos sem repetir o mesmo stress dos dois treinos anteriores.", ["back", "chest", "glutes"], ["shoulders", "biceps", "triceps"], ["mobility", "normal", goalStyle === "conditioning" ? "circuit" : "bi-set"])
+      session("A", "Treino A", "Upper equilibrado com prioridade para compostos", "Concentra os maiores movimentos de empurrar e puxar na mesma sessão.", ["chest", "back", "shoulders"], ["triceps", "biceps", "abs"], ["mobility", "normal", "superset"]),
+      session("B", "Treino B", "Lower com ênfase em quadríceps e cadeia posterior", "Agrupa os movimentos de pernas para dar recuperação real ao tronco e aos secundários.", ["quadriceps", "hamstrings", "glutes"], ["calves", "abs"], ["mobility", "normal"]),
+      session("C", "Treino C", "Full body de reforço com foco em eficiência", "Mantém frequência alta dos básicos sem repetir o mesmo stress dos dois treinos anteriores.", ["back", "chest", "glutes"], ["shoulders", "biceps", "triceps"], ["mobility", "normal", goalStyle === "conditioning" ? "circuit" : "bi-set"])
     ],
     upper_lower: [
-      session("A", "Treino A", "Upper com enfase em empurrar e dorsais", "Combina presses e remadas para melhor custo-beneficio de volume.", ["chest", "back", "shoulders"], ["triceps", "biceps"], ["mobility", "normal", "superset"]),
-      session("B", "Treino B", "Lower dominante de quadriceps", "Prioriza joelho e gluteos sem misturar fadiga excessiva de tronco.", ["quadriceps", "glutes", "calves"], ["abs", "hamstrings"], ["mobility", "normal"]),
-      session("C", "Treino C", "Upper com enfase em costas e ombros", "Redistribui os secundarios para reduzir sobreposicao com o treino A.", ["back", "shoulders", "biceps"], ["chest", "triceps"], ["mobility", "normal", "bi-set"]),
-      session("D", "Treino D", "Lower dominante de quadril e posterior", "Fecha a rotacao com maior foco em cadeia posterior e estabilidade.", ["hamstrings", "glutes", "abs"], ["quadriceps", "calves"], ["mobility", "normal"])
+      session("A", "Treino A", "Upper com ênfase em empurrar e dorsais", "Combina presses e remadas para melhor custo-benefício de volume.", ["chest", "back", "shoulders"], ["triceps", "biceps"], ["mobility", "normal", "superset"]),
+      session("B", "Treino B", "Lower dominante de quadríceps", "Prioriza joelho e glúteos sem misturar fadiga excessiva de tronco.", ["quadriceps", "glutes", "calves"], ["abs", "hamstrings"], ["mobility", "normal"]),
+      session("C", "Treino C", "Upper com ênfase em costas e ombros", "Redistribui os secundários para reduzir sobreposição com o treino A.", ["back", "shoulders", "biceps"], ["chest", "triceps"], ["mobility", "normal", "bi-set"]),
+      session("D", "Treino D", "Lower dominante de quadril e posterior", "Fecha a rotação com maior foco em cadeia posterior e estabilidade.", ["hamstrings", "glutes", "abs"], ["quadriceps", "calves"], ["mobility", "normal"])
     ],
     push_pull_legs_plus: [
-      session("A", "Treino A", "Push com foco em peitoral, deltoide anterior e triceps", "Agrupa os movimentos de empurrar para progressao mais objetiva.", ["chest", "shoulders", "triceps"], ["abs"], ["mobility", "normal", "superset"]),
-      session("B", "Treino B", "Pull com foco em dorsais, romboides e biceps", "Mantem a recuperacao do peitoral e melhora a densidade de costas.", ["back", "biceps", "shoulders"], ["abs"], ["mobility", "normal", "superset"]),
-      session("C", "Treino C", "Legs com foco em quadriceps e gluteos", "Reserva um dia inteiro para pernas com melhor controle de volume.", ["quadriceps", "glutes", "hamstrings"], ["calves", "abs"], ["mobility", "normal"]),
-      session("D", "Treino D", "Upper complementar com enfase em ombros e bracos", "Aumenta a frequencia do tronco sem repetir o mesmo stress pesado do inicio da rotacao.", ["shoulders", "biceps", "triceps"], ["chest", "back"], ["mobility", "normal", "bi-set"]),
-      session("E", "Treino E", goalStyle === "conditioning" ? "Sessao metabolica controlada" : "Lower posterior e reforco do core", goalStyle === "conditioning" ? "Usa densidade para gasto energetico sem virar cardio aleatorio." : "Complementa a semana com posterior e estabilidade.", goalStyle === "conditioning" ? ["glutes", "hamstrings", "abs"] : ["hamstrings", "glutes", "abs"], ["calves", "back"], ["mobility", goalStyle === "conditioning" ? "circuit" : "normal", goalStyle === "hypertrophy" ? "drop-set" : "superset"])
+      session("A", "Treino A", "Push com foco em peitoral, deltoide anterior e tríceps", "Agrupa os movimentos de empurrar para progressão mais objetiva.", ["chest", "shoulders", "triceps"], ["abs"], ["mobility", "normal", "superset"]),
+      session("B", "Treino B", "Pull com foco em dorsais, romboides e bíceps", "Mantém a recuperação do peitoral e melhora a densidade de costas.", ["back", "biceps", "shoulders"], ["abs"], ["mobility", "normal", "superset"]),
+      session("C", "Treino C", "Legs com foco em quadríceps e glúteos", "Reserva um dia inteiro para pernas com melhor controle de volume.", ["quadriceps", "glutes", "hamstrings"], ["calves", "abs"], ["mobility", "normal"]),
+      session("D", "Treino D", "Upper complementar com ênfase em ombros e braços", "Aumenta a frequência do tronco sem repetir o mesmo stress pesado do início da rotação.", ["shoulders", "biceps", "triceps"], ["chest", "back"], ["mobility", "normal", "bi-set"]),
+      session("E", "Treino E", goalStyle === "conditioning" ? "Sessão metabólica controlada" : "Lower posterior e reforço do core", goalStyle === "conditioning" ? "Usa densidade para gasto energético sem virar cardio aleatório." : "Complementa a semana com posterior e estabilidade.", goalStyle === "conditioning" ? ["glutes", "hamstrings", "abs"] : ["hamstrings", "glutes", "abs"], ["calves", "back"], ["mobility", goalStyle === "conditioning" ? "circuit" : "normal", goalStyle === "hypertrophy" ? "drop-set" : "superset"])
     ],
     body_part_split: [
-      session("A", "Treino A", "Peito e triceps com presses pesados e complementares", "Permite maior especificidade para hipertrofia sem misturar demandas conflitantes.", ["chest", "triceps"], ["shoulders"], ["mobility", "normal", "superset", "drop-set"]),
-      session("B", "Treino B", "Costas e biceps com foco em largura e espessura", "Agrupa puxadas e remadas com espaco para acessorios de biceps.", ["back", "biceps"], ["shoulders"], ["mobility", "normal", "superset", "rest-pause"]),
-      session("C", "Treino C", "Pernas com dominante de quadriceps", "Cria uma sessao forte para quadriceps e gluteos sem comprometer a recuperacao posterior.", ["quadriceps", "glutes"], ["calves", "abs"], ["mobility", "normal", "drop-set"]),
-      session("D", "Treino D", "Ombros e parte superior complementar", "Aumenta a frequencia dos deltoides e estabilizadores do tronco.", ["shoulders", "chest", "back"], ["triceps", "biceps"], ["mobility", "normal", "bi-set"]),
-      session("E", "Treino E", "Posterior, gluteos e bracos complementares", "Fecha a semana com posterior e tecnicas de intensificacao em exercicios mais seguros.", ["hamstrings", "glutes", "biceps"], ["triceps", "abs"], ["mobility", "normal", "rest-pause", "drop-set"])
+      session("A", "Treino A", "Peito e tríceps com presses pesados e complementares", "Permite maior especificidade para hipertrofia sem misturar demandas conflitantes.", ["chest", "triceps"], ["shoulders"], ["mobility", "normal", "superset", "drop-set"]),
+      session("B", "Treino B", "Costas e bíceps com foco em largura e espessura", "Agrupa puxadas e remadas com espaço para acessórios de bíceps.", ["back", "biceps"], ["shoulders"], ["mobility", "normal", "superset", "rest-pause"]),
+      session("C", "Treino C", "Pernas com dominante de quadríceps", "Cria uma sessão forte para quadríceps e glúteos sem comprometer a recuperação posterior.", ["quadriceps", "glutes"], ["calves", "abs"], ["mobility", "normal", "drop-set"]),
+      session("D", "Treino D", "Ombros e parte superior complementar", "Aumenta a frequência dos deltoides e estabilizadores do tronco.", ["shoulders", "chest", "back"], ["triceps", "biceps"], ["mobility", "normal", "bi-set"]),
+      session("E", "Treino E", "Posterior, glúteos e braços complementares", "Fecha a semana com posterior e técnicas de intensificação em exercícios mais seguros.", ["hamstrings", "glutes", "biceps"], ["triceps", "abs"], ["mobility", "normal", "rest-pause", "drop-set"])
     ]
   };
 
@@ -411,16 +411,16 @@ function buildSplitRationale(
   const density = timeAvailable <= 35 ? "com sessoes mais densas e objetivas" : "com volume suficiente para cada grupamento";
   const levelNote =
     level === "beginner"
-      ? "favorecendo aprendizado motor e seguranca"
+      ? "favorecendo aprendizado motor e segurança"
       : level === "intermediate"
-        ? "equilibrando progressao e recuperacao"
+        ? "equilibrando progressão e recuperação"
         : "permitindo mais especificidade e refinamento";
   const goalNote =
     goalStyle === "hypertrophy"
       ? "com foco em volume eficiente"
       : goalStyle === "conditioning"
         ? "com foco em densidade e condicionamento"
-        : "com foco em eficiencia e preservacao muscular";
+        : "com foco em eficiência e preservação muscular";
 
   return `${base} ${density}, ${levelNote} e ${goalNote}.`;
 }

@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
     const supabase = createSupabaseAdminClient();
     if (!supabase) {
-      return jsonError("Nao foi possivel carregar os exercicios.", 500);
+      return jsonError("Não foi possível carregar os exercícios.", 500);
     }
 
     const { searchParams } = new URL(request.url);
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
     if (error) {
       logError("ADMIN", "Exercises fetch failed", { error: error.message });
-      return jsonError("Nao foi possivel carregar os exercicios.", 500);
+      return jsonError("Não foi possível carregar os exercícios.", 500);
     }
 
     return jsonSuccess(data ?? [], 200);
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     logError("ADMIN", "Exercises GET failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel carregar os exercicios.", 500);
+    return jsonError("Não foi possível carregar os exercícios.", 500);
   }
 }
 
@@ -65,7 +65,7 @@ export async function DELETE(request: Request) {
 
     const supabase = createSupabaseAdminClient();
     if (!supabase) {
-      return jsonError("Nao foi possivel deletar o exercicio.", 500);
+      return jsonError("Não foi possível deletar o exercício.", 500);
     }
 
     const body = (await request.json()) as { id?: string };
@@ -78,7 +78,7 @@ export async function DELETE(request: Request) {
 
     if (error) {
       logError("ADMIN", "Exercise delete failed", { error: error.message });
-      return jsonError("Nao foi possivel deletar o exercicio.", 500);
+      return jsonError("Não foi possível deletar o exercício.", 500);
     }
 
     await recordAdminAuditLog({
@@ -95,7 +95,7 @@ export async function DELETE(request: Request) {
     logError("ADMIN", "Exercises DELETE failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel deletar o exercicio.", 500);
+    return jsonError("Não foi possível deletar o exercício.", 500);
   }
 }
 
@@ -106,7 +106,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
 
     const supabase = createSupabaseAdminClient();
     if (!supabase) {
-      return jsonError("Nao foi possivel salvar o exercicio.", 500);
+      return jsonError("Não foi possível salvar o exercício.", 500);
     }
 
     const body = (await request.json()) as ExerciseRequestBody;
@@ -149,7 +149,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
 
     if (error) {
       logError("ADMIN", "Exercise save failed", { error: error.message });
-      return jsonError("Nao foi possivel salvar o exercicio.", 500);
+      return jsonError("Não foi possível salvar o exercício.", 500);
     }
 
     const normalizedData = Array.isArray(data) ? data[0] ?? null : data;
@@ -174,7 +174,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     logError("ADMIN", "Exercises save route failed", {
       error: error instanceof Error ? error.message : "unknown"
     });
-    return jsonError("Nao foi possivel salvar o exercicio.", 500);
+    return jsonError("Não foi possível salvar o exercício.", 500);
   }
 }
 

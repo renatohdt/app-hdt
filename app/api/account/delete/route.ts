@@ -7,12 +7,12 @@ export const dynamic = "force-dynamic";
 export async function DELETE(request: Request) {
   const auth = await requireAuthenticatedUser(request);
   if (auth.response || !auth.user) {
-    return auth.response ?? jsonError("Sua sessao expirou. Faca login novamente.", 401);
+    return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
   }
 
   const supabase = createSupabaseAdminClient();
   if (!supabase) {
-    return jsonError("Nao foi possivel excluir sua conta agora.", 500);
+    return jsonError("Não foi possível excluir sua conta agora.", 500);
   }
 
   const externalLimitations = [
@@ -22,7 +22,7 @@ export async function DELETE(request: Request) {
   const { error } = await supabase.auth.admin.deleteUser(auth.user.id);
 
   if (error) {
-    return jsonError("Nao foi possivel excluir sua conta agora.", 500);
+    return jsonError("Não foi possível excluir sua conta agora.", 500);
   }
 
   return jsonSuccess(
