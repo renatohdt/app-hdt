@@ -46,6 +46,17 @@ export default function GoogleAd() {
   }, [canUseAds, pathname, scriptLoaded]);
 
   useEffect(() => {
+    if (canUseAds) {
+      return;
+    }
+
+    clientLogWarn("ADS RENDER SKIPPED", {
+      pathname,
+      reason: "ads_consent_disabled_or_not_ready"
+    });
+  }, [canUseAds, pathname]);
+
+  useEffect(() => {
     if (!canUseAds) {
       return;
     }
@@ -231,7 +242,10 @@ export default function GoogleAd() {
 
   return (
     <div className="mt-8 w-full overflow-visible text-center">
-      <div className="w-full overflow-visible rounded-[20px] border border-dashed border-white/10 bg-white/[0.02] px-3 py-3">
+      <div
+        className="w-full overflow-visible rounded-[20px] border border-white/8 bg-black/20 px-3 py-3"
+        data-ad-shell="google-adsense"
+      >
         <ins
           ref={adRef}
           className="adsbygoogle"

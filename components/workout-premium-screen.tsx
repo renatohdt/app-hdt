@@ -383,9 +383,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
           </div>
         </Card>
 
-        <div className="w-full pb-4">
-          <GoogleAd />
-        </div>
+        <GoogleAd />
       </Container>
     </PageShell>
   );
