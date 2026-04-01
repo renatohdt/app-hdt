@@ -86,8 +86,8 @@ export default function PoliticaDePrivacidadePage() {
               /privacidade
             </Link>{" "}
             ou envie um pedido para{" "}
-            <a href="mailto:privacidade@horadotreino.com.br" className="font-semibold text-primary transition hover:text-primaryStrong">
-              privacidade@horadotreino.com.br
+            <a href="mailto:contato@horadotreino.com.br" className="font-semibold text-primary transition hover:text-primaryStrong">
+              contato@horadotreino.com.br
             </a>
             .
           </p>

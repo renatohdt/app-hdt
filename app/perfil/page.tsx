@@ -1,7 +1,6 @@
 "use client";
 
 import clsx from "clsx";
-import Link from "next/link";
 import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, BadgeGroup, Button, Card, Container, PageShell } from "@/components/ui";
@@ -656,28 +655,7 @@ export default function PerfilPage() {
           </div>
         </Card>
 
-        <Card className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
-            <h2 className="text-xl font-semibold text-white">Gerencie seus dados e consentimentos</h2>
-            <p className="text-sm text-white/64">
-              Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Link href="/privacidade" className="inline-flex">
-              <Button className="w-full sm:w-auto">Abrir central de privacidade</Button>
-            </Link>
-            <Link href="/politica-de-privacidade" className="inline-flex">
-              <Button variant="secondary" className="w-full sm:w-auto">
-                Ver política de privacidade
-              </Button>
-            </Link>
-          </div>
-        </Card>
-
-        <div className="pt-6">
+        <div className="pt-2">
           <Button
             variant="secondary"
             onClick={handleLogout}

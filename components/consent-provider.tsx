@@ -41,7 +41,6 @@ type ConsentContextValue = {
   canUseAnalytics: boolean;
   canUseAds: boolean;
   canUseMarketing: boolean;
-  openPreferences: () => void;
   savePreferences: (nextPreferences: ConsentPreferenceMap) => void;
 };
 
@@ -230,11 +229,6 @@ export function ConsentProvider({
       canUseAnalytics: ready && preferences.analytics,
       canUseAds: ready && preferences.ads,
       canUseMarketing: ready && preferences.marketing,
-      openPreferences: () => {
-        setDraftPreferences(preferences);
-        setIsCustomizing(true);
-        setIsPanelOpen(true);
-      },
       savePreferences: (nextPreferences) => {
         setHasInteracted(true);
         setPreferences(nextPreferences);
@@ -314,19 +308,6 @@ export function ConsentProvider({
         </div>
       ) : null}
 
-      {ready && hasInteracted && !isPanelOpen ? (
-        <button
-          type="button"
-          onClick={() => {
-            setDraftPreferences(preferences);
-            setIsCustomizing(true);
-            setIsPanelOpen(true);
-          }}
-          className="fixed bottom-4 right-4 z-40 rounded-full border border-white/12 bg-black/60 px-4 py-2 text-sm font-medium text-white/78 backdrop-blur transition hover:border-primary/40 hover:text-white"
-        >
-          Privacidade
-        </button>
-      ) : null}
     </ConsentContext.Provider>
   );
 }
