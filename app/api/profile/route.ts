@@ -9,6 +9,8 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { BodyType, Gender, Goal, HomeEquipment, QuizAnswers } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 
+export const dynamic = "force-dynamic";
+
 const GOAL_OPTIONS: Goal[] = ["lose_weight", "gain_muscle", "body_recomposition", "improve_conditioning"];
 const GENDER_OPTIONS: Gender[] = ["male", "female"];
 const BODY_TYPE_OPTIONS: BodyType[] = ["endomorph", "mesomorph", "ectomorph"];

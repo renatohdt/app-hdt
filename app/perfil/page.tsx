@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppSessionTracker } from "@/components/app-session-tracker";
 import { Badge, BadgeGroup, Button, Card, Container, PageShell } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
 import { isValidEmail } from "@/lib/auth-errors";
@@ -359,6 +360,7 @@ export default function PerfilPage() {
 
   return (
     <PageShell>
+      <AppSessionTracker userId={payload.user.id} source="profile" />
       <Container className="max-w-5xl space-y-5 py-6">
         <div className="space-y-4">
           <button

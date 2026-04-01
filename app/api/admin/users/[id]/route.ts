@@ -4,6 +4,8 @@ import { requireAdminUser } from "@/lib/server-auth";
 import { logError } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 
+export const dynamic = "force-dynamic";
+
 type Params = {
   params: {
     id: string;

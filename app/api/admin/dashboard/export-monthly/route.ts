@@ -2,6 +2,8 @@ import { getMonthlyDashboardCsv } from "@/lib/admin";
 import { requireAdminUser } from "@/lib/server-auth";
 import { logError } from "@/lib/server-logger";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const admin = await requireAdminUser(request, "ADMIN");

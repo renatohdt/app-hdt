@@ -12,6 +12,8 @@ import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuthenticatedUser(request);

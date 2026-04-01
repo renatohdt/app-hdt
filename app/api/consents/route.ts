@@ -10,6 +10,8 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 
+export const dynamic = "force-dynamic";
+
 type ConsentRequestBody = {
   consents?: Partial<Record<ConsentScope, boolean>>;
   source?: string;

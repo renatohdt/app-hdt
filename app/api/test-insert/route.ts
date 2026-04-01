@@ -3,7 +3,13 @@ import { requireAdminUser } from "@/lib/server-auth";
 import { logError, logInfo } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV !== "development") {
+    return jsonError("Endpoint disponivel apenas em desenvolvimento local.", 404);
+  }
+
   try {
     const admin = await requireAdminUser(request, "ADMIN");
     if (admin.response) return admin.response;

@@ -12,17 +12,21 @@ export function AdminLayoutShell({ children }: { children: ReactNode }) {
   if (pathname === "/admin/login") {
     return (
       <PageShell>
-        <Container className="py-12">{children}</Container>
+        <Container className="max-w-3xl py-12">{children}</Container>
       </PageShell>
     );
   }
 
   return (
     <PageShell>
-      <Container className="grid gap-6 py-6 lg:grid-cols-[260px_1fr]">
+      <Container className="max-w-[88rem] py-6">
         <AdminRouteGuard>
-          <AdminSidebar />
-          <div className="min-w-0">{children}</div>
+          <div className="grid items-start gap-6 xl:grid-cols-[220px_minmax(0,1fr)] 2xl:grid-cols-[236px_minmax(0,1fr)]">
+            <div className="xl:sticky xl:top-6">
+              <AdminSidebar />
+            </div>
+            <div className="min-w-0">{children}</div>
+          </div>
         </AdminRouteGuard>
       </Container>
     </PageShell>

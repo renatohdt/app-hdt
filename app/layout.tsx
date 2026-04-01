@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { AppVersionFooter } from "@/components/app-version-footer";
 import { ConsentProvider } from "@/components/consent-provider";
 import { PwaRegistration } from "@/components/pwa-registration";
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <AppVersionFooter />
           </div>
         </ConsentProvider>
+        <Analytics />
       </body>
     </html>
   );

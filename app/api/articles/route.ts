@@ -5,6 +5,8 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const auth = await requireAuthenticatedUser(request);

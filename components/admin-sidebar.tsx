@@ -35,10 +35,10 @@ export function AdminSidebar() {
   }
 
   return (
-    <aside className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+    <aside className="min-w-0 rounded-[28px] border border-white/10 bg-black/20 p-4 sm:p-5 xl:p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Hora do Treino</p>
       <h2 className="mt-3 text-2xl font-semibold text-white">Admin</h2>
-      <nav className="mt-8 grid gap-2">
+      <nav className="mt-8 grid gap-2.5">
         {links.map((link) => (
           <Link
             key={link.href}

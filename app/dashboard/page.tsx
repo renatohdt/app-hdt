@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AppSessionTracker } from "@/components/app-session-tracker";
 import { ConfigAlert } from "@/components/config-alert";
 import { WorkoutPremiumScreen } from "@/components/workout-premium-screen";
 import { Button, Card, Container, PageShell } from "@/components/ui";
@@ -237,6 +238,7 @@ function DashboardContent() {
       }
     };
   }, [payload]);
+  const tracker = currentUserId ? <AppSessionTracker userId={currentUserId} source="dashboard" /> : null;
 
   if (!isSupabaseConfigured() || !supabase) {
     return (
@@ -254,9 +256,11 @@ function DashboardContent() {
 
   if (noWorkout) {
     return (
-      <PageShell>
-        <Container className="py-12">
-          <Card className="mx-auto max-w-3xl space-y-4">
+      <>
+        {tracker}
+        <PageShell>
+          <Container className="py-12">
+            <Card className="mx-auto max-w-3xl space-y-4">
             <h1 className="text-2xl font-semibold text-white">Seu treino ainda não está pronto</h1>
             <p className="text-sm text-white/64">
               Complete ou revise seus dados para gerar um treino personalizado.
@@ -271,17 +275,20 @@ function DashboardContent() {
               </Button>
             </div>
             <p className="text-xs text-white/45">Você será redirecionado para seu perfil em instantes.</p>
-          </Card>
-        </Container>
-      </PageShell>
+            </Card>
+          </Container>
+        </PageShell>
+      </>
     );
   }
 
   if (error || !data) {
     return (
-      <PageShell>
-        <Container className="py-12">
-          <Card className="mx-auto max-w-3xl space-y-4">
+      <>
+        {tracker}
+        <PageShell>
+          <Container className="py-12">
+            <Card className="mx-auto max-w-3xl space-y-4">
             <h1 className="text-2xl font-semibold text-white">Seu treino ainda não está pronto</h1>
             <p className="text-sm text-white/64">
               Complete ou revise seus dados para gerar um treino personalizado.
@@ -295,13 +302,19 @@ function DashboardContent() {
                 {generatingWorkout ? "Gerando treino..." : "Gerar treino agora"}
               </Button>
             </div>
-          </Card>
-        </Container>
-      </PageShell>
+            </Card>
+          </Container>
+        </PageShell>
+      </>
     );
   }
 
-  return <WorkoutPremiumScreen data={data} />;
+  return (
+    <>
+      {tracker}
+      <WorkoutPremiumScreen data={data} />
+    </>
+  );
 }
 
 function DashboardLoadingState() {

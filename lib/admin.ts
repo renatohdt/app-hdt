@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import type { AdminDashboardData, AdminErrorLog, DashboardPeriod, RetentionMetric } from "@/lib/admin-shared";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { QuizAnswers } from "@/lib/types";
 import { getUserAnswersMap } from "@/lib/user-answers";
@@ -48,43 +49,6 @@ type AdminEvent = {
   created_at: string;
 };
 
-export type AdminErrorLog = {
-  id: string;
-  message: string;
-  origin: string;
-  created_at: string;
-};
-
-export type DistributionDatum = {
-  label: string;
-  value: number;
-  percentage: number;
-};
-
-export type FunnelStep = {
-  key: string;
-  label: string;
-  value: number;
-  conversion: number | null;
-};
-
-export type DashboardPeriod = {
-  label: string;
-  steps: FunnelStep[];
-};
-
-export type AdminDashboardData = {
-  activeUsers: number;
-  ageDistribution: DistributionDatum[];
-  genderDistribution: DistributionDatum[];
-  goalDistribution: DistributionDatum[];
-  funnel: {
-    daily: DashboardPeriod;
-    weekly: DashboardPeriod;
-  };
-  errors: AdminErrorLog[];
-};
-
 type UserAnswerRow = {
   user_id: string;
   answers: QuizAnswers | Record<string, unknown>;
@@ -95,6 +59,51 @@ const HOME_VIEW_EVENTS = ["home_view", "page_view"];
 const QUIZ_START_EVENTS = ["quiz_started", "quiz_start"];
 const SIGNUP_EVENTS = ["signup", "sign_up", "quiz_completed"];
 const CTA_EVENTS = ["cta_click", "cta_clicked"];
+const RETURN_ACTIVITY_EVENTS = [
+  "app_session",
+  "viewed_workout",
+  "workout_viewed",
+  "content_recommendation_generated",
+  "article_click",
+  "cta_click",
+  "cta_clicked"
+];
+const DASHBOARD_EVENT_NAMES = Array.from(
+  new Set([...HOME_VIEW_EVENTS, ...QUIZ_START_EVENTS, ...SIGNUP_EVENTS, ...CTA_EVENTS, ...RETURN_ACTIVITY_EVENTS])
+);
+const RETENTION_WINDOWS = [
+  {
+    key: "d1",
+    label: "Retorno D1",
+    windowLabel: "24h a 48h",
+    startHours: 24,
+    endDays: 2,
+    eligibleAfterDays: 2
+  },
+  {
+    key: "d7",
+    label: "Retorno D7",
+    windowLabel: "24h a 7 dias",
+    startHours: 24,
+    endDays: 7,
+    eligibleAfterDays: 7
+  },
+  {
+    key: "d30",
+    label: "Retorno D30",
+    windowLabel: "24h a 30 dias",
+    startHours: 24,
+    endDays: 30,
+    eligibleAfterDays: 30
+  }
+] as const satisfies ReadonlyArray<{
+  key: RetentionMetric["key"];
+  label: string;
+  windowLabel: string;
+  startHours: number;
+  endDays: number;
+  eligibleAfterDays: number;
+}>;
 
 export async function getAdminData() {
   const supabase = createSupabaseAdminClient();
@@ -151,6 +160,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ageDistribution: [],
       genderDistribution: [],
       goalDistribution: [],
+      retention: buildRetentionMetrics([], []),
       funnel: {
         daily: buildFunnelPeriod([], startOfToday(), "Diário"),
         weekly: buildFunnelPeriod([], startOfLastDays(7), "Semanal")
@@ -166,16 +176,27 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     };
   }
 
-  const [usersResult, userAnswersResult, eventsResult] = await Promise.all([
+  const [usersResult, userAnswersResult, dashboardEventsResult, errorEventsResult] = await Promise.all([
     supabase.from("users").select("id, name, created_at").order("created_at", { ascending: false }),
     supabase.from("user_answers").select("user_id, answers, created_at").order("created_at", { ascending: false }),
-    supabase.from("analytics_events").select("id, event_name, user_id, metadata, created_at").order("created_at", { ascending: false })
+    supabase
+      .from("analytics_events")
+      .select("id, event_name, user_id, metadata, created_at")
+      .in("event_name", DASHBOARD_EVENT_NAMES)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("analytics_events")
+      .select("id, event_name, user_id, metadata, created_at")
+      .ilike("event_name", "%error%")
+      .order("created_at", { ascending: false })
+      .limit(10)
   ]);
 
   const queryErrors = [
     buildQueryError("users-error", usersResult.error?.message, "users"),
     buildQueryError("answers-error", userAnswersResult.error?.message, "user_answers"),
-    buildQueryError("events-error", eventsResult.error?.message, "analytics_events")
+    buildQueryError("events-error", dashboardEventsResult.error?.message, "analytics_events"),
+    buildQueryError("error-events-error", errorEventsResult.error?.message, "analytics_events")
   ].filter(Boolean) as AdminErrorLog[];
 
   if (queryErrors.length) {
@@ -184,6 +205,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ageDistribution: [],
       genderDistribution: [],
       goalDistribution: [],
+      retention: buildRetentionMetrics([], []),
       funnel: {
         daily: buildFunnelPeriod([], startOfToday(), "Diário"),
         weekly: buildFunnelPeriod([], startOfLastDays(7), "Semanal")
@@ -194,7 +216,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const users = (usersResult.data ?? []) as Array<{ id: string; name: string; created_at: string }>;
   const userAnswers = (userAnswersResult.data ?? []) as UserAnswerRow[];
-  const events = (eventsResult.data ?? []) as AdminEvent[];
+  const dashboardEvents = (dashboardEventsResult.data ?? []) as AdminEvent[];
+  const errorEvents = (errorEventsResult.data ?? []) as AdminEvent[];
+  const events = [...dashboardEvents, ...errorEvents];
   const answersList = userAnswers.map((row) => normalizeAnswers(row.answers)).filter(Boolean) as Array<Partial<QuizAnswers> & Record<string, unknown>>;
   const activeUsers = new Set([
     ...users.map((user) => user.id),
@@ -206,6 +230,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     ageDistribution: toDistribution(answersList.map(getAgeBucket)),
     genderDistribution: toDistribution(answersList.map((answers) => getGenderLabel(answers.gender))),
     goalDistribution: toDistribution(answersList.map((answers) => getGoalLabel(answers.goal))),
+    retention: buildRetentionMetrics(users, dashboardEvents),
     funnel: {
       daily: buildFunnelPeriod(events, startOfToday(), "Diário"),
       weekly: buildFunnelPeriod(events, startOfLastDays(7), "Semanal")
@@ -362,6 +387,71 @@ function buildFunnelPeriod(events: AdminEvent[], from: Date, label: string): Das
   };
 }
 
+function buildRetentionMetrics(
+  users: Array<{ id: string; created_at: string }>,
+  events: AdminEvent[]
+): RetentionMetric[] {
+  const now = Date.now();
+  const activityByUser = new Map<string, number[]>();
+
+  for (const event of events) {
+    if (!RETURN_ACTIVITY_EVENTS.includes(event.event_name) || !event.user_id || !event.created_at) {
+      continue;
+    }
+
+    const timestamp = new Date(event.created_at).getTime();
+    if (!Number.isFinite(timestamp)) {
+      continue;
+    }
+
+    const current = activityByUser.get(event.user_id) ?? [];
+    current.push(timestamp);
+    activityByUser.set(event.user_id, current);
+  }
+
+  for (const timestamps of activityByUser.values()) {
+    timestamps.sort((left, right) => left - right);
+  }
+
+  return RETENTION_WINDOWS.map((windowConfig) => {
+    let eligibleUsers = 0;
+    let returnedUsers = 0;
+
+    for (const user of users) {
+      const baseline = new Date(user.created_at).getTime();
+
+      if (!Number.isFinite(baseline)) {
+        continue;
+      }
+
+      const eligibilityCutoff = baseline + daysToMs(windowConfig.eligibleAfterDays);
+      if (eligibilityCutoff > now) {
+        continue;
+      }
+
+      eligibleUsers += 1;
+
+      const returnStart = baseline + hoursToMs(windowConfig.startHours);
+      const returnEnd = baseline + daysToMs(windowConfig.endDays);
+      const timestamps = activityByUser.get(user.id) ?? [];
+      const hasReturnInWindow = timestamps.some((timestamp) => timestamp >= returnStart && timestamp <= returnEnd);
+
+      if (hasReturnInWindow) {
+        returnedUsers += 1;
+      }
+    }
+
+    return {
+      key: windowConfig.key,
+      label: windowConfig.label,
+      windowLabel: windowConfig.windowLabel,
+      returnedUsers,
+      eligibleUsers,
+      percentage: eligibleUsers ? Math.round((returnedUsers / eligibleUsers) * 100) : null
+    };
+  });
+}
+
 function countUniqueUsers(events: AdminEvent[], names: string[]) {
   return new Set(
     events
@@ -465,6 +555,14 @@ function ageToBucket(age: number) {
 function calculateConversion(previous: number, current: number) {
   if (!previous) return 0;
   return Math.round((current / previous) * 100);
+}
+
+function hoursToMs(hours: number) {
+  return hours * 60 * 60 * 1000;
+}
+
+function daysToMs(days: number) {
+  return days * 24 * 60 * 60 * 1000;
 }
 
 function startOfToday() {
