@@ -17,18 +17,18 @@ export async function GET(request: Request, { params }: Params) {
     const admin = await requireAdminUser(request, "ADMIN");
     if (admin.response) return admin.response;
 
-    const includeSensitive = new URL(request.url).searchParams.get("includeSensitive") === "1";
-    const data = await getAdminUserDetail(params.id, includeSensitive);
+    const includeExtended = new URL(request.url).searchParams.get("includeExtended") === "1";
+    const data = await getAdminUserDetail(params.id, includeExtended);
 
     if (!data) {
       return jsonError("Usuário não encontrado.", 404);
     }
 
-    if (includeSensitive) {
+    if (includeExtended) {
       await recordAdminAuditLog({
         adminId: admin.user?.id ?? "unknown-admin",
         adminEmail: admin.user?.email ?? null,
-        action: "view_sensitive_user_data",
+        action: "view_extended_user_data",
         targetType: "user",
         targetId: params.id,
         metadata: {

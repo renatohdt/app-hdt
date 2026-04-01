@@ -11,7 +11,7 @@ select
   ),
   'admin'
 from auth.users as auth_user
-where lower(auth_user.email) = lower('admin@exemplo.com')
+where lower(auth_user.email) = lower('renato@horadotreino.com.br')
 on conflict (id) do update
 set
   name = excluded.name,

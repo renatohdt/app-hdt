@@ -115,15 +115,15 @@ export default function HomePage() {
             <div className="mx-auto flex w-full max-w-[20.5rem] flex-col items-center space-y-4 px-1 text-center sm:max-w-[28rem] sm:px-0 lg:mx-0 lg:max-w-[34rem] lg:items-start lg:pt-7 lg:text-left">
               <div className="space-y-3">
                 <h1 className="mx-auto max-w-[11.5ch] text-[clamp(1.95rem,7.4vw,4.35rem)] font-semibold leading-[1.05] tracking-tight text-white lg:mx-0 lg:max-w-[12ch] lg:leading-[1.02]">
-                  Seu treino ideal para fazer em casa.
+                  Sua sugestão de treino para fazer em casa.
                 </h1>
                 <p className="mx-auto max-w-[19rem] text-[1.02rem] font-medium leading-6 text-white/82 sm:max-w-[26rem] sm:text-[1.2rem] sm:leading-7 lg:mx-0 lg:max-w-[30rem] lg:text-[1.35rem] lg:leading-8">
-                  Personalizado com inteligência artificial e lógica de personal trainer.
+                  Sugerido com inteligência artificial e lógica de personal trainer.
                 </p>
               </div>
 
               <p className="mx-auto max-w-[19.5rem] text-sm leading-6 text-white/66 sm:max-w-[26rem] sm:text-base sm:leading-7 lg:mx-0 lg:max-w-[30rem]">
-                Responda ao formulário e receba grátis seu plano inicial de treino, criado de acordo com seu objetivo,
+                Responda ao formulário e receba grátis sua sugestão inicial de treino, criada de acordo com seu objetivo,
                 rotina e nível.
               </p>
 

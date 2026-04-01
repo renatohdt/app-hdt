@@ -1,6 +1,6 @@
 import { isValidEmail } from "@/lib/auth-errors";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
-import { applyHealthConsentToAnswers, hasUserConsent } from "@/lib/consents";
+import { stripLegacyQuizFields } from "@/lib/quiz-answers";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
@@ -41,7 +41,6 @@ type ProfilePayload = {
     weight?: number;
     height?: number;
     profession?: string;
-    injuries?: string;
     days?: number;
     time?: number;
     equipment?: string[];
@@ -55,7 +54,6 @@ type ProfileUpdateBody = {
   age?: unknown;
   weight?: unknown;
   height?: unknown;
-  injuries?: unknown;
   goal?: unknown;
   gender?: unknown;
   body_type?: unknown;
@@ -95,7 +93,6 @@ export async function GET(request: Request) {
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, userId);
-    const healthConsentGranted = await hasUserConsent(supabase, userId, "health");
     const { data: currentAuthUser } = await supabase.auth.getUser();
 
     return jsonSuccess(
@@ -105,7 +102,7 @@ export async function GET(request: Request) {
           name: userRow.name,
           email: currentAuthUser.user?.email ?? auth.user.email ?? ""
         },
-        applyHealthConsentToAnswers(savedAnswers, healthConsentGranted)
+        savedAnswers
       )
     );
   } catch {
@@ -146,10 +143,7 @@ export async function PATCH(request: Request) {
 
     const { data: currentAuthUser } = await supabase.auth.getUser();
     const currentEmail = currentAuthUser.user?.email ?? auth.user.email ?? "";
-    const healthConsentGranted = await hasUserConsent(supabase, userId, "health");
-    const normalizedCurrentAnswers = normalizeExistingAnswers(
-      applyHealthConsentToAnswers(currentAnswers, healthConsentGranted)
-    );
+    const normalizedCurrentAnswers = normalizeExistingAnswers(currentAnswers);
     const nextEmail = parseEmail(body.email, currentEmail);
     const nextName = parseRequiredText(body.name, "Informe seu nome.");
     const nextGoal = parseEnumValue(body.goal, GOAL_OPTIONS, "Selecione um objetivo válido.");
@@ -161,7 +155,6 @@ export async function PATCH(request: Request) {
     const nextDays = parseNumber(body.days, 1, 7, "Informe uma frequência válida.");
     const nextTime = parseTime(body.time);
     const nextProfession = parseText(body.profession);
-    const nextInjuries = healthConsentGranted ? parseText(body.injuries) : "";
     const nextEquipment = parseEquipment(body.equipment);
     const bodyTypeFields = normalizeBodyTypeFields({ body_type: nextBodyType });
 
@@ -190,7 +183,6 @@ export async function PATCH(request: Request) {
       weight: nextWeight,
       height: nextHeight,
       profession: nextProfession,
-      injuries: nextInjuries,
       days: nextDays,
       time: nextTime,
       equipment: nextEquipment,
@@ -259,7 +251,6 @@ function buildProfilePayload(user: { id: string; name: string; email: string }, 
       weight: normalizedAnswers.weight,
       height: normalizedAnswers.height,
       profession: normalizedAnswers.profession,
-      injuries: normalizedAnswers.injuries,
       days: normalizedAnswers.days,
       time: normalizedAnswers.time,
       equipment: Array.isArray(normalizedAnswers.equipment) ? normalizedAnswers.equipment : []
@@ -268,12 +259,13 @@ function buildProfilePayload(user: { id: string; name: string; email: string }, 
 }
 
 function normalizeExistingAnswers(answers: Partial<QuizAnswers> | null | undefined) {
-  if (!answers) {
+  const sanitizedAnswers = stripLegacyQuizFields(answers as Record<string, unknown> | null | undefined);
+  if (!sanitizedAnswers) {
     return {} as Partial<QuizAnswers>;
   }
 
-  const hasBodyTypeValue = Boolean(answers.body_type || answers.body_type_raw || answers.wrist);
-  return hasBodyTypeValue ? normalizeBodyTypeFields(answers) : answers;
+  const hasBodyTypeValue = Boolean(sanitizedAnswers.body_type || sanitizedAnswers.body_type_raw || sanitizedAnswers.wrist);
+  return hasBodyTypeValue ? normalizeBodyTypeFields(sanitizedAnswers) : sanitizedAnswers;
 }
 
 function parseRequiredText(value: unknown, fallbackMessage: string) {

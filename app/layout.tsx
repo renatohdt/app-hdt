@@ -14,9 +14,24 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   applicationName: "Hora do Treino",
-  title: "Hora do Treino",
-  description: "App para montar e acompanhar treinos personalizados",
+  title: "Treino personalizado online gratis | Hora do Treino",
+  description:
+    "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!",
   manifest: "/manifest.webmanifest",
+  openGraph: {
+    title: "Treino personalizado online gratis | Hora do Treino",
+    description:
+      "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!",
+    siteName: "Hora do Treino",
+    locale: "pt_BR",
+    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Treino personalizado online gratis | Hora do Treino",
+    description:
+      "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!"
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

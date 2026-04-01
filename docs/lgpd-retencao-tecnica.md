@@ -1,11 +1,11 @@
 # Retencao Tecnica de Dados
 
-Versão da base técnica: `2026-03-29-phase-4`
+Versao da base tecnica: `2026-03-29-phase-4`
 
 ## O que e limpo automaticamente
 - `public.content_recommendations`: exclusao de registros expirados apos `expires_at`.
 - `public.analytics_events`: exclusao de eventos expirados por padrao tecnico de 180 dias.
-- `public.workout_review_requests`: exclusao de solicitacoes finalizadas quando expirarem pela janela operacional configurada.
+- `public.workout_review_requests`: exclusao de registros legados finalizados quando expirarem pela janela operacional configurada.
 - `public.admin_audit_logs`: exclusao de trilhas administrativas expiradas, salvo `retention_hold`.
 
 ## O que pode ser anonimizado
@@ -20,7 +20,7 @@ Versão da base técnica: `2026-03-29-phase-4`
 ## Campos de suporte adicionados
 - `deleted_at`: marca descarte logico quando fizer sentido.
 - `anonymized_at`: registra quando a anonimizacao ja foi aplicada.
-- `expires_at`: define a data técnica de expurgo quando aplicável.
+- `expires_at`: define a data tecnica de expurgo quando aplicavel.
 - `retention_hold`: bloqueia expurgo automatizado em caso de incidente, investigacao ou exigencia operacional.
 
 ## Execucao agendada
@@ -34,4 +34,4 @@ Versão da base técnica: `2026-03-29-phase-4`
 
 ## Compatibilidade
 - `DELETE /api/account/delete` continua apagando a conta via Auth com cascata.
-- `GET /api/privacy/export` continua exportando os dados do titular e agora exibe a versão da política técnica de retenção.
+- `GET /api/privacy/export` continua exportando os dados do titular e agora exibe a versao da politica tecnica de retencao.

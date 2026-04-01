@@ -350,7 +350,7 @@ function buildWorkoutTitle(rawWorkout: unknown, diagnosis?: DiagnosisResult) {
     return String((rawWorkout as UnknownRecord).title);
   }
 
-  return diagnosis ? `Plano ${diagnosis.title}` : "Plano personalizado";
+  return diagnosis ? `Sugestao ${diagnosis.title}` : "Plano sugerido";
 }
 
 function buildWorkoutSubtitle(rawWorkout: unknown) {

@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { QuizAnswers } from "@/lib/types";
 import {
+  CMP_CONSENT_SCOPES,
   CONSENT_SCOPES,
   type ConsentPreferenceMap,
   type ConsentScope,
@@ -64,7 +64,7 @@ export async function getUserConsentRows(supabase: SupabaseLike, userId: string)
   };
 
   if (error) {
-    throw new Error(error.message || "Não foi possível carregar os consentimentos.");
+    throw new Error(error.message || "Nao foi possivel carregar os consentimentos.");
   }
 
   return (data ?? []) as ConsentRow[];
@@ -85,12 +85,7 @@ export async function getUserConsentMap(supabase: SupabaseLike, userId: string) 
 
 export async function hasStoredConsentDecisions(supabase: SupabaseLike, userId: string) {
   const rows = await getUserConsentRows(supabase, userId);
-  return rows.length > 0;
-}
-
-export async function hasUserConsent(supabase: SupabaseLike, userId: string, scope: ConsentScope) {
-  const consentMap = await getUserConsentMap(supabase, userId);
-  return Boolean(consentMap[scope]);
+  return rows.some((row) => CMP_CONSENT_SCOPES.includes(row.scope as (typeof CMP_CONSENT_SCOPES)[number]));
 }
 
 export async function saveUserConsents(
@@ -158,18 +153,4 @@ export async function revokeUserConsent(
     },
     options
   );
-}
-
-export function applyHealthConsentToAnswers<T extends Partial<QuizAnswers> | null | undefined>(
-  answers: T,
-  hasHealthConsent: boolean
-) {
-  if (!answers || hasHealthConsent) {
-    return answers;
-  }
-
-  return {
-    ...answers,
-    injuries: ""
-  } as T;
 }

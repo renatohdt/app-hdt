@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
-import { applyHealthConsentToAnswers, normalizeConsentInput, saveUserConsents } from "@/lib/consents";
+import { normalizeConsentInput, saveUserConsents } from "@/lib/consents";
 import type { ConsentScope } from "@/lib/consent-types";
 import { diagnoseUser } from "@/lib/diagnosis";
+import { recordTermsOfUseAcceptance } from "@/lib/legal-log";
 import { sendLeadLoversLead } from "@/lib/leadlovers";
 import { enforceRateLimit, getRequestFingerprint } from "@/lib/rate-limit";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
@@ -16,6 +17,7 @@ import { normalizeWorkoutPayload } from "@/lib/workout-payload";
 
 type QuizSubmissionBody = Partial<QuizAnswers> & {
   name?: string;
+  acceptedTerms?: boolean;
   consents?: Partial<Record<ConsentScope, boolean>>;
 };
 
@@ -35,12 +37,14 @@ export async function POST(request: Request) {
     const body = (await request.json()) as QuizSubmissionBody;
     const userId = auth.user.id;
     const requestedConsents = normalizeConsentInput(body.consents);
-    const healthConsentGranted = requestedConsents.health === true;
+
+    if (body.acceptedTerms !== true) {
+      return jsonError("Você precisa aceitar os Termos de Uso para continuar.", 400);
+    }
 
     logInfo("AUTH", "Signup completion flow started", {
       user_id: userId,
-      marketing_consent: requestedConsents.marketing === true,
-      health_consent: healthConsentGranted
+      marketing_consent: requestedConsents.marketing === true
     });
 
     const bodyTypeFields = normalizeBodyTypeFields({
@@ -49,23 +53,25 @@ export async function POST(request: Request) {
       body_type: typeof body.body_type === "string" ? body.body_type : undefined
     });
 
-    const rawAnswers = {
-      ...body,
+    const answers = {
+      goal: typeof body.goal === "string" ? body.goal : "lose_weight",
+      experience: typeof body.experience === "string" ? body.experience : "no_training",
+      gender: typeof body.gender === "string" ? body.gender : "male",
       age: toNumber(body.age),
       weight: toNumber(body.weight),
       height: toNumber(body.height),
       profession: toText(body.profession),
-      injuries: toText(body.injuries),
+      situation: typeof body.situation === "string" ? body.situation : "cant_stay_consistent",
+      mindMuscle: typeof body.mindMuscle === "string" ? body.mindMuscle : "sometimes",
       days: toNumber(body.days),
       time: toNumber(body.time),
       equipment: Array.isArray(body.equipment) ? body.equipment : [],
+      structuredPlan: typeof body.structuredPlan === "string" ? body.structuredPlan : "no",
       wrist: bodyTypeFields.wrist,
       body_type_raw: bodyTypeFields.body_type_raw,
       body_type: bodyTypeFields.body_type,
       location: "home"
     } as QuizAnswers;
-
-    const answers = applyHealthConsentToAnswers(rawAnswers, healthConsentGranted) as QuizAnswers;
 
     logInfo("PROFILE", "Body type normalized", {
       user_id: userId,
@@ -119,11 +125,7 @@ export async function POST(request: Request) {
     const consentResult = await saveUserConsents(
       supabase,
       savedUser.id,
-      {
-        ...requestedConsents,
-        health: healthConsentGranted,
-        ai_training_notice: true
-      },
+      requestedConsents,
       {
         source: "onboarding_quiz"
       }
@@ -133,6 +135,8 @@ export async function POST(request: Request) {
       logError("PRIVACY", "Consent save failed", { user_id: savedUser.id });
       return jsonError("Não foi possível salvar seus consentimentos no momento.", 500);
     }
+
+    await recordTermsOfUseAcceptance(savedUser.id, new Date().toISOString());
 
     const diagnosis = diagnoseUser(answers);
     const workoutHash = buildWorkoutHash(answers);

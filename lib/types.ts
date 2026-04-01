@@ -35,7 +35,6 @@ export type QuizAnswers = {
   wrist: Wrist;
   body_type_raw?: Wrist | string;
   body_type?: BodyType | string;
-  injuries: string;
   location: Location;
   equipment: HomeEquipment[];
   days: number;

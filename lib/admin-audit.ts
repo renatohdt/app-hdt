@@ -6,7 +6,7 @@ import { logError } from "@/lib/server-logger";
 type AdminAuditAction =
   | "login"
   | "logout"
-  | "view_sensitive_user_data"
+  | "view_extended_user_data"
   | "exercise_created"
   | "exercise_updated"
   | "exercise_deleted";

@@ -28,10 +28,8 @@ export function PrivacyCenter() {
   const [consentPayload, setConsentPayload] = useState<ConsentApiPayload | null>(null);
   const [draftPreferences, setDraftPreferences] = useState<ConsentPreferenceMap>(preferences);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-  const [reviewReason, setReviewReason] = useState("");
   const [savingConsents, setSavingConsents] = useState(false);
   const [exportingData, setExportingData] = useState(false);
-  const [submittingReview, setSubmittingReview] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
@@ -105,8 +103,6 @@ export function PrivacyCenter() {
     };
   }, []);
 
-  const healthConsentGranted = Boolean(consentPayload?.consents.health);
-  const aiNoticeAcknowledged = Boolean(consentPayload?.consents.ai_training_notice);
   const hasConsentChanges =
     draftPreferences.analytics !== preferences.analytics ||
     draftPreferences.ads !== preferences.ads ||
@@ -117,17 +113,17 @@ export function PrivacyCenter() {
       {
         key: "analytics",
         title: "Analytics",
-        description: "Usado para medir uso de telas, eventos e conversões internas do produto."
+        description: "Usado para medir uso de telas, eventos e conversoes internas do produto."
       },
       {
         key: "ads",
         title: "Ads",
-        description: "Usado para Google AdSense e recursos publicitários opcionais."
+        description: "Usado para Google AdSense e recursos publicitarios opcionais."
       },
       {
         key: "marketing",
         title: "Marketing",
-        description: "Usado para Meta Pixel, automações e integrações de remarketing, como LeadLovers."
+        description: "Usado para Meta Pixel, automacoes e integracoes de remarketing, como LeadLovers."
       }
     ],
     []
@@ -167,7 +163,7 @@ export function PrivacyCenter() {
       }
 
       setConsentPayload(result.data);
-      setFeedback({ tone: "success", text: "Preferências de privacidade atualizadas com sucesso." });
+      setFeedback({ tone: "success", text: "Preferencias de privacidade atualizadas com sucesso." });
     } catch (error) {
       savePreferences(previousPreferences);
       setDraftPreferences(previousPreferences);
@@ -202,7 +198,7 @@ export function PrivacyCenter() {
       anchor.click();
       window.URL.revokeObjectURL(url);
 
-      setFeedback({ tone: "success", text: "Exportação iniciada. O arquivo JSON foi preparado para download." });
+      setFeedback({ tone: "success", text: "Exportacao iniciada. O arquivo JSON foi preparado para download." });
     } catch (error) {
       setFeedback({
         tone: "error",
@@ -210,54 +206,6 @@ export function PrivacyCenter() {
       });
     } finally {
       setExportingData(false);
-    }
-  }
-
-  async function handleSubmitReviewRequest() {
-    if (reviewReason.trim().length < 10) {
-      setFeedback({
-        tone: "error",
-        text: "Descreva o motivo da revisão humana com um pouco mais de contexto."
-      });
-      return;
-    }
-
-    setSubmittingReview(true);
-    setFeedback(null);
-
-    try {
-      const response = await fetchWithAuth("/api/privacy/review-workout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          reason: reviewReason
-        })
-      });
-
-      const result = await parseJsonResponse<{
-        success: boolean;
-        data?: { message?: string };
-        error?: string;
-      }>(response);
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Não foi possível registrar sua solicitação.");
-      }
-
-      setReviewReason("");
-      setFeedback({
-        tone: "success",
-        text: result.data?.message ?? "Solicitação de revisão humana registrada com sucesso."
-      });
-    } catch (error) {
-      setFeedback({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Não foi possível registrar sua solicitação."
-      });
-    } finally {
-      setSubmittingReview(false);
     }
   }
 
@@ -282,7 +230,7 @@ export function PrivacyCenter() {
 
       setFeedback({
         tone: "success",
-        text: result.data?.message ?? "Sua conta foi excluída com sucesso."
+        text: result.data?.message ?? "Sua conta foi excluida com sucesso."
       });
 
       await signOutAndRedirect({
@@ -320,7 +268,7 @@ export function PrivacyCenter() {
             <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
             <h1 className="text-3xl font-semibold text-white">Entre para acessar sua central de privacidade</h1>
             <p className="text-sm text-white/66">
-              Aqui você pode exportar seus dados, rever consentimentos e solicitar revisão humana do treino automatizado.
+              Aqui voce pode exportar seus dados, revisar consentimentos opcionais e solicitar a exclusao da conta.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href="/login" className="inline-flex">
@@ -328,7 +276,7 @@ export function PrivacyCenter() {
               </Link>
               <Link href="/politica-de-privacidade" className="inline-flex">
                 <Button variant="secondary" className="w-full sm:w-auto">
-                  Ver política de privacidade
+                  Ver politica de privacidade
                 </Button>
               </Link>
             </div>
@@ -345,11 +293,11 @@ export function PrivacyCenter() {
           <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
           <h1 className="text-3xl font-semibold text-white">Central de privacidade e direitos do titular</h1>
           <p className="max-w-3xl text-sm leading-6 text-white/66">
-            Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação.
+            O treino e sugerido com base nas respostas fornecidas e deve ser utilizado como uma opcao de referencia.
           </p>
           <div className="flex flex-wrap gap-3 text-sm text-white/68">
             <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
-              Ver política de privacidade
+              Ver politica de privacidade
             </Link>
             <Link href="/perfil" className="font-semibold text-white/72 transition hover:text-white">
               Voltar ao perfil
@@ -363,7 +311,7 @@ export function PrivacyCenter() {
           <div className="space-y-2">
             <h2 className="text-xl font-semibold text-white">Consentimentos atuais</h2>
             <p className="text-sm text-white/64">
-              Atualize os consentimentos opcionais sempre que quiser. A revogação passa a valer imediatamente para novas execuções do app.
+              Atualize os consentimentos opcionais sempre que quiser. A revogacao passa a valer imediatamente para novas execucoes do app.
             </p>
           </div>
 
@@ -400,70 +348,43 @@ export function PrivacyCenter() {
               onClick={() => setDraftPreferences(preferences)}
               disabled={savingConsents || !hasConsentChanges}
             >
-              Descartar alterações
+              Descartar alteracoes
             </Button>
           </div>
         </Card>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Dados sensíveis e IA</h2>
-            <div className="space-y-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Dados sensíveis</p>
-              <p className="text-sm text-white/78">
-                Usamos seus dados físicos e eventuais limitações para personalizar o treino com mais segurança. Informações sobre dores, lesões e saúde são opcionais e são tratadas como dados sensíveis, com acesso restrito.
-              </p>
-              <p className="text-sm text-white/58">
-                Status atual: {healthConsentGranted ? "consentimento registrado para dados sensíveis." : "nenhum consentimento sensível ativo no momento."}
-              </p>
-            </div>
-
-            <div className="space-y-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Treino automatizado</p>
-              <p className="text-sm text-white/78">
-                Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação.
-              </p>
-              <p className="text-sm text-white/58">
-                Aviso registrado: {aiNoticeAcknowledged ? "sim." : "ainda não identificado."}
-              </p>
-            </div>
+            <h2 className="text-xl font-semibold text-white">Uso dos dados no app</h2>
+            <p className="text-sm text-white/72">
+              O Hora do Treino usa respostas gerais de treino, como objetivo, nivel, frequencia, disponibilidade e preferencias, para montar sugestoes de treino.
+            </p>
+            <p className="text-sm text-white/58">
+              Os consentimentos opcionais desta tela cobrem apenas analytics, anuncios e marketing.
+            </p>
+            <p className="text-sm text-white/58">
+              Versao atual dos consentimentos: {consentPayload?.version ?? "nao identificada"}.
+            </p>
           </Card>
 
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Exportação de dados</h2>
+            <h2 className="text-xl font-semibold text-white">Exportacao de dados</h2>
             <p className="text-sm text-white/64">
               Gere um arquivo JSON com perfil, respostas do quiz, treinos, consentimentos, eventos e metadados relevantes da sua conta.
             </p>
             <Button onClick={handleExportData} disabled={exportingData}>
-              {exportingData ? "Preparando exportação..." : "Baixar meus dados"}
+              {exportingData ? "Preparando exportacao..." : "Baixar meus dados"}
             </Button>
           </Card>
         </div>
 
-        <Card className="space-y-4">
-          <h2 className="text-xl font-semibold text-white">Solicitar revisão humana</h2>
-          <p className="text-sm text-white/64">
-            Se você discordar do treino automatizado ou quiser contexto adicional, registre sua solicitação abaixo.
-          </p>
-          <textarea
-            rows={5}
-            value={reviewReason}
-            onChange={(event) => setReviewReason(event.target.value)}
-            placeholder="Explique o que você gostaria de contestar ou revisar no treino atual."
-            className="min-h-[140px] w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white outline-none transition focus:border-primary"
-          />
-          <Button onClick={handleSubmitReviewRequest} disabled={submittingReview}>
-            {submittingReview ? "Enviando solicitação..." : "Solicitar revisão humana"}
-          </Button>
-        </Card>
-
         <Card className="space-y-4 border-red-400/20">
           <h2 className="text-xl font-semibold text-white">Excluir conta</h2>
           <p className="text-sm text-white/72">
-            Ao excluir sua conta, apagaremos seus dados de acesso, respostas do quiz, treinos e histórico interno, salvo o que precisarmos manter por obrigação legal ou segurança.
+            Ao excluir sua conta, apagaremos seus dados de acesso, respostas do quiz, treinos e historico interno, salvo o que precisarmos manter por obrigacao legal ou seguranca.
           </p>
           <p className="text-sm text-white/58">
-            Integrações externas de marketing, anúncios e analytics podem exigir tratamento operacional complementar fora do app.
+            Integracoes externas de marketing, anuncios e analytics podem exigir tratamento operacional complementar fora do app.
           </p>
           <Button variant="secondary" onClick={handleDeleteAccount} disabled={deletingAccount}>
             {deletingAccount ? "Excluindo conta..." : "Excluir minha conta"}

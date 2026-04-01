@@ -106,7 +106,7 @@ export function LoginForm() {
     <Card className="mx-auto max-w-xl rounded-[32px]">
       <div className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Login</p>
-        <h1 className="text-3xl font-semibold">Entre para acessar seu treino salvo</h1>
+        <h1 className="text-3xl font-semibold">Entre para acessar sua sugestao salva</h1>
         <p className="text-sm text-white/64">Use o mesmo e-mail e senha cadastrados no formulário inicial.</p>
       </div>
 

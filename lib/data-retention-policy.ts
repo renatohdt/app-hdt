@@ -25,23 +25,23 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   },
   {
     table: "public.user_answers",
-    dataType: "Respostas do onboarding e dados de personalizacao, incluindo dados sensiveis.",
+    dataType: "Respostas do onboarding e dados gerais de personalizacao do treino.",
     suggestedRetention: "Enquanto a conta estiver ativa; graca de ate 30 dias se o registro for marcado para expurgo interno.",
     defaultWindowDays: 30,
     destinationAfterWindow: "anonymize",
     automatedByDefault: false,
     notes:
-      "Não existe expurgo automático para contas ativas. A anonimização automática só atua em registros previamente marcados com deleted_at/expires_at."
+      "Nao existe expurgo automatico para contas ativas. A anonimização automatica so atua em registros previamente marcados com deleted_at/expires_at."
   },
   {
     table: "public.workouts",
-    dataType: "Treinos personalizados e historico de montagem.",
+    dataType: "Sugestoes de treino e historico de montagem.",
     suggestedRetention: "Enquanto a conta estiver ativa; graca de ate 30 dias se o registro for marcado para expurgo interno.",
     defaultWindowDays: 30,
     destinationAfterWindow: "anonymize",
     automatedByDefault: false,
     notes:
-      "Não há limpeza automática de treinos de contas ativas. A rotina anonimiza apenas registros já marcados para descarte."
+      "Nao ha limpeza automatica de treinos de contas ativas. A rotina anonimiza apenas registros ja marcados para descarte."
   },
   {
     table: "public.analytics_events",
@@ -71,17 +71,17 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
     destinationAfterWindow: "operational_hold",
     automatedByDefault: false,
     notes:
-      "Não há expurgo automático de consentimentos ativos. Campos de expiração e deleted_at ficam preparados para uma política jurídica posterior."
+      "Nao ha expurgo automatico de consentimentos ativos. Campos de expiracao e deleted_at ficam preparados para uma politica juridica posterior."
   },
   {
     table: "public.workout_review_requests",
-    dataType: "Pedidos de revisão humana e contestação do treino automatizado.",
-    suggestedRetention: "24 meses para operacao e atendimento.",
+    dataType: "Registros operacionais legados associados a um fluxo descontinuado.",
+    suggestedRetention: "24 meses para controle tecnico-operacional.",
     defaultWindowDays: 730,
     destinationAfterWindow: "delete",
     automatedByDefault: true,
     notes:
-      "A limpeza automatica atua apenas em solicitacoes finalizadas ou explicitamente marcadas para descarte."
+      "Mantido por compatibilidade de banco e rotina de limpeza. O app atual nao expõe esse fluxo ao usuario."
   },
   {
     table: "public.admin_audit_logs",

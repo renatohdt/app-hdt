@@ -85,8 +85,7 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     level,
     goalStyle,
     timeAvailable,
-    equipment,
-    injuries: answers.injuries
+    equipment
   });
   const sessions = buildSessionBlueprints(splitType, dayCount, goalStyle);
 
@@ -168,7 +167,7 @@ export function formatSplitTypeLabel(value?: string | null) {
     body_part_split: "Divisão por grupamentos"
   };
 
-  return value && value in labels ? labels[value as WorkoutSplitType] : "Plano personalizado";
+  return value && value in labels ? labels[value as WorkoutSplitType] : "Plano sugerido";
 }
 
 export function formatBlockTypeLabel(value?: string | null) {
@@ -249,11 +248,9 @@ function decideSplitType(input: {
   goalStyle: TrainingGoalStyle;
   timeAvailable: number;
   equipment: string[];
-  injuries?: string;
 }): WorkoutSplitType {
   const limitedEquipment = input.equipment.length <= 1 || input.equipment.includes("nenhum");
   const shortSessions = input.timeAvailable <= 35;
-  const hasConstraints = Boolean(normalizeText(input.injuries));
 
   if (input.dayCount === 1) return "full_body_single";
   if (input.dayCount === 2) {
@@ -269,10 +266,6 @@ function decideSplitType(input: {
   }
 
   if (input.dayCount === 4) {
-    if (hasConstraints || limitedEquipment) {
-      return "upper_lower";
-    }
-
     return "upper_lower";
   }
 

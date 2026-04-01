@@ -1,4 +1,5 @@
 import { DATA_RETENTION_POLICY_VERSION } from "@/lib/data-retention-policy";
+import { stripLegacyQuizFields } from "@/lib/quiz-answers";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { jsonError } from "@/lib/server-response";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
@@ -41,17 +42,8 @@ type ExportPayload = {
     expiresAt: string;
     updatedAt: string;
   }>;
-  reviewRequests: Array<{
-    id: string;
-    workoutId: string | null;
-    reason: string;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
-  }>;
   metadata: {
     userId: string;
-    hasSensitiveHealthData: boolean;
     exportFormat: "json";
     consentVersionCurrent: string;
     retentionPolicyVersion: string;
@@ -77,8 +69,7 @@ export async function GET(request: Request) {
     workoutsResult,
     consentsResult,
     analyticsEventsResult,
-    contentRecommendationsResult,
-    reviewRequestsResult
+    contentRecommendationsResult
   ] = await Promise.all([
     supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
     supabase.from("user_answers").select("answers").eq("user_id", userId).maybeSingle(),
@@ -97,12 +88,7 @@ export async function GET(request: Request) {
       .from("content_recommendations")
       .select("id, articles, generated_at, expires_at, updated_at")
       .eq("user_id", userId)
-      .order("generated_at", { ascending: false }),
-    supabase
-      .from("workout_review_requests")
-      .select("id, workout_id, reason, status, created_at, updated_at")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
+      .order("generated_at", { ascending: false })
   ]);
 
   const errors = [
@@ -111,15 +97,14 @@ export async function GET(request: Request) {
     workoutsResult.error,
     consentsResult.error,
     analyticsEventsResult.error,
-    contentRecommendationsResult.error,
-    reviewRequestsResult.error
+    contentRecommendationsResult.error
   ].filter(Boolean);
 
   if (errors.length) {
     return jsonError("Não foi possível exportar seus dados no momento.", 500);
   }
 
-  const quizAnswers = (answersResult.data?.answers ?? null) as Record<string, unknown> | null;
+  const quizAnswers = stripLegacyQuizFields((answersResult.data?.answers ?? null) as Record<string, unknown> | null);
   const payload: ExportPayload = {
     exportedAt: new Date().toISOString(),
     profile: userRowResult.data
@@ -158,17 +143,8 @@ export async function GET(request: Request) {
       expiresAt: recommendation.expires_at,
       updatedAt: recommendation.updated_at
     })),
-    reviewRequests: (reviewRequestsResult.data ?? []).map((reviewRequest) => ({
-      id: reviewRequest.id,
-      workoutId: reviewRequest.workout_id ?? null,
-      reason: reviewRequest.reason,
-      status: reviewRequest.status,
-      createdAt: reviewRequest.created_at,
-      updatedAt: reviewRequest.updated_at
-    })),
     metadata: {
       userId,
-      hasSensitiveHealthData: Boolean(typeof quizAnswers?.injuries === "string" && quizAnswers.injuries.trim()),
       exportFormat: "json",
       consentVersionCurrent: process.env.CONSENT_VERSION_CURRENT?.trim() || "2026-03-29",
       retentionPolicyVersion: DATA_RETENTION_POLICY_VERSION

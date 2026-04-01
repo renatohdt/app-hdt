@@ -1,4 +1,4 @@
-export const CONSENT_SCOPES = ["health", "analytics", "marketing", "ads", "ai_training_notice"] as const;
+export const CONSENT_SCOPES = ["analytics", "marketing", "ads", "terms_of_use"] as const;
 export type ConsentScope = (typeof CONSENT_SCOPES)[number];
 
 export const CMP_CONSENT_SCOPES = ["analytics", "marketing", "ads"] as const;
@@ -11,4 +11,3 @@ export const DEFAULT_CONSENT_PREFERENCES: ConsentPreferenceMap = {
   marketing: false,
   ads: false
 };
-

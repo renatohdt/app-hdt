@@ -263,7 +263,7 @@ function DashboardContent() {
             <Card className="mx-auto max-w-3xl space-y-4">
             <h1 className="text-2xl font-semibold text-white">Seu treino ainda não está pronto</h1>
             <p className="text-sm text-white/64">
-              Complete ou revise seus dados para gerar um treino personalizado.
+              Complete ou revise seus dados para gerar uma sugestão de treino.
             </p>
             {error ? <p className="text-sm text-red-300">{error}</p> : null}
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -271,7 +271,7 @@ function DashboardContent() {
                 Ajustar meus dados
               </Button>
               <Button onClick={handleGenerateWorkoutNow} disabled={generatingWorkout}>
-                {generatingWorkout ? "Gerando treino..." : "Gerar treino agora"}
+                {generatingWorkout ? "Gerando sugestao..." : "Gerar sugestao agora"}
               </Button>
             </div>
             <p className="text-xs text-white/45">Você será redirecionado para seu perfil em instantes.</p>
@@ -291,7 +291,7 @@ function DashboardContent() {
             <Card className="mx-auto max-w-3xl space-y-4">
             <h1 className="text-2xl font-semibold text-white">Seu treino ainda não está pronto</h1>
             <p className="text-sm text-white/64">
-              Complete ou revise seus dados para gerar um treino personalizado.
+              Complete ou revise seus dados para gerar uma sugestão de treino.
             </p>
             <p className="text-sm text-red-300">{error ?? "Treino não encontrado."}</p>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -299,7 +299,7 @@ function DashboardContent() {
                 Ajustar meus dados
               </Button>
               <Button onClick={handleGenerateWorkoutNow} disabled={generatingWorkout}>
-                {generatingWorkout ? "Gerando treino..." : "Gerar treino agora"}
+                {generatingWorkout ? "Gerando sugestao..." : "Gerar sugestao agora"}
               </Button>
             </div>
             </Card>

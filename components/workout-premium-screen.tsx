@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ARTICLE_PLACEHOLDER_IMAGE, type ArticleRecommendation } from "@/lib/articles";
 import GoogleAd from "@/components/GoogleAd";
+import { Disclaimer } from "@/components/disclaimer";
 import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { formatBodyTypeLabel } from "@/lib/body-type";
@@ -264,6 +265,8 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
             </p>
           </div>
 
+          <Disclaimer />
+
           <div className="flex flex-wrap items-center gap-4 text-xs text-white/62">
             <div className="inline-flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-primary" />
@@ -334,7 +337,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
               EXCLUSIVO
             </span>
             <h2 className="max-w-xl text-2xl font-semibold text-white sm:text-3xl">
-              Quer um treino 100% personalizado para você?
+              Quer acompanhamento profissional para evoluir com mais clareza?
             </h2>
             <p className="mt-3 max-w-xl text-sm text-white/78 sm:text-base">
               Treine com um personal que entende seus objetivos e monta seu plano do zero.
@@ -841,7 +844,7 @@ function buildExerciseObservation(
   }
 
   if (exercise.type === "mobility") {
-    return "Pare se sentir dor aguda ou se precisar compensar a postura para completar o movimento.";
+    return "Pare se houver desconforto fora do padrao ou se precisar compensar a postura para completar o movimento.";
   }
 
   return null;
@@ -860,7 +863,7 @@ function buildExerciseSafetyText(
   }
 
   if (exercise.type === "mobility") {
-    return "Pare se sentir dor aguda ou se precisar compensar a postura para completar o movimento.";
+    return "Pare se houver desconforto fora do padrao ou se precisar compensar a postura para completar o movimento.";
   }
 
   return null;

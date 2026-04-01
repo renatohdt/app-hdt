@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConsentPreferences } from "@/components/consent-provider";
+import { Disclaimer } from "@/components/disclaimer";
 import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
@@ -26,12 +27,12 @@ export function QuizForm() {
   const { preferences: consentPreferences, hasInteracted: hasPreferenceDecision } = useConsentPreferences();
   const [stepIndex, setStepIndex] = useState(0);
   const [answers, setAnswers] = useState<Partial<QuizAnswers>>(initialAnswers);
-  const [healthConsentGranted, setHealthConsentGranted] = useState(false);
   const [account, setAccount] = useState<AccountFields>({
     name: "",
     email: "",
     password: ""
   });
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
@@ -71,7 +72,12 @@ export function QuizForm() {
 
   const canContinue = useMemo(() => {
     if (step.type === "account") {
-      return account.name.trim().length > 1 && account.email.includes("@") && account.password.trim().length >= 6;
+      return (
+        account.name.trim().length > 1 &&
+        account.email.includes("@") &&
+        account.password.trim().length >= 6 &&
+        acceptedTerms
+      );
     }
 
     if (step.type === "physical") {
@@ -96,7 +102,7 @@ export function QuizForm() {
     if (typeof value === "number") return Number.isFinite(value);
     if (typeof value === "string") return value.trim().length > 0;
     return Boolean(value);
-  }, [account, answers, step]);
+  }, [acceptedTerms, account, answers, step]);
 
   function trackStart(stepNumber: number) {
     if (!hasTrackedStart) {
@@ -152,6 +158,13 @@ export function QuizForm() {
     setSuccessMessage(null);
   }
 
+  function updateAcceptedTerms(value: boolean) {
+    trackStart(safeStepIndex + 1);
+    setAcceptedTerms(value);
+    setError(null);
+    setSuccessMessage(null);
+  }
+
   function goBack() {
     setStepIndex((current) => Math.max(0, current - 1));
   }
@@ -173,6 +186,10 @@ export function QuizForm() {
             throw new Error("Sua senha precisa ter pelo menos 6 caracteres.");
           }
 
+          if (!acceptedTerms) {
+            throw new Error("Você precisa aceitar os Termos de Uso para continuar.");
+          }
+
           if (account.name.trim().length < 2) {
             throw new Error("Digite seu nome para criar a conta.");
           }
@@ -185,7 +202,6 @@ export function QuizForm() {
           clientLogInfo("QUIZ SIGN UP STARTED", {
             email: account.email,
             name: account.name,
-            has_health_consent: healthConsentGranted,
             has_marketing_consent: hasPreferenceDecision ? consentPreferences.marketing === true : null
           });
 
@@ -220,11 +236,8 @@ export function QuizForm() {
             body: JSON.stringify({
               ...answers,
               name: account.name,
-              consents: {
-                health: healthConsentGranted,
-                ai_training_notice: true,
-                ...(hasPreferenceDecision ? consentPreferences : {})
-              }
+              acceptedTerms,
+              consents: hasPreferenceDecision ? consentPreferences : {}
             })
           });
 
@@ -426,9 +439,24 @@ export function QuizForm() {
               placeholder="Crie uma senha"
               className="min-h-16 w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 text-white outline-none transition focus:border-primary"
             />
-            <div className="rounded-[24px] border border-primary/18 bg-primary/10 px-5 py-4 text-sm leading-6 text-white/76">
-              Seu treino é gerado com apoio de inteligência artificial a partir das respostas do formulário. Você pode solicitar revisão humana ou contestar a recomendação na área de privacidade.
-            </div>
+            <Disclaimer variant="compact" />
+            <label className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-6 text-white/76">
+              <span className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(event) => updateAcceptedTerms(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-white/20 accent-[#22c55e]"
+                />
+                <span>
+                  Li e concordo com os{" "}
+                  <Link href="/termos-de-uso" className="font-semibold text-primary transition hover:text-primaryStrong">
+                    Termos de Uso
+                  </Link>
+                  .
+                </span>
+              </span>
+            </label>
             <p className="text-sm text-white/60">
               Ao continuar, você pode consultar nossa{" "}
               <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
@@ -460,46 +488,6 @@ export function QuizForm() {
               <span>{step.formatValue(step.max)}</span>
             </div>
           </div>
-        ) : step.type === "textarea" ? (
-          <div className="mt-8">
-            <div className="space-y-4">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-6 text-white/72">
-                <p>
-                  Aviso: Usamos seus dados físicos e eventuais limitações para personalizar o treino com mais segurança. Informações sobre dores, lesões e saúde são opcionais e serão tratadas como dados sensíveis, com acesso restrito.
-                </p>
-              </div>
-              <label className="flex items-start gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-6 text-white/78">
-                <input
-                  type="checkbox"
-                  checked={healthConsentGranted}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setHealthConsentGranted(checked);
-
-                    if (!checked) {
-                      setAnswers((current) => ({
-                        ...current,
-                        injuries: ""
-                      }));
-                    }
-                  }}
-                  className="mt-1 h-4 w-4 rounded border-white/20 accent-[#22c55e]"
-                />
-                <span>
-                  Autorizo o tratamento das minhas informações de saúde e limitações físicas para personalização do treino e prevenção de recomendações inadequadas.
-                </span>
-              </label>
-              <textarea
-                value={String(answers[step.key as keyof QuizAnswers] ?? "")}
-                onChange={(event) => updateCurrentAnswer(event.target.value)}
-                placeholder={healthConsentGranted ? step.placeholder : "Marque o consentimento acima para informar dores, lesões ou limitações."}
-                rows={5}
-                disabled={!healthConsentGranted}
-                className="w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-white outline-none transition focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <p className="text-sm text-white/52">Se preferir, deixe esse campo em branco e siga sem informar dados de saúde.</p>
-            </div>
-          </div>
         ) : (
           <div className="mt-8">
             <input
@@ -524,9 +512,9 @@ export function QuizForm() {
           </Button>
           <Button onClick={goNext} disabled={isPending || !canContinue}>
             {isPending
-              ? "Montando seu treino..."
+              ? "Montando sua sugestão de treino..."
               : safeStepIndex === quizSteps.length - 1
-                ? "Criar conta e ver meu treino"
+                ? "Criar conta e ver minha sugestão"
                 : "Continuar"}
           </Button>
         </div>
@@ -534,7 +522,7 @@ export function QuizForm() {
 
       {isPending ? (
         <div className="mt-6 rounded-[24px] border border-primary/20 bg-primary/10 p-4">
-          <p className="text-sm font-semibold text-primary">Montando seu treino personalizado...</p>
+          <p className="text-sm font-semibold text-primary">Montando sua sugestão de treino...</p>
           <p className="mt-1 text-sm text-white/64">Analisando seus dados para criar algo mais preciso para você.</p>
           <div className="mt-4 space-y-2">
             {loadingMessages.map((message, index) => {

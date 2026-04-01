@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Hora do Treino",
     short_name: "Hora do Treino",
-    description: "App para montar e acompanhar treinos personalizados",
+    description: "App para montar e acompanhar sugestoes de treino",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#050505",
     theme_color: "#0b0b0b",
     lang: "pt-BR",
-    categories: ["health", "fitness", "lifestyle"],
+    categories: ["fitness", "lifestyle", "sports"],
     icons: [
       { src: "/pwa/icon-72x72.png", sizes: "72x72", type: "image/png", purpose: "any" },
       { src: "/pwa/icon-96x96.png", sizes: "96x96", type: "image/png", purpose: "any" },

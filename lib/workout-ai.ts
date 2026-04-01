@@ -108,7 +108,7 @@ export function buildWorkoutHash(answers: QuizAnswers) {
   }
 
   const cacheKey = {
-    planVersion: "pt-v4",
+    planVersion: "pt-v5",
     goal: answers.goal,
     experience: answers.experience,
     gender: answers.gender,
@@ -116,8 +116,7 @@ export function buildWorkoutHash(answers: QuizAnswers) {
     days: Number(answers.days) || 0,
     time: Number(answers.time) || 0,
     location: normalizeLocation(typeof answers.location === "string" ? answers.location : "home"),
-    equipment: normalizeEquipmentList(answers.equipment),
-    restrictionCategories: buildWorkoutRestrictionCategories(answers)
+    equipment: normalizeEquipmentList(answers.equipment)
   };
 
   return createHmac("sha256", secret).update(JSON.stringify(cacheKey)).digest("hex");
@@ -253,7 +252,6 @@ export async function generateWorkoutWithAI(
         goal: answers.goal,
         days: strategy.dayCount,
         time: strategy.timeAvailable,
-        injuries: answers.injuries,
         equipment: strategy.equipment,
         gender: answers.gender,
         experience: answers.experience,
@@ -519,7 +517,7 @@ function validateAndBuildWorkoutPlan(
   }
 
   return {
-    title: `Plano ${diagnosis.title}`,
+    title: `Sugestao ${diagnosis.title}`,
     subtitle: `${strategy.splitLabel} pensado para ${formatGoal(answers.goal)} com foco em eficiencia real.`,
     estimatedDuration: `${strategy.timeAvailable} min`,
     focus: [
@@ -1475,40 +1473,6 @@ function normalizeEquipment(value: string) {
 
 function normalizeEquipmentList(values?: string[] | null) {
   return Array.from(new Set((values ?? []).map(normalizeEquipment))).sort();
-}
-
-function buildWorkoutRestrictionCategories(answers: QuizAnswers) {
-  const normalized = normalizeText(answers.injuries);
-
-  if (!normalized) {
-    return [] as string[];
-  }
-
-  const categories = new Set<string>();
-  const mappings: Array<{ category: string; patterns: string[] }> = [
-    { category: "shoulder", patterns: ["ombro", "manguito", "shoulder"] },
-    { category: "knee", patterns: ["joelho", "patela", "knee"] },
-    { category: "lower_back", patterns: ["lombar", "coluna", "ciatica", "lower back", "costas"] },
-    { category: "hip", patterns: ["quadril", "pelve", "hip"] },
-    { category: "ankle_foot", patterns: ["tornozelo", "pe", "plantar", "ankle", "foot"] },
-    { category: "wrist_elbow", patterns: ["punho", "cotovelo", "mao", "wrist", "elbow"] },
-    { category: "neck", patterns: ["cervical", "pescoco", "neck"] },
-    { category: "cardiorespiratory", patterns: ["asma", "card", "pressao", "respirat", "cardio"] },
-    { category: "pregnancy_postpartum", patterns: ["gestante", "gravidez", "pos parto", "posparto"] },
-    { category: "mobility_limitation", patterns: ["mobilidade", "rigidez", "amplitude", "travamento"] }
-  ];
-
-  for (const mapping of mappings) {
-    if (mapping.patterns.some((pattern) => normalized.includes(pattern))) {
-      categories.add(mapping.category);
-    }
-  }
-
-  if (!categories.size) {
-    categories.add("other_constraint");
-  }
-
-  return Array.from(categories).sort();
 }
 
 function mobilityNameByFocus(focus: string) {

@@ -22,7 +22,6 @@ export type AdminAnswerSummary = {
   ageLabel: string;
   days: string;
   time: string;
-  healthStatus: string;
 };
 
 export type AdminUserDetailPayload = {
@@ -41,7 +40,7 @@ export type AdminUserDetailPayload = {
     sections: string[];
     sectionCount: number;
   };
-  sensitiveData: {
+  extendedData: {
     quizAnswers: QuizAnswers | null;
     workoutRaw: unknown;
   } | null;
@@ -49,12 +48,12 @@ export type AdminUserDetailPayload = {
 
 export function maskEmail(email?: string | null) {
   if (!email) {
-    return "Não informado";
+    return "Nao informado";
   }
 
   const [localPart, domain] = email.split("@");
   if (!localPart || !domain) {
-    return "Não informado";
+    return "Nao informado";
   }
 
   const visibleStart = localPart.slice(0, 2);
@@ -69,12 +68,11 @@ export function buildAdminAnswerSummary(answers?: QuizAnswers | null): AdminAnsw
     level: getLevelLabel(answers?.experience),
     ageLabel: getAgeLabel(answers?.age),
     days: getDaysLabel(answers?.days),
-    time: getTimeLabel(answers?.time),
-    healthStatus: answers?.injuries?.trim() ? "Informado" : "Não informado"
+    time: getTimeLabel(answers?.time)
   };
 }
 
-export async function getAdminUserDetail(userId: string, includeSensitive: boolean) {
+export async function getAdminUserDetail(userId: string, includeExtended: boolean) {
   const supabase = createSupabaseAdminClient();
   if (!supabase) {
     return null;
@@ -105,7 +103,7 @@ export async function getAdminUserDetail(userId: string, includeSensitive: boole
       id: userRow.id,
       name: userRow.name,
       emailMasked: maskEmail(email),
-      emailRaw: includeSensitive ? email : undefined,
+      emailRaw: includeExtended ? email : undefined,
       createdAt: userRow.created_at,
       summary: buildAdminAnswerSummary(answers)
     },
@@ -120,7 +118,7 @@ export async function getAdminUserDetail(userId: string, includeSensitive: boole
         : [],
       sectionCount: Array.isArray(workout?.exercises?.sections) ? workout?.exercises?.sections?.length ?? 0 : 0
     },
-    sensitiveData: includeSensitive
+    extendedData: includeExtended
       ? {
           quizAnswers: answers,
           workoutRaw: workout?.exercises ?? null
@@ -133,11 +131,11 @@ function getGoalLabel(goal?: QuizAnswers["goal"]) {
   const labels = {
     lose_weight: "Emagrecimento",
     gain_muscle: "Hipertrofia",
-    body_recomposition: "Definição",
+    body_recomposition: "Definicao",
     improve_conditioning: "Condicionamento"
   };
 
-  return goal ? labels[goal] : "Não informado";
+  return goal ? labels[goal] : "Nao informado";
 }
 
 function getGenderLabel(gender?: QuizAnswers["gender"]) {
@@ -146,29 +144,29 @@ function getGenderLabel(gender?: QuizAnswers["gender"]) {
     female: "Feminino"
   };
 
-  return gender ? labels[gender] : "Não informado";
+  return gender ? labels[gender] : "Nao informado";
 }
 
 function getBodyTypeLabel(value?: QuizAnswers["wrist"] | QuizAnswers["body_type"] | string) {
-  return value ? formatBodyTypeLabel(value) : "Não informado";
+  return value ? formatBodyTypeLabel(value) : "Nao informado";
 }
 
 function getLevelLabel(experience?: QuizAnswers["experience"]) {
   const labels = {
     no_training: "Iniciante",
     lt_6_months: "Iniciante",
-    "6_to_12_months": "Intermediário",
-    gt_1_year: "Avançado"
+    "6_to_12_months": "Intermediario",
+    gt_1_year: "Avancado"
   };
 
-  return experience ? labels[experience] : "Não informado";
+  return experience ? labels[experience] : "Nao informado";
 }
 
 function getAgeLabel(age?: number) {
   const numericAge = Number(age);
 
   if (!Number.isFinite(numericAge) || numericAge <= 0) {
-    return "Não informado";
+    return "Nao informado";
   }
 
   if (numericAge < 18) return "Menos de 18";
@@ -181,10 +179,10 @@ function getAgeLabel(age?: number) {
 
 function getDaysLabel(days?: QuizAnswers["days"]) {
   const numericDays = Number(days);
-  return Number.isFinite(numericDays) ? `${numericDays} ${numericDays === 1 ? "dia" : "dias"} por semana` : "Não informado";
+  return Number.isFinite(numericDays) ? `${numericDays} ${numericDays === 1 ? "dia" : "dias"} por semana` : "Nao informado";
 }
 
 function getTimeLabel(time?: QuizAnswers["time"]) {
   const minutes = Number(time);
-  return Number.isFinite(minutes) ? `${minutes} min` : "Não informado";
+  return Number.isFinite(minutes) ? `${minutes} min` : "Nao informado";
 }

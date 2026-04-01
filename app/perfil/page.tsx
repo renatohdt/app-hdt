@@ -10,6 +10,7 @@ import { isValidEmail } from "@/lib/auth-errors";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { signOutAndRedirect } from "@/lib/client-signout";
+import { ENABLE_WORKOUT_REGENERATION } from "@/lib/feature-flags";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type ProfilePayload = {
@@ -24,7 +25,6 @@ type ProfilePayload = {
     weight?: number;
     height?: number;
     profession?: string;
-    injuries?: string;
     days?: number;
     time?: number;
     equipment?: string[];
@@ -38,7 +38,6 @@ type ProfileFormState = {
   age: string;
   weight: string;
   height: string;
-  injuries: string;
   goal: string;
   gender: string;
   body_type: string;
@@ -100,7 +99,6 @@ const EMPTY_FORM_STATE: ProfileFormState = {
   age: "",
   weight: "",
   height: "",
-  injuries: "",
   goal: GOAL_OPTIONS[0]?.value ?? "",
   gender: GENDER_OPTIONS[0]?.value ?? "",
   body_type: BODY_TYPE_OPTIONS[0]?.value ?? "",
@@ -256,7 +254,6 @@ export default function PerfilPage() {
           age: form.age,
           weight: form.weight,
           height: form.height,
-          injuries: form.injuries,
           goal: form.goal,
           gender: form.gender,
           body_type: form.body_type,
@@ -509,26 +506,6 @@ export default function PerfilPage() {
         </div>
 
         <Card className="space-y-4">
-          <h2 className="text-xl font-semibold text-white">Saude e limitacoes</h2>
-          <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-white/45">Lesoes / dores</p>
-            <div className="mt-2">
-              {isEditing ? (
-                <TextareaField
-                  value={form.injuries}
-                  onChange={(value) => updateForm(setForm, "injuries", value)}
-                  placeholder="Ex: dor no joelho, lombar, ombro..."
-                />
-              ) : (
-                <p className="whitespace-pre-wrap break-words text-sm font-medium text-white">
-                  {payload.answers.injuries?.trim() || "Nenhuma informada"}
-                </p>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        <Card className="space-y-4">
           <h2 className="text-xl font-semibold text-white">Dados do treino</h2>
           <ProfileGrid
             items={[
@@ -631,7 +608,8 @@ export default function PerfilPage() {
           </div>
         </Card>
 
-        <Card className="space-y-4">
+        {ENABLE_WORKOUT_REGENERATION ? (
+          <Card className="space-y-4">
           <div className="space-y-1">
             <p className="text-sm uppercase tracking-[0.24em] text-primary">Novo treino</p>
             <h2 className="text-xl font-semibold text-white">Gerar novo treino com os dados salvos</h2>
@@ -655,7 +633,8 @@ export default function PerfilPage() {
               {isGenerating ? "Gerando novo treino..." : "Gerar novo treino"}
             </Button>
           </div>
-        </Card>
+          </Card>
+        ) : null}
 
         <div className="pt-2">
           <Button
@@ -759,26 +738,6 @@ function SelectField({
   );
 }
 
-function TextareaField({
-  value,
-  onChange,
-  placeholder
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <textarea
-      rows={4}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      className="min-h-[128px] w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white outline-none transition focus:border-primary"
-    />
-  );
-}
-
 function buildFormState(payload: ProfilePayload): ProfileFormState {
   return {
     name: payload.user.name ?? "",
@@ -787,7 +746,6 @@ function buildFormState(payload: ProfilePayload): ProfileFormState {
     age: payload.answers.age ? String(payload.answers.age) : "",
     weight: payload.answers.weight ? String(payload.answers.weight) : "",
     height: payload.answers.height ? String(payload.answers.height) : "",
-    injuries: payload.answers.injuries ?? "",
     goal: payload.answers.goal ?? GOAL_OPTIONS[0].value,
     gender: payload.answers.gender ?? GENDER_OPTIONS[0].value,
     body_type:

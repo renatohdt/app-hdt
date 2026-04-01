@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
-import { applyHealthConsentToAnswers, hasUserConsent } from "@/lib/consents";
 import { diagnoseUser } from "@/lib/diagnosis";
 import { enforceRateLimit, getRequestFingerprint } from "@/lib/rate-limit";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
@@ -61,13 +60,14 @@ export async function GET(request: NextRequest) {
       return jsonError("Não foi possível carregar seus dados agora.", 404);
     }
 
-    const healthConsentGranted = await hasUserConsent(supabase, user.id, "health");
-    const answers = applyHealthConsentToAnswers(savedAnswers, healthConsentGranted) as QuizAnswers;
-    const normalizedAnswers = normalizeBodyTypeFields(answers);
+    const answers = normalizeBodyTypeFields({
+      ...savedAnswers,
+      location: "home"
+    }) as QuizAnswers;
     const diagnosis = diagnoseUser(answers);
     const normalizedWorkout = normalizeWorkoutPayload(workout?.exercises ?? null, {
       diagnosis,
-      answers: normalizedAnswers
+      answers
     });
 
     return NextResponse.json({
@@ -81,14 +81,13 @@ export async function GET(request: NextRequest) {
         answers: {
           goal: answers.goal,
           gender: answers.gender,
-          wrist: normalizedAnswers.wrist,
-          body_type_raw: normalizedAnswers.body_type_raw,
-          body_type: normalizedAnswers.body_type,
+          wrist: answers.wrist,
+          body_type_raw: answers.body_type_raw,
+          body_type: answers.body_type,
           age: answers.age,
           weight: answers.weight,
           height: answers.height,
           profession: answers.profession,
-          injuries: answers.injuries,
           location: "home",
           equipment: answers.equipment,
           time: answers.time,
@@ -147,9 +146,8 @@ export async function POST(request: Request) {
       return jsonError("Não foi possível carregar seus dados agora.", 404);
     }
 
-    const healthConsentGranted = await hasUserConsent(supabase, user.id, "health");
     const answers = normalizeBodyTypeFields({
-      ...(applyHealthConsentToAnswers(savedAnswers, healthConsentGranted) as QuizAnswers),
+      ...savedAnswers,
       location: "home"
     }) as QuizAnswers;
 
@@ -243,7 +241,6 @@ export async function POST(request: Request) {
           weight: answers.weight,
           height: answers.height,
           profession: answers.profession,
-          injuries: answers.injuries,
           location: "home",
           equipment: answers.equipment,
           time: answers.time,

@@ -1,4 +1,5 @@
 import { logError, logWarn } from "@/lib/server-logger";
+import { stripLegacyQuizFields } from "@/lib/quiz-answers";
 import { QuizAnswers } from "@/lib/types";
 
 type UserAnswersRow = {
@@ -30,7 +31,7 @@ export async function getUserAnswersByUserId(supabase: SupabaseLike, userId: str
     return null;
   }
 
-  return data?.answers ?? null;
+  return stripLegacyQuizFields(data?.answers ?? null);
 }
 
 export async function getUserAnswersMap(supabase: SupabaseLike, userIds: string[]) {
@@ -62,7 +63,10 @@ export async function getUserAnswersMap(supabase: SupabaseLike, userIds: string[
 
   for (const item of sortedRows) {
     if (!answersMap.has(item.user_id)) {
-      answersMap.set(item.user_id, item.answers);
+      const answers = stripLegacyQuizFields(item.answers);
+      if (answers) {
+        answersMap.set(item.user_id, answers);
+      }
     }
   }
 
@@ -70,9 +74,17 @@ export async function getUserAnswersMap(supabase: SupabaseLike, userIds: string[
 }
 
 export async function saveUserAnswers(supabase: SupabaseLike, userId: string, answers: QuizAnswers) {
+  const sanitizedAnswers = stripLegacyQuizFields(answers);
+  if (!sanitizedAnswers) {
+    return {
+      data: null,
+      error: { message: "Invalid quiz answers payload." }
+    };
+  }
+
   const payload = {
     user_id: userId,
-    answers
+    answers: sanitizedAnswers
   };
 
   const { data: existingAnswers, error: existingAnswersError } = (await supabase
@@ -93,7 +105,7 @@ export async function saveUserAnswers(supabase: SupabaseLike, userId: string, an
   }
 
   const result = existingAnswers
-    ? await supabase.from("user_answers").update({ answers }).eq("user_id", userId).select().single()
+    ? await supabase.from("user_answers").update({ answers: sanitizedAnswers }).eq("user_id", userId).select().single()
     : await supabase.from("user_answers").insert(payload).select().single();
 
   return result;

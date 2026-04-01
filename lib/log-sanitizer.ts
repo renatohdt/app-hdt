@@ -1,12 +1,11 @@
 const REDACTED = "[REDACTED]";
 const REDACTED_AUTH_RESPONSE = "[REDACTED_AUTH_RESPONSE]";
 const REDACTED_ANSWERS = "[REDACTED_ANSWERS]";
-const REDACTED_SENSITIVE = "[REDACTED_SENSITIVE]";
 const REDACTED_PROFILE = "[REDACTED_PROFILE]";
 
 const WHOLE_OBJECT_KEYS = ["answers", "session", "auth_response", "sign_up_response", "login_response"];
 const SENSITIVE_KEYS = ["password", "token", "authorization", "secret", "refresh", "access_key", "access_token"];
-const PROFILE_KEYS = ["injuries", "body_type", "body_type_raw", "weight", "height", "age", "wrist"];
+const PROFILE_KEYS = ["body_type", "body_type_raw", "weight", "height", "age", "wrist"];
 
 function normalizeKey(value?: string) {
   return value?.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") ?? "";
@@ -85,10 +84,6 @@ function sanitizeInternal(value: unknown, key: string, seen: WeakSet<object>): u
       Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => {
         const normalizedEntryKey = normalizeKey(entryKey);
 
-        if (normalizedEntryKey === "injuries") {
-          return [entryKey, REDACTED_SENSITIVE];
-        }
-
         if (normalizedEntryKey === "answers") {
           return [entryKey, REDACTED_ANSWERS];
         }
@@ -108,4 +103,3 @@ function sanitizeInternal(value: unknown, key: string, seen: WeakSet<object>): u
 export function sanitizeForLogs<T>(value: T): T {
   return sanitizeInternal(value, "", new WeakSet<object>()) as T;
 }
-
