@@ -1,5 +1,19 @@
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
-import type { AdminDashboardData, AdminErrorLog, DashboardPeriod, RetentionMetric } from "@/lib/admin-shared";
+import type {
+  AdminDashboardData,
+  AdminErrorLog,
+  DashboardPeriod,
+  RetentionMetric
+} from "@/lib/admin-shared";
+import {
+  ACTIVE_USER_EVENT_NAMES,
+  CTA_EVENTS,
+  DASHBOARD_EVENT_NAMES,
+  HOME_VIEW_EVENTS,
+  QUIZ_START_EVENTS,
+  RETURN_ACTIVITY_EVENTS,
+  SIGNUP_EVENTS
+} from "@/lib/analytics-events";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { QuizAnswers } from "@/lib/types";
 import { getUserAnswersMap } from "@/lib/user-answers";
@@ -44,9 +58,16 @@ export type AdminExercise = {
 type AdminEvent = {
   id: string;
   event_name: string;
-  user_id: string;
+  user_id: string | null;
+  visitor_id?: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+};
+
+type DashboardUserRow = {
+  id: string;
+  created_at: string;
+  role?: string | null;
 };
 
 type UserAnswerRow = {
@@ -54,23 +75,13 @@ type UserAnswerRow = {
   answers: QuizAnswers | Record<string, unknown>;
   created_at?: string;
 };
+type IdentityResolver = (value: { user_id?: string | null; visitor_id?: string | null }) => string | null;
 
-const HOME_VIEW_EVENTS = ["home_view", "page_view"];
-const QUIZ_START_EVENTS = ["quiz_started", "quiz_start"];
-const SIGNUP_EVENTS = ["signup", "sign_up", "quiz_completed"];
-const CTA_EVENTS = ["cta_click", "cta_clicked"];
-const RETURN_ACTIVITY_EVENTS = [
-  "app_session",
-  "viewed_workout",
-  "workout_viewed",
-  "content_recommendation_generated",
-  "article_click",
-  "cta_click",
-  "cta_clicked"
-];
-const DASHBOARD_EVENT_NAMES = Array.from(
-  new Set([...HOME_VIEW_EVENTS, ...QUIZ_START_EVENTS, ...SIGNUP_EVENTS, ...CTA_EVENTS, ...RETURN_ACTIVITY_EVENTS])
-);
+type TimeWindow = {
+  from: Date;
+  to?: Date;
+  label: string;
+};
 const RETENTION_WINDOWS = [
   {
     key: "d1",
@@ -156,7 +167,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   if (!supabase) {
     return {
-      activeUsers: 0,
+      activeUsers: {
+        daily: 0,
+        weekly: 0
+      },
       ageDistribution: [],
       genderDistribution: [],
       goalDistribution: [],
@@ -176,15 +190,109 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     };
   }
 
+  // Use the new windowed metric path first so the admin dashboard stays coherent
+  // across event-based funnel data and persisted onboarding rows.
+  {
+    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery] =
+      await Promise.all([
+        supabase
+          .from("users")
+          .select("id, name, role, created_at")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("user_answers")
+          .select("user_id, answers, created_at")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("analytics_events")
+          .select("id, event_name, user_id, visitor_id, metadata, created_at")
+          .is("deleted_at", null)
+          .in("event_name", DASHBOARD_EVENT_NAMES)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("analytics_events")
+          .select("id, event_name, user_id, visitor_id, metadata, created_at")
+          .is("deleted_at", null)
+          .ilike("event_name", "%error%")
+          .order("created_at", { ascending: false })
+          .limit(10)
+      ]);
+
+    const dashboardQueryErrors = [
+      buildQueryError("users-error", dashboardUsersQuery.error?.message, "users"),
+      buildQueryError("answers-error", dashboardAnswersQuery.error?.message, "user_answers"),
+      buildQueryError("events-error", dashboardEventsQuery.error?.message, "analytics_events"),
+      buildQueryError("error-events-error", dashboardErrorEventsQuery.error?.message, "analytics_events")
+    ].filter(Boolean) as AdminErrorLog[];
+
+    if (dashboardQueryErrors.length) {
+      return {
+        activeUsers: {
+          daily: 0,
+          weekly: 0
+        },
+        ageDistribution: [],
+        genderDistribution: [],
+        goalDistribution: [],
+        retention: buildRetentionMetrics([], []),
+        funnel: {
+          daily: buildLegacyFunnelPeriod([], startOfToday(), "Diario"),
+          weekly: buildLegacyFunnelPeriod([], startOfLastDays(7), "Semanal")
+        },
+        errors: dashboardQueryErrors
+      };
+    }
+
+    const dashboardUsers = ((dashboardUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
+    const dashboardAnswers = (dashboardAnswersQuery.data ?? []) as UserAnswerRow[];
+    const dashboardEvents = (dashboardEventsQuery.data ?? []) as AdminEvent[];
+    const dashboardErrorEvents = (dashboardErrorEventsQuery.data ?? []) as AdminEvent[];
+    const dashboardIdentityResolver = getEventIdentityResolver(dashboardEvents);
+    const dashboardAnswerList = dashboardAnswers
+      .map((row) => normalizeAnswers(row.answers))
+      .filter(Boolean) as Array<Partial<QuizAnswers> & Record<string, unknown>>;
+    const dashboardAllEvents = [...dashboardEvents, ...dashboardErrorEvents];
+
+    return {
+      activeUsers: {
+        daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
+          from: startOfToday(),
+          label: "Diario"
+        }),
+        weekly: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
+          from: startOfLastDays(7),
+          label: "Semanal"
+        })
+      },
+      ageDistribution: toDistribution(dashboardAnswerList.map(getAgeBucket)),
+      genderDistribution: toDistribution(dashboardAnswerList.map((answers) => getGenderLabel(answers.gender))),
+      goalDistribution: toDistribution(dashboardAnswerList.map((answers) => getGoalLabel(answers.goal))),
+      retention: buildRetentionMetrics(dashboardUsers, dashboardEvents),
+      funnel: {
+        daily: buildWindowedFunnelPeriod(dashboardUsers, dashboardAnswers, dashboardEvents, dashboardIdentityResolver, {
+          from: startOfToday(),
+          label: "Diario"
+        }),
+        weekly: buildWindowedFunnelPeriod(dashboardUsers, dashboardAnswers, dashboardEvents, dashboardIdentityResolver, {
+          from: startOfLastDays(7),
+          label: "Semanal"
+        })
+      },
+      errors: [...dashboardQueryErrors, ...getRecentSystemErrors(dashboardAllEvents)].slice(0, 10)
+    };
+  }
+
   const [usersResult, userAnswersResult, dashboardEventsResult, errorEventsResult] = await Promise.all([
-    supabase.from("users").select("id, name, created_at").order("created_at", { ascending: false }),
-    supabase.from("user_answers").select("user_id, answers, created_at").order("created_at", { ascending: false }),
-    supabase
+    supabase!.from("users").select("id, name, created_at").order("created_at", { ascending: false }),
+    supabase!.from("user_answers").select("user_id, answers, created_at").order("created_at", { ascending: false }),
+    supabase!
       .from("analytics_events")
       .select("id, event_name, user_id, metadata, created_at")
       .in("event_name", DASHBOARD_EVENT_NAMES)
       .order("created_at", { ascending: false }),
-    supabase
+    supabase!
       .from("analytics_events")
       .select("id, event_name, user_id, metadata, created_at")
       .ilike("event_name", "%error%")
@@ -201,7 +309,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   if (queryErrors.length) {
     return {
-      activeUsers: 0,
+      activeUsers: {
+        daily: 0,
+        weekly: 0
+      },
       ageDistribution: [],
       genderDistribution: [],
       goalDistribution: [],
@@ -226,7 +337,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   ]).size;
 
   return {
-    activeUsers,
+    activeUsers: {
+      daily: activeUsers,
+      weekly: activeUsers
+    },
     ageDistribution: toDistribution(answersList.map(getAgeBucket)),
     genderDistribution: toDistribution(answersList.map((answers) => getGenderLabel(answers.gender))),
     goalDistribution: toDistribution(answersList.map((answers) => getGoalLabel(answers.goal))),
@@ -246,11 +360,86 @@ export async function getMonthlyDashboardCsv() {
     return "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta\n";
   }
 
+  {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [csvUsersQuery, csvAnswersQuery, csvEventsQuery] = await Promise.all([
+      supabase
+        .from("users")
+        .select("id, role, created_at")
+        .is("deleted_at", null)
+        .gte("created_at", monthStart.toISOString())
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("user_answers")
+        .select("user_id, created_at")
+        .is("deleted_at", null)
+        .gte("created_at", monthStart.toISOString())
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("analytics_events")
+        .select("event_name, user_id, visitor_id, created_at")
+        .is("deleted_at", null)
+        .gte("created_at", monthStart.toISOString())
+        .in("event_name", DASHBOARD_EVENT_NAMES)
+        .order("created_at", { ascending: true })
+    ]);
+
+    if (csvUsersQuery.error || csvAnswersQuery.error || csvEventsQuery.error) {
+      console.error("MONTHLY CSV ERROR:", csvUsersQuery.error ?? csvAnswersQuery.error ?? csvEventsQuery.error);
+      return "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta\n";
+    }
+
+    const csvUsers = ((csvUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
+    const csvAnswers = (csvAnswersQuery.data ?? []) as UserAnswerRow[];
+    const csvEvents = (csvEventsQuery.data ?? []) as AdminEvent[];
+    const csvIdentityResolver = getEventIdentityResolver(csvEvents);
+    const dayKeys = new Set<string>();
+
+    csvUsers.forEach((user) => {
+      if (user.created_at) {
+        dayKeys.add(new Date(user.created_at).toISOString().slice(0, 10));
+      }
+    });
+
+    csvAnswers.forEach((answer) => {
+      if (answer.created_at) {
+        dayKeys.add(new Date(answer.created_at).toISOString().slice(0, 10));
+      }
+    });
+
+    csvEvents.forEach((event) => {
+      if (event.created_at) {
+        dayKeys.add(new Date(event.created_at).toISOString().slice(0, 10));
+      }
+    });
+
+    const header = "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta";
+    const lines = [...dayKeys]
+      .sort((left, right) => left.localeCompare(right))
+      .map((date) => {
+        const from = new Date(`${date}T00:00:00.000Z`);
+        const to = new Date(from);
+        to.setUTCDate(to.getUTCDate() + 1);
+        const counts = buildFunnelCountsForWindow(csvUsers, csvAnswers, csvEvents, csvIdentityResolver, {
+          from,
+          to,
+          label: date
+        });
+
+        return `${date},${counts.home},${counts.quiz},${counts.signup},${counts.cta}`;
+      });
+
+    return [header, ...lines].join("\n");
+  }
+
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
-  const { data, error } = await supabase
+  const { data, error } = await supabase!
     .from("analytics_events")
     .select("event_name, user_id, created_at")
     .gte("created_at", monthStart.toISOString())
@@ -277,10 +466,10 @@ export async function getMonthlyDashboardCsv() {
     const row = rowsByDay.get(dayKey);
     if (!row) continue;
 
-    if (HOME_VIEW_EVENTS.includes(event.event_name)) row.home.add(event.user_id);
-    if (QUIZ_START_EVENTS.includes(event.event_name)) row.quiz.add(event.user_id);
-    if (SIGNUP_EVENTS.includes(event.event_name)) row.signup.add(event.user_id);
-    if (CTA_EVENTS.includes(event.event_name)) row.cta.add(event.user_id);
+    if (hasEventName(HOME_VIEW_EVENTS, event.event_name)) row!.home.add(event.user_id);
+    if (hasEventName(QUIZ_START_EVENTS, event.event_name)) row!.quiz.add(event.user_id);
+    if (hasEventName(SIGNUP_EVENTS, event.event_name)) row!.signup.add(event.user_id);
+    if (hasEventName(CTA_EVENTS, event.event_name)) row!.cta.add(event.user_id);
   }
 
   const header = "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta";
@@ -353,6 +542,202 @@ async function getUserEmailMap(
   return map;
 }
 
+function buildLegacyFunnelPeriod(events: AdminEvent[], from: Date, label: string) {
+  return buildFunnelPeriod(events, from, label);
+}
+
+function buildWindowedFunnelPeriod(
+  users: DashboardUserRow[],
+  userAnswers: UserAnswerRow[],
+  events: AdminEvent[],
+  resolveIdentity: IdentityResolver,
+  window: TimeWindow
+): DashboardPeriod {
+  const counts = buildFunnelCountsForWindow(users, userAnswers, events, resolveIdentity, window);
+  const values = [
+    {
+      key: "home_view",
+      label: "Página inicial",
+      value: counts.home
+    },
+    {
+      key: "quiz_started",
+      label: "Iniciaram questionário",
+      value: counts.quiz
+    },
+    {
+      key: "signup",
+      label: "Criaram conta",
+      value: counts.signup
+    },
+    {
+      key: "cta_click",
+      label: "Clicaram na CTA",
+      value: counts.cta
+    }
+  ];
+
+  return {
+    label: window.label,
+    steps: values.map((step, index) => ({
+      ...step,
+      conversion: index === 0 ? null : calculateConversion(values[index - 1].value, step.value)
+    }))
+  };
+}
+
+function buildFunnelCountsForWindow(
+  users: DashboardUserRow[],
+  userAnswers: UserAnswerRow[],
+  events: AdminEvent[],
+  resolveIdentity: IdentityResolver,
+  window: TimeWindow
+) {
+  const filteredEvents = events.filter((event) => isWithinWindow(event.created_at, window));
+  const homeEventIdentities = collectEventIdentities(filteredEvents, HOME_VIEW_EVENTS, resolveIdentity);
+  const quizEventIdentities = collectEventIdentities(filteredEvents, QUIZ_START_EVENTS, resolveIdentity);
+  const signupIdentities = collectCreatedUserIdentities(users, window);
+  const onboardingFallbackIdentities = collectOnboardingFallbackIdentities(users, userAnswers, window);
+  const ctaIdentities = collectEventIdentities(filteredEvents, CTA_EVENTS, resolveIdentity);
+
+  // Older production data can have missing top-of-funnel events because the original
+  // tracker required authentication. Only fall back when the event source is empty.
+  const homeIdentities = homeEventIdentities.size
+    ? homeEventIdentities
+    : quizEventIdentities.size
+      ? quizEventIdentities
+      : onboardingFallbackIdentities;
+  const quizIdentities = quizEventIdentities.size ? quizEventIdentities : onboardingFallbackIdentities;
+
+  return {
+    home: homeIdentities.size,
+    quiz: quizIdentities.size,
+    signup: signupIdentities.size,
+    cta: ctaIdentities.size
+  };
+}
+
+function buildActiveUsersForWindow(
+  users: DashboardUserRow[],
+  userAnswers: UserAnswerRow[],
+  events: AdminEvent[],
+  window: TimeWindow
+) {
+  const activeUsers = new Set<string>();
+
+  collectCreatedUserIds(users, window).forEach((userId) => activeUsers.add(userId));
+  collectUserAnswerIds(userAnswers, window).forEach((userId) => activeUsers.add(userId));
+
+  for (const event of events) {
+    if (!event.user_id || !isWithinWindow(event.created_at, window)) {
+      continue;
+    }
+
+    if (hasEventName(ACTIVE_USER_EVENT_NAMES, event.event_name)) {
+      activeUsers.add(event.user_id);
+    }
+  }
+
+  return activeUsers.size;
+}
+
+function collectOnboardingFallbackIdentities(
+  users: DashboardUserRow[],
+  userAnswers: UserAnswerRow[],
+  window: TimeWindow
+) {
+  const identities = new Set<string>();
+
+  collectCreatedUserIdentities(users, window).forEach((identity) => identities.add(identity));
+  collectUserAnswerIdentities(userAnswers, window).forEach((identity) => identities.add(identity));
+
+  return identities;
+}
+
+function collectCreatedUserIdentities(users: DashboardUserRow[], window: TimeWindow) {
+  return new Set([...collectCreatedUserIds(users, window)].map((userId) => `user:${userId}`));
+}
+
+function collectCreatedUserIds(users: DashboardUserRow[], window: TimeWindow) {
+  const userIds = new Set<string>();
+
+  for (const user of users) {
+    if (isWithinWindow(user.created_at, window)) {
+      userIds.add(user.id);
+    }
+  }
+
+  return userIds;
+}
+
+function collectUserAnswerIdentities(userAnswers: UserAnswerRow[], window: TimeWindow) {
+  return new Set([...collectUserAnswerIds(userAnswers, window)].map((userId) => `user:${userId}`));
+}
+
+function collectUserAnswerIds(userAnswers: UserAnswerRow[], window: TimeWindow) {
+  const userIds = new Set<string>();
+
+  for (const answer of userAnswers) {
+    if (!answer.user_id || !isWithinWindow(answer.created_at, window)) {
+      continue;
+    }
+
+    userIds.add(answer.user_id);
+  }
+
+  return userIds;
+}
+
+function collectEventIdentities(
+  events: AdminEvent[],
+  names: readonly string[],
+  resolveIdentity: IdentityResolver
+) {
+  const allowedNames = new Set<string>(names);
+  const identities = new Set<string>();
+
+  for (const event of events) {
+    if (!allowedNames.has(event.event_name)) {
+      continue;
+    }
+
+    const identity = resolveIdentity(event);
+    if (identity) {
+      identities.add(identity);
+    }
+  }
+
+  return identities;
+}
+
+function getEventIdentityResolver(events: AdminEvent[]): IdentityResolver {
+  const visitorToUser = new Map<string, string>();
+
+  for (const event of events) {
+    const userId = normalizeIdentityToken(event.user_id);
+    const visitorId = normalizeIdentityToken(event.visitor_id);
+
+    if (userId && visitorId) {
+      visitorToUser.set(visitorId, userId);
+    }
+  }
+
+  return ({ user_id, visitor_id }) => {
+    const userId = normalizeIdentityToken(user_id);
+    if (userId) {
+      return `user:${userId}`;
+    }
+
+    const visitorId = normalizeIdentityToken(visitor_id);
+    if (!visitorId) {
+      return null;
+    }
+
+    const mappedUserId = visitorToUser.get(visitorId);
+    return mappedUserId ? `user:${mappedUserId}` : `visitor:${visitorId}`;
+  };
+}
+
 function buildFunnelPeriod(events: AdminEvent[], from: Date, label: string): DashboardPeriod {
   const filtered = events.filter((event) => new Date(event.created_at) >= from);
   const values = [
@@ -395,7 +780,7 @@ function buildRetentionMetrics(
   const activityByUser = new Map<string, number[]>();
 
   for (const event of events) {
-    if (!RETURN_ACTIVITY_EVENTS.includes(event.event_name) || !event.user_id || !event.created_at) {
+    if (!hasEventName(RETURN_ACTIVITY_EVENTS, event.event_name) || !event.user_id || !event.created_at) {
       continue;
     }
 
@@ -455,10 +840,46 @@ function buildRetentionMetrics(
 function countUniqueUsers(events: AdminEvent[], names: string[]) {
   return new Set(
     events
-      .filter((event) => names.includes(event.event_name))
+      .filter((event) => hasEventName(names, event.event_name))
       .map((event) => event.user_id)
       .filter(Boolean)
   ).size;
+}
+
+function hasEventName(names: readonly string[], eventName: string) {
+  return (names as readonly string[]).includes(eventName);
+}
+
+function isWithinWindow(value: string | undefined, window: TimeWindow) {
+  if (!value) {
+    return false;
+  }
+
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+
+  const fromTime = window.from.getTime();
+  const toTime = window.to?.getTime();
+  return timestamp >= fromTime && (toTime === undefined || timestamp < toTime);
+}
+
+function normalizeIdentityToken(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized ? normalized : null;
+}
+
+function isRegisteredDashboardUser(user: DashboardUserRow) {
+  return normalizeDashboardUserRole(user.role) !== "admin";
+}
+
+function normalizeDashboardUserRole(role: string | null | undefined) {
+  return typeof role === "string" ? role.trim().toLowerCase() : "user";
 }
 
 function toDistribution(values: string[]) {

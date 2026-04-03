@@ -19,6 +19,8 @@ export type DashboardPeriod = {
   steps: FunnelStep[];
 };
 
+export type DashboardWindowKey = "daily" | "weekly";
+
 export type RetentionMetric = {
   key: "d1" | "d7" | "d30";
   label: string;
@@ -36,7 +38,7 @@ export type AdminErrorLog = {
 };
 
 export type AdminDashboardData = {
-  activeUsers: number;
+  activeUsers: Record<DashboardWindowKey, number>;
   ageDistribution: DistributionDatum[];
   genderDistribution: DistributionDatum[];
   goalDistribution: DistributionDatum[];

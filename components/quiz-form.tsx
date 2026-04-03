@@ -8,7 +8,7 @@ import { useConsentPreferences } from "@/components/consent-provider";
 import { Disclaimer } from "@/components/disclaimer";
 import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
-import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
+import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
 import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib/supabase-browser";
@@ -38,16 +38,15 @@ export function QuizForm() {
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [loadingStep, setLoadingStep] = useState(0);
-  const trackingUserId = getTrackingUserId();
 
   const safeStepIndex = Math.min(stepIndex, quizSteps.length - 1);
   const step = quizSteps[safeStepIndex];
   const progress = useMemo(() => Math.round(((safeStepIndex + 1) / quizSteps.length) * 100), [safeStepIndex]);
 
   useEffect(() => {
-    trackEvent("home_view", trackingUserId, { source: "landing_page" });
-    trackEvent("page_view", trackingUserId, { source: "landing_page" });
-  }, [trackingUserId]);
+    trackEvent("home_view", null, { source: "landing_page" });
+    trackEvent("page_view", null, { source: "landing_page" });
+  }, []);
 
   useEffect(() => {
     if (!isPending) {
@@ -106,8 +105,8 @@ export function QuizForm() {
 
   function trackStart(stepNumber: number) {
     if (!hasTrackedStart) {
-      trackEvent("quiz_started", trackingUserId, { step: stepNumber });
-      trackEvent("quiz_start", trackingUserId, { step: stepNumber });
+      trackEvent("quiz_started", null, { step: stepNumber });
+      trackEvent("quiz_start", null, { step: stepNumber });
       setHasTrackedStart(true);
     }
   }
@@ -253,14 +252,14 @@ export function QuizForm() {
             };
           }>(response);
 
-          trackEvent("quiz_completed", payload.data.userId || trackingUserId, {
+          trackEvent("quiz_completed", payload.data.userId ?? null, {
             goal: answers.goal ?? null,
             location: "home"
           });
-          trackEvent("signup", payload.data.userId || trackingUserId, {
+          trackEvent("signup", payload.data.userId ?? null, {
             goal: answers.goal ?? null
           });
-          trackEvent("sign_up", payload.data.userId || trackingUserId, {
+          trackEvent("sign_up", payload.data.userId ?? null, {
             goal: answers.goal ?? null
           });
 

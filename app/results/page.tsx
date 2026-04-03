@@ -6,7 +6,7 @@ import { Disclaimer } from "@/components/disclaimer";
 import { WorkoutPremiumScreen } from "@/components/workout-premium-screen";
 import { Card, Container, PageShell } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
-import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
+import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import type { WorkoutPlan } from "@/lib/types";
 
@@ -61,7 +61,7 @@ function ResultsContent() {
             if (active) {
               await new Promise((resolve) => window.setTimeout(resolve, 600));
               setPayload(parsed);
-              trackEvent("workout_viewed", parsed.user.id || getTrackingUserId(), {
+              trackEvent("workout_viewed", parsed.user.id ?? null, {
                 goal: parsed.answers.goal,
                 location: parsed.answers.location
               });
@@ -87,7 +87,7 @@ function ResultsContent() {
 
         if (active) {
           setPayload(data);
-          trackEvent("workout_viewed", data.user.id || getTrackingUserId(), {
+          trackEvent("workout_viewed", data.user.id ?? null, {
             goal: data.answers.goal,
             location: data.answers.location
           });

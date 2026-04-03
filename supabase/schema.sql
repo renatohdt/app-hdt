@@ -96,13 +96,15 @@ create table if not exists public.user_consents (
 create table if not exists public.analytics_events (
   id uuid primary key default gen_random_uuid(),
   event_name text not null check (btrim(event_name) <> ''),
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid references public.users(id) on delete cascade,
+  visitor_id text check (visitor_id is null or btrim(visitor_id) <> ''),
   metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object'),
   created_at timestamptz not null default now(),
   deleted_at timestamptz,
   anonymized_at timestamptz,
   expires_at timestamptz not null default (now() + interval '180 days'),
-  retention_hold boolean not null default false
+  retention_hold boolean not null default false,
+  constraint analytics_events_actor_check check (user_id is not null or visitor_id is not null)
 );
 
 create table if not exists public.content_recommendations (
@@ -203,6 +205,10 @@ create index if not exists user_consents_expires_at_idx on public.user_consents(
 create index if not exists analytics_events_created_at_idx on public.analytics_events(created_at desc);
 create index if not exists analytics_events_user_created_at_idx on public.analytics_events(user_id, created_at desc);
 create index if not exists analytics_events_user_event_created_at_idx on public.analytics_events(user_id, event_name, created_at desc);
+create index if not exists analytics_events_visitor_created_at_idx on public.analytics_events(visitor_id, created_at desc)
+  where visitor_id is not null;
+create index if not exists analytics_events_visitor_event_created_at_idx on public.analytics_events(visitor_id, event_name, created_at desc)
+  where visitor_id is not null;
 create index if not exists analytics_events_event_name_created_at_idx on public.analytics_events(event_name, created_at desc);
 create index if not exists analytics_events_expires_at_idx on public.analytics_events(expires_at)
   where retention_hold = false and deleted_at is null;

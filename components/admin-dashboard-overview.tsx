@@ -6,6 +6,7 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import {
   AdminDashboardData,
   DashboardPeriod,
+  DashboardWindowKey,
   DistributionDatum,
   RetentionMetric,
   formatDate
@@ -13,8 +14,9 @@ import {
 import { clientLogError } from "@/lib/client-logger";
 
 export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
-  const [period, setPeriod] = useState<"daily" | "weekly">("daily");
+  const [period, setPeriod] = useState<DashboardWindowKey>("weekly");
   const [exporting, setExporting] = useState(false);
+  const activeUsers = data.activeUsers[period];
   const funnel = data.funnel[period];
   const totalForPie = useMemo(
     () => ({
@@ -52,8 +54,8 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryMetricCard
           label="Usuarios ativos"
-          value={String(data.activeUsers)}
-          description="Base com cadastro ou respostas salvas no produto."
+          value={String(activeUsers)}
+          description={getActiveUsersDescription(period)}
         />
 
         {data.retention.map((metric) => (
@@ -67,7 +69,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
             <div className="min-w-0 space-y-2">
               <h2 className="text-2xl font-semibold text-white">Funil</h2>
               <p className="text-sm text-white/58">
-                Acompanhamento das etapas principais do produto com base em eventos autenticados.
+                Eventos do produto com fallback persistido de onboarding quando o topo do funil nao foi trackeado.
               </p>
             </div>
 
@@ -320,4 +322,12 @@ function buildPieGradient(data: DistributionDatum[]) {
   });
 
   return `conic-gradient(${segments.join(", ")})`;
+}
+
+function getActiveUsersDescription(period: DashboardWindowKey) {
+  if (period === "daily") {
+    return "Usuarios cadastrados com atividade ou onboarding salvo hoje.";
+  }
+
+  return "Usuarios cadastrados com atividade ou onboarding salvo nos ultimos 7 dias.";
 }

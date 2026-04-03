@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ARTICLE_PLACEHOLDER_IMAGE, type ArticleRecommendation } from "@/lib/articles";
 import GoogleAd from "@/components/GoogleAd";
 import { Disclaimer } from "@/components/disclaimer";
-import { getTrackingUserId, trackEvent } from "@/lib/analytics-client";
+import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { normalizePtBrUiText } from "@/lib/pt-br-text";
@@ -129,7 +129,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
   useEffect(() => {
     if (!screenData) return;
 
-    trackEvent("workout_viewed", screenData.user.id || getTrackingUserId(), {
+    trackEvent("workout_viewed", screenData.user.id ?? null, {
       workout_count: workoutKeys.length,
       goal: screenData.user.goal ?? null
     });
@@ -166,14 +166,14 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
   }, [screenData]);
 
   function handleCTAClick() {
-    trackEvent("cta_click", screenData?.user.id || getTrackingUserId(), {
+    trackEvent("cta_click", screenData?.user.id ?? null, {
       source: "dashboard_cta",
       goal: screenData?.user.goal ?? null
     });
   }
 
   function handleArticleClick(article: ArticleRecommendation) {
-    trackEvent("article_click", screenData?.user.id || getTrackingUserId(), {
+    trackEvent("article_click", screenData?.user.id ?? null, {
       source: "dashboard_articles",
       goal: screenData?.user.goal ?? null,
       article: article.title,
