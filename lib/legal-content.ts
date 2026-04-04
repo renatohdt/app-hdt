@@ -8,4 +8,4 @@ export const DISCLAIMER_LINES = [
 ] as const;
 
 export const DISCLAIMER_COMPACT_TEXT =
-  "Sugestão automatizada com base nas suas respostas. Não substitui orientação profissional. Respeite seus limites.";
+  "Treino criado com base nas suas respostas. Não substitui orientação profissional. Respeite seus limites.";

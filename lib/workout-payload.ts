@@ -148,7 +148,7 @@ function normalizeLegacyDay(day: LegacyWorkoutDay, index: number): WorkoutSectio
   ] as WorkoutExercise[];
   const exercises = normalizedExercises.filter((exercise) => exercise.type !== "mobility");
   const focus = Array.isArray(day.focus) ? String(day.focus[0] ?? "full_body") : String(day.focus ?? "full_body");
-  const label = (day.day || day.title || String.fromCharCode(65 + index)).replace("Treino ", "").trim() || String.fromCharCode(65 + index);
+  const label = extractWorkoutDayLabel(day.day || day.title, index);
 
   return {
     title: `Treino ${label}`,
@@ -206,6 +206,7 @@ function normalizeSection(section: WorkoutSection): WorkoutSection {
 
   return {
     ...section,
+    title: `Treino ${extractWorkoutDayLabel(section.title, 0)}`,
     splitType: typeof section.splitType === "string" ? section.splitType : undefined,
     sessionFocus: typeof section.sessionFocus === "string" ? section.sessionFocus : undefined,
     focusLabel:
@@ -432,4 +433,21 @@ function formatFocus(value: string) {
   };
 
   return labels[value] ?? value;
+}
+
+function extractWorkoutDayLabel(value: string | null | undefined, fallbackIndex: number) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  const fallbackLabel = String.fromCharCode(65 + fallbackIndex);
+
+  if (!raw) {
+    return fallbackLabel;
+  }
+
+  const treinoMatch = raw.match(/treino\s+([a-z0-9]+)/i);
+  if (treinoMatch?.[1]) {
+    return treinoMatch[1].toUpperCase();
+  }
+
+  const normalized = raw.replace(/^treino\s+/i, "").split(/[\s–—-]/)[0]?.trim();
+  return normalized ? normalized.toUpperCase() : fallbackLabel;
 }

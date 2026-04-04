@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ARTICLE_PLACEHOLDER_IMAGE, type ArticleRecommendation } from "@/lib/articles";
 import GoogleAd from "@/components/GoogleAd";
-import { Disclaimer } from "@/components/disclaimer";
 import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { formatBodyTypeLabel } from "@/lib/body-type";
@@ -186,7 +185,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
   }
 
   const firstName = screenData.user.name.trim().split(/\s+/)[0] || screenData.user.name;
-  const focusLabel = workout.focusLabel ?? workout.sessionFocus ?? buildWorkoutHeading(workout);
+  const workoutTitle = formatWorkoutDisplayTitle(workout.title, workout.day);
   const progressionTip = workout.progressionTip ?? plan?.progressionNotes ?? null;
 
   return (
@@ -235,7 +234,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
                     : "border border-white/10 bg-white/[0.04] text-white/62"
                 }`}
               >
-                {section.title}
+                {formatWorkoutDisplayTitle(section.title, section.day)}
               </button>
             );
           })}
@@ -243,9 +242,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
 
         <Card className="space-y-4 p-4 sm:p-5">
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold text-white sm:text-3xl">
-              {workout.title} {"\u2014"} {focusLabel}
-            </h1>
+            <h1 className="text-2xl font-semibold text-white sm:text-3xl">{workoutTitle}</h1>
             <p className="text-sm text-white/60">
               {exerciseCount} exercícios {"\u2022"} {formatGoal(screenData.user.goal)} {"\u2022"}{" "}
               {combinedCount} bloco{combinedCount === 1 ? "" : "s"} combinado{combinedCount === 1 ? "" : "s"}
@@ -255,8 +252,7 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
 
           <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">Foco da sessão</p>
-            <p className="mt-2 text-base font-semibold text-white">{focusLabel}</p>
-            <p className="mt-2 text-sm text-white/62">
+            <p className="mt-2 text-sm leading-6 text-white/62">
               {formatCoachCopy(
                 workout.rationale ??
                   plan?.rationale ??
@@ -264,8 +260,6 @@ export function WorkoutPremiumScreen({ data }: { data: WorkoutScreenData | null 
               )}
             </p>
           </div>
-
-          <Disclaimer />
 
           <div className="flex flex-wrap items-center gap-4 text-xs text-white/62">
             <div className="inline-flex items-center gap-2">
@@ -1075,16 +1069,28 @@ function normalizeBlockTypeFallback(exercise: WorkoutExercise) {
   return "normal";
 }
 
-function buildWorkoutHeading(section: WorkoutSection) {
-  if (section.sessionFocus) {
-    return section.sessionFocus;
+function formatWorkoutDisplayTitle(title?: string | null, day?: string | null) {
+  const candidates = [title, day];
+
+  for (const candidate of candidates) {
+    const raw = normalizePtBrUiText(candidate)?.trim();
+    if (!raw) {
+      continue;
+    }
+
+    const treinoMatch = raw.match(/treino\s+[a-z0-9]+/i);
+    if (treinoMatch?.[0]) {
+      const label = treinoMatch[0].replace(/\s+/g, " ").trim();
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    }
+
+    const normalized = raw.replace(/^treino\s+/i, "").split(/[\s–—-]/)[0]?.trim();
+    if (normalized) {
+      return `Treino ${normalized.toUpperCase()}`;
+    }
   }
 
-  if (section.subtitle) {
-    return section.subtitle;
-  }
-
-  return formatFocus(section.focus);
+  return "Treino";
 }
 
 function formatGoal(goal?: string) {

@@ -65,6 +65,21 @@ export default function PoliticaDePrivacidadePage() {
           </p>
         </Card>
 
+        <Card className="space-y-4 border-primary/20 bg-primary/10">
+          <p className="text-sm uppercase tracking-[0.24em] text-primary">Central de Privacidade</p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="max-w-2xl text-sm leading-6 text-white/72">
+              Acesse a area autenticada para exportar seus dados, revisar consentimentos e solicitar a exclusao da conta.
+            </p>
+            <Link
+              href="/privacidade"
+              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-primary/30 bg-white/5 px-5 py-3 text-sm font-semibold text-primary transition hover:border-primaryStrong hover:bg-white/10 hover:text-white"
+            >
+              Abrir Central de Privacidade
+            </Link>
+          </div>
+        </Card>
+
         {sections.map((section) => (
           <Card key={section.title} className="space-y-4">
             <h2 className="text-xl font-semibold text-white">{section.title}</h2>

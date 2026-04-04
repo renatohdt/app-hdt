@@ -216,8 +216,8 @@ export function AppVersionFooter() {
                 Política de Privacidade
               </Link>
               <span className="text-white/16">|</span>
-              <Link href="/privacidade" className="font-medium text-white/62 transition duration-200 hover:text-white">
-                Central de Privacidade
+              <Link href="/termos-de-uso" className="font-medium text-white/62 transition duration-200 hover:text-white">
+                Termos de Uso
               </Link>
             </nav>
 

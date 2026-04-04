@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConsentPreferences } from "@/components/consent-provider";
 import { Disclaimer } from "@/components/disclaimer";
@@ -37,7 +37,11 @@ export function QuizForm() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [loadingStep, setLoadingStep] = useState(0);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const formCardRef = useRef<HTMLDivElement | null>(null);
+  const loadingCardRef = useRef<HTMLDivElement | null>(null);
+  const hasMountedStepRef = useRef(false);
+  const shouldScrollToStepRef = useRef(false);
 
   const safeStepIndex = Math.min(stepIndex, quizSteps.length - 1);
   const step = quizSteps[safeStepIndex];
@@ -50,16 +54,48 @@ export function QuizForm() {
 
   useEffect(() => {
     if (!isPending) {
-      setLoadingStep(0);
+      setLoadingProgress(0);
       return;
     }
 
-    const interval = window.setInterval(() => {
-      setLoadingStep((current) => (current + 1) % loadingMessages.length);
-    }, 1000);
+    const startTime = window.performance.now();
+    let animationFrame = 0;
+
+    setLoadingProgress(initialLoadingProgress);
+
+    const animateProgress = () => {
+      const elapsed = window.performance.now() - startTime;
+      const nextProgress = getLoadingProgressForElapsedTime(elapsed);
+
+      setLoadingProgress((current) => (nextProgress > current ? nextProgress : current));
+      animationFrame = window.requestAnimationFrame(animateProgress);
+    };
+
+    animationFrame = window.requestAnimationFrame(animateProgress);
 
     return () => {
-      window.clearInterval(interval);
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [isPending]);
+
+  useEffect(() => {
+    if (!isPending) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const loadingCard = loadingCardRef.current;
+      if (!loadingCard) return;
+
+      const targetTop = Math.max(0, window.scrollY + loadingCard.getBoundingClientRect().top - 20);
+      window.scrollTo({
+        top: targetTop,
+        behavior: "smooth"
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
     };
   }, [isPending]);
 
@@ -68,6 +104,34 @@ export function QuizForm() {
       setStepIndex(Math.max(0, quizSteps.length - 1));
     }
   }, [stepIndex]);
+
+  useEffect(() => {
+    if (!hasMountedStepRef.current) {
+      hasMountedStepRef.current = true;
+      return;
+    }
+
+    if (!shouldScrollToStepRef.current) {
+      return;
+    }
+
+    shouldScrollToStepRef.current = false;
+
+    const frame = window.requestAnimationFrame(() => {
+      const card = formCardRef.current;
+      if (!card) return;
+
+      const targetTop = Math.max(0, window.scrollY + card.getBoundingClientRect().top - 16);
+      window.scrollTo({
+        top: targetTop,
+        behavior: "smooth"
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [safeStepIndex]);
 
   const canContinue = useMemo(() => {
     if (step.type === "account") {
@@ -103,6 +167,8 @@ export function QuizForm() {
     return Boolean(value);
   }, [acceptedTerms, account, answers, step]);
 
+  const roundedLoadingProgress = Math.round(loadingProgress);
+  const loadingStageIndex = getLoadingStageIndex(roundedLoadingProgress);
   function trackStart(stepNumber: number) {
     if (!hasTrackedStart) {
       trackEvent("quiz_started", null, { step: stepNumber });
@@ -164,7 +230,13 @@ export function QuizForm() {
     setSuccessMessage(null);
   }
 
+  async function completeLoadingProgress() {
+    setLoadingProgress(100);
+    await new Promise((resolve) => window.setTimeout(resolve, 280));
+  }
+
   function goBack() {
+    shouldScrollToStepRef.current = true;
     setStepIndex((current) => Math.max(0, current - 1));
   }
 
@@ -263,6 +335,7 @@ export function QuizForm() {
             goal: answers.goal ?? null
           });
 
+          await completeLoadingProgress();
           setSuccessMessage("Conta criada com sucesso.");
           router.push("/dashboard");
           router.refresh();
@@ -276,11 +349,13 @@ export function QuizForm() {
       return;
     }
 
+    shouldScrollToStepRef.current = true;
     setStepIndex((current) => Math.min(current + 1, quizSteps.length - 1));
   }
 
   return (
-    <Card className="fade-in mx-auto w-full max-w-3xl rounded-[32px] border-white/12 bg-[#101010]/88 p-5 sm:p-7">
+    <div ref={formCardRef}>
+      <Card className="fade-in mx-auto w-full max-w-3xl rounded-[32px] border-white/12 bg-[#101010]/88 p-5 sm:p-7">
       <div className="mb-8 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -511,51 +586,120 @@ export function QuizForm() {
           </Button>
           <Button onClick={goNext} disabled={isPending || !canContinue}>
             {isPending
-              ? "Montando sua sugestão de treino..."
+              ? "Montando seu treino..."
               : safeStepIndex === quizSteps.length - 1
-                ? "Criar conta e ver minha sugestão"
+                ? "Criar conta e ver meu treino"
                 : "Continuar"}
           </Button>
         </div>
       </div>
 
       {isPending ? (
-        <div className="mt-6 rounded-[24px] border border-primary/20 bg-primary/10 p-4">
-          <p className="text-sm font-semibold text-primary">Montando sua sugestão de treino...</p>
-          <p className="mt-1 text-sm text-white/64">Analisando seus dados para criar algo mais preciso para você.</p>
-          <div className="mt-4 space-y-2">
-            {loadingMessages.map((message, index) => {
-              const isActive = index === loadingStep;
-              const isDone = index < loadingStep;
+        <div
+          ref={loadingCardRef}
+          className="mt-6 overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/14 via-[#0f0f0f] to-[#151515] p-5 shadow-glow sm:p-6"
+        >
+          <div className="flex flex-col gap-5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/90">Montagem do treino</p>
+              <div className="space-y-2">
+                <p className="text-xl font-semibold text-white sm:text-2xl">Montando seu treino personalizado...</p>
+                <p className="max-w-2xl text-sm leading-6 text-white/66">
+                  Estamos analisando suas respostas para criar um treino mais alinhado ao seu objetivo, rotina e nível.
+                </p>
+              </div>
+            </div>
 
-              return (
+            <div className="space-y-3">
+              <div className="flex items-end gap-4">
+                <div>
+                  <p className="text-4xl font-semibold text-white sm:text-5xl">{roundedLoadingProgress}%</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.24em] text-white/38">Progresso estimado</p>
+                </div>
+              </div>
+              <div className="rounded-full border border-white/8 bg-white/[0.06] p-1">
                 <div
-                  key={message}
-                  className={`flex items-center gap-3 rounded-2xl px-3 py-2 transition ${
-                    isActive ? "bg-white/8 text-white" : "text-white/55"
-                  }`}
-                >
-                  <span
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold ${
-                      isDone || isActive
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-white/10 text-white/40"
+                  className="h-2.5 rounded-full bg-gradient-to-r from-primary via-primaryStrong to-[#7BF1A8] transition-[width] duration-500 ease-out"
+                  style={{ width: `${roundedLoadingProgress}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {loadingStages.map((stage, index) => {
+                const isDone = index < loadingStageIndex;
+                const isCurrent = index === loadingStageIndex;
+
+                return (
+                  <div
+                    key={stage.label}
+                    className={`flex items-center gap-3 rounded-[20px] border px-4 py-3 transition ${
+                      isCurrent
+                        ? "border-primary/30 bg-primary/12 text-white"
+                        : isDone
+                          ? "border-primary/18 bg-white/[0.03] text-white/78"
+                          : "border-white/8 bg-white/[0.02] text-white/52"
                     }`}
                   >
-                    {isDone ? "v" : index + 1}
-                  </span>
-                  <span className={isActive ? "font-medium text-white" : ""}>{message}</span>
-                </div>
-              );
-            })}
+                    <span
+                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
+                        isCurrent
+                          ? "border-primary bg-primary/18 text-primary"
+                          : isDone
+                            ? "border-primary/40 bg-primary text-[#052b12]"
+                            : "border-white/12 text-white/38"
+                      }`}
+                    >
+                      {isDone ? "\u2713" : index + 1}
+                    </span>
+                    <p className={`min-w-0 flex-1 text-sm font-medium ${isCurrent ? "text-white" : ""}`}>{stage.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-2 pt-1 text-center">
+              <p className="text-sm italic leading-6 text-white/68">
+                Método, experiência e inteligência artificial ajudam a criar o plano. A consistência é o que transforma
+                isso em resultado.
+              </p>
+              <p className="text-xs font-medium tracking-[0.08em] text-white/34">&mdash; Renato Santiago, Personal Trainer</p>
+            </div>
           </div>
         </div>
       ) : null}
-    </Card>
+      </Card>
+    </div>
   );
 }
 
-const loadingMessages = ["Analisando perfil", "Selecionando exercícios", "Montando treino"];
+const loadingStages = [
+  { label: "Analisando seu perfil" },
+  { label: "Selecionando os melhores exercícios" },
+  { label: "Criando a estratégia para o melhor resultado" },
+  { label: "Montando seu treino personalizado" },
+  { label: "Bom treino!" }
+];
+
+const initialLoadingProgress = 4;
+const maxVisualLoadingProgress = 97;
+const loadingDecayMs = 8000;
+
+function getLoadingStageIndex(progress: number) {
+  if (progress >= 100) return 4;
+  if (progress >= 75) return 3;
+  if (progress >= 50) return 2;
+  if (progress >= 25) return 1;
+  return 0;
+}
+
+function getLoadingProgressForElapsedTime(elapsed: number) {
+  if (elapsed <= 0) {
+    return initialLoadingProgress;
+  }
+
+  return initialLoadingProgress + (maxVisualLoadingProgress - initialLoadingProgress) * (1 - Math.exp(-elapsed / loadingDecayMs));
+}
 
 function PhysicalSlider({
   label,
