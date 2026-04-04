@@ -14,6 +14,7 @@ import {
   RETURN_ACTIVITY_EVENTS,
   SIGNUP_EVENTS
 } from "@/lib/analytics-events";
+import { formatExerciseMuscleGroups, formatExerciseTypeLabel } from "@/lib/exercise-library";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { QuizAnswers } from "@/lib/types";
 import { getUserAnswersMap } from "@/lib/user-answers";
@@ -41,12 +42,15 @@ export type AdminExercise = {
   name: string;
   tags?: string[];
   muscle?: string;
+  muscle_groups?: string[];
   type?: string;
   location?: string[];
   level?: string | string[];
   equipment?: string[];
   metadata?: {
     muscle?: string;
+    muscle_groups?: string[];
+    muscles?: string[];
     type?: string;
     level?: string | string[];
     location?: string[];
@@ -1011,8 +1015,8 @@ export function getExerciseMetaSummary(exercise: AdminExercise) {
           : [];
 
   return [
-    exercise.muscle ?? exercise.metadata?.muscle,
-    exercise.type ?? exercise.metadata?.type,
+    formatExerciseMuscleGroups(exercise),
+    formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null),
     ...level,
     ...(exercise.location ?? exercise.metadata?.location ?? []),
     ...(exercise.equipment ?? exercise.metadata?.equipment ?? [])

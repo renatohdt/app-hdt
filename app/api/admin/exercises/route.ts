@@ -1,8 +1,15 @@
 import { recordAdminAuditLog } from "@/lib/admin-audit";
+import {
+  buildExerciseSearchBlob,
+  getPrimaryExerciseMuscle,
+  normalizeExerciseMuscleGroups,
+  normalizeStoredExerciseType
+} from "@/lib/exercise-library";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { requireAdminUser } from "@/lib/server-auth";
 import { logError } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
+import type { ExerciseRecord } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +17,8 @@ type ExerciseRequestBody = {
   id?: string;
   name?: string;
   muscle?: string;
-  muscle_group?: string;
+  muscle_group?: string[] | string;
+  muscle_groups?: string[] | string;
   type?: string;
   location?: string[] | string;
   equipment?: string[] | string;
@@ -38,20 +46,19 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search")?.trim() ?? "";
-    const query = supabase.from("exercises").select("*");
-    const filteredQuery = search
-      ? query.or(`name.ilike.%${search}%,muscle.ilike.%${search}%,type.ilike.%${search}%`)
-      : query;
-
-    const { data, error } = await filteredQuery.order("name");
+    const search = normalizeSearchTerm(searchParams.get("search")?.trim() ?? "");
+    const { data, error } = await supabase.from("exercises").select("*").order("name");
 
     if (error) {
       logError("ADMIN", "Exercises fetch failed", { error: error.message });
       return jsonError("Não foi possível carregar os exercícios.", 500);
     }
 
-    return jsonSuccess(data ?? [], 200);
+    const exercises = ((data ?? []) as ExerciseRecord[]).filter((exercise) =>
+      search ? buildExerciseSearchBlob(exercise).includes(search) : true
+    );
+
+    return jsonSuccess(exercises, 200);
   } catch (error) {
     logError("ADMIN", "Exercises GET failed", {
       error: error instanceof Error ? error.message : "unknown"
@@ -73,7 +80,7 @@ export async function DELETE(request: Request) {
     const body = (await request.json()) as { id?: string };
 
     if (!body.id) {
-      return jsonError("Exercicio invalido.", 400);
+      return jsonError("Exercício inválido.", 400);
     }
 
     const { error } = await supabase.from("exercises").delete().eq("id", body.id);
@@ -112,24 +119,40 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     }
 
     const body = (await request.json()) as ExerciseRequestBody;
+    const muscleGroups = normalizeExerciseMuscleGroups(body.muscle_groups ?? body.muscle_group ?? body.muscle);
+    const primaryMuscle = muscleGroups[0] ?? null;
+    const type = normalizeStoredExerciseType(body.type) ?? undefined;
+    const location = normalizeArray(body.location);
+    const equipment = normalizeArray(body.equipment);
+    const level = normalizeArray(body.level);
 
     if (method === "PATCH" && !body.id) {
-      return jsonError("Exercicio invalido.", 400);
+      return jsonError("Exercício inválido.", 400);
+    }
+
+    if (!body.name?.trim() || !muscleGroups.length || !type) {
+      return jsonError("Preencha os campos obrigatórios: nome, grupo muscular e tipo.", 400);
     }
 
     const formattedData = removeUndefined({
-      name: body.name?.trim(),
-      muscle: (body.muscle ?? body.muscle_group)?.trim(),
-      type: body.type?.trim(),
-      location: normalizeArray(body.location),
-      equipment: normalizeArray(body.equipment),
-      level: normalizeArray(body.level),
+      name: body.name.trim(),
+      muscle: primaryMuscle,
+      muscle_groups: muscleGroups,
+      type,
+      location,
+      equipment,
+      level,
+      metadata: {
+        muscle: primaryMuscle ?? "",
+        muscle_groups: muscleGroups,
+        muscles: muscleGroups,
+        type,
+        location: location ?? [],
+        equipment: equipment ?? [],
+        level: level ?? []
+      },
       video_url: (body.video_url ?? body.videoUrl)?.trim() || null
     });
-
-    if (!formattedData.name || !formattedData.muscle || !formattedData.type) {
-      return jsonError("Preencha os campos obrigatorios: nome, musculo e tipo.", 400);
-    }
 
     let data: unknown = null;
     let error: { message: string } | null = null;
@@ -139,12 +162,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       data = result.data;
       error = result.error;
     } else {
-      const result = await supabase
-        .from("exercises")
-        .update(formattedData)
-        .eq("id", body.id as string)
-        .select();
-
+      const result = await supabase.from("exercises").update(formattedData).eq("id", body.id as string).select();
       data = result.data;
       error = result.error;
     }
@@ -167,7 +185,8 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
           : body.id ?? null,
       metadata: {
         method,
-        name: formattedData.name
+        name: formattedData.name,
+        muscle: getPrimaryExerciseMuscle(normalizedData as ExerciseRecord | null)
       }
     });
 
@@ -195,4 +214,12 @@ function normalizeArray(value?: string[] | string | null) {
 
 function removeUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+}
+
+function normalizeSearchTerm(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }

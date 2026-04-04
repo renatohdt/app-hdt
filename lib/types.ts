@@ -47,12 +47,15 @@ export type ExerciseRecord = {
   name: string;
   tags?: string[];
   muscle?: string;
+  muscle_groups?: string[];
   type?: string;
   location?: string[];
   level?: string | string[];
   equipment?: string[];
   metadata?: {
     muscle?: string;
+    muscle_groups?: string[];
+    muscles?: string[];
     type?: string;
     location?: string[];
     level?: string | string[];

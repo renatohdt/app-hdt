@@ -22,11 +22,21 @@ export async function GET(request: Request) {
 
     const exercise = {
       name: "Teste",
-      muscle: "Peito",
+      muscle: "chest",
+      muscle_groups: ["chest", "triceps"],
       type: "compound",
-      location: ["casa"],
-      equipment: ["peso_corporal"],
-      level: ["iniciante"],
+      location: ["home"],
+      equipment: ["bodyweight"],
+      level: ["beginner"],
+      metadata: {
+        muscle: "chest",
+        muscle_groups: ["chest", "triceps"],
+        muscles: ["chest", "triceps"],
+        type: "compound",
+        location: ["home"],
+        equipment: ["bodyweight"],
+        level: ["beginner"]
+      },
       video_url: "https://youtube.com"
     };
 

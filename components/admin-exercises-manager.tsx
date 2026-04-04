@@ -5,6 +5,10 @@ import { AdminExerciseForm } from "@/components/admin-exercise-form";
 import { AdminTable } from "@/components/admin-table";
 import { Button } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
+import {
+  formatExerciseMuscleGroups,
+  formatExerciseTypeLabel
+} from "@/lib/exercise-library";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { ExerciseRecord } from "@/lib/types";
 
@@ -146,8 +150,8 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
           exercises.map((exercise) => (
             <tr key={exercise.id} className="border-b border-white/8 last:border-b-0">
               <td className="px-5 py-4 text-sm text-white">{exercise.name}</td>
-              <td className="px-5 py-4 text-sm text-white/72">{exercise.muscle ?? exercise.metadata?.muscle ?? "-"}</td>
-              <td className="px-5 py-4 text-sm text-white/72">{exercise.type ?? exercise.metadata?.type ?? "-"}</td>
+              <td className="px-5 py-4 text-sm text-white/72">{formatExerciseMuscleGroups(exercise)}</td>
+              <td className="px-5 py-4 text-sm text-white/72">{formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null)}</td>
               <td className="px-5 py-4 text-sm text-white/72">{getLevelSummary(exercise)}</td>
               <td className="px-5 py-4 text-sm text-white/72">{getTagSummary(exercise)}</td>
               <td className="px-5 py-4 text-sm">
@@ -204,8 +208,8 @@ function getTagSummary(exercise: ExerciseRecord) {
   }
 
   return [
-    exercise.muscle ?? exercise.metadata?.muscle,
-    exercise.type ?? exercise.metadata?.type,
+    formatExerciseMuscleGroups(exercise),
+    formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null),
     ...(exercise.location ?? exercise.metadata?.location ?? []),
     ...(exercise.equipment ?? exercise.metadata?.equipment ?? [])
   ]

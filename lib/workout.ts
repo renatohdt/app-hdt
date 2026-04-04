@@ -1,7 +1,31 @@
-import { DiagnosisResult, ExerciseRecord, Goal, QuizAnswers, WorkoutExercise, WorkoutPlan, WorkoutSection } from "@/lib/types";
+import {
+  formatExerciseMuscleLabel,
+  getExerciseMuscleGroups,
+  resolveExerciseMovementType
+} from "@/lib/exercise-library";
+import {
+  DiagnosisResult,
+  ExerciseRecord,
+  Goal,
+  QuizAnswers,
+  WorkoutExercise,
+  WorkoutPlan,
+  WorkoutSection
+} from "@/lib/types";
 
 const PRIMARY_MUSCLES = ["chest", "back", "quadriceps", "hamstrings", "glutes"] as const;
-const SECONDARY_MUSCLES = ["shoulders", "biceps", "triceps", "calves", "abs"] as const;
+const SECONDARY_MUSCLES = [
+  "shoulders",
+  "biceps",
+  "triceps",
+  "calves",
+  "abs",
+  "forearms",
+  "adductors",
+  "abductors",
+  "tibialis",
+  "hip_flexors"
+] as const;
 const MAX_PER_WEEK: Record<string, number> = {
   chest: 2,
   back: 2,
@@ -12,7 +36,12 @@ const MAX_PER_WEEK: Record<string, number> = {
   biceps: 2,
   triceps: 2,
   calves: 2,
-  abs: 3
+  abs: 3,
+  forearms: 2,
+  adductors: 2,
+  abductors: 2,
+  tibialis: 2,
+  hip_flexors: 2
 };
 
 const volumePresets = [
@@ -168,7 +197,7 @@ function buildWorkoutDay(
     : [];
 
   const selectedExercises = [...compounds, ...isolations, ...functionals]
-    .slice(0, profile.volume.mainLimit)
+    .slice(0, profile.volume.mainLimit);
   selectedExercises.forEach((exercise) => usedExerciseIds.add(exercise.id));
   const exercises = selectedExercises.map((exercise, index) => toWorkoutExercise(exercise, profile, index, dayPlan));
 
@@ -303,26 +332,44 @@ function pickUniqueExercises(
 }
 
 function matchesDayMuscles(exercise: ExerciseRecord, dayPlan: DayPlan) {
-  const muscle = normalizeMuscle(exercise.muscle ?? exercise.metadata?.muscle);
+  const muscles = getNormalizedExerciseMuscles(exercise);
   const tags = exercise.tags ?? [];
   const dayMuscles = [...dayPlan.primaryMuscles, ...dayPlan.secondaryMuscles];
 
-  if (dayMuscles.includes(muscle)) return true;
+  if (muscles.some((muscle) => dayMuscles.includes(muscle))) return true;
+  if (muscles.some((muscle) => getRelatedMuscles(muscle).some((related) => dayMuscles.includes(related)))) {
+    return true;
+  }
   if (dayPlan.primaryMuscles.includes("chest") && tags.includes("push")) return true;
   if (dayPlan.primaryMuscles.includes("back") && tags.includes("pull")) return true;
   if (dayPlan.primaryMuscles.some((item) => ["quadriceps", "hamstrings", "glutes"].includes(item)) && (tags.includes("legs") || tags.includes("lower"))) return true;
-  if (dayPlan.focus === "conditioning" && (tags.includes("functional") || tags.includes("cardio"))) return true;
+  if (getExerciseType(exercise) === "functional" && dayPlan.secondaryMuscles.includes("abs")) return true;
 
   return false;
 }
 
 function scoreExerciseForDay(exercise: ExerciseRecord, dayPlan: DayPlan, profile: WorkoutProfile) {
-  const muscle = normalizeMuscle(exercise.muscle ?? exercise.metadata?.muscle);
+  const muscles = getNormalizedExerciseMuscles(exercise);
   const type = getExerciseType(exercise);
   let score = 0;
 
-  if (dayPlan.primaryMuscles.includes(muscle)) score += 5;
-  if (dayPlan.secondaryMuscles.includes(muscle)) score += 3;
+  const primaryHits = muscles.filter((muscle) => dayPlan.primaryMuscles.includes(muscle)).length;
+  const secondaryHits = muscles.filter((muscle) => dayPlan.secondaryMuscles.includes(muscle)).length;
+  const relatedPrimaryHits = muscles.filter(
+    (muscle) =>
+      !dayPlan.primaryMuscles.includes(muscle) &&
+      getRelatedMuscles(muscle).some((related) => dayPlan.primaryMuscles.includes(related))
+  ).length;
+  const relatedSecondaryHits = muscles.filter(
+    (muscle) =>
+      !dayPlan.secondaryMuscles.includes(muscle) &&
+      getRelatedMuscles(muscle).some((related) => dayPlan.secondaryMuscles.includes(related))
+  ).length;
+
+  score += primaryHits * 5;
+  score += secondaryHits * 3;
+  score += relatedPrimaryHits * 2;
+  score += relatedSecondaryHits;
   if (type === "compound") score += profile.style === "hypertrophy" ? 4 : 2;
   if (type === "isolation") score += 2;
   if (type === "functional" && profile.includeFunctional) score += 3;
@@ -374,11 +421,12 @@ function getTechnique(
   dayPlan: DayPlan
 ) {
   const type = getExerciseType(exercise);
+  const muscles = getNormalizedExerciseMuscles(exercise);
 
   if (profile.level === "beginner") return "adaptacao";
   if (profile.style === "hypertrophy" && type === "compound") return index % 2 === 0 ? "piramide" : "rest-pause";
   if (profile.includeFunctional && type === "functional") return "circuito";
-  if (dayPlan.secondaryMuscles.includes(normalizeMuscle(exercise.muscle ?? exercise.metadata?.muscle))) return "controle";
+  if (muscles.some((muscle) => dayPlan.secondaryMuscles.includes(muscle))) return "controle";
 
   return "tradicional";
 }
@@ -412,8 +460,10 @@ function getFunctionalTarget(style: TrainingStyle) {
 }
 
 function getExerciseType(exercise: ExerciseRecord) {
-  const type = normalizeType(exercise.type ?? exercise.metadata?.type);
-  if (type) return type;
+  const rawType = exercise.type ?? exercise.metadata?.type;
+  if (rawType) {
+    return resolveExerciseMovementType(rawType);
+  }
 
   const tags = exercise.tags ?? [];
   if (tags.includes("functional") || tags.includes("cardio")) return "functional";
@@ -536,19 +586,34 @@ function formatStyle(style: TrainingStyle) {
 }
 
 function formatMuscle(muscle: string) {
-  const labels: Record<string, string> = {
-    chest: "Peito",
-    back: "Costas",
-    quadriceps: "Quadríceps",
-    hamstrings: "Posterior de coxa",
-    glutes: "Glúteos",
-    shoulders: "Ombros",
-    biceps: "Bíceps",
-    triceps: "Tríceps",
-    calves: "Gêmeos",
-    abs: "Abdômen",
-    forearms: "Antebraço"
+  if (muscle === "conditioning") return "Condicionamento";
+  if (muscle === "full_body") return "Corpo inteiro";
+  return formatExerciseMuscleLabel(muscle);
+}
+
+function getNormalizedExerciseMuscles(exercise: ExerciseRecord) {
+  const muscles = getExerciseMuscleGroups(exercise);
+  return muscles.length ? muscles : ["full_body"];
+}
+
+function getRelatedMuscles(muscle: string) {
+  const related: Record<string, string[]> = {
+    chest: ["shoulders", "triceps"],
+    back: ["biceps", "forearms"],
+    quadriceps: ["glutes", "calves", "adductors", "hip_flexors"],
+    hamstrings: ["glutes", "calves", "adductors"],
+    glutes: ["hamstrings", "quadriceps", "abductors", "adductors"],
+    shoulders: ["chest", "triceps"],
+    biceps: ["back", "forearms"],
+    triceps: ["chest", "shoulders"],
+    calves: ["tibialis", "quadriceps"],
+    abs: ["hip_flexors", "glutes"],
+    forearms: ["back", "biceps"],
+    adductors: ["quadriceps", "glutes", "hamstrings"],
+    abductors: ["glutes", "quadriceps"],
+    tibialis: ["calves", "quadriceps"],
+    hip_flexors: ["abs", "quadriceps"]
   };
 
-  return labels[muscle] ?? muscle;
+  return related[muscle] ?? [];
 }

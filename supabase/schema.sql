@@ -43,12 +43,13 @@ create table if not exists public.exercises (
   id uuid primary key default gen_random_uuid(),
   name text not null check (btrim(name) <> ''),
   muscle text,
+  muscle_groups text[] not null default '{}',
   type text,
   location text[] not null default '{}',
   equipment text[] not null default '{}',
   level text[] not null default '{}',
   tags text[] not null default '{}',
-  metadata jsonb not null default '{"muscle":"","type":"","level":[],"location":[],"equipment":[]}'::jsonb
+  metadata jsonb not null default '{"muscle":"","muscle_groups":[],"muscles":[],"type":"","level":[],"location":[],"equipment":[]}'::jsonb
     check (jsonb_typeof(metadata) = 'object'),
   video_url text
 );
@@ -157,19 +158,63 @@ alter table public.users drop column if exists quiz_completed;
 alter table public.users drop column if exists viewed_workout;
 alter table public.users drop column if exists clicked_cta;
 alter table public.exercises drop column if exists description;
+alter table public.exercises add column if not exists muscle_groups text[] not null default '{}';
+
+update public.exercises
+set muscle_groups = array_remove(array[nullif(btrim(muscle), '')], null)
+where coalesce(array_length(muscle_groups, 1), 0) = 0
+  and coalesce(btrim(muscle), '') <> '';
 
 update public.exercises
 set metadata = jsonb_set(
-  metadata,
-  '{level}',
+  jsonb_set(
+    jsonb_set(
+      metadata,
+      '{level}',
+      case
+        when jsonb_typeof(metadata->'level') = 'array' then metadata->'level'
+        when coalesce(metadata->>'level', '') = '' then '[]'::jsonb
+        else jsonb_build_array(metadata->>'level')
+      end
+    ),
+    '{muscle_groups}',
+    case
+      when jsonb_typeof(metadata->'muscle_groups') = 'array' then metadata->'muscle_groups'
+      when coalesce(metadata->>'muscle', '') = '' then '[]'::jsonb
+      else jsonb_build_array(metadata->>'muscle')
+    end
+  ),
+  '{muscles}',
   case
-    when jsonb_typeof(metadata->'level') = 'array' then metadata->'level'
-    when coalesce(metadata->>'level', '') = '' then '[]'::jsonb
-    else jsonb_build_array(metadata->>'level')
+    when jsonb_typeof(metadata->'muscle_groups') = 'array' then metadata->'muscle_groups'
+    when coalesce(metadata->>'muscle', '') = '' then '[]'::jsonb
+    else jsonb_build_array(metadata->>'muscle')
   end
 )
 where metadata ? 'level'
-  and jsonb_typeof(metadata->'level') <> 'array';
+  and (
+    jsonb_typeof(metadata->'level') <> 'array'
+    or jsonb_typeof(metadata->'muscle_groups') <> 'array'
+    or jsonb_typeof(metadata->'muscles') <> 'array'
+  );
+
+update public.exercises
+set metadata = jsonb_set(
+  jsonb_set(
+    jsonb_set(
+      coalesce(metadata, '{}'::jsonb),
+      '{muscle}',
+      to_jsonb(coalesce(nullif(btrim(muscle), ''), muscle_groups[1], ''))
+    ),
+    '{muscle_groups}',
+    to_jsonb(muscle_groups)
+  ),
+  '{muscles}',
+  to_jsonb(muscle_groups)
+)
+where coalesce(metadata->'muscle_groups', 'null'::jsonb) <> to_jsonb(muscle_groups)
+   or coalesce(metadata->'muscles', 'null'::jsonb) <> to_jsonb(muscle_groups)
+   or coalesce(metadata->>'muscle', '') <> coalesce(nullif(btrim(muscle), ''), muscle_groups[1], '');
 
 update public.workouts
 set hash = null
@@ -186,6 +231,7 @@ create index if not exists users_deleted_at_idx on public.users(deleted_at) wher
 
 create index if not exists exercises_name_idx on public.exercises(name);
 create index if not exists exercises_muscle_idx on public.exercises(muscle);
+create index if not exists exercises_muscle_groups_idx on public.exercises using gin (muscle_groups);
 create index if not exists exercises_type_idx on public.exercises(type);
 
 create index if not exists user_answers_created_at_idx on public.user_answers(created_at desc);

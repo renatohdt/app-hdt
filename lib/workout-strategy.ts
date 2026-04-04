@@ -1,4 +1,9 @@
 import { resolveBodyType } from "@/lib/body-type";
+import {
+  formatExerciseMuscleLabel,
+  getExerciseMuscleGroups,
+  resolveExerciseMovementType
+} from "@/lib/exercise-library";
 import type { ExerciseRecord, QuizAnswers, WorkoutBlockType } from "@/lib/types";
 
 export type TrainingLevel = "beginner" | "intermediate" | "advanced";
@@ -57,7 +62,12 @@ const ALL_MUSCLES = [
   "biceps",
   "triceps",
   "calves",
-  "abs"
+  "abs",
+  "forearms",
+  "adductors",
+  "abductors",
+  "tibialis",
+  "hip_flexors"
 ] as const;
 
 const COMBINED_BLOCKS = new Set<WorkoutBlockType>(["superset", "bi-set", "tri-set", "circuit"]);
@@ -108,12 +118,12 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
 
 export function buildExerciseProfile(exercise: ExerciseRecord): ExerciseProfile {
   const primary = inferPrimaryMuscles(exercise);
-  const movementType = normalizeExerciseType(exercise.type ?? exercise.metadata?.type);
+  const movementType = resolveExerciseMovementType(exercise.type ?? exercise.metadata?.type);
   const movementPattern = inferMovementPattern(exercise, primary[0] ?? "full_body", movementType);
 
   return {
     primaryMuscles: primary,
-    secondaryMuscles: inferSecondaryMuscles(primary[0] ?? "full_body", movementType),
+    secondaryMuscles: inferSecondaryMuscles(primary, movementType),
     movementPattern,
     movementType,
     recommendedBlockTypes: inferRecommendedBlockTypes(movementType, movementPattern)
@@ -192,21 +202,11 @@ export function formatBlockTypeLabel(value?: string | null) {
 }
 
 export function formatMuscleLabel(value?: string | null) {
-  const labels: Record<string, string> = {
-    chest: "Peito",
-    back: "Costas",
-    quadriceps: "Quadríceps",
-    hamstrings: "Posterior de coxa",
-    glutes: "Glúteos",
-    shoulders: "Ombros",
-    biceps: "Bíceps",
-    triceps: "Tríceps",
-    calves: "Panturrilhas",
-    abs: "Core",
-    full_body: "Corpo inteiro"
-  };
+  if (value === "full_body") {
+    return "Corpo inteiro";
+  }
 
-  return value ? labels[value] ?? value : "Não informado";
+  return formatExerciseMuscleLabel(value);
 }
 
 export function buildCoachBrief(strategy: WorkoutStrategy) {
@@ -419,23 +419,23 @@ function buildSplitRationale(
 }
 
 function inferPrimaryMuscles(exercise: ExerciseRecord) {
-  const muscle = normalizeMuscle(exercise.muscle ?? exercise.metadata?.muscle);
-  return muscle ? [muscle] : ["full_body"];
+  const muscles = getExerciseMuscleGroups(exercise);
+  return muscles.length ? muscles : ["full_body"];
 }
 
-function inferSecondaryMuscles(primary: string, movementType: string) {
+function inferSecondaryMuscles(primaryMuscles: string[], movementType: string) {
   const compound = movementType === "compound";
+  const secondary = new Set<string>();
 
-  if (primary === "chest") return compound ? ["shoulders", "triceps"] : ["triceps"];
-  if (primary === "back") return compound ? ["biceps", "shoulders"] : ["biceps"];
-  if (primary === "quadriceps") return compound ? ["glutes", "abs"] : ["glutes"];
-  if (primary === "hamstrings") return compound ? ["glutes", "abs"] : ["glutes"];
-  if (primary === "glutes") return compound ? ["hamstrings", "quadriceps"] : ["hamstrings"];
-  if (primary === "shoulders") return compound ? ["triceps", "chest"] : ["triceps"];
-  if (primary === "biceps") return ["back"];
-  if (primary === "triceps") return ["chest", "shoulders"];
-  if (primary === "abs") return ["glutes"];
-  return [];
+  primaryMuscles.forEach((primary) => {
+    resolveSecondaryCandidates(primary, compound).forEach((muscle) => {
+      if (!primaryMuscles.includes(muscle)) {
+        secondary.add(muscle);
+      }
+    });
+  });
+
+  return [...secondary];
 }
 
 function inferMovementPattern(exercise: ExerciseRecord, primaryMuscle: string, movementType: string) {
@@ -462,38 +462,6 @@ function inferRecommendedBlockTypes(movementType: string, movementPattern: strin
   return ["normal", "superset", "bi-set", "rest-pause"];
 }
 
-function normalizeExerciseType(value?: string | null) {
-  const normalized = normalizeText(value);
-  if (normalized === "composto" || normalized === "compound") return "compound";
-  if (normalized === "isolado" || normalized === "isolation") return "isolation";
-  if (normalized === "funcional" || normalized === "functional") return "functional";
-  if (normalized === "mobilidade" || normalized === "mobility") return "mobility";
-  return normalized || "compound";
-}
-
-function normalizeMuscle(value?: string | null) {
-  const normalized = normalizeText(value);
-
-  const map: Record<string, string> = {
-    peito: "chest",
-    costas: "back",
-    ombro: "shoulders",
-    ombros: "shoulders",
-    biceps: "biceps",
-    triceps: "triceps",
-    abdomen: "abs",
-    quadriceps: "quadriceps",
-    gluteo: "glutes",
-    gluteos: "glutes",
-    "posterior de coxa": "hamstrings",
-    gemeos: "calves",
-    panturrilha: "calves",
-    antebraco: "forearms"
-  };
-
-  return map[normalized] ?? normalized;
-}
-
 function normalizeEquipmentList(values?: string[] | null) {
   return Array.from(
     new Set(
@@ -502,6 +470,25 @@ function normalizeEquipmentList(values?: string[] | null) {
         .filter(Boolean)
     )
   );
+}
+
+function resolveSecondaryCandidates(primary: string, compound: boolean) {
+  if (primary === "chest") return compound ? ["shoulders", "triceps"] : ["triceps"];
+  if (primary === "back") return compound ? ["biceps", "shoulders", "forearms"] : ["biceps", "forearms"];
+  if (primary === "quadriceps") return compound ? ["glutes", "abs", "adductors"] : ["glutes"];
+  if (primary === "hamstrings") return compound ? ["glutes", "abs", "adductors"] : ["glutes"];
+  if (primary === "glutes") return compound ? ["hamstrings", "quadriceps", "abductors"] : ["hamstrings", "abductors"];
+  if (primary === "shoulders") return compound ? ["triceps", "chest"] : ["triceps"];
+  if (primary === "biceps") return ["back", "forearms"];
+  if (primary === "triceps") return ["chest", "shoulders"];
+  if (primary === "abs") return ["glutes", "hip_flexors"];
+  if (primary === "calves") return ["tibialis"];
+  if (primary === "forearms") return ["biceps", "back"];
+  if (primary === "adductors") return ["glutes", "quadriceps"];
+  if (primary === "abductors") return ["glutes", "quadriceps"];
+  if (primary === "tibialis") return ["calves"];
+  if (primary === "hip_flexors") return ["abs", "quadriceps"];
+  return [];
 }
 
 function normalizeText(value?: string | null) {

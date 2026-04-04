@@ -3,34 +3,18 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
+import {
+  EXERCISE_MUSCLE_OPTIONS,
+  EXERCISE_TYPE_OPTIONS,
+  getExerciseMuscleGroups
+} from "@/lib/exercise-library";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { ExerciseRecord } from "@/lib/types";
 
-const muscleOptions = [
-  ["chest", "Peito"],
-  ["back", "Costas"],
-  ["shoulders", "Ombro"],
-  ["biceps", "Biceps"],
-  ["triceps", "Triceps"],
-  ["abs", "Abdomen"],
-  ["quadriceps", "Quadriceps"],
-  ["glutes", "Gluteo"],
-  ["hamstrings", "Posterior de Coxa"],
-  ["calves", "Gemeos"],
-  ["forearms", "Antebraco"]
-] as const;
-
-const typeOptions = [
-  ["compound", "Composto"],
-  ["isolation", "Isolado"],
-  ["functional", "Funcional"],
-  ["mobility", "Mobilidade"]
-] as const;
-
 const levelOptions = [
   { value: "beginner", label: "Iniciante" },
-  { value: "intermediate", label: "Intermediario" },
-  { value: "advanced", label: "Avancado" }
+  { value: "intermediate", label: "Intermediário" },
+  { value: "advanced", label: "Avançado" }
 ] as const;
 
 const locationOptions = [
@@ -52,7 +36,7 @@ const equipmentOptions = [
 type ExerciseFormValues = {
   id?: string;
   name: string;
-  muscle_group: string;
+  muscle_groups: string[];
   type: string;
   level: string[];
   location: string[];
@@ -62,7 +46,7 @@ type ExerciseFormValues = {
 
 const emptyValues: ExerciseFormValues = {
   name: "",
-  muscle_group: "",
+  muscle_groups: [],
   type: "",
   level: [],
   location: [],
@@ -92,7 +76,7 @@ export function AdminExerciseForm({
     setValues({
       id: initialValues.id,
       name: initialValues.name,
-      muscle_group: initialValues.muscle ?? initialValues.metadata?.muscle ?? "",
+      muscle_groups: getExerciseMuscleGroups(initialValues),
       type: initialValues.type ?? initialValues.metadata?.type ?? "",
       level: normalizeArray(initialValues.level ?? initialValues.metadata?.level),
       location: normalizeArray(initialValues.location ?? initialValues.metadata?.location),
@@ -103,25 +87,29 @@ export function AdminExerciseForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
     setStatus(null);
 
-    const formData = {
-      id: values.id,
-      name: values.name,
-      muscle: values.muscle_group,
-      type: values.type,
-      level: values.level,
-      location: values.location,
-      equipment: values.equipment,
-      video_url: values.video_url || null
-    };
+    if (!values.muscle_groups.length) {
+      setStatus("Selecione pelo menos um grupo muscular.");
+      return;
+    }
+
+    if (!values.type) {
+      setStatus("Selecione o tipo do exercício.");
+      return;
+    }
+
+    setLoading(true);
 
     const formattedData = {
-      ...formData,
-      location: ensureArray(formData.location),
-      equipment: normalizeEquipment(formData.equipment),
-      level: ensureArray(formData.level)
+      id: values.id,
+      name: values.name,
+      muscle_groups: ensureArray(values.muscle_groups),
+      type: values.type,
+      level: ensureArray(values.level),
+      location: ensureArray(values.location),
+      equipment: normalizeEquipment(values.equipment),
+      video_url: values.video_url || null
     };
 
     try {
@@ -135,11 +123,11 @@ export function AdminExerciseForm({
 
       if (!response.ok) {
         const result = await parseJsonResponse<{ success: false; error?: string }>(response);
-        throw new Error(result.error ?? "Erro na requisicao");
+        throw new Error(result.error ?? "Erro na requisição");
       }
 
       const result = await parseJsonResponse<{ success: true; data: ExerciseRecord }>(response);
-      setStatus(values.id ? "Exercicio atualizado com sucesso." : "Exercicio salvo com sucesso.");
+      setStatus(values.id ? "Exercício atualizado com sucesso." : "Exercício salvo com sucesso.");
       setValues(emptyValues);
       onSaved?.(result.data);
     } catch (error) {
@@ -149,7 +137,7 @@ export function AdminExerciseForm({
     }
   }
 
-  function toggleArrayValue(field: "level" | "location" | "equipment", value: string) {
+  function toggleArrayValue(field: "muscle_groups" | "level" | "location" | "equipment", value: string) {
     setValues((current) => {
       const currentValues = current[field];
       const nextValues = currentValues.includes(value)
@@ -179,7 +167,7 @@ export function AdminExerciseForm({
           </div>
           {values.id ? (
             <Button type="button" variant="ghost" onClick={handleCancel}>
-              Cancelar edicao
+              Cancelar edição
             </Button>
           ) : null}
         </div>
@@ -198,37 +186,37 @@ export function AdminExerciseForm({
           </label>
 
           <label className="grid gap-2">
-            <span className="text-sm text-white/72">URL do video</span>
+            <span className="text-sm text-white/72">URL do vídeo</span>
             <input
               name="video_url"
               value={values.video_url}
               onChange={(event) => setValues((current) => ({ ...current, video_url: event.target.value }))}
-              placeholder="URL do video"
+              placeholder="URL do vídeo"
               className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4"
             />
           </label>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <SelectField
-            name="muscle_group"
-            label="Grupo muscular"
-            options={muscleOptions}
-            value={values.muscle_group}
-            onChange={(value) => setValues((current) => ({ ...current, muscle_group: value }))}
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(15rem,0.75fr)] xl:items-start">
+          <CheckboxGroup
+            title="Grupos musculares"
+            description="Selecione todos os grupamentos relevantes para o exercício."
+            options={EXERCISE_MUSCLE_OPTIONS}
+            selected={values.muscle_groups}
+            onToggle={(value) => toggleArrayValue("muscle_groups", value)}
           />
 
           <SelectField
             name="type"
             label="Tipo"
-            options={typeOptions}
+            options={EXERCISE_TYPE_OPTIONS}
             value={values.type}
             onChange={(value) => setValues((current) => ({ ...current, type: value }))}
           />
         </div>
 
         <CheckboxGroup
-          title="Nivel"
+          title="Nível"
           options={levelOptions}
           selected={values.level}
           onToggle={(value) => toggleArrayValue("level", value)}
@@ -271,7 +259,7 @@ function SelectField({
 }: {
   name: string;
   label: string;
-  options: ReadonlyArray<readonly [string, string]>;
+  options: ReadonlyArray<{ value: string; label: string }>;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -288,9 +276,9 @@ function SelectField({
         <option value="" disabled>
           Selecione
         </option>
-        {options.map(([optionValue, title]) => (
-          <option key={optionValue} value={optionValue}>
-            {title}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>
@@ -300,21 +288,33 @@ function SelectField({
 
 function CheckboxGroup({
   title,
+  description,
   options,
   selected,
   onToggle
 }: {
   title: string;
+  description?: string;
   options: ReadonlyArray<{ value: string; label: string }>;
   selected: string[];
   onToggle: (value: string) => void;
 }) {
   return (
     <div className="grid gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
-      <p className="text-sm text-white/72">{title}</p>
+      <div className="space-y-1">
+        <p className="text-sm text-white/72">{title}</p>
+        {description ? <p className="text-xs leading-5 text-white/48">{description}</p> : null}
+      </div>
       <div className="flex flex-wrap gap-3">
         {options.map((option) => (
-          <label key={option.value} className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-white/78">
+          <label
+            key={option.value}
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+              selected.includes(option.value)
+                ? "border-primary/40 bg-primary/12 text-white"
+                : "border-white/10 text-white/78 hover:border-white/20 hover:bg-white/[0.03]"
+            }`}
+          >
             <input
               type="checkbox"
               checked={selected.includes(option.value)}
