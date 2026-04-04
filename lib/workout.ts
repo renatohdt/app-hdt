@@ -20,6 +20,7 @@ const SECONDARY_MUSCLES = [
   "triceps",
   "calves",
   "abs",
+  "lower_back",
   "forearms",
   "adductors",
   "abductors",
@@ -37,6 +38,7 @@ const MAX_PER_WEEK: Record<string, number> = {
   triceps: 2,
   calves: 2,
   abs: 3,
+  lower_back: 2,
   forearms: 2,
   adductors: 2,
   abductors: 2,
@@ -292,9 +294,13 @@ function getSecondaryCandidates(primaryMuscles: string[], style: TrainingStyle) 
       candidates.add("shoulders");
     } else if (muscle === "back") {
       candidates.add("biceps");
+      candidates.add("lower_back");
     } else if (muscle === "quadriceps" || muscle === "hamstrings" || muscle === "glutes") {
       candidates.add("calves");
       candidates.add("abs");
+      candidates.add("lower_back");
+    } else if (muscle === "abs") {
+      candidates.add("lower_back");
     } else if (muscle === "shoulders") {
       candidates.add("triceps");
     }
@@ -599,15 +605,16 @@ function getNormalizedExerciseMuscles(exercise: ExerciseRecord) {
 function getRelatedMuscles(muscle: string) {
   const related: Record<string, string[]> = {
     chest: ["shoulders", "triceps"],
-    back: ["biceps", "forearms"],
-    quadriceps: ["glutes", "calves", "adductors", "hip_flexors"],
-    hamstrings: ["glutes", "calves", "adductors"],
-    glutes: ["hamstrings", "quadriceps", "abductors", "adductors"],
+    back: ["biceps", "forearms", "lower_back"],
+    quadriceps: ["glutes", "calves", "adductors", "hip_flexors", "lower_back"],
+    hamstrings: ["glutes", "calves", "adductors", "lower_back"],
+    glutes: ["hamstrings", "quadriceps", "abductors", "adductors", "lower_back"],
     shoulders: ["chest", "triceps"],
     biceps: ["back", "forearms"],
     triceps: ["chest", "shoulders"],
     calves: ["tibialis", "quadriceps"],
-    abs: ["hip_flexors", "glutes"],
+    abs: ["hip_flexors", "glutes", "lower_back"],
+    lower_back: ["back", "glutes", "hamstrings", "abs"],
     forearms: ["back", "biceps"],
     adductors: ["quadriceps", "glutes", "hamstrings"],
     abductors: ["glutes", "quadriceps"],

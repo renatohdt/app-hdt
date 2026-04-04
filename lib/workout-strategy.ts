@@ -63,6 +63,7 @@ const ALL_MUSCLES = [
   "triceps",
   "calves",
   "abs",
+  "lower_back",
   "forearms",
   "adductors",
   "abductors",
@@ -474,14 +475,15 @@ function normalizeEquipmentList(values?: string[] | null) {
 
 function resolveSecondaryCandidates(primary: string, compound: boolean) {
   if (primary === "chest") return compound ? ["shoulders", "triceps"] : ["triceps"];
-  if (primary === "back") return compound ? ["biceps", "shoulders", "forearms"] : ["biceps", "forearms"];
-  if (primary === "quadriceps") return compound ? ["glutes", "abs", "adductors"] : ["glutes"];
-  if (primary === "hamstrings") return compound ? ["glutes", "abs", "adductors"] : ["glutes"];
-  if (primary === "glutes") return compound ? ["hamstrings", "quadriceps", "abductors"] : ["hamstrings", "abductors"];
+  if (primary === "back") return compound ? ["biceps", "shoulders", "forearms", "lower_back"] : ["biceps", "forearms", "lower_back"];
+  if (primary === "quadriceps") return compound ? ["glutes", "abs", "adductors", "lower_back"] : ["glutes"];
+  if (primary === "hamstrings") return compound ? ["glutes", "abs", "adductors", "lower_back"] : ["glutes", "lower_back"];
+  if (primary === "glutes") return compound ? ["hamstrings", "quadriceps", "abductors", "lower_back"] : ["hamstrings", "abductors"];
   if (primary === "shoulders") return compound ? ["triceps", "chest"] : ["triceps"];
   if (primary === "biceps") return ["back", "forearms"];
   if (primary === "triceps") return ["chest", "shoulders"];
-  if (primary === "abs") return ["glutes", "hip_flexors"];
+  if (primary === "abs") return ["glutes", "hip_flexors", "lower_back"];
+  if (primary === "lower_back") return ["back", "glutes", "hamstrings", "abs"];
   if (primary === "calves") return ["tibialis"];
   if (primary === "forearms") return ["biceps", "back"];
   if (primary === "adductors") return ["glutes", "quadriceps"];

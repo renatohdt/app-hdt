@@ -1217,7 +1217,8 @@ function formatFocusMuscleLabel(value?: string | null) {
     biceps: "bíceps",
     triceps: "tríceps",
     calves: "panturrilhas",
-    abs: "core",
+    abs: "abdômen",
+    lower_back: "lombar",
     full_body: "corpo inteiro"
   };
 
@@ -1484,6 +1485,7 @@ function mobilityNameByFocus(focus: string) {
     glutes: "Ativacao de gluteos",
     shoulders: "Rotacao de ombros",
     abs: "Ativacao de core",
+    lower_back: "Mobilidade de coluna lombar",
     full_body: "Mobilidade global"
   };
 

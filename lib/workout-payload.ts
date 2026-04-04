@@ -426,7 +426,8 @@ function formatFocus(value: string) {
     shoulders: "Ombros",
     biceps: "Biceps",
     triceps: "Triceps",
-    abs: "Abdomen",
+    abs: "Abdômen",
+    lower_back: "Lombar",
     full_body: "Corpo inteiro"
   };
 
