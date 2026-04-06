@@ -15,6 +15,10 @@ import {
   type SessionBlueprint,
   type WorkoutStrategy
 } from "@/lib/workout-strategy";
+import {
+  estimateWorkoutSectionDuration,
+  summarizeWorkoutDurations
+} from "@/lib/workout-time";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import type {
   CombinedBlockType,
@@ -108,7 +112,7 @@ export function buildWorkoutHash(answers: QuizAnswers) {
   }
 
   const cacheKey = {
-    planVersion: "pt-v5",
+    planVersion: "pt-v6-time-budget",
     goal: answers.goal,
     experience: answers.experience,
     gender: answers.gender,
@@ -190,6 +194,7 @@ export async function generateWorkoutWithAI(
   });
 
   const promptMontagemTreino = [
+    "O tempo disponivel para treinar e uma restricao operacional dura e obrigatoria.",
     "Você é um personal trainer experiente.",
     "",
     "Monte um plano de treino com lógica real de prescrição, não uma lista aleatória de exercícios.",
@@ -197,6 +202,7 @@ export async function generateWorkoutWithAI(
     "Responda sempre em português do Brasil, com acentuação, pontuação e caracteres UTF-8 corretos.",
     "",
     "REGRAS:",
+    "- cada sessao precisa caber realisticamente no tempo informado; nao trate esse campo como mera preferencia",
     "- decida a divisão com base na frequência, nível, tempo e equipamentos",
     "- não assuma full body para todos os perfis",
     "- organize em Treino A, Treino B, Treino C e assim por diante",
@@ -208,12 +214,16 @@ export async function generateWorkoutWithAI(
     "- não invente exercícios",
     "- não repita o mesmo exercício na mesma sessão",
     "- sets, reps e rest devem ser numeros inteiros fixos",
+    "- a quantidade de exercicios, series, descansos e blocos precisa mudar de verdade conforme o tempo disponivel",
+    "- treinos de 15-20 min devem ser enxutos, com poucos exercicios uteis e densidade alta",
+    "- treinos de 75-90 min devem ter mais volume util, mais refinamento por grupamento e estrutura mais completa",
     "- técnicas avançadas devem ser pontuais e coerentes",
     "- iniciantes podem receber supersérie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderência e continuar seguro",
     "- intermediários devem usar blocos combinados com frequência moderada quando houver ganho de densidade ou melhor organização muscular",
     "- avançados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessão em caos metabólico",
     "- blocos combinados devem ser reais e coerentes, não apenas exercícios aleatórios com o mesmo rótulo",
     "- evite redundância e respeite a relação estímulo/fadiga",
+    "- considere tempo de execucao das series, descansos, transicoes e tempo extra de tecnicas ao decidir o volume",
     "",
     "TIPOS DE BLOCO POSSIVEIS:",
     "- normal",
@@ -462,6 +472,7 @@ function validateAndBuildWorkoutPlan(
   );
 
   const sections: WorkoutSection[] = [];
+  const sectionEstimates: ReturnType<typeof estimateWorkoutSectionDuration>[] = [];
 
   for (const [index, day] of normalizedPlan.slice(0, strategy.dayCount).entries()) {
     const blueprint = strategy.sessions[index] ?? strategy.sessions[strategy.sessions.length - 1];
@@ -476,16 +487,19 @@ function validateAndBuildWorkoutPlan(
     const mobility = sanitized.filter((exercise) => exercise.blockType === "mobility");
     const exercises = sanitized.filter((exercise) => exercise.blockType !== "mobility");
 
-    if (!mobility.length) {
-      mobility.unshift(buildFallbackMobility(blueprint));
-    }
-
     if (!exercises.length) {
       logWarn("AI", "Workout AI session adjusted after exercise validation");
       continue;
     }
 
-    const structuredExercises = structureSessionExercises(exercises, strategy, blueprint);
+    const fittedSession = fitSessionToTimeBudget({
+      mobility,
+      exercises,
+      strategy,
+      blueprint,
+      exerciseMap
+    });
+    const structuredExercises = fittedSession.structuredExercises;
     const sessionFocus =
       buildSessionFocusLabel(
         typeof day.sessionFocus === "string" && day.sessionFocus.trim() ? day.sessionFocus.trim() : undefined,
@@ -493,8 +507,9 @@ function validateAndBuildWorkoutPlan(
         blueprint
       ) || blueprint.sessionFocus;
     const progressionTip = buildSectionProgressionTip(strategy, structuredExercises);
-    const items = buildWorkoutSectionItems(mobility, structuredExercises);
-    const flattened = flattenWorkoutSectionItems(items);
+    const items = fittedSession.items;
+    const flattened = fittedSession.flattened;
+    sectionEstimates.push(fittedSession.estimate);
 
     sections.push({
       title: `Treino ${normalizeDayLabel(day.day ?? day.title ?? day.name, index)}`,
@@ -506,6 +521,9 @@ function validateAndBuildWorkoutPlan(
       rationale:
         typeof day.rationale === "string" && day.rationale.trim() ? day.rationale.trim() : blueprint.rationale,
       progressionTip,
+      estimatedDurationMinutes: fittedSession.estimate.totalMinutes,
+      durationRange: fittedSession.estimate.durationRange,
+      timeFitRationale: buildSectionTimeFitRationale(strategy, fittedSession.estimate, items),
       mobility: flattened.mobility,
       exercises: flattened.exercises,
       items
@@ -516,15 +534,21 @@ function validateAndBuildWorkoutPlan(
     throw new Error("Formato inválido da IA");
   }
 
+  const durationSummary = summarizeWorkoutDurations(sectionEstimates, strategy.timeBudget);
+
   return {
     title: `Sugestao ${diagnosis.title}`,
     subtitle: `${strategy.splitLabel} pensado para ${formatGoal(answers.goal)} com foco em eficiencia real.`,
-    estimatedDuration: `${strategy.timeAvailable} min`,
+    estimatedDuration: durationSummary.durationRange,
+    estimatedDurationMinutes: durationSummary.estimatedDurationMinutes,
+    durationRange: durationSummary.durationRange,
+    timeFitRationale: durationSummary.timeFitRationale,
     focus: [
       `Divisao: ${strategy.splitLabel}`,
       `Objetivo: ${formatGoal(answers.goal)}`,
       `Nivel: ${formatLevel(strategy.level)}`,
-      `Frequencia: ${strategy.dayCount} dia(s)`
+      `Frequencia: ${strategy.dayCount} dia(s)`,
+      `Tempo por sessao: ${durationSummary.durationRange}`
     ],
     splitType: strategy.splitType,
     rationale:
@@ -537,6 +561,590 @@ function validateAndBuildWorkoutPlan(
     sections,
     exercises: sections.flatMap((section) => [...section.mobility, ...section.exercises])
   };
+}
+
+function fitSessionToTimeBudget(input: {
+  mobility: SanitizedExercise[];
+  exercises: SanitizedExercise[];
+  strategy: WorkoutStrategy;
+  blueprint: SessionBlueprint;
+  exerciseMap: Map<string, ExerciseLookup>;
+}) {
+  const mobility = normalizeMobilityForTime(input.mobility, input.blueprint, input.strategy);
+  let exercises = alignExercisesToTimeBudget(input.exercises, input.strategy, input.blueprint, input.exerciseMap);
+  let draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (draft.estimate.totalMinutesExact > input.strategy.timeBudget.maxDurationMinutes) {
+      const simplified = simplifySessionForTime(exercises, input.strategy, input.blueprint);
+      if (!simplified.length || areExercisesEqual(exercises, simplified)) {
+        break;
+      }
+      exercises = alignExercisesToTimeBudget(simplified, input.strategy, input.blueprint, input.exerciseMap);
+      draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+      continue;
+    }
+
+    if (draft.estimate.totalMinutesExact < input.strategy.timeBudget.minDurationMinutes) {
+      const expanded = expandSessionForTime(exercises, input.strategy, input.blueprint, input.exerciseMap);
+      if (!expanded.length || areExercisesEqual(exercises, expanded)) {
+        break;
+      }
+      exercises = alignExercisesToTimeBudget(expanded, input.strategy, input.blueprint, input.exerciseMap);
+      draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+      continue;
+    }
+
+    break;
+  }
+
+  return draft;
+}
+
+function buildSessionDraft(
+  mobility: SanitizedExercise[],
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  const structuredExercises = structureSessionExercises(exercises, strategy, blueprint);
+  const items = buildWorkoutSectionItems(mobility, structuredExercises);
+  const flattened = flattenWorkoutSectionItems(items);
+  const estimate = estimateWorkoutSectionDuration(items, strategy.timeBudget.availableTimeMinutes);
+
+  return {
+    mobility,
+    structuredExercises,
+    items,
+    flattened,
+    estimate
+  };
+}
+
+function normalizeMobilityForTime(
+  mobility: SanitizedExercise[],
+  blueprint: SessionBlueprint,
+  strategy: WorkoutStrategy
+) {
+  const limitedMobility = mobility
+    .map((exercise) => applyExerciseTimePrescription(exercise, strategy))
+    .slice(0, strategy.timeBudget.allowExtendedMobility ? 2 : 1);
+
+  if (limitedMobility.length) {
+    return limitedMobility;
+  }
+
+  return [buildFallbackMobility(blueprint)];
+}
+
+function alignExercisesToTimeBudget(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap: Map<string, ExerciseLookup>
+) {
+  const budget = strategy.timeBudget;
+  let normalized = [...exercises].map((exercise) => applyExerciseTimePrescription(exercise, strategy));
+
+  normalized = trimExcessIsolationExercises(normalized, strategy, blueprint);
+
+  if (normalized.length > budget.exerciseCountRange.max) {
+    normalized = rankExercisesForRetention(normalized, strategy, blueprint).slice(0, budget.exerciseCountRange.max);
+  }
+
+  while (normalized.length < budget.exerciseCountRange.min) {
+    const next = pickNextFallbackExercise(normalized, strategy, blueprint, exerciseMap);
+    if (!next) {
+      break;
+    }
+    normalized.push(next);
+  }
+
+  return normalized;
+}
+
+function trimExcessIsolationExercises(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  const result = [...exercises];
+
+  while (countExercisesByMovementType(result, "isolation") > strategy.timeBudget.maxIsolationExercises) {
+    const removalIndex = result
+      .map((exercise, index) => ({ exercise, index }))
+      .filter(({ exercise }) => exercise.movementType === "isolation")
+      .sort(
+        (left, right) =>
+          buildRetentionScore(left.exercise, strategy, blueprint) - buildRetentionScore(right.exercise, strategy, blueprint)
+      )[0]?.index;
+
+    if (removalIndex === undefined) {
+      break;
+    }
+
+    result.splice(removalIndex, 1);
+  }
+
+  return result;
+}
+
+function rankExercisesForRetention(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  return [...exercises].sort(
+    (left, right) => buildRetentionScore(right, strategy, blueprint) - buildRetentionScore(left, strategy, blueprint)
+  );
+}
+
+function buildRetentionScore(
+  exercise: SanitizedExercise,
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  let score = scoreExerciseOrder(exercise, blueprint);
+
+  if (exercise.movementType === "compound") {
+    score += strategy.timeBudget.bucket === "express" || strategy.timeBudget.bucket === "short" ? 12 : 6;
+  }
+
+  if (exercise.movementType === "isolation") {
+    score += strategy.timeBudget.bucket === "extended" || strategy.timeBudget.bucket === "long" ? 8 : -6;
+  }
+
+  if (exercise.movementType === "functional") {
+    score += strategy.goalStyle === "conditioning" ? 8 : strategy.timeBudget.bucket === "express" ? 4 : 0;
+  }
+
+  if ((exercise.primaryMuscles ?? []).some((muscle) => blueprint.primaryMuscles.includes(muscle))) {
+    score += 10;
+  }
+
+  if ((exercise.primaryMuscles ?? []).some((muscle) => blueprint.secondaryMuscles.includes(muscle))) {
+    score += strategy.timeBudget.bucket === "extended" || strategy.timeBudget.bucket === "long" ? 6 : 2;
+  }
+
+  return score;
+}
+
+function pickNextFallbackExercise(
+  currentExercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap: Map<string, ExerciseLookup>
+) {
+  const usedNames = new Set(currentExercises.map((exercise) => exercise.name.trim().toLowerCase()));
+  const currentPrimaryCounts = new Map<string, number>();
+
+  currentExercises.forEach((exercise) => {
+    (exercise.primaryMuscles ?? []).forEach((muscle) => {
+      currentPrimaryCounts.set(muscle, (currentPrimaryCounts.get(muscle) ?? 0) + 1);
+    });
+  });
+
+  const candidates = Array.from(exerciseMap.values())
+    .filter((lookup) => !usedNames.has(lookup.source.name.trim().toLowerCase()))
+    .filter((lookup) => lookup.profile.movementType !== "mobility")
+    .sort((left, right) => {
+      const leftScore = scoreFallbackCandidate(left, currentExercises, strategy, blueprint, currentPrimaryCounts);
+      const rightScore = scoreFallbackCandidate(right, currentExercises, strategy, blueprint, currentPrimaryCounts);
+      return rightScore - leftScore;
+    });
+
+  const next = candidates[0];
+  if (!next) {
+    return null;
+  }
+
+  return buildFallbackExercise(next, strategy, blueprint);
+}
+
+function scoreFallbackCandidate(
+  lookup: ExerciseLookup,
+  currentExercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  currentPrimaryCounts: Map<string, number>
+) {
+  const { profile } = lookup;
+  let score = 0;
+
+  for (const muscle of profile.primaryMuscles) {
+    if (blueprint.primaryMuscles.includes(muscle)) {
+      score += currentExercises.length < 4 ? 16 : 10;
+    }
+    if (blueprint.secondaryMuscles.includes(muscle)) {
+      score += currentExercises.length >= 5 ? 10 : 4;
+    }
+    score -= (currentPrimaryCounts.get(muscle) ?? 0) * 2;
+  }
+
+  if (profile.movementType === "compound") {
+    score += currentExercises.length < 4 || strategy.timeBudget.bucket === "express" ? 18 : 6;
+  }
+
+  if (profile.movementType === "isolation") {
+    score += strategy.timeBudget.bucket === "extended" || strategy.timeBudget.bucket === "long" ? 14 : -2;
+  }
+
+  if (profile.movementType === "functional") {
+    score += strategy.goalStyle === "conditioning" ? 12 : strategy.timeBudget.bucket === "express" ? 4 : 0;
+  }
+
+  if (
+    currentExercises.length >= strategy.timeBudget.targetExerciseCount - 1 &&
+    profile.movementType === "compound" &&
+    strategy.timeBudget.bucket !== "express"
+  ) {
+    score -= 6;
+  }
+
+  return score;
+}
+
+function buildFallbackExercise(
+  lookup: ExerciseLookup,
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+): SanitizedExercise {
+  const blockType: WorkoutBlockType = "normal";
+  const trainingTechnique = resolveTrainingTechnique({}, blockType, blueprint, lookup.profile.primaryMuscles[0]);
+
+  return applyExerciseTimePrescription(
+    {
+      name: lookup.source.name,
+      sets: String(getDefaultSets(strategy, lookup.profile.movementType)),
+      reps: String(getDefaultReps(strategy, lookup.profile.movementType)),
+      rest: `${getDefaultRest(strategy, blockType, lookup.profile.movementType)}s`,
+      type: "normal",
+      method: trainingTechnique,
+      technique: trainingTechnique,
+      blockType,
+      trainingTechnique,
+      rationale: buildExerciseRationale(blockType, blueprint, lookup.profile.primaryMuscles[0]),
+      notes: buildExerciseNotes(blockType, lookup.profile.movementType, strategy.level),
+      primaryMuscles: lookup.profile.primaryMuscles,
+      secondaryMuscles: lookup.profile.secondaryMuscles,
+      videoUrl: lookup.source.video_url,
+      movementType: lookup.profile.movementType
+    },
+    strategy
+  );
+}
+
+function simplifySessionForTime(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  if (exercises.length > strategy.timeBudget.targetExerciseCount) {
+    return removeLowestPriorityExercise(exercises, strategy, blueprint);
+  }
+
+  const reducedSets = reduceSetsOnLowestPriorityExercise(exercises, strategy, blueprint);
+  if (!areExercisesEqual(exercises, reducedSets)) {
+    return reducedSets;
+  }
+
+  const reducedRest = tightenRestOnLowestPriorityExercise(exercises, strategy, blueprint);
+  if (!areExercisesEqual(exercises, reducedRest)) {
+    return reducedRest;
+  }
+
+  if (exercises.length > strategy.timeBudget.exerciseCountRange.min) {
+    return removeLowestPriorityExercise(exercises, strategy, blueprint);
+  }
+
+  return exercises;
+}
+
+function expandSessionForTime(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap: Map<string, ExerciseLookup>
+) {
+  if (exercises.length < strategy.timeBudget.targetExerciseCount) {
+    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap);
+    if (next) {
+      return [...exercises, next];
+    }
+  }
+
+  const increasedSets = increaseSetsOnHighValueExercise(exercises, strategy, blueprint);
+  if (!areExercisesEqual(exercises, increasedSets)) {
+    return increasedSets;
+  }
+
+  if (exercises.length < strategy.timeBudget.exerciseCountRange.max) {
+    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap);
+    if (next) {
+      return [...exercises, next];
+    }
+  }
+
+  return exercises;
+}
+
+function removeLowestPriorityExercise(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  const removalIndex = exercises
+    .map((exercise, index) => ({ exercise, index }))
+    .sort(
+      (left, right) =>
+        buildRetentionScore(left.exercise, strategy, blueprint) - buildRetentionScore(right.exercise, strategy, blueprint)
+    )[0]?.index;
+
+  if (removalIndex === undefined) {
+    return exercises;
+  }
+
+  return exercises.filter((_, index) => index !== removalIndex);
+}
+
+function reduceSetsOnLowestPriorityExercise(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  const candidates = exercises
+    .map((exercise, index) => ({
+      exercise,
+      index,
+      bounds: resolveSetBounds(strategy, exercise.movementType, exercise.blockType)
+    }))
+    .filter(({ exercise, bounds }) => parsePrescriptionNumber(exercise.sets, bounds.target) > bounds.min)
+    .sort(
+      (left, right) =>
+        buildRetentionScore(left.exercise, strategy, blueprint) - buildRetentionScore(right.exercise, strategy, blueprint)
+    );
+
+  const selected = candidates[0];
+  if (!selected) {
+    return exercises;
+  }
+
+  return exercises.map((exercise, index) =>
+    index === selected.index
+      ? {
+          ...exercise,
+          sets: String(Math.max(selected.bounds.min, parsePrescriptionNumber(exercise.sets, selected.bounds.target) - 1))
+        }
+      : exercise
+  );
+}
+
+function tightenRestOnLowestPriorityExercise(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  const candidates = exercises
+    .map((exercise, index) => ({
+      exercise,
+      index,
+      bounds: resolveRestBounds(strategy, exercise.blockType, exercise.movementType)
+    }))
+    .filter(({ exercise, bounds }) => parsePrescriptionNumber(exercise.rest, bounds.target) > bounds.min)
+    .sort(
+      (left, right) =>
+        buildRetentionScore(left.exercise, strategy, blueprint) - buildRetentionScore(right.exercise, strategy, blueprint)
+    );
+
+  const selected = candidates[0];
+  if (!selected) {
+    return exercises;
+  }
+
+  return exercises.map((exercise, index) =>
+    index === selected.index
+      ? {
+          ...exercise,
+          rest: `${Math.max(selected.bounds.min, parsePrescriptionNumber(exercise.rest, selected.bounds.target) - 15)}s`
+        }
+      : exercise
+  );
+}
+
+function increaseSetsOnHighValueExercise(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
+  const candidates = exercises
+    .map((exercise, index) => ({
+      exercise,
+      index,
+      bounds: resolveSetBounds(strategy, exercise.movementType, exercise.blockType)
+    }))
+    .filter(({ exercise, bounds }) => parsePrescriptionNumber(exercise.sets, bounds.target) < bounds.max)
+    .sort(
+      (left, right) =>
+        buildRetentionScore(right.exercise, strategy, blueprint) - buildRetentionScore(left.exercise, strategy, blueprint)
+    );
+
+  const selected = candidates[0];
+  if (!selected) {
+    return exercises;
+  }
+
+  return exercises.map((exercise, index) =>
+    index === selected.index
+      ? {
+          ...exercise,
+          sets: String(Math.min(selected.bounds.max, parsePrescriptionNumber(exercise.sets, selected.bounds.target) + 1))
+        }
+      : exercise
+  );
+}
+
+function applyExerciseTimePrescription(exercise: SanitizedExercise, strategy: WorkoutStrategy) {
+  const setBounds = resolveSetBounds(strategy, exercise.movementType, exercise.blockType);
+  const restBounds = resolveRestBounds(strategy, exercise.blockType, exercise.movementType);
+  const sets = clamp(
+    parsePrescriptionNumber(exercise.sets, setBounds.target),
+    setBounds.min,
+    setBounds.max
+  );
+  const rest = clamp(
+    parsePrescriptionNumber(exercise.rest, restBounds.target),
+    restBounds.min,
+    restBounds.max
+  );
+
+  return {
+    ...exercise,
+    sets: String(sets),
+    rest: `${rest}s`
+  };
+}
+
+function resolveSetBounds(
+  strategy: WorkoutStrategy,
+  movementType: string,
+  blockType?: WorkoutBlockType
+) {
+  if (movementType === "mobility") {
+    return {
+      min: 1,
+      max: strategy.timeBudget.allowExtendedMobility ? 2 : 1,
+      target: 1
+    };
+  }
+
+  if (isCombinedBlockType(blockType)) {
+    return {
+      min: 2,
+      max: strategy.timeBudget.bucket === "express" ? 2 : 3,
+      target: strategy.timeBudget.bucket === "express" ? 2 : 3
+    };
+  }
+
+  if (strategy.timeBudget.bucket === "express") {
+    if (movementType === "compound") return { min: 2, max: 3, target: 2 };
+    return { min: 1, max: 2, target: 1 };
+  }
+
+  if (strategy.timeBudget.bucket === "short") {
+    if (movementType === "compound") return { min: 2, max: 3, target: 3 };
+    return { min: 2, max: 3, target: 2 };
+  }
+
+  if (strategy.timeBudget.bucket === "standard") {
+    if (movementType === "compound") return { min: 3, max: 4, target: strategy.goalStyle === "hypertrophy" ? 4 : 3 };
+    return { min: 2, max: 3, target: 3 };
+  }
+
+  if (strategy.timeBudget.bucket === "extended") {
+    if (movementType === "compound") return { min: 3, max: 4, target: 4 };
+    return { min: 3, max: 4, target: 3 };
+  }
+
+  if (movementType === "compound") {
+    return { min: 4, max: 5, target: strategy.goalStyle === "hypertrophy" ? 5 : 4 };
+  }
+
+  return { min: 3, max: 4, target: 3 };
+}
+
+function resolveRestBounds(
+  strategy: WorkoutStrategy,
+  blockType: WorkoutBlockType | undefined,
+  movementType: string
+) {
+  if (blockType === "mobility" || movementType === "mobility") {
+    return { min: 10, max: 20, target: 15 };
+  }
+
+  if (isCombinedBlockType(blockType)) {
+    return { min: 0, max: 15, target: 10 };
+  }
+
+  if (blockType === "drop-set" || blockType === "rest-pause") {
+    return {
+      min: strategy.timeBudget.bucket === "express" ? 10 : 15,
+      max: 30,
+      target: 20
+    };
+  }
+
+  if (strategy.timeBudget.bucket === "express") {
+    return movementType === "compound" ? { min: 30, max: 60, target: 45 } : { min: 20, max: 40, target: 30 };
+  }
+
+  if (strategy.timeBudget.bucket === "short") {
+    return movementType === "compound" ? { min: 35, max: 75, target: 50 } : { min: 25, max: 45, target: 35 };
+  }
+
+  if (strategy.timeBudget.bucket === "standard") {
+    return movementType === "compound" ? { min: 45, max: 90, target: 60 } : { min: 30, max: 60, target: 45 };
+  }
+
+  if (strategy.timeBudget.bucket === "extended") {
+    return movementType === "compound" ? { min: 60, max: 105, target: 75 } : { min: 35, max: 75, target: 50 };
+  }
+
+  return movementType === "compound" ? { min: 75, max: 120, target: 90 } : { min: 45, max: 75, target: 60 };
+}
+
+function parsePrescriptionNumber(value: string, fallback: number) {
+  const numeric = Number.parseInt(value.replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function countExercisesByMovementType(exercises: SanitizedExercise[], movementType: string) {
+  return exercises.filter((exercise) => exercise.movementType === movementType).length;
+}
+
+function areExercisesEqual(left: SanitizedExercise[], right: SanitizedExercise[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every(
+    (exercise, index) =>
+      exercise.name === right[index]?.name &&
+      exercise.sets === right[index]?.sets &&
+      exercise.rest === right[index]?.rest &&
+      exercise.blockType === right[index]?.blockType
+  );
+}
+
+function buildSectionTimeFitRationale(
+  strategy: WorkoutStrategy,
+  estimate: ReturnType<typeof estimateWorkoutSectionDuration>,
+  items: ReturnType<typeof buildWorkoutSectionItems>
+) {
+  const combinedBlocks = items.filter((item) => item.type === "combined_block").length;
+  const combinedNote =
+    combinedBlocks > 0 ? `${combinedBlocks} bloco${combinedBlocks === 1 ? "" : "s"} combinado${combinedBlocks === 1 ? "" : "s"}` : "sem bloco combinado obrigatorio";
+
+  return `Sessao ajustada para ${strategy.timeBudget.availableTimeMinutes} min com ${estimate.workingExerciseCount} exercicios uteis, ${combinedNote} e estimativa de ${estimate.durationRange}.`;
 }
 
 function sanitizeAiDayExercises(
@@ -588,9 +1196,9 @@ function sanitizeAiDayExercises(
 
       return {
         name: lookup.source.name,
-        sets: String(sanitizeFixedNumber(exercise.sets, getDefaultSets(strategy, movementType))),
+        sets: String(normalizeSetsForBudget(exercise.sets, strategy, movementType, blockType)),
         reps: String(sanitizeFixedNumber(exercise.reps, getDefaultReps(strategy, movementType))),
-        rest: `${sanitizeFixedNumber(exercise.rest, getDefaultRest(strategy, blockType, movementType))}s`,
+        rest: `${normalizeRestForBudget(exercise.rest, strategy, blockType, movementType)}s`,
         type: legacyType,
         method: trainingTechnique,
         technique: trainingTechnique,
@@ -835,24 +1443,19 @@ function countCombinedBlocks(exercises: SanitizedExercise[]) {
 
 function resolveTargetCombinedBlocks(strategy: WorkoutStrategy, exercises: SanitizedExercise[]) {
   if (exercises.length < 4) return 0;
+  const maxAllowedByLength = Math.max(0, Math.floor(exercises.length / 2));
+  const beginnerCap = strategy.level === "beginner" ? 1 : strategy.level === "intermediate" ? 2 : 3;
+  const target = Math.min(strategy.timeBudget.targetCombinedBlocks, maxAllowedByLength, beginnerCap);
 
-  if (strategy.level === "beginner") {
-    if (strategy.goalStyle === "conditioning" || strategy.timeAvailable <= 35) {
-      return 1;
-    }
-
-    return exercises.length >= 6 && strategy.allowedBlockTypes.includes("superset") ? 1 : 0;
+  if (!strategy.allowedBlockTypes.some(isCombinedBlockType)) {
+    return 0;
   }
 
-  if (strategy.level === "intermediate") {
-    return strategy.goalStyle === "conditioning" || strategy.timeAvailable <= 45 || exercises.length >= 6 ? 2 : 1;
+  if (strategy.timeBudget.bucket === "express" && exercises.length < 5) {
+    return Math.min(target, 1);
   }
 
-  if (exercises.length >= 7 || strategy.goalStyle === "conditioning" || strategy.goalStyle === "hypertrophy") {
-    return 2;
-  }
-
-  return 1;
+  return Math.max(strategy.timeBudget.combinedBlockRange.min, target);
 }
 
 function resolveDesiredCombinedTypes(
@@ -974,7 +1577,18 @@ function scoreCombinedWindow(
 }
 
 function resolvePrimeBoundary(exercises: SanitizedExercise[], strategy: WorkoutStrategy) {
-  const maxPrime = strategy.level === "beginner" ? 1 : 2;
+  const maxPrime =
+    strategy.timeBudget.bucket === "express"
+      ? 1
+      : strategy.timeBudget.bucket === "short"
+        ? strategy.level === "beginner"
+          ? 1
+          : 2
+        : strategy.timeBudget.bucket === "long" && strategy.level === "advanced"
+          ? 3
+          : strategy.level === "beginner"
+            ? 1
+            : 2;
   let count = 0;
 
   for (const exercise of exercises) {
@@ -1055,11 +1669,15 @@ function resolveCombinedBlockRounds(
   strategy: WorkoutStrategy
 ) {
   const base =
-    strategy.level === "beginner"
+    strategy.timeBudget.bucket === "express"
       ? 2
-      : blockType === "tri-set" || blockType === "circuit"
-        ? 3
-        : 3;
+      : strategy.level === "beginner"
+        ? 2
+        : blockType === "tri-set" || blockType === "circuit"
+          ? strategy.timeBudget.bucket === "long" ? 4 : 3
+          : strategy.timeBudget.bucket === "extended" || strategy.timeBudget.bucket === "long"
+            ? 4
+            : 3;
   const parsedSets = exercises
     .map((exercise) => Number.parseInt(exercise.sets, 10))
     .filter((value) => Number.isFinite(value) && value > 0);
@@ -1068,16 +1686,37 @@ function resolveCombinedBlockRounds(
     return String(base);
   }
 
-  return String(Math.max(2, Math.min(base, Math.min(...parsedSets))));
+  const minRounds = strategy.timeBudget.bucket === "express" ? 2 : 2;
+  return String(Math.max(minRounds, Math.min(base, Math.min(...parsedSets))));
 }
 
 function resolveCombinedBlockRest(blockType: CombinedBlockType, strategy: WorkoutStrategy) {
   if (blockType === "circuit") {
+    if (strategy.timeBudget.bucket === "express" || strategy.timeBudget.bucket === "short") {
+      return "45-60 segundos";
+    }
+
     return strategy.level === "beginner" ? "60-75 segundos" : "45-60 segundos";
   }
 
   if (blockType === "tri-set") {
+    if (strategy.timeBudget.bucket === "long") {
+      return strategy.level === "advanced" ? "75-90 segundos" : "75 segundos";
+    }
+
     return strategy.level === "advanced" ? "60-75 segundos" : "75 segundos";
+  }
+
+  if (strategy.timeBudget.bucket === "express") {
+    return "45-60 segundos";
+  }
+
+  if (strategy.timeBudget.bucket === "short") {
+    return strategy.level === "beginner" ? "60-75 segundos" : "45-60 segundos";
+  }
+
+  if (strategy.timeBudget.bucket === "long") {
+    return strategy.level === "advanced" ? "75-90 segundos" : "60-75 segundos";
   }
 
   return strategy.level === "beginner" ? "75-90 segundos" : "60-75 segundos";
@@ -1343,10 +1982,7 @@ function scoreExerciseForStrategy(exercise: ExerciseRecord, strategy: WorkoutStr
 }
 
 function getDefaultSets(strategy: WorkoutStrategy, movementType: string) {
-  if (movementType === "mobility") return 1;
-  if (strategy.goalStyle === "hypertrophy") return movementType === "compound" ? 4 : 3;
-  if (strategy.goalStyle === "conditioning") return 3;
-  return movementType === "compound" ? 3 : 2;
+  return resolveSetBounds(strategy, movementType, "normal").target;
 }
 
 function getDefaultReps(strategy: WorkoutStrategy, movementType: string) {
@@ -1357,12 +1993,27 @@ function getDefaultReps(strategy: WorkoutStrategy, movementType: string) {
 }
 
 function getDefaultRest(strategy: WorkoutStrategy, blockType: WorkoutBlockType, movementType: string) {
-  if (blockType === "mobility") return 15;
-  if (isCombinedBlockType(blockType)) return 30;
-  if (blockType === "drop-set" || blockType === "rest-pause") return 20;
-  if (movementType === "compound" && strategy.goalStyle === "hypertrophy") return 75;
-  if (strategy.goalStyle === "conditioning") return 30;
-  return 60;
+  return resolveRestBounds(strategy, blockType, movementType).target;
+}
+
+function normalizeSetsForBudget(
+  value: unknown,
+  strategy: WorkoutStrategy,
+  movementType: string,
+  blockType: WorkoutBlockType
+) {
+  const bounds = resolveSetBounds(strategy, movementType, blockType);
+  return clamp(sanitizeFixedNumber(value, bounds.target), bounds.min, bounds.max);
+}
+
+function normalizeRestForBudget(
+  value: unknown,
+  strategy: WorkoutStrategy,
+  blockType: WorkoutBlockType,
+  movementType: string
+) {
+  const bounds = resolveRestBounds(strategy, blockType, movementType);
+  return clamp(sanitizeFixedNumber(value, bounds.target), bounds.min, bounds.max);
 }
 
 function sanitizeFixedNumber(value: unknown, fallback: number) {
@@ -1378,6 +2029,10 @@ function sanitizeFixedNumber(value: unknown, fallback: number) {
   }
 
   return fallback;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function normalizeDayLabel(value: string | undefined, index: number) {

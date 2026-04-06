@@ -4,6 +4,11 @@ import {
   getExerciseMuscleGroups,
   resolveExerciseMovementType
 } from "@/lib/exercise-library";
+import {
+  buildSessionTimeBudget,
+  buildTimeBudgetBrief,
+  type SessionTimeBudget
+} from "@/lib/workout-time";
 import type { ExerciseRecord, QuizAnswers, WorkoutBlockType } from "@/lib/types";
 
 export type TrainingLevel = "beginner" | "intermediate" | "advanced";
@@ -36,6 +41,7 @@ export type WorkoutStrategy = {
   goalStyle: TrainingGoalStyle;
   dayCount: number;
   timeAvailable: number;
+  timeBudget: SessionTimeBudget;
   equipment: string[];
   bodyType: string;
   weeklyVolumeTargets: Record<string, number>;
@@ -91,6 +97,11 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
   const timeAvailable = clamp(Number(answers.time) || 45, 15, 120);
   const equipment = normalizeEquipmentList(answers.equipment);
   const bodyType = resolveBodyType(answers);
+  const timeBudget = buildSessionTimeBudget({
+    availableTimeMinutes: timeAvailable,
+    level,
+    goalStyle
+  });
   const splitType = decideSplitType({
     dayCount,
     level,
@@ -108,11 +119,12 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     goalStyle,
     dayCount,
     timeAvailable,
+    timeBudget,
     equipment,
     bodyType,
     weeklyVolumeTargets: buildWeeklyVolumeTargets(sessions, goalStyle, level),
-    allowedBlockTypes: buildAllowedBlockTypes(level, goalStyle, timeAvailable),
-    maxAdvancedBlocksPerSession: buildTechniqueBudget(level, goalStyle, timeAvailable),
+    allowedBlockTypes: buildAllowedBlockTypes(level, goalStyle, timeAvailable, timeBudget),
+    maxAdvancedBlocksPerSession: buildTechniqueBudget(level, goalStyle, timeAvailable, timeBudget),
     sessions
   };
 }
@@ -215,6 +227,7 @@ export function buildCoachBrief(strategy: WorkoutStrategy) {
     splitType: strategy.splitType,
     splitLabel: strategy.splitLabel,
     rationale: strategy.rationale,
+    timeBudget: buildTimeBudgetBrief(strategy.timeBudget),
     weeklyVolumeTargets: strategy.weeklyVolumeTargets,
     allowedBlockTypes: strategy.allowedBlockTypes,
     maxAdvancedBlocksPerSession: strategy.maxAdvancedBlocksPerSession,
@@ -358,13 +371,14 @@ function buildWeeklyVolumeTargets(
 function buildAllowedBlockTypes(
   level: TrainingLevel,
   goalStyle: TrainingGoalStyle,
-  timeAvailable: number
+  timeAvailable: number,
+  timeBudget: SessionTimeBudget
 ): WorkoutBlockType[] {
   const allowed = new Set<WorkoutBlockType>(["normal", "mobility", "tempo_controlado", "isometria"]);
 
   allowed.add("superset");
 
-  if (level !== "beginner") {
+  if (level !== "beginner" && timeAvailable >= 25) {
     allowed.add("bi-set");
   }
 
@@ -373,14 +387,14 @@ function buildAllowedBlockTypes(
     allowed.add("superset");
   }
 
-  if (goalStyle === "hypertrophy" && level !== "beginner") {
+  if (goalStyle === "hypertrophy" && level !== "beginner" && timeBudget.allowAdvancedTechniques) {
     allowed.add("drop-set");
     allowed.add("rest-pause");
     allowed.add("pre-exaustao");
     allowed.add("pos-exaustao");
   }
 
-  if (level === "advanced") {
+  if (level === "advanced" && timeBudget.allowAdvancedTechniques && timeAvailable >= 55) {
     allowed.add("tri-set");
     allowed.add("cluster");
     allowed.add("parciais");
@@ -389,10 +403,27 @@ function buildAllowedBlockTypes(
   return Array.from(allowed);
 }
 
-function buildTechniqueBudget(level: TrainingLevel, goalStyle: TrainingGoalStyle, timeAvailable: number) {
-  if (level === "beginner") return 1;
-  if (level === "advanced") return goalStyle === "conditioning" || timeAvailable <= 35 ? 2 : 3;
-  return timeAvailable <= 35 ? 1 : 2;
+function buildTechniqueBudget(
+  level: TrainingLevel,
+  goalStyle: TrainingGoalStyle,
+  timeAvailable: number,
+  timeBudget: SessionTimeBudget
+) {
+  if (level === "beginner") {
+    return timeBudget.bucket === "express" ? 1 : Math.max(1, timeBudget.targetCombinedBlocks);
+  }
+
+  if (level === "advanced") {
+    if (goalStyle === "conditioning") {
+      return Math.max(1, timeBudget.targetCombinedBlocks);
+    }
+
+    return timeBudget.allowAdvancedTechniques
+      ? Math.max(2, timeBudget.targetCombinedBlocks + (timeAvailable >= 70 ? 1 : 0))
+      : Math.max(1, timeBudget.targetCombinedBlocks);
+  }
+
+  return timeBudget.allowAdvancedTechniques ? Math.max(2, timeBudget.targetCombinedBlocks) : Math.max(1, timeBudget.targetCombinedBlocks);
 }
 
 function buildSplitRationale(

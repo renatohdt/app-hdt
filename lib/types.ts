@@ -130,6 +130,9 @@ export type WorkoutSection = {
   focusLabel?: string;
   rationale?: string | null;
   progressionTip?: string | null;
+  estimatedDurationMinutes?: number;
+  durationRange?: string | null;
+  timeFitRationale?: string | null;
   mobility: WorkoutExercise[];
   exercises: WorkoutExercise[];
   items?: WorkoutSectionItem[];
@@ -139,6 +142,9 @@ export type WorkoutPlan = {
   title: string;
   subtitle: string;
   estimatedDuration: string;
+  estimatedDurationMinutes?: number;
+  durationRange?: string | null;
+  timeFitRationale?: string | null;
   focus: string[];
   splitType?: string;
   rationale?: string | null;

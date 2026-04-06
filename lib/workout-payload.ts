@@ -1,6 +1,7 @@
 import { DiagnosisResult, QuizAnswers, WorkoutExercise, WorkoutPlan, WorkoutSection } from "@/lib/types";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import { formatSplitTypeLabel, normalizeBlockType } from "@/lib/workout-strategy";
+import { buildSessionTimeBudget } from "@/lib/workout-time";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -33,6 +34,18 @@ export function normalizeWorkoutPayload(
 
     return {
       ...rawWorkout,
+      estimatedDurationMinutes:
+        typeof rawWorkout.estimatedDurationMinutes === "number"
+          ? rawWorkout.estimatedDurationMinutes
+          : buildFallbackTiming(options?.answers?.time).estimatedDurationMinutes,
+      durationRange:
+        typeof rawWorkout.durationRange === "string"
+          ? rawWorkout.durationRange
+          : buildFallbackTiming(options?.answers?.time).durationRange,
+      timeFitRationale:
+        typeof rawWorkout.timeFitRationale === "string"
+          ? rawWorkout.timeFitRationale
+          : buildFallbackTiming(options?.answers?.time).timeFitRationale,
       splitType,
       rationale:
         typeof rawWorkout.rationale === "string" && rawWorkout.rationale.trim()
@@ -56,6 +69,7 @@ export function normalizeWorkoutPayload(
       title: buildWorkoutTitle(rawWorkout, options?.diagnosis),
       subtitle: buildWorkoutSubtitle(rawWorkout),
       estimatedDuration: buildEstimatedDuration(options?.answers?.time),
+      ...buildFallbackTiming(options?.answers?.time),
       focus: buildFocusList(options?.answers),
       splitType,
       rationale: buildWorkoutRationale(splitType, sections.length),
@@ -90,6 +104,7 @@ export function normalizeWorkoutPayload(
     title: buildWorkoutTitle(rawWorkout, options?.diagnosis),
     subtitle: buildWorkoutSubtitle(rawWorkout),
     estimatedDuration: buildEstimatedDuration(options?.answers?.time),
+    ...buildFallbackTiming(options?.answers?.time),
     focus: buildFocusList(options?.answers),
     splitType: "full_body_single",
     rationale: buildWorkoutRationale("full_body_single", 1),
@@ -370,6 +385,21 @@ function buildEstimatedDuration(time?: number) {
   }
 
   return "45 min";
+}
+
+function buildFallbackTiming(time?: number) {
+  const minutes = Number(time);
+  const budget = buildSessionTimeBudget({
+    availableTimeMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 45,
+    level: "intermediate",
+    goalStyle: "recomposition"
+  });
+
+  return {
+    estimatedDurationMinutes: budget.targetDurationMinutes,
+    durationRange: `${budget.minDurationMinutes}-${budget.maxDurationMinutes} min`,
+    timeFitRationale: budget.timeFitRationale
+  };
 }
 
 function buildFocusList(answers?: Partial<QuizAnswers> | null) {
