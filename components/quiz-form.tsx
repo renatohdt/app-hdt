@@ -8,7 +8,8 @@ import { useConsentPreferences } from "@/components/consent-provider";
 import { Disclaimer } from "@/components/disclaimer";
 import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
-import { trackEvent } from "@/lib/analytics-client";
+import { trackSignUpSuccess } from "@/lib/analytics";
+import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
 import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib/supabase-browser";
@@ -42,14 +43,16 @@ export function QuizForm() {
   const loadingCardRef = useRef<HTMLDivElement | null>(null);
   const hasMountedStepRef = useRef(false);
   const shouldScrollToStepRef = useRef(false);
+  const isSubmittingRef = useRef(false);
+  const hasTrackedSignUpSuccessRef = useRef(false);
 
   const safeStepIndex = Math.min(stepIndex, quizSteps.length - 1);
   const step = quizSteps[safeStepIndex];
   const progress = useMemo(() => Math.round(((safeStepIndex + 1) / quizSteps.length) * 100), [safeStepIndex]);
 
   useEffect(() => {
-    trackEvent("home_view", null, { source: "landing_page" });
-    trackEvent("page_view", null, { source: "landing_page" });
+    trackAppEvent("home_view", null, { source: "landing_page" });
+    trackAppEvent("page_view", null, { source: "landing_page" });
   }, []);
 
   useEffect(() => {
@@ -171,8 +174,8 @@ export function QuizForm() {
   const loadingStageIndex = getLoadingStageIndex(roundedLoadingProgress);
   function trackStart(stepNumber: number) {
     if (!hasTrackedStart) {
-      trackEvent("quiz_started", null, { step: stepNumber });
-      trackEvent("quiz_start", null, { step: stepNumber });
+      trackAppEvent("quiz_started", null, { step: stepNumber });
+      trackAppEvent("quiz_start", null, { step: stepNumber });
       setHasTrackedStart(true);
     }
   }
@@ -247,6 +250,12 @@ export function QuizForm() {
     }
 
     if (safeStepIndex === quizSteps.length - 1) {
+      if (isSubmittingRef.current) {
+        return;
+      }
+
+      isSubmittingRef.current = true;
+
       startTransition(async () => {
         try {
           if (!isValidEmail(account.email)) {
@@ -324,16 +333,23 @@ export function QuizForm() {
             };
           }>(response);
 
-          trackEvent("quiz_completed", payload.data.userId ?? null, {
+          trackAppEvent("quiz_completed", payload.data.userId ?? null, {
             goal: answers.goal ?? null,
             location: "home"
           });
-          trackEvent("signup", payload.data.userId ?? null, {
+          trackAppEvent("signup", payload.data.userId ?? null, {
             goal: answers.goal ?? null
           });
-          trackEvent("sign_up", payload.data.userId ?? null, {
+          trackAppEvent("sign_up", payload.data.userId ?? null, {
             goal: answers.goal ?? null
           });
+
+          if (!hasTrackedSignUpSuccessRef.current) {
+            trackSignUpSuccess({
+              goal: typeof answers.goal === "string" ? answers.goal : undefined
+            });
+            hasTrackedSignUpSuccessRef.current = true;
+          }
 
           await completeLoadingProgress();
           setSuccessMessage("Conta criada com sucesso.");
@@ -343,6 +359,8 @@ export function QuizForm() {
           clientLogError("QUIZ SIGN UP FLOW ERROR", submissionError);
           const authMessage = getFriendlyAuthErrorMessage(submissionError);
           setError(getRequestErrorMessage(new Error(authMessage), authMessage));
+        } finally {
+          isSubmittingRef.current = false;
         }
       });
 

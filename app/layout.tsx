@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { AppVersionFooter } from "@/components/app-version-footer";
 import { ConsentProvider } from "@/components/consent-provider";
+import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { getCurrentConsentVersion } from "@/lib/consents";
 import "./globals.css";
@@ -18,6 +20,9 @@ export const metadata: Metadata = {
   description:
     "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!",
   manifest: "/manifest.webmanifest",
+  verification: {
+    google: "beawZ799WTCV5sDrsrKLuIIAY1-EZDVqC1YH3bvHAXs"
+  },
   openGraph: {
     title: "Treino personalizado online gratis | Hora do Treino",
     description:
@@ -70,6 +75,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR">
       <body className={`${jakarta.className} bg-background text-white antialiased`}>
         <ConsentProvider currentVersion={getCurrentConsentVersion()}>
+          <Suspense fallback={null}>
+            <GoogleTag />
+          </Suspense>
           <div className="flex min-h-screen flex-col">
             <PwaRegistration />
             <div className="flex-1">

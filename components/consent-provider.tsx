@@ -246,7 +246,6 @@ export function ConsentProvider({
     <ConsentContext.Provider value={contextValue}>
       <ConsentManagedScripts
         canUseAds={contextValue.canUseAds}
-        canUseAnalytics={contextValue.canUseAnalytics}
         canUseMarketing={contextValue.canUseMarketing}
       />
       {children}
@@ -313,11 +312,9 @@ export function ConsentProvider({
 }
 
 function ConsentManagedScripts({
-  canUseAnalytics,
   canUseAds,
   canUseMarketing
 }: {
-  canUseAnalytics: boolean;
   canUseAds: boolean;
   canUseMarketing: boolean;
 }) {
@@ -366,24 +363,6 @@ function ConsentManagedScripts({
         </>
       ) : null}
 
-      {canUseAnalytics ? (
-        <>
-          <Script
-            id="google-analytics-src"
-            src="https://www.googletagmanager.com/gtag/js?id=G-F9GQ2ZQ9TL"
-            strategy="afterInteractive"
-          />
-          <Script id="google-analytics" strategy="afterInteractive">
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              window.gtag = gtag;
-              gtag('js', new Date());
-              gtag('config', 'G-F9GQ2ZQ9TL');
-            `}
-          </Script>
-        </>
-      ) : null}
     </>
   );
 }
