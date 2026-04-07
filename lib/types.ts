@@ -45,6 +45,7 @@ export type QuizAnswers = {
 export type ExerciseRecord = {
   id: string;
   name: string;
+  name_normalized?: string;
   tags?: string[];
   muscle?: string;
   muscle_groups?: string[];

@@ -7,7 +7,7 @@ export default function AdminExercisesPage() {
       <SectionTitle
         eyebrow="Administracao"
         title="Exercícios"
-        description="Cadastro rapido e tabela simples para revisar a biblioteca."
+        description="Gerencie a biblioteca com cadastro protegido contra duplicidade, filtros úteis e visão clara de cobertura."
       />
 
       <AdminExercisesManager initialExercises={[]} />

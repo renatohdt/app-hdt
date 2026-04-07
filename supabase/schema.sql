@@ -29,6 +29,37 @@ begin
 end;
 $$;
 
+create or replace function public.normalize_exercise_name(input text)
+returns text
+language sql
+immutable
+as $$
+  select trim(
+    regexp_replace(
+      lower(
+        translate(
+          coalesce(input, ''),
+          'ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñÝŸýÿ',
+          'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNnYYyy'
+        )
+      ),
+      '\s+',
+      ' ',
+      'g'
+    )
+  );
+$$;
+
+create or replace function public.set_exercise_name_normalized()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.name_normalized = public.normalize_exercise_name(new.name);
+  return new;
+end;
+$$;
+
 create table if not exists public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null check (btrim(name) <> ''),
@@ -42,6 +73,7 @@ create table if not exists public.users (
 create table if not exists public.exercises (
   id uuid primary key default gen_random_uuid(),
   name text not null check (btrim(name) <> ''),
+  name_normalized text not null,
   muscle text,
   muscle_groups text[] not null default '{}',
   type text,
@@ -159,6 +191,7 @@ alter table public.users drop column if exists viewed_workout;
 alter table public.users drop column if exists clicked_cta;
 alter table public.exercises drop column if exists description;
 alter table public.exercises add column if not exists muscle_groups text[] not null default '{}';
+alter table public.exercises add column if not exists name_normalized text;
 
 update public.exercises
 set muscle_groups = array_remove(array[nullif(btrim(muscle), '')], null)
@@ -216,6 +249,41 @@ where coalesce(metadata->'muscle_groups', 'null'::jsonb) <> to_jsonb(muscle_grou
    or coalesce(metadata->'muscles', 'null'::jsonb) <> to_jsonb(muscle_groups)
    or coalesce(metadata->>'muscle', '') <> coalesce(nullif(btrim(muscle), ''), muscle_groups[1], '');
 
+update public.exercises
+set name_normalized = public.normalize_exercise_name(name)
+where coalesce(name_normalized, '') <> public.normalize_exercise_name(name);
+
+drop trigger if exists set_exercises_name_normalized on public.exercises;
+
+create trigger set_exercises_name_normalized
+before insert or update of name
+on public.exercises
+for each row
+execute function public.set_exercise_name_normalized();
+
+alter table public.exercises
+  alter column name_normalized set not null;
+
+do $$
+declare
+  duplicate_names text;
+begin
+  select string_agg(format('%s (%s)', normalized_name, total), '; ' order by normalized_name)
+    into duplicate_names
+  from (
+    select name_normalized as normalized_name, count(*) as total
+    from public.exercises
+    where coalesce(name_normalized, '') <> ''
+    group by name_normalized
+    having count(*) > 1
+  ) duplicates;
+
+  if duplicate_names is not null then
+    raise exception 'Não foi possível criar o índice único de exercícios. Resolva os duplicados antes: %', duplicate_names;
+  end if;
+end;
+$$;
+
 update public.workouts
 set hash = null
 where hash is not null
@@ -230,6 +298,8 @@ create index if not exists users_created_at_idx on public.users(created_at desc)
 create index if not exists users_deleted_at_idx on public.users(deleted_at) where deleted_at is not null;
 
 create index if not exists exercises_name_idx on public.exercises(name);
+create unique index if not exists exercises_name_normalized_key on public.exercises(name_normalized)
+  where coalesce(name_normalized, '') <> '';
 create index if not exists exercises_muscle_idx on public.exercises(muscle);
 create index if not exists exercises_muscle_groups_idx on public.exercises using gin (muscle_groups);
 create index if not exists exercises_type_idx on public.exercises(type);

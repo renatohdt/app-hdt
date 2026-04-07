@@ -1,8 +1,18 @@
 import { recordAdminAuditLog } from "@/lib/admin-audit";
 import {
   buildExerciseSearchBlob,
+  getExerciseEquipment,
+  getExerciseLevels,
+  getExerciseMuscleGroups,
   getPrimaryExerciseMuscle,
+  normalizeExerciseCatalogText,
+  normalizeExerciseEquipment,
+  normalizeExerciseEquipmentList,
+  normalizeExerciseLocations,
+  normalizeExerciseLevel,
+  normalizeExerciseMuscleGroup,
   normalizeExerciseMuscleGroups,
+  normalizeExerciseName,
   normalizeStoredExerciseType
 } from "@/lib/exercise-library";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
@@ -27,6 +37,14 @@ type ExerciseRequestBody = {
   videoUrl?: string | null;
 };
 
+type ExerciseNameLookupRow = Pick<ExerciseRecord, "id" | "name">;
+
+type ExerciseSaveError = {
+  message: string;
+  code?: string;
+  details?: string | null;
+};
+
 export async function POST(request: Request) {
   return saveExercise(request, "POST");
 }
@@ -46,7 +64,10 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const search = normalizeSearchTerm(searchParams.get("search")?.trim() ?? "");
+    const search = normalizeExerciseCatalogText(searchParams.get("search") ?? "");
+    const muscleGroup = normalizeExerciseMuscleGroup(searchParams.get("muscle_group"));
+    const level = normalizeExerciseLevel(searchParams.get("level"));
+    const equipment = normalizeExerciseEquipment(searchParams.get("equipment"));
     const { data, error } = await supabase.from("exercises").select("*").order("name");
 
     if (error) {
@@ -54,9 +75,25 @@ export async function GET(request: Request) {
       return jsonError("Não foi possível carregar os exercícios.", 500);
     }
 
-    const exercises = ((data ?? []) as ExerciseRecord[]).filter((exercise) =>
-      search ? buildExerciseSearchBlob(exercise).includes(search) : true
-    );
+    const exercises = ((data ?? []) as ExerciseRecord[]).filter((exercise) => {
+      if (search && !buildExerciseSearchBlob(exercise).includes(search)) {
+        return false;
+      }
+
+      if (muscleGroup && !getExerciseMuscleGroups(exercise).includes(muscleGroup)) {
+        return false;
+      }
+
+      if (level && !getExerciseLevels(exercise).includes(level)) {
+        return false;
+      }
+
+      if (equipment && !getExerciseEquipment(exercise).includes(equipment)) {
+        return false;
+      }
+
+      return true;
+    });
 
     return jsonSuccess(exercises, 200);
   } catch (error) {
@@ -119,23 +156,44 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     }
 
     const body = (await request.json()) as ExerciseRequestBody;
+    const name = sanitizeExerciseName(body.name);
+    const normalizedName = normalizeExerciseName(name);
     const muscleGroups = normalizeExerciseMuscleGroups(body.muscle_groups ?? body.muscle_group ?? body.muscle);
     const primaryMuscle = muscleGroups[0] ?? null;
     const type = normalizeStoredExerciseType(body.type) ?? undefined;
-    const location = normalizeArray(body.location);
-    const equipment = normalizeArray(body.equipment);
-    const level = normalizeArray(body.level);
+    const location = normalizeExerciseLocations(body.location);
+    const equipment = normalizeExerciseEquipmentList(body.equipment);
+    const level = normalizeExerciseLevelList(body.level);
 
     if (method === "PATCH" && !body.id) {
       return jsonError("Exercício inválido.", 400);
     }
 
-    if (!body.name?.trim() || !muscleGroups.length || !type) {
+    if (!name || !normalizedName || !muscleGroups.length || !type) {
       return jsonError("Preencha os campos obrigatórios: nome, grupo muscular e tipo.", 400);
     }
 
+    const duplicateCheck = await supabase.from("exercises").select("id, name").order("name");
+
+    if (duplicateCheck.error) {
+      logError("ADMIN", "Exercise duplicate check failed", { error: duplicateCheck.error.message });
+      return jsonError("Não foi possível validar o nome do exercício.", 500);
+    }
+
+    const duplicateExercise = ((duplicateCheck.data ?? []) as ExerciseNameLookupRow[]).find(
+      (exercise) => exercise.id !== body.id && normalizeExerciseName(exercise.name) === normalizedName
+    );
+
+    if (duplicateExercise) {
+      return jsonError(
+        `Já existe um exercício com esse nome: "${duplicateExercise.name}". Edite o cadastro existente para evitar duplicidade.`,
+        409
+      );
+    }
+
     const formattedData = removeUndefined({
-      name: body.name.trim(),
+      name,
+      name_normalized: normalizedName,
       muscle: primaryMuscle,
       muscle_groups: muscleGroups,
       type,
@@ -155,7 +213,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     });
 
     let data: unknown = null;
-    let error: { message: string } | null = null;
+    let error: ExerciseSaveError | null = null;
 
     if (method === "POST") {
       const result = await supabase.from("exercises").insert([formattedData]).select();
@@ -168,7 +226,14 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     }
 
     if (error) {
-      logError("ADMIN", "Exercise save failed", { error: error.message });
+      if (isExerciseNameConflict(error)) {
+        return jsonError(
+          "Já existe um exercício com esse nome. Ajuste o cadastro existente em vez de criar um duplicado.",
+          409
+        );
+      }
+
+      logError("ADMIN", "Exercise save failed", { error: error.message, code: error.code });
       return jsonError("Não foi possível salvar o exercício.", 500);
     }
 
@@ -199,16 +264,16 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
   }
 }
 
-function normalizeArray(value?: string[] | string | null) {
+function sanitizeExerciseName(value?: string | null) {
+  return value?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+function normalizeExerciseLevelList(value?: string[] | string | null) {
   if (Array.isArray(value)) {
-    return value.map((item) => item?.trim()).filter((item): item is string => Boolean(item));
+    return Array.from(new Set(value.map((item) => normalizeExerciseLevel(item)).filter(Boolean))) as string[];
   }
 
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = value.trim();
+  const normalized = normalizeExerciseLevel(value);
   return normalized ? [normalized] : undefined;
 }
 
@@ -216,10 +281,11 @@ function removeUndefined<T extends Record<string, unknown>>(value: T) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
 
-function normalizeSearchTerm(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
+function isExerciseNameConflict(error: ExerciseSaveError) {
+  if (error.code === "23505") {
+    return true;
+  }
+
+  const fullMessage = `${error.message} ${error.details ?? ""}`.toLowerCase();
+  return fullMessage.includes("name_normalized");
 }
