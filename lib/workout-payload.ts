@@ -1,4 +1,5 @@
 import { DiagnosisResult, QuizAnswers, WorkoutExercise, WorkoutPlan, WorkoutSection } from "@/lib/types";
+import { formatExerciseMuscleLabel, normalizeExerciseMuscleGroup } from "@/lib/exercise-library";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import { formatSplitTypeLabel, normalizeBlockType } from "@/lib/workout-strategy";
 import { buildSessionTimeBudget } from "@/lib/workout-time";
@@ -162,7 +163,7 @@ function normalizeLegacyDay(day: LegacyWorkoutDay, index: number): WorkoutSectio
     ...normalizedExercises.filter((exercise) => exercise.type === "mobility")
   ] as WorkoutExercise[];
   const exercises = normalizedExercises.filter((exercise) => exercise.type !== "mobility");
-  const focus = Array.isArray(day.focus) ? String(day.focus[0] ?? "full_body") : String(day.focus ?? "full_body");
+  const focus = normalizeWorkoutFocus(Array.isArray(day.focus) ? day.focus[0] : day.focus, "full_body");
   const label = extractWorkoutDayLabel(day.day || day.title, index);
 
   return {
@@ -300,8 +301,8 @@ function normalizeExercise(value: unknown): WorkoutExercise | null {
         : typeof exercise.observations === "string"
           ? (exercise.observations as string)
           : null,
-    primaryMuscles: normalizeStringList(exercise.primaryMuscles ?? exercise.primary_muscles),
-    secondaryMuscles: normalizeStringList(exercise.secondaryMuscles ?? exercise.secondary_muscles),
+    primaryMuscles: normalizeMuscleStringList(exercise.primaryMuscles ?? exercise.primary_muscles),
+    secondaryMuscles: normalizeMuscleStringList(exercise.secondaryMuscles ?? exercise.secondary_muscles),
     order: typeof exercise.order === "string" ? exercise.order : null,
     blockId: typeof exercise.blockId === "string" ? exercise.blockId : null,
     blockLabel:
@@ -447,7 +448,36 @@ function normalizeStringList(value: unknown) {
     .filter(Boolean);
 }
 
+function normalizeMuscleStringList(value: unknown) {
+  return normalizeStringList(value)
+    .map((item) => normalizeWorkoutFocus(item))
+    .filter(Boolean);
+}
+
+function normalizeWorkoutFocus(value: unknown, fallback = "") {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = normalizeExerciseMuscleGroup(value);
+  if (normalized) {
+    return normalized;
+  }
+
+  const raw = value.trim().toLowerCase();
+  if (raw === "full body" || raw === "full_body") {
+    return "full_body";
+  }
+
+  return fallback || raw;
+}
+
 function formatFocus(value: string) {
+  const normalized = normalizeWorkoutFocus(value, value);
+  if (normalized === "full_body") {
+    return "Corpo inteiro";
+  }
+
   const labels: Record<string, string> = {
     chest: "Peito",
     back: "Costas",
@@ -462,7 +492,7 @@ function formatFocus(value: string) {
     full_body: "Corpo inteiro"
   };
 
-  return labels[value] ?? value;
+  return formatExerciseMuscleLabel(normalized);
 }
 
 function extractWorkoutDayLabel(value: string | null | undefined, fallbackIndex: number) {

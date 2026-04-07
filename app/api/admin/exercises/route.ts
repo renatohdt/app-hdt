@@ -13,6 +13,7 @@ import {
   normalizeExerciseMuscleGroup,
   normalizeExerciseMuscleGroups,
   normalizeExerciseName,
+  normalizeExerciseRecord,
   normalizeStoredExerciseType
 } from "@/lib/exercise-library";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
@@ -75,7 +76,9 @@ export async function GET(request: Request) {
       return jsonError("Não foi possível carregar os exercícios.", 500);
     }
 
-    const exercises = ((data ?? []) as ExerciseRecord[]).filter((exercise) => {
+    const exercises = ((data ?? []) as ExerciseRecord[])
+      .map((exercise) => normalizeExerciseRecord(exercise))
+      .filter((exercise) => {
       if (search && !buildExerciseSearchBlob(exercise).includes(search)) {
         return false;
       }
@@ -93,7 +96,7 @@ export async function GET(request: Request) {
       }
 
       return true;
-    });
+      });
 
     return jsonSuccess(exercises, 200);
   } catch (error) {
@@ -238,6 +241,10 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     }
 
     const normalizedData = Array.isArray(data) ? data[0] ?? null : data;
+    const normalizedExercise =
+      normalizedData && typeof normalizedData === "object"
+        ? normalizeExerciseRecord(normalizedData as ExerciseRecord)
+        : normalizedData;
 
     await recordAdminAuditLog({
       adminId: admin.user?.id ?? "unknown-admin",
@@ -251,11 +258,11 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       metadata: {
         method,
         name: formattedData.name,
-        muscle: getPrimaryExerciseMuscle(normalizedData as ExerciseRecord | null)
+        muscle: getPrimaryExerciseMuscle(normalizedExercise as ExerciseRecord | null)
       }
     });
 
-    return jsonSuccess(normalizedData, 200);
+    return jsonSuccess(normalizedExercise, 200);
   } catch (error) {
     logError("ADMIN", "Exercises save route failed", {
       error: error instanceof Error ? error.message : "unknown"

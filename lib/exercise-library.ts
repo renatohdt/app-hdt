@@ -16,7 +16,7 @@ export const EXERCISE_MUSCLE_OPTIONS = [
   { value: "adductors", label: "Adutores" },
   { value: "abductors", label: "Abdutores" },
   { value: "tibialis", label: "Tibial" },
-  { value: "hip_flexors", label: "Flexores de quadril" }
+  { value: "hip_flexors", label: "Flexores do Quadril" }
 ] as const;
 
 export const EXERCISE_TYPE_OPTIONS = [
@@ -105,10 +105,15 @@ const MUSCLE_ALIASES: Record<string, string> = {
   tibial: "tibialis",
   tibiais: "tibialis",
   tibialis: "tibialis",
+  "flexor do quadril": "hip_flexors",
+  "flexores do quadril": "hip_flexors",
   "flexor de quadril": "hip_flexors",
   "flexores de quadril": "hip_flexors",
+  "hip flexor": "hip_flexors",
+  "hip flexors": "hip_flexors",
   hip_flexors: "hip_flexors",
-  hip_flexor: "hip_flexors"
+  hip_flexor: "hip_flexors",
+  iliopsoas: "hip_flexors"
 };
 
 const TYPE_ALIASES: Record<string, string> = {
@@ -218,6 +223,30 @@ export function getExerciseMuscleGroups(exercise?: Pick<ExerciseRecord, "muscle"
 
 export function getPrimaryExerciseMuscle(exercise?: Pick<ExerciseRecord, "muscle" | "muscle_groups" | "metadata"> | null) {
   return getExerciseMuscleGroups(exercise)[0] ?? null;
+}
+
+export function normalizeExerciseRecord(exercise: ExerciseRecord): ExerciseRecord {
+  const muscleGroups = getExerciseMuscleGroups(exercise);
+  const primaryMuscle =
+    muscleGroups[0] ??
+    normalizeExerciseMuscleGroup(exercise.muscle ?? exercise.metadata?.muscle ?? null) ??
+    exercise.muscle ??
+    undefined;
+  const metadata = exercise.metadata
+    ? {
+        ...exercise.metadata,
+        muscle: primaryMuscle ?? "",
+        muscle_groups: muscleGroups,
+        muscles: muscleGroups
+      }
+    : exercise.metadata;
+
+  return {
+    ...exercise,
+    muscle: primaryMuscle,
+    muscle_groups: muscleGroups,
+    metadata
+  };
 }
 
 export function formatExerciseMuscleLabel(value?: string | null) {

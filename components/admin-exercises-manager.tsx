@@ -39,6 +39,8 @@ type CoverageSection = {
   covered: number;
 };
 
+const PAGE_SIZE = 10;
+
 const emptyFilters: FilterState = {
   muscleGroup: "",
   level: "",
@@ -56,6 +58,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
   const [filters, setFilters] = useState<FilterState>(emptyFilters);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const normalizedSearch = useMemo(() => search.trim(), [search]);
   const hasActiveFilters = Boolean(
@@ -65,6 +68,25 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
     catalogExercises.find((exercise) => exercise.id === editingExerciseId) ??
     exercises.find((exercise) => exercise.id === editingExerciseId) ??
     null;
+  const totalExercises = exercises.length;
+  const totalPages = Math.max(1, Math.ceil(totalExercises / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStart = totalExercises ? (safeCurrentPage - 1) * PAGE_SIZE : 0;
+  const pageEnd = totalExercises ? Math.min(pageStart + PAGE_SIZE, totalExercises) : 0;
+  const paginatedExercises = useMemo(
+    () => exercises.slice(pageStart, pageEnd),
+    [exercises, pageEnd, pageStart]
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [normalizedSearch, filters.equipment, filters.level, filters.muscleGroup]);
+
+  useEffect(() => {
+    if (currentPage !== safeCurrentPage) {
+      setCurrentPage(safeCurrentPage);
+    }
+  }, [currentPage, safeCurrentPage]);
 
   useEffect(() => {
     let active = true;
@@ -312,8 +334,8 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
               {loading
                 ? "Atualizando listagem..."
                 : hasActiveFilters
-                  ? `${exercises.length} exercício(s) no recorte atual.`
-                  : `${exercises.length} exercício(s) disponíveis na biblioteca.`}
+                  ? `${totalExercises} exercício(s) no recorte atual.`
+                  : `${totalExercises} exercício(s) disponíveis na biblioteca.`}
             </p>
           ) : null}
         </div>
@@ -345,8 +367,8 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
               Carregando exercícios...
             </td>
           </tr>
-        ) : exercises.length ? (
-          exercises.map((exercise) => (
+        ) : paginatedExercises.length ? (
+          paginatedExercises.map((exercise) => (
             <tr key={exercise.id} className="border-b border-white/8 last:border-b-0">
               <td className="px-5 py-4 text-sm text-white">{exercise.name}</td>
               <td className="px-5 py-4 text-sm text-white/72">{formatExerciseMuscleGroups(exercise)}</td>
@@ -385,6 +407,45 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
           </tr>
         )}
       </AdminTable>
+
+      {totalExercises ? (
+        <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-white/60">
+            Exibindo{" "}
+            <span className="font-semibold text-white">
+              {pageStart + 1}-{pageEnd}
+            </span>{" "}
+            de <span className="font-semibold text-white">{totalExercises}</span>
+            {totalPages > 1 ? (
+              <>
+                {" "}
+                <span className="text-white/28">•</span>{" "}
+                Página <span className="font-semibold text-white">{safeCurrentPage}</span> de{" "}
+                <span className="font-semibold text-white">{totalPages}</span>
+              </>
+            ) : null}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={safeCurrentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            >
+              Página anterior
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={safeCurrentPage >= totalPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            >
+              Próxima página
+            </Button>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

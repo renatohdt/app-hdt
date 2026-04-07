@@ -2,6 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import { resolveBodyType } from "@/lib/body-type";
 import { createHmac } from "node:crypto";
+import { formatExerciseMuscleLabel, normalizeExerciseMuscleGroup } from "@/lib/exercise-library";
 import { repairPtBrText } from "@/lib/pt-br-text";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import {
@@ -1846,6 +1847,7 @@ function buildPlanProgressionNotes(strategy: WorkoutStrategy, sections: WorkoutS
 }
 
 function formatFocusMuscleLabel(value?: string | null) {
+  const normalized = normalizeWorkoutMuscle(value);
   const labels: Record<string, string> = {
     chest: "peito",
     back: "costas",
@@ -1858,10 +1860,15 @@ function formatFocusMuscleLabel(value?: string | null) {
     calves: "panturrilhas",
     abs: "abdômen",
     lower_back: "lombar",
+    hip_flexors: "flexores do quadril",
     full_body: "corpo inteiro"
   };
 
-  return value ? labels[value] ?? value : "";
+  if (!normalized) {
+    return "";
+  }
+
+  return labels[normalized] ?? formatExerciseMuscleLabel(normalized).toLowerCase();
 }
 
 function joinHumanLabels(values: string[]) {
@@ -2044,11 +2051,8 @@ function normalizeDayLabel(value: string | undefined, index: number) {
 }
 
 function normalizeFocus(value: string[] | string | undefined, fallback: string) {
-  if (Array.isArray(value)) {
-    return normalizeText(value[0]) || fallback;
-  }
-
-  return normalizeText(value) || fallback;
+  const normalized = normalizeWorkoutMuscle(Array.isArray(value) ? value[0] : value);
+  return normalized || fallback;
 }
 
 function normalizeMuscleList(value: string[] | undefined, fallback: string[]) {
@@ -2056,8 +2060,25 @@ function normalizeMuscleList(value: string[] | undefined, fallback: string[]) {
     return [...fallback];
   }
 
-  const normalized = value.map((item) => normalizeText(item)).filter(Boolean);
+  const normalized = value
+    .map((item) => normalizeWorkoutMuscle(item))
+    .filter((item): item is string => Boolean(item));
   return normalized.length ? Array.from(new Set(normalized)) : [...fallback];
+}
+
+function normalizeWorkoutMuscle(value?: string | null) {
+  const normalized = normalizeExerciseMuscleGroup(value);
+
+  if (normalized) {
+    return normalized;
+  }
+
+  const raw = normalizeText(value);
+  if (raw === "full body" || raw === "full_body") {
+    return "full_body";
+  }
+
+  return raw || null;
 }
 
 function pushExercise(target: ExerciseRecord[], added: Set<string>, exercise: ExerciseRecord) {

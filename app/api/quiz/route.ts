@@ -10,10 +10,11 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { jsonError } from "@/lib/server-response";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import { QuizAnswers } from "@/lib/types";
+import type { ExerciseRecord, QuizAnswers } from "@/lib/types";
 import { saveUserAnswers } from "@/lib/user-answers";
 import { filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError, buildWorkoutHash } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
+import { normalizeExerciseRecord } from "@/lib/exercise-library";
 
 type QuizSubmissionBody = Partial<QuizAnswers> & {
   name?: string;
@@ -147,7 +148,8 @@ export async function POST(request: Request) {
       return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
     }
 
-    const filteredExercises = filterExercisesForAI(answers, exercises ?? []);
+    const normalizedExercises = ((exercises ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
+    const filteredExercises = filterExercisesForAI(answers, normalizedExercises);
     const { data: existingWorkout, error: existingWorkoutError } = await supabase
       .from("workouts")
       .select("id, hash, exercises")
