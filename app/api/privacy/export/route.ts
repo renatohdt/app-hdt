@@ -20,6 +20,15 @@ type ExportPayload = {
     createdAt: string;
     data: unknown;
   }>;
+  workoutSessionLogs: Array<{
+    id: string;
+    workoutId: string;
+    workoutKey: string | null;
+    sessionNumber: number;
+    status: string;
+    completedAt: string;
+    createdAt: string;
+  }>;
   consents: Array<{
     scope: string;
     granted: boolean;
@@ -67,6 +76,7 @@ export async function GET(request: Request) {
     userRowResult,
     answersResult,
     workoutsResult,
+    workoutSessionLogsResult,
     consentsResult,
     analyticsEventsResult,
     contentRecommendationsResult
@@ -74,6 +84,11 @@ export async function GET(request: Request) {
     supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
     supabase.from("user_answers").select("answers").eq("user_id", userId).maybeSingle(),
     supabase.from("workouts").select("id, created_at, exercises").eq("user_id", userId).order("created_at", { ascending: false }),
+    supabase
+      .from("workout_session_logs")
+      .select("id, workout_id, workout_key, session_number, status, completed_at, created_at")
+      .eq("user_id", userId)
+      .order("completed_at", { ascending: false }),
     supabase
       .from("user_consents")
       .select("scope, granted, version, source, granted_at, revoked_at, created_at")
@@ -95,6 +110,7 @@ export async function GET(request: Request) {
     userRowResult.error,
     answersResult.error,
     workoutsResult.error,
+    workoutSessionLogsResult.error,
     consentsResult.error,
     analyticsEventsResult.error,
     contentRecommendationsResult.error
@@ -120,6 +136,15 @@ export async function GET(request: Request) {
       id: workout.id,
       createdAt: workout.created_at,
       data: workout.exercises
+    })),
+    workoutSessionLogs: (workoutSessionLogsResult.data ?? []).map((sessionLog) => ({
+      id: sessionLog.id,
+      workoutId: sessionLog.workout_id,
+      workoutKey: sessionLog.workout_key ?? null,
+      sessionNumber: sessionLog.session_number,
+      status: sessionLog.status,
+      completedAt: sessionLog.completed_at,
+      createdAt: sessionLog.created_at
     })),
     consents: (consentsResult.data ?? []).map((consent) => ({
       scope: consent.scope,

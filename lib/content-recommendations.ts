@@ -6,6 +6,7 @@ import {
   getEvergreenFallbackArticles,
   mapGoalToArticleTag,
   mapLevelToArticleTag,
+  sanitizeArticleRecommendations,
   type ArticleRecommendation
 } from "@/lib/articles";
 import type { QuizAnswers } from "@/lib/types";
@@ -81,7 +82,7 @@ async function getStoredRecommendation(supabase: SupabaseAdminLike, userId: stri
     return null;
   }
 
-  const articles = Array.isArray(data.articles) ? (data.articles as ArticleRecommendation[]) : [];
+  const articles = sanitizeArticleRecommendations(data.articles);
   const generatedAt = data.generated_at ? new Date(data.generated_at).getTime() : 0;
   const expiresAt = data.expires_at ? new Date(data.expires_at).getTime() : 0;
 
@@ -174,7 +175,7 @@ async function buildRecommendations({
     ? primary
     : rankAndPickArticles(candidatePool, { goal, location, level, clickedUrls, recentlyShownUrls }, true);
 
-  return finalSelection.slice(0, RECOMMENDATION_LIMIT);
+  return sanitizeArticleRecommendations(finalSelection).slice(0, RECOMMENDATION_LIMIT);
 }
 
 function rankAndPickArticles(
@@ -227,9 +228,10 @@ async function saveRecommendation(
   generatedAtMs: number,
   expiresAtMs: number
 ) {
+  const safeArticles = sanitizeArticleRecommendations(articles);
   const payload = {
     user_id: userId,
-    articles,
+    articles: safeArticles,
     generated_at: new Date(generatedAtMs).toISOString(),
     expires_at: new Date(expiresAtMs).toISOString(),
     updated_at: new Date(generatedAtMs).toISOString()
@@ -251,11 +253,12 @@ async function saveRecommendationHistory(
   articles: ArticleRecommendation[],
   answers: Partial<QuizAnswers> | null | undefined
 ) {
+  const safeArticles = sanitizeArticleRecommendations(articles);
   await supabase.from("analytics_events").insert({
     event_name: "content_recommendation_generated",
     user_id: userId,
     metadata: {
-      urls: articles.map((article) => article.url),
+      urls: safeArticles.map((article) => article.url),
       goal: answers?.goal ?? null,
       location: answers?.location ?? null
     }

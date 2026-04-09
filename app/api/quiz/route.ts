@@ -9,11 +9,14 @@ import { enforceRateLimit, getRequestFingerprint } from "@/lib/rate-limit";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { jsonError } from "@/lib/server-response";
+import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers } from "@/lib/types";
 import { saveUserAnswers } from "@/lib/user-answers";
+import { fetchLatestWorkoutRecord, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError, buildWorkoutHash } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
+import { calculateWorkoutTotalSessions } from "@/lib/workout-sessions";
 import { normalizeExerciseRecord } from "@/lib/exercise-library";
 
 type QuizSubmissionBody = Partial<QuizAnswers> & {
@@ -85,7 +88,7 @@ export async function POST(request: Request) {
 
     if (!rateLimit.allowed) {
       logWarn("AI", "Workout generation rate limited", { user_id: userId });
-      return jsonError("Você atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
+      return jsonError("Voce atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
     }
 
     const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : "Aluno";
@@ -123,14 +126,9 @@ export async function POST(request: Request) {
       savedUser = insertedUser;
     }
 
-    const consentResult = await saveUserConsents(
-      supabase,
-      savedUser.id,
-      requestedConsents,
-      {
-        source: "onboarding_quiz"
-      }
-    );
+    const consentResult = await saveUserConsents(supabase, savedUser.id, requestedConsents, {
+      source: "onboarding_quiz"
+    });
 
     if (consentResult.error) {
       logError("PRIVACY", "Consent save failed", { user_id: savedUser.id });
@@ -150,15 +148,17 @@ export async function POST(request: Request) {
 
     const normalizedExercises = ((exercises ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
     const filteredExercises = filterExercisesForAI(answers, normalizedExercises);
-    const { data: existingWorkout, error: existingWorkoutError } = await supabase
-      .from("workouts")
-      .select("id, hash, exercises")
-      .eq("user_id", savedUser.id)
-      .maybeSingle();
+    const { data: existingWorkout, error: existingWorkoutError } = await fetchLatestWorkoutRecord(supabase, {
+      userId: savedUser.id,
+      scope: "AI"
+    });
 
     if (existingWorkoutError) {
-      logError("AI", "Workout lookup failed", { user_id: savedUser.id });
-      return jsonError("Não foi possível salvar seu treino no momento.", 500);
+      logError("AI", "Workout lookup query failed", {
+        user_id: savedUser.id,
+        error_code: getSupabaseErrorCode(existingWorkoutError)
+      });
+      return jsonError("Não foi possível carregar seu treino agora.", 500);
     }
 
     const reusableWorkout = existingWorkout?.hash === workoutHash ? existingWorkout : null;
@@ -226,19 +226,26 @@ export async function POST(request: Request) {
       });
     }
 
-    const workoutPayload = {
-      user_id: savedUser.id,
+    const workoutResult = await saveWorkoutRecord(supabase, {
+      userId: savedUser.id,
+      existingWorkoutId: existingWorkout?.id ?? null,
       hash: workoutHash,
       exercises: workout,
-      created_at: new Date().toISOString()
-    };
-
-    const workoutResult = existingWorkout
-      ? await supabase.from("workouts").update(workoutPayload).eq("user_id", savedUser.id)
-      : await supabase.from("workouts").insert(workoutPayload);
+      totalSessions:
+        existingWorkout?.total_sessions ??
+        calculateWorkoutTotalSessions({
+          daysPerWeek: answers.days,
+          distinctWorkoutCount: workout.sessionCount ?? workout.sections.length
+        }),
+      createdAt: new Date().toISOString(),
+      scope: "AI"
+    });
 
     if (workoutResult.error) {
-      logError("AI", "Workout save failed", { user_id: savedUser.id });
+      logError("AI", "Workout save failed", {
+        user_id: savedUser.id,
+        error_code: getSupabaseErrorCode(workoutResult.error)
+      });
       return jsonError("Não foi possível salvar seu treino no momento.", 500);
     }
 

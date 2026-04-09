@@ -76,6 +76,46 @@ export function getEvergreenFallbackArticles() {
   }));
 }
 
+export function sanitizeArticleRecommendations(input: unknown) {
+  if (!Array.isArray(input)) {
+    return [] as ArticleRecommendation[];
+  }
+
+  return input.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+
+    const article = item as Partial<Record<keyof ArticleRecommendation, unknown>>;
+    const url = typeof article.url === "string" ? article.url.trim() : "";
+
+    if (!url) {
+      return [];
+    }
+
+    const title = typeof article.title === "string" && article.title.trim() ? article.title.trim() : "Artigo Hora do Treino";
+    const image = typeof article.image === "string" && article.image.trim() ? article.image.trim() : ARTICLE_PLACEHOLDER_IMAGE;
+    const author = typeof article.author === "string" && article.author.trim() ? article.author.trim() : "Hora do Treino";
+    const readingTimeValue = Number(article.readingTime);
+    const readingTime = Number.isFinite(readingTimeValue) && readingTimeValue > 0 ? Math.round(readingTimeValue) : 1;
+    const tags = Array.isArray(article.tags)
+      ? article.tags.filter((tag): tag is string => typeof tag === "string" && Boolean(tag.trim()))
+      : [];
+
+    return [
+      {
+        title,
+        url,
+        image,
+        tags,
+        author,
+        readingTime
+      } satisfies ArticleRecommendation
+    ];
+  });
+}
+
 export function dedupeArticles(articles: ArticleRecommendation[]) {
-  return articles.filter((article, index, array) => array.findIndex((item) => item.url === article.url) === index);
+  const normalized = sanitizeArticleRecommendations(articles);
+  return normalized.filter((article, index, array) => array.findIndex((item) => item.url === article.url) === index);
 }

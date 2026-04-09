@@ -1,16 +1,19 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Disclaimer } from "@/components/disclaimer";
-import { WorkoutPremiumScreen } from "@/components/workout-premium-screen";
-import { Card, Container, PageShell } from "@/components/ui";
+import { TrainingScreen } from "@/components/training-screen";
+import { Button, Card, Container, PageShell } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
+import { buildAppWorkoutData } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import type { WorkoutPlan } from "@/lib/types";
+import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 
 type ResultPayload = {
+  hasWorkout?: boolean;
   user: { id: string; name: string };
   answers: {
     goal: "lose_weight" | "gain_muscle" | "body_recomposition" | "improve_conditioning";
@@ -24,9 +27,8 @@ type ResultPayload = {
   };
   diagnosis: { title: string; message: string; trainingShift: string };
   workout: WorkoutPlan | null;
+  sessionProgress?: WorkoutSessionProgress | null;
 };
-
-type WorkoutExercise = NonNullable<ResultPayload["workout"]>["exercises"][number];
 
 export default function ResultsPage() {
   return (
@@ -37,6 +39,7 @@ export default function ResultsPage() {
 }
 
 function ResultsContent() {
+  const router = useRouter();
   const params = useSearchParams();
   const userId = params.get("userId");
   const [loading, setLoading] = useState(true);
@@ -48,7 +51,7 @@ function ResultsContent() {
 
     async function run() {
       if (!userId) {
-        setError("Usuário não informado.");
+        setError("Usuario nao informado.");
         setLoading(false);
         return;
       }
@@ -97,7 +100,9 @@ function ResultsContent() {
           setError(getRequestErrorMessage(requestError, "Erro ao carregar seu treino."));
         }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
@@ -108,38 +113,7 @@ function ResultsContent() {
     };
   }, [userId]);
 
-  const data = useMemo(() => {
-    if (!payload?.workout) return null;
-
-    const sections = payload.workout.sections?.length ? payload.workout.sections : buildWorkoutSections(payload.workout.exercises);
-    const workoutsObject: Record<string, (typeof sections)[number] & { day: string }> = {};
-
-    sections.forEach((section) => {
-      const day = section.title.replace("Treino ", "");
-      workoutsObject[day] = {
-        day,
-        ...section
-      };
-    });
-
-    return {
-      user: {
-        id: payload.user.id,
-        name: payload.user.name,
-        goal: payload.answers.goal,
-        level: payload.answers.experience,
-        body_type: payload.answers.body_type ?? payload.answers.body_type_raw ?? payload.answers.wrist,
-        location: payload.answers.location
-      },
-      workouts: workoutsObject,
-      plan: {
-        splitType: payload.workout.splitType,
-        rationale: payload.workout.rationale ?? null,
-        progressionNotes: payload.workout.progressionNotes ?? null,
-        sessionCount: payload.workout.sessionCount ?? sections.length
-      }
-    };
-  }, [payload]);
+  const data = useMemo(() => buildAppWorkoutData(payload), [payload]);
 
   if (loading) {
     return <ResultsLoadingState />;
@@ -158,23 +132,23 @@ function ResultsContent() {
     );
   }
 
-  return <WorkoutPremiumScreen data={data} />;
-}
+  if (!data || payload?.hasWorkout === false || !payload?.workout) {
+    return (
+      <PageShell>
+        <Container className="py-10">
+          <Card className="mx-auto max-w-3xl space-y-4">
+            <h1 className="text-2xl font-semibold">Treino ainda nao disponivel</h1>
+            <p className="text-white/64">
+              Nao encontramos um treino salvo para este usuario. Revise o perfil ou gere um novo plano para continuar.
+            </p>
+            <Button onClick={() => router.push("/perfil")}>Ir para o perfil</Button>
+          </Card>
+        </Container>
+      </PageShell>
+    );
+  }
 
-function buildWorkoutSections(exercises: WorkoutExercise[]) {
-  const chunks = [exercises.slice(0, 3), exercises.slice(3, 6), exercises.slice(6)];
-  const labels = ["Treino A", "Treino B", "Treino C"];
-  const subtitles = ["Base principal", "Volume complementar", "Reforço e consistência"];
-
-  return chunks
-    .map((items, index) => ({
-      title: labels[index],
-      subtitle: subtitles[index],
-      focus: "full_body",
-      mobility: [],
-      exercises: items
-    }))
-    .filter((section) => section.exercises.length > 0);
+  return <TrainingScreen data={data} />;
 }
 
 function ResultsLoadingState() {
@@ -196,4 +170,3 @@ function ResultsLoadingState() {
     </PageShell>
   );
 }
-

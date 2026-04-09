@@ -216,11 +216,24 @@ create table if not exists public.workouts (
   user_id uuid not null references public.users(id) on delete cascade,
   hash text check (hash is null or hash ~ '^[a-f0-9]{64}$'),
   exercises jsonb not null check (jsonb_typeof(exercises) = 'object'),
+  total_sessions integer check (total_sessions is null or total_sessions > 0),
   created_at timestamptz not null default now(),
   deleted_at timestamptz,
   anonymized_at timestamptz,
   expires_at timestamptz,
   retention_hold boolean not null default false
+);
+
+create table if not exists public.workout_session_logs (
+  id uuid primary key default gen_random_uuid(),
+  workout_id uuid not null references public.workouts(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  workout_hash text check (workout_hash is null or workout_hash ~ '^[a-f0-9]{64}$'),
+  workout_key text check (workout_key is null or btrim(workout_key) <> ''),
+  session_number integer not null check (session_number > 0),
+  status text not null default 'completed' check (status in ('completed')),
+  completed_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.user_consents (
@@ -430,6 +443,12 @@ create index if not exists workouts_hash_idx on public.workouts(hash);
 create index if not exists workouts_created_at_idx on public.workouts(created_at desc);
 create index if not exists workouts_deleted_at_idx on public.workouts(deleted_at) where deleted_at is not null;
 create index if not exists workouts_expires_at_idx on public.workouts(expires_at) where expires_at is not null;
+create unique index if not exists workout_session_logs_unique_cycle_session_idx
+  on public.workout_session_logs(workout_id, coalesce(workout_hash, ''), session_number);
+create index if not exists workout_session_logs_workout_cycle_idx
+  on public.workout_session_logs(workout_id, workout_hash, completed_at desc);
+create index if not exists workout_session_logs_user_completed_at_idx
+  on public.workout_session_logs(user_id, completed_at desc);
 
 create index if not exists user_consents_user_id_idx on public.user_consents(user_id);
 create index if not exists user_consents_scope_granted_idx on public.user_consents(scope, granted);
@@ -495,6 +514,7 @@ alter table public.workouts enable row level security;
 alter table public.user_consents enable row level security;
 alter table public.analytics_events enable row level security;
 alter table public.content_recommendations enable row level security;
+alter table public.workout_session_logs enable row level security;
 alter table public.workout_review_requests enable row level security;
 alter table public.admin_audit_logs enable row level security;
 
@@ -517,6 +537,10 @@ drop policy if exists "Users can read own workouts" on public.workouts;
 drop policy if exists "Users can insert own workouts" on public.workouts;
 drop policy if exists "Users can update own workouts" on public.workouts;
 drop policy if exists "Users can delete own workouts" on public.workouts;
+drop policy if exists "Users can read own workout session logs" on public.workout_session_logs;
+drop policy if exists "Users can insert own workout session logs" on public.workout_session_logs;
+drop policy if exists "Users can update own workout session logs" on public.workout_session_logs;
+drop policy if exists "Users can delete own workout session logs" on public.workout_session_logs;
 
 drop policy if exists "Users can read own workout review requests" on public.workout_review_requests;
 drop policy if exists "Users can insert own workout review requests" on public.workout_review_requests;
@@ -609,6 +633,31 @@ create policy "Users can update own workouts"
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+create policy "Users can read own workout session logs"
+  on public.workout_session_logs
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can insert own workout session logs"
+  on public.workout_session_logs
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can update own workout session logs"
+  on public.workout_session_logs
+  for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own workout session logs"
+  on public.workout_session_logs
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
 
 create policy "Users can read own workout review requests"
   on public.workout_review_requests

@@ -42,6 +42,9 @@ export function AppVersionFooter() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">("idle");
   const timeoutRef = useRef<number | null>(null);
   const isAdminRoute = pathname?.startsWith("/admin") ?? false;
+  const isAppRoute = ["/dashboard", "/treino", "/calendario", "/progresso", "/perfil"].some((route) =>
+    pathname?.startsWith(route)
+  );
 
   useEffect(() => {
     return () => {
@@ -70,6 +73,10 @@ export function AppVersionFooter() {
     timeoutRef.current = window.setTimeout(() => {
       setCopyStatus("idle");
     }, copied ? 2200 : 2800);
+  }
+
+  if (isAppRoute) {
+    return null;
   }
 
   return (

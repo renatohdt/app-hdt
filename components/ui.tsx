@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import { ReactNode } from "react";
 
-export function PageShell({ children }: { children: ReactNode }) {
-  return <main className="min-h-screen bg-spotlight px-4 py-6 sm:px-6 lg:px-8">{children}</main>;
+export function PageShell({ children, className }: { children: ReactNode; className?: string }) {
+  return <main className={clsx("min-h-screen min-h-[100dvh] bg-spotlight px-4 py-6 sm:px-6 lg:px-8", className)}>{children}</main>;
 }
 
 export function Container({ children, className }: { children: ReactNode; className?: string }) {
@@ -13,7 +13,7 @@ export function Card({ children, className }: { children: ReactNode; className?:
   return (
     <div
       className={clsx(
-        "glass rounded-[28px] border border-white/10 bg-[#111111]/80 p-5 shadow-glow sm:p-7",
+        "glass rounded-[28px] border border-white/10 bg-[#101010]/84 p-5 shadow-[0_16px_40px_rgba(0,0,0,0.26)] sm:p-6",
         className
       )}
     >
@@ -59,7 +59,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex min-h-12 items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex min-h-12 items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60",
         styles[variant],
         className
       )}

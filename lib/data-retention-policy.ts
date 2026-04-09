@@ -44,6 +44,16 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
       "Nao ha limpeza automatica de treinos de contas ativas. A rotina anonimiza apenas registros ja marcados para descarte."
   },
   {
+    table: "public.workout_session_logs",
+    dataType: "Marcacoes de sessoes concluídas e base de historico de execução do treino.",
+    suggestedRetention: "Enquanto a conta estiver ativa; graca de ate 30 dias se o registro for marcado para expurgo interno.",
+    defaultWindowDays: 30,
+    destinationAfterWindow: "delete",
+    automatedByDefault: false,
+    notes:
+      "Os registros sustentam o contador de sessoes e o futuro historico do treino. Nesta fase nao existe limpeza automatica para contas ativas."
+  },
+  {
     table: "public.analytics_events",
     dataType: "Eventos comportamentais permitidos por consentimento.",
     suggestedRetention: "180 dias por padrao tecnico.",
