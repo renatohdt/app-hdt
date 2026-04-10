@@ -250,18 +250,18 @@ export function ConsentProvider({
       />
       {children}
       {shouldShowBanner ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-4 sm:p-6">
-          <div className="pointer-events-auto mx-auto w-full max-w-5xl rounded-[28px] border border-white/10 bg-[#0b0b0b]/96 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-6">
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Privacidade</p>
-              <h2 className="text-xl font-semibold text-white sm:text-2xl">Escolha como o app pode usar cookies e integrações opcionais.</h2>
-              <p className="max-w-3xl text-sm leading-6 text-white/66">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-5">
+          <div className="pointer-events-auto mx-auto w-full max-w-3xl rounded-[24px] border border-white/8 bg-[#0b0b0b]/95 p-3.5 shadow-[0_18px_46px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-4">
+            <div className="space-y-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">Privacidade</p>
+              <h2 className="text-[15px] font-semibold leading-snug text-white sm:text-base">Escolha como o app pode usar cookies e integrações opcionais.</h2>
+              <p className="max-w-[52rem] text-[13px] leading-5 text-white/62 sm:text-sm sm:leading-6">
                 Você pode permitir analytics, anúncios e integrações de marketing para melhorar a experiência. Os recursos essenciais do Hora do Treino continuam funcionando mesmo sem os consentimentos não essenciais.
               </p>
             </div>
 
             {isCustomizing ? (
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <ConsentToggleCard
                   title="Analytics"
                   description="Mede uso de telas e conversões internas."
@@ -283,21 +283,21 @@ export function ConsentProvider({
               </div>
             ) : null}
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-nowrap items-center gap-1.5 overflow-x-auto no-scrollbar">
               {isCustomizing ? (
                 <>
-                  <Button onClick={saveCustomPreferences}>Salvar escolhas</Button>
-                  <Button variant="secondary" onClick={() => setIsCustomizing(false)}>
+                  <Button onClick={saveCustomPreferences} className="min-h-9 shrink-0 rounded-xl px-3 text-[12px]">Salvar escolhas</Button>
+                  <Button variant="secondary" onClick={() => setIsCustomizing(false)} className="min-h-9 shrink-0 rounded-xl px-3 text-[12px]">
                     Voltar
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button onClick={acceptAll}>Aceitar tudo</Button>
-                  <Button variant="secondary" onClick={rejectNonEssential}>
-                    Recusar não essenciais
+                  <Button onClick={acceptAll} className="min-h-9 shrink-0 rounded-xl px-3 text-[12px]">Aceitar tudo</Button>
+                  <Button variant="secondary" onClick={rejectNonEssential} className="min-h-9 shrink-0 rounded-xl !border-transparent !bg-transparent px-2.5 text-[12px] text-white/50 shadow-none hover:!bg-transparent hover:text-white/70">
+                    Recusar
                   </Button>
-                  <Button variant="ghost" onClick={openCustomization}>
+                  <Button variant="ghost" onClick={openCustomization} className="min-h-9 shrink-0 rounded-xl px-2.5 text-[12px] text-white/70">
                     Personalizar
                   </Button>
                 </>
