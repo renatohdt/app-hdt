@@ -72,6 +72,7 @@ type DashboardUserRow = {
   id: string;
   created_at: string;
   role?: string | null;
+  deleted_at?: string | null;
 };
 
 type UserAnswerRow = {
@@ -172,6 +173,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (!supabase) {
     return {
       totalUsers: 0,
+      deletedUsers: 0,
       activeUsers: {
         daily: 0,
         weekly: 0
@@ -202,8 +204,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       await Promise.all([
         supabase
           .from("users")
-          .select("id, name, role, created_at")
-          .is("deleted_at", null)
+          .select("id, name, role, created_at, deleted_at")
           .order("created_at", { ascending: false }),
         supabase
           .from("user_answers")
@@ -235,6 +236,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     if (dashboardQueryErrors.length) {
       return {
         totalUsers: 0,
+        deletedUsers: 0,
         activeUsers: {
           daily: 0,
           weekly: 0
@@ -251,7 +253,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       };
     }
 
-    const dashboardUsers = ((dashboardUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
+    const dashboardAllUsers = ((dashboardUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
+    const dashboardUsers = dashboardAllUsers.filter((user) => !user.deleted_at);
+    const deletedUsers = dashboardAllUsers.filter((user) => Boolean(user.deleted_at)).length;
     const dashboardAnswers = (dashboardAnswersQuery.data ?? []) as UserAnswerRow[];
     const dashboardEvents = (dashboardEventsQuery.data ?? []) as AdminEvent[];
     const dashboardErrorEvents = (dashboardErrorEventsQuery.data ?? []) as AdminEvent[];
@@ -263,6 +267,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     return {
       totalUsers: dashboardUsers.length,
+      deletedUsers,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
           from: startOfToday(),
@@ -292,7 +297,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   }
 
   const [usersResult, userAnswersResult, dashboardEventsResult, errorEventsResult] = await Promise.all([
-    supabase!.from("users").select("id, name, created_at").order("created_at", { ascending: false }),
+    supabase!.from("users").select("id, name, role, created_at, deleted_at").order("created_at", { ascending: false }),
     supabase!.from("user_answers").select("user_id, answers, created_at").order("created_at", { ascending: false }),
     supabase!
       .from("analytics_events")
@@ -317,6 +322,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (queryErrors.length) {
     return {
       totalUsers: 0,
+      deletedUsers: 0,
       activeUsers: {
         daily: 0,
         weekly: 0
@@ -333,7 +339,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     };
   }
 
-  const users = (usersResult.data ?? []) as Array<{ id: string; name: string; created_at: string }>;
+  const allUsers = ((usersResult.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
+  const users = allUsers.filter((user) => !user.deleted_at);
+  const deletedUsers = allUsers.filter((user) => Boolean(user.deleted_at)).length;
   const userAnswers = (userAnswersResult.data ?? []) as UserAnswerRow[];
   const dashboardEvents = (dashboardEventsResult.data ?? []) as AdminEvent[];
   const errorEvents = (errorEventsResult.data ?? []) as AdminEvent[];
@@ -346,6 +354,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   return {
     totalUsers: users.length,
+    deletedUsers,
     activeUsers: {
       daily: activeUsers,
       weekly: activeUsers
