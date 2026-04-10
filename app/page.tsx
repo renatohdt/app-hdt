@@ -115,17 +115,13 @@ export default function HomePage() {
             <div className="mx-auto flex w-full max-w-[20.5rem] flex-col items-center space-y-4 px-1 text-center sm:max-w-[28rem] sm:px-0 lg:mx-0 lg:max-w-[34rem] lg:items-start lg:pt-7 lg:text-left">
               <div className="space-y-3">
                 <h1 className="mx-auto max-w-[11.5ch] text-[clamp(1.95rem,7.4vw,4.35rem)] font-semibold leading-[1.05] tracking-tight text-white lg:mx-0 lg:max-w-[12ch] lg:leading-[1.02]">
-                  Sua sugestão de treino para fazer em casa.
+                  Treino em casa feito pra você — de graça.
                 </h1>
                 <p className="mx-auto max-w-[19rem] text-[1.02rem] font-medium leading-6 text-white/82 sm:max-w-[26rem] sm:text-[1.2rem] sm:leading-7 lg:mx-0 lg:max-w-[30rem] lg:text-[1.35rem] lg:leading-8">
-                  Sugerido com inteligência artificial e lógica de personal trainer.
+                  Responda algumas perguntas e receba uma sugestão de treino criada com inteligência artificial e lógica
+                  de personal trainer, de acordo com seu objetivo, sua rotina e seu nível.
                 </p>
               </div>
-
-              <p className="mx-auto max-w-[19.5rem] text-sm leading-6 text-white/66 sm:max-w-[26rem] sm:text-base sm:leading-7 lg:mx-0 lg:max-w-[30rem]">
-                Responda ao formulário e receba grátis sua sugestão inicial de treino, criada de acordo com seu objetivo,
-                rotina e nível.
-              </p>
 
               <p className="mx-auto max-w-[18.5rem] pt-0.5 text-[13px] font-medium leading-5 text-white/48 sm:max-w-[24rem] sm:text-[15px] sm:leading-6 lg:mx-0 lg:max-w-[28rem] lg:pt-1">
                 Método desenvolvido por Renato Santiago, Personal Trainer.
