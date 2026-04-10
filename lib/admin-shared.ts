@@ -38,6 +38,7 @@ export type AdminErrorLog = {
 };
 
 export type AdminDashboardData = {
+  totalUsers: number;
   activeUsers: Record<DashboardWindowKey, number>;
   ageDistribution: DistributionDatum[];
   genderDistribution: DistributionDatum[];

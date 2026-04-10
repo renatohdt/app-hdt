@@ -171,6 +171,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   if (!supabase) {
     return {
+      totalUsers: 0,
       activeUsers: {
         daily: 0,
         weekly: 0
@@ -233,6 +234,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     if (dashboardQueryErrors.length) {
       return {
+        totalUsers: 0,
         activeUsers: {
           daily: 0,
           weekly: 0
@@ -260,6 +262,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const dashboardAllEvents = [...dashboardEvents, ...dashboardErrorEvents];
 
     return {
+      totalUsers: dashboardUsers.length,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
           from: startOfToday(),
@@ -313,6 +316,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   if (queryErrors.length) {
     return {
+      totalUsers: 0,
       activeUsers: {
         daily: 0,
         weekly: 0
@@ -341,6 +345,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   ]).size;
 
   return {
+    totalUsers: users.length,
     activeUsers: {
       daily: activeUsers,
       weekly: activeUsers

@@ -17,6 +17,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
   const [period, setPeriod] = useState<DashboardWindowKey>("weekly");
   const [exporting, setExporting] = useState(false);
   const activeUsers = data.activeUsers[period];
+  const totalUsers = data.totalUsers;
   const funnel = data.funnel[period];
   const totalForPie = useMemo(
     () => ({
@@ -50,12 +51,12 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryMetricCard
-          label="Usuarios ativos"
-          value={String(activeUsers)}
-          description={getActiveUsersDescription(period)}
+          label="Usuarios totais"
+          value={String(totalUsers)}
+          description={getTotalUsersDescription(period, activeUsers)}
         />
 
         {data.retention.map((metric) => (
@@ -64,11 +65,11 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.95fr)]">
-        <Card className="min-w-0 space-y-5 overflow-hidden">
+        <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 space-y-2">
-              <h2 className="text-2xl font-semibold text-white">Funil</h2>
-              <p className="text-sm text-white/58">
+              <h2 className="text-[1.2rem] font-semibold text-white">Funil</h2>
+              <p className="text-[12px] leading-5 text-white/56">
                 Eventos do produto com fallback persistido de onboarding quando o topo do funil nao foi trackeado.
               </p>
             </div>
@@ -84,7 +85,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
                 type="button"
                 onClick={handleExportMonthly}
                 disabled={exporting}
-                className="inline-flex min-h-10 w-full items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60 sm:w-auto"
+                className="inline-flex min-h-9 w-full items-center justify-center rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10 disabled:opacity-60 sm:w-auto"
               >
                 {exporting ? "Exportando..." : "Exportar CSV mensal"}
               </button>
@@ -118,10 +119,10 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         </div>
       </section>
 
-      <Card className="min-w-0 space-y-4 overflow-hidden">
+      <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
         <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-white">Log de erros</h2>
-          <p className="text-sm text-white/58">
+          <h2 className="text-[1.2rem] font-semibold text-white">Log de erros</h2>
+          <p className="text-[12px] leading-5 text-white/56">
             Ultimos erros capturados pelo sistema para apoio operacional do admin.
           </p>
         </div>
@@ -129,19 +130,19 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         {data.errors.length ? (
           <div className="max-h-[30rem] space-y-3 overflow-y-auto pr-1">
             {data.errors.map((error) => (
-              <div key={error.id} className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-4">
+              <div key={error.id} className="rounded-[18px] border border-white/8 bg-black/20 px-3.5 py-3.5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 space-y-1">
-                    <p className="break-words text-sm font-medium leading-6 text-white">{error.message}</p>
-                    <p className="text-xs uppercase tracking-[0.14em] text-white/45">{error.origin}</p>
+                    <p className="break-words text-[12px] font-medium leading-5 text-white">{error.message}</p>
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">{error.origin}</p>
                   </div>
-                  <p className="shrink-0 text-xs text-white/52">{formatDate(error.created_at)}</p>
+                  <p className="shrink-0 text-[10px] text-white/52">{formatDate(error.created_at)}</p>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-white/60">
+          <div className="rounded-[18px] border border-white/8 bg-black/20 px-4 py-5 text-[12px] text-white/60">
             Sem erros recentes
           </div>
         )}
@@ -160,10 +161,10 @@ function SummaryMetricCard({
   description: string;
 }) {
   return (
-    <Card className="min-w-0 space-y-3 overflow-hidden p-5 sm:p-6">
-      <p className="text-xs uppercase tracking-[0.18em] text-white/45">{label}</p>
-      <p className="text-4xl font-semibold text-white">{value}</p>
-      <p className="text-sm leading-6 text-white/58">{description}</p>
+    <Card className="min-w-0 space-y-2.5 overflow-hidden p-4 sm:p-[1.15rem]">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{label}</p>
+      <p className="text-[1.85rem] font-semibold leading-none text-white">{value}</p>
+      <p className="text-[12px] leading-5 text-white/58">{description}</p>
     </Card>
   );
 }
@@ -176,16 +177,16 @@ function RetentionMetricCard({ metric }: { metric: RetentionMetric }) {
       : `${metric.returnedUsers} de ${metric.eligibleUsers} usuarios elegiveis retornaram.`;
 
   return (
-    <Card className="min-w-0 space-y-3 overflow-hidden p-5 sm:p-6">
+    <Card className="min-w-0 space-y-2.5 overflow-hidden p-4 sm:p-[1.15rem]">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs uppercase tracking-[0.18em] text-white/45">{metric.label}</p>
-        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/58">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{metric.label}</p>
+        <span className="rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/58">
           {metric.windowLabel}
         </span>
       </div>
 
-      <p className="text-4xl font-semibold text-white">{valueLabel}</p>
-      <p className="text-sm leading-6 text-white/58">{detailLabel}</p>
+      <p className="text-[1.85rem] font-semibold leading-none text-white">{valueLabel}</p>
+      <p className="text-[12px] leading-5 text-white/58">{detailLabel}</p>
     </Card>
   );
 }
@@ -203,7 +204,7 @@ function PeriodButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
         active ? "bg-primary text-white" : "bg-white/5 text-white/62 hover:bg-white/10 hover:text-white"
       }`}
     >
@@ -222,15 +223,15 @@ function DistributionBarCard({
   emptyLabel: string;
 }) {
   return (
-    <Card className="min-w-0 space-y-4 overflow-hidden p-5 sm:p-6">
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
+    <Card className="min-w-0 space-y-3.5 overflow-hidden p-4 sm:p-[1.15rem]">
+      <h2 className="text-[1rem] font-semibold text-white">{title}</h2>
       {data.length ? (
         <div className="space-y-3">
           {data.map((item) => (
             <div key={item.label} className="space-y-2">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-sm">
-                <span className="break-words leading-5 text-white/72">{item.label}</span>
-                <span className="text-white">{item.value}</span>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[12px]">
+                <span className="break-words leading-5 text-white/70">{item.label}</span>
+                <span className="text-[11px] text-white">{item.value}</span>
               </div>
               <div className="h-2 rounded-full bg-white/8">
                 <div
@@ -242,7 +243,7 @@ function DistributionBarCard({
           ))}
         </div>
       ) : (
-        <p className="text-sm text-white/52">{emptyLabel}</p>
+        <p className="text-[12px] text-white/52">{emptyLabel}</p>
       )}
     </Card>
   );
@@ -262,33 +263,33 @@ function DistributionPieCard({
   const gradient = useMemo(() => buildPieGradient(data), [data]);
 
   return (
-    <Card className="min-w-0 space-y-4 overflow-hidden p-5 sm:p-6">
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
+    <Card className="min-w-0 space-y-3.5 overflow-hidden p-4 sm:p-[1.15rem]">
+      <h2 className="text-[1rem] font-semibold text-white">{title}</h2>
       {data.length ? (
-        <div className="grid gap-4 min-[440px]:grid-cols-[96px_minmax(0,1fr)] min-[440px]:items-center">
+        <div className="grid gap-3 min-[440px]:grid-cols-[76px_minmax(0,1fr)] min-[440px]:items-center">
           <div
-            className="mx-auto h-24 w-24 rounded-full border border-white/10 sm:h-28 sm:w-28"
+            className="mx-auto h-[72px] w-[72px] rounded-full border border-white/8 sm:h-[84px] sm:w-[84px]"
             style={{ backgroundImage: gradient }}
           />
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {data.map((item, index) => (
-              <div key={item.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-sm">
-                <div className="inline-flex min-w-0 items-center gap-2">
+              <div key={item.label} className="min-w-0 space-y-0.5">
+                <div className="flex min-w-0 items-start gap-2">
                   <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    className="mt-1 h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
                   />
-                  <span className="break-words leading-5 text-white/72">{item.label}</span>
+                  <span className="break-words text-[11px] leading-4 text-white/70">{item.label}</span>
                 </div>
-                <span className="text-white">
+                <p className="pl-4 text-[10px] leading-4 text-white/56">
                   {item.value} {total ? `(${item.percentage}%)` : ""}
-                </span>
+                </p>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <p className="text-sm text-white/52">{emptyLabel}</p>
+        <p className="text-[12px] text-white/52">{emptyLabel}</p>
       )}
     </Card>
   );
@@ -298,10 +299,10 @@ function FunnelView({ funnel }: { funnel: DashboardPeriod }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
       {funnel.steps.map((step) => (
-        <div key={step.key} className="min-w-0 rounded-[22px] border border-white/10 bg-black/20 p-4 sm:p-5">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/45">{step.label}</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{step.value}</p>
-          <p className="mt-2 text-sm text-white/56">
+        <div key={step.key} className="min-w-0 rounded-[18px] border border-white/8 bg-black/20 p-3.5 sm:p-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{step.label}</p>
+          <p className="mt-2.5 text-[1.85rem] font-semibold leading-none text-white">{step.value}</p>
+          <p className="mt-2 text-[12px] leading-5 text-white/56">
             {step.conversion === null ? "Base inicial" : `${step.conversion}% de conversao`}
           </p>
         </div>
@@ -324,10 +325,10 @@ function buildPieGradient(data: DistributionDatum[]) {
   return `conic-gradient(${segments.join(", ")})`;
 }
 
-function getActiveUsersDescription(period: DashboardWindowKey) {
+function getTotalUsersDescription(period: DashboardWindowKey, activeUsers: number) {
   if (period === "daily") {
-    return "Usuarios cadastrados com atividade ou onboarding salvo hoje.";
+    return `${activeUsers} com atividade ou onboarding salvo hoje.`;
   }
 
-  return "Usuarios cadastrados com atividade ou onboarding salvo nos ultimos 7 dias.";
+  return `${activeUsers} com atividade ou onboarding salvo nos ultimos 7 dias.`;
 }
