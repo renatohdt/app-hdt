@@ -7,6 +7,7 @@ import { ConsentProvider } from "@/components/consent-provider";
 import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { getCurrentConsentVersion } from "@/lib/consents";
+import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -15,6 +16,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
   applicationName: "Hora do Treino",
   title: "Treino personalizado online gratis | Hora do Treino",
   description:

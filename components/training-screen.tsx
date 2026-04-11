@@ -190,19 +190,6 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
           </div>
         </div>
 
-        <p className="max-w-none text-sm leading-6 text-white/58">{workout.subtitle?.trim() || data.plan.splitLabel}</p>
-
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white/38">Progresso do plano</p>
-          <p className="mt-2 text-sm font-semibold text-white">
-            {sessionProgress.completedSessions}/{sessionProgress.totalSessions} sessoes concluidas
-          </p>
-          <p className="mt-1 text-sm text-white/58">
-            {sessionProgress.remainingSessions === 0
-              ? "Este ciclo foi concluido e a proxima renovacao vai trocar todos os treinos juntos."
-              : `Faltam ${sessionProgress.remainingSessions} ${sessionProgress.remainingSessions === 1 ? "sessao" : "sessoes"} para fechar o ciclo do plano.`}
-          </p>
-        </div>
       </Card>
 
       <div className="space-y-3">
