@@ -48,12 +48,12 @@ export type AdminUserDetailPayload = {
 
 export function maskEmail(email?: string | null) {
   if (!email) {
-    return "Nao informado";
+    return "Não informado";
   }
 
   const [localPart, domain] = email.split("@");
   if (!localPart || !domain) {
-    return "Nao informado";
+    return "Não informado";
   }
 
   const visibleStart = localPart.slice(0, 2);
@@ -131,11 +131,11 @@ function getGoalLabel(goal?: QuizAnswers["goal"]) {
   const labels = {
     lose_weight: "Emagrecimento",
     gain_muscle: "Hipertrofia",
-    body_recomposition: "Definicao",
+    body_recomposition: "Definição",
     improve_conditioning: "Condicionamento"
   };
 
-  return goal ? labels[goal] : "Nao informado";
+  return goal ? labels[goal] : "Não informado";
 }
 
 function getGenderLabel(gender?: QuizAnswers["gender"]) {
@@ -144,11 +144,11 @@ function getGenderLabel(gender?: QuizAnswers["gender"]) {
     female: "Feminino"
   };
 
-  return gender ? labels[gender] : "Nao informado";
+  return gender ? labels[gender] : "Não informado";
 }
 
 function getBodyTypeLabel(value?: QuizAnswers["wrist"] | QuizAnswers["body_type"] | string) {
-  return value ? formatBodyTypeLabel(value) : "Nao informado";
+  return value ? formatBodyTypeLabel(value) : "Não informado";
 }
 
 function getLevelLabel(experience?: QuizAnswers["experience"]) {
@@ -159,14 +159,14 @@ function getLevelLabel(experience?: QuizAnswers["experience"]) {
     gt_1_year: "Avancado"
   };
 
-  return experience ? labels[experience] : "Nao informado";
+  return experience ? labels[experience] : "Não informado";
 }
 
 function getAgeLabel(age?: number) {
   const numericAge = Number(age);
 
   if (!Number.isFinite(numericAge) || numericAge <= 0) {
-    return "Nao informado";
+    return "Não informado";
   }
 
   if (numericAge < 18) return "Menos de 18";
@@ -179,10 +179,10 @@ function getAgeLabel(age?: number) {
 
 function getDaysLabel(days?: QuizAnswers["days"]) {
   const numericDays = Number(days);
-  return Number.isFinite(numericDays) ? `${numericDays} ${numericDays === 1 ? "dia" : "dias"} por semana` : "Nao informado";
+  return Number.isFinite(numericDays) ? `${numericDays} ${numericDays === 1 ? "dia" : "dias"} por semana` : "Não informado";
 }
 
 function getTimeLabel(time?: QuizAnswers["time"]) {
   const minutes = Number(time);
-  return Number.isFinite(minutes) ? `${minutes} min` : "Nao informado";
+  return Number.isFinite(minutes) ? `${minutes} min` : "Não informado";
 }

@@ -433,7 +433,7 @@ function buildSplitRationale(
   timeAvailable: number
 ) {
   const base = formatSplitTypeLabel(splitType);
-  const density = timeAvailable <= 35 ? "com sessoes mais densas e objetivas" : "com volume suficiente para cada grupamento";
+  const density = timeAvailable <= 35 ? "com sessões mais densas e objetivas" : "com volume suficiente para cada grupamento";
   const levelNote =
     level === "beginner"
       ? "favorecendo aprendizado motor e segurança"

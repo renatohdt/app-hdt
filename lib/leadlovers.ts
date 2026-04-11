@@ -13,7 +13,7 @@ const LEADLOVERS_LOOKUP_DELAY_MS = 2000;
 const LEADLOVERS_DYNAMIC_FIELDS = {
   gender: {
     id: 117469,
-    tag: "Genero",
+    tag: "Gênero",
     type: "single",
     options: {
       male: "Masculino",

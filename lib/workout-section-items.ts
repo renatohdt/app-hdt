@@ -164,7 +164,7 @@ function buildCombinedBlockNotes(blockType: CombinedBlockType, exerciseCount: nu
   }
 
   return exerciseCount > 1
-    ? "Complete a sequencia inteira antes de descansar ao final da volta."
+    ? "Complete a sequência inteira antes de descansar ao final da volta."
     : "Use o bloco para manter o treino mais eficiente sem perder controle.";
 }
 

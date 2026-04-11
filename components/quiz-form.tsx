@@ -8,7 +8,6 @@ import { useConsentPreferences } from "@/components/consent-provider";
 import { Disclaimer } from "@/components/disclaimer";
 import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
-import { trackSignUpSuccess } from "@/lib/analytics";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
@@ -44,7 +43,6 @@ export function QuizForm() {
   const hasMountedStepRef = useRef(false);
   const shouldScrollToStepRef = useRef(false);
   const isSubmittingRef = useRef(false);
-  const hasTrackedSignUpSuccessRef = useRef(false);
 
   const safeStepIndex = Math.min(stepIndex, quizSteps.length - 1);
   const step = quizSteps[safeStepIndex];
@@ -343,13 +341,10 @@ export function QuizForm() {
           trackAppEvent("sign_up", payload.data.userId ?? null, {
             goal: answers.goal ?? null
           });
-
-          if (!hasTrackedSignUpSuccessRef.current) {
-            trackSignUpSuccess({
-              goal: typeof answers.goal === "string" ? answers.goal : undefined
-            });
-            hasTrackedSignUpSuccessRef.current = true;
-          }
+          trackAppEvent("workout_generated", payload.data.userId ?? null, {
+            goal: answers.goal ?? null,
+            source: "quiz_submit"
+          });
 
           await completeLoadingProgress();
           setSuccessMessage("Conta criada com sucesso.");

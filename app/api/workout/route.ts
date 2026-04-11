@@ -178,7 +178,7 @@ export async function POST(request: Request) {
 
     if (!rateLimit.allowed) {
       logWarn("AI", "Workout generation rate limited", { user_id: userId });
-      return jsonError("Voce atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
+      return jsonError("Você atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
     }
 
     const { data: user, error: userError } = await supabase.from("users").select("id, name").eq("id", userId).maybeSingle();

@@ -7,6 +7,7 @@ import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
 import { Badge, BadgeGroup, Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
+import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/auth-errors";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { formatBodyTypeLabel } from "@/lib/body-type";
@@ -130,7 +131,7 @@ export default function PerfilPage() {
 
       if (!isSupabaseConfigured() || !supabase) {
         if (active) {
-          setError("Configuracao do Supabase indisponivel.");
+          setError("Configuração do Supabase indisponível.");
           setLoading(false);
         }
         return;
@@ -317,6 +318,10 @@ export default function PerfilPage() {
         throw new Error(result.error ?? "Não foi possível gerar seu treino agora.");
       }
 
+      trackAppEvent("workout_generated", payload.user.id, {
+        goal: payload.answers.goal ?? null,
+        source: "profile_regenerate"
+      });
       router.push("/dashboard");
       router.refresh();
     } catch (generationError) {
@@ -411,7 +416,7 @@ export default function PerfilPage() {
                     placeholder="Seu nome"
                   />
                 ) : (
-                  <StaticValue>{payload.user.name || "Nao informado"}</StaticValue>
+                  <StaticValue>{payload.user.name || "Não informado"}</StaticValue>
                 )
               },
               {
@@ -424,11 +429,11 @@ export default function PerfilPage() {
                     placeholder="voce@exemplo.com"
                   />
                 ) : (
-                  <StaticValue>{payload.user.email || "Nao informado"}</StaticValue>
+                  <StaticValue>{payload.user.email || "Não informado"}</StaticValue>
                 )
               },
               {
-                label: "Profissao",
+                label: "Profissão",
                 content: isEditing ? (
                   <TextInput
                     value={form.profession}
@@ -436,7 +441,7 @@ export default function PerfilPage() {
                     placeholder="Ex: trabalho sentado"
                   />
                 ) : (
-                  <StaticValue>{payload.answers.profession?.trim() || "Nao informado"}</StaticValue>
+                  <StaticValue>{payload.answers.profession?.trim() || "Não informado"}</StaticValue>
                 )
               }
             ]}
@@ -502,7 +507,7 @@ export default function PerfilPage() {
       </div>
 
       <Card className="space-y-4 p-5 sm:p-6">
-        <h2 className="text-xl font-semibold text-white">Preferencias do treino</h2>
+        <h2 className="text-xl font-semibold text-white">Preferências do treino</h2>
         <ProfileGrid
           items={[
             {
@@ -530,7 +535,7 @@ export default function PerfilPage() {
               )
             },
             {
-              label: "Biotipo fisico",
+              label: "Biotipo físico",
               content: isEditing ? (
                 <SelectField
                   value={form.body_type}
@@ -544,7 +549,7 @@ export default function PerfilPage() {
               )
             },
             {
-              label: "Dias disponiveis",
+              label: "Dias disponíveis",
               content: isEditing ? (
                 <SelectField
                   value={form.days}
@@ -610,14 +615,14 @@ export default function PerfilPage() {
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Novo treino</p>
             <h2 className="text-xl font-semibold text-white">Gerar plano atualizado</h2>
             <p className="text-sm text-white/62">
-              O treino so e recalculado quando voce clicar neste botao. Salvar o perfil nao dispara uma nova geracao.
+              O treino só é recalculado quando você clicar neste botão. Salvar o perfil não dispara uma nova geração.
             </p>
           </div>
 
           <div className="flex flex-col gap-3">
             <p className="text-sm text-white/62">
               {isEditing
-                ? "Salve ou cancele a edicao atual antes de gerar um novo treino."
+                ? "Salve ou cancele a edição atual antes de gerar um novo treino."
                 : "Quando quiser atualizar seu plano, use os dados mais recentes que ficaram salvos no perfil."}
             </p>
 
@@ -817,40 +822,40 @@ function normalizeEquipment(equipment?: string[]) {
 }
 
 function formatGoal(goal?: string) {
-  return GOAL_OPTIONS.find((option) => option.value === goal)?.label ?? "Nao informado";
+  return GOAL_OPTIONS.find((option) => option.value === goal)?.label ?? "Não informado";
 }
 
 function formatGender(gender?: string) {
-  return GENDER_OPTIONS.find((option) => option.value === gender)?.label ?? "Nao informado";
+  return GENDER_OPTIONS.find((option) => option.value === gender)?.label ?? "Não informado";
 }
 
 function formatBodyType(value?: string) {
-  return value ? formatBodyTypeLabel(value) : "Nao informado";
+  return value ? formatBodyTypeLabel(value) : "Não informado";
 }
 
 function formatDays(value?: number) {
   const days = Number(value);
-  return Number.isFinite(days) && days > 0 ? `${days} ${days === 1 ? "dia" : "dias"} por semana` : "Nao informado";
+  return Number.isFinite(days) && days > 0 ? `${days} ${days === 1 ? "dia" : "dias"} por semana` : "Não informado";
 }
 
 function formatTime(value?: number) {
   const minutes = Number(value);
-  return Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "Nao informado";
+  return Number.isFinite(minutes) && minutes > 0 ? `${minutes} min` : "Não informado";
 }
 
 function formatAge(value?: number) {
   const age = Number(value);
-  return Number.isFinite(age) && age > 0 ? `${age} anos` : "Nao informado";
+  return Number.isFinite(age) && age > 0 ? `${age} anos` : "Não informado";
 }
 
 function formatWeight(value?: number) {
   const weight = Number(value);
-  return Number.isFinite(weight) && weight > 0 ? `${weight} kg` : "Nao informado";
+  return Number.isFinite(weight) && weight > 0 ? `${weight} kg` : "Não informado";
 }
 
 function formatHeight(value?: number) {
   const height = Number(value);
-  return Number.isFinite(height) && height > 0 ? `${height} cm` : "Nao informado";
+  return Number.isFinite(height) && height > 0 ? `${height} cm` : "Não informado";
 }
 
 function formatEquipment(value: string) {

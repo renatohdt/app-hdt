@@ -6,7 +6,6 @@ import { Disclaimer } from "@/components/disclaimer";
 import { TrainingScreen } from "@/components/training-screen";
 import { Button, Card, Container, PageShell } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
-import { trackEvent } from "@/lib/analytics-client";
 import { buildAppWorkoutData } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import type { WorkoutPlan } from "@/lib/types";
@@ -51,7 +50,7 @@ function ResultsContent() {
 
     async function run() {
       if (!userId) {
-        setError("Usuario nao informado.");
+        setError("Usuário não informado.");
         setLoading(false);
         return;
       }
@@ -64,10 +63,6 @@ function ResultsContent() {
             if (active) {
               await new Promise((resolve) => window.setTimeout(resolve, 600));
               setPayload(parsed);
-              trackEvent("workout_viewed", parsed.user.id ?? null, {
-                goal: parsed.answers.goal,
-                location: parsed.answers.location
-              });
               setLoading(false);
               return;
             }
@@ -90,10 +85,6 @@ function ResultsContent() {
 
         if (active) {
           setPayload(data);
-          trackEvent("workout_viewed", data.user.id ?? null, {
-            goal: data.answers.goal,
-            location: data.answers.location
-          });
         }
       } catch (requestError) {
         if (active) {
@@ -137,9 +128,9 @@ function ResultsContent() {
       <PageShell>
         <Container className="py-10">
           <Card className="mx-auto max-w-3xl space-y-4">
-            <h1 className="text-2xl font-semibold">Treino ainda nao disponivel</h1>
+            <h1 className="text-2xl font-semibold">Treino ainda não disponível</h1>
             <p className="text-white/64">
-              Nao encontramos um treino salvo para este usuario. Revise o perfil ou gere um novo plano para continuar.
+              Não encontramos um treino salvo para este usuário. Revise o perfil ou gere um novo plano para continuar.
             </p>
             <Button onClick={() => router.push("/perfil")}>Ir para o perfil</Button>
           </Card>
@@ -159,9 +150,9 @@ function ResultsLoadingState() {
           <div className="flex min-h-[360px] flex-col items-center justify-center text-center">
             <div className="h-16 w-16 animate-spin rounded-full border-4 border-white/10 border-t-primary" />
             <p className="mt-6 text-sm uppercase tracking-[0.28em] text-primary">Analisando</p>
-            <h1 className="mt-3 text-3xl font-semibold">Montando sua sugestao de treino</h1>
+            <h1 className="mt-3 text-3xl font-semibold">Montando sua sugestão de treino</h1>
             <p className="mt-3 max-w-md text-sm text-white/62">
-              Estamos organizando sua sugestao de treino para voce comecar agora.
+              Estamos organizando sua sugestão de treino para você começar agora.
             </p>
             <Disclaimer variant="compact" className="mt-6 max-w-xl text-left" />
           </div>

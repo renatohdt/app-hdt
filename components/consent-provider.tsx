@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-tracker";
+import { logGoogleAnalyticsDiagnostic } from "@/lib/analytics";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
 import {
   type ConsentPreferenceMap,
@@ -77,10 +78,21 @@ export function ConsentProvider({
     async function bootstrap() {
       const localPreferences = readStoredConsentPreferences();
 
+      logGoogleAnalyticsDiagnostic("consent_bootstrap_started", {
+        current_version: currentVersion,
+        stored_version: localPreferences?.version ?? null,
+        stored_has_interacted: localPreferences?.hasInteracted ?? false,
+        stored_analytics: localPreferences?.preferences.analytics ?? null
+      });
+
       if (localPreferences?.version === currentVersion) {
         if (!active) return;
 
         applyStoredPreferences(localPreferences);
+        logGoogleAnalyticsDiagnostic("consent_bootstrap_local_applied", {
+          version: currentVersion,
+          analytics: localPreferences.preferences.analytics
+        });
         setReady(true);
         return;
       }
@@ -90,6 +102,10 @@ export function ConsentProvider({
         if (!token) {
           if (!active) return;
 
+          logGoogleAnalyticsDiagnostic("consent_bootstrap_no_token", {
+            current_version: currentVersion,
+            stored_version: localPreferences?.version ?? null
+          });
           setReady(true);
           return;
         }
@@ -108,9 +124,16 @@ export function ConsentProvider({
 
           applyStoredPreferences(stored);
           writeStoredConsentPreferences(stored);
+          logGoogleAnalyticsDiagnostic("consent_bootstrap_server_applied", {
+            version: currentVersion,
+            analytics: stored.preferences.analytics
+          });
         }
       } catch (error) {
         clientLogError("CONSENT BOOTSTRAP ERROR", error);
+        logGoogleAnalyticsDiagnostic("consent_bootstrap_error", {
+          message: error instanceof Error ? error.message : "unknown"
+        });
       } finally {
         if (active) {
           setReady(true);
@@ -186,6 +209,10 @@ export function ConsentProvider({
     setDraftPreferences(value.preferences);
   }
 
+  function persistPreferencesLocally(nextPreferences: ConsentPreferenceMap, interacted = true) {
+    writeStoredConsentPreferences(createStoredConsentPreferences(currentVersion, nextPreferences, interacted));
+  }
+
   function acceptAll() {
     const next = {
       analytics: true,
@@ -193,6 +220,7 @@ export function ConsentProvider({
       ads: true
     };
 
+    persistPreferencesLocally(next);
     setHasInteracted(true);
     setPreferences(next);
     setDraftPreferences(next);
@@ -201,6 +229,7 @@ export function ConsentProvider({
   }
 
   function rejectNonEssential() {
+    persistPreferencesLocally(DEFAULT_CONSENT_PREFERENCES);
     setHasInteracted(true);
     setPreferences(DEFAULT_CONSENT_PREFERENCES);
     setDraftPreferences(DEFAULT_CONSENT_PREFERENCES);
@@ -215,6 +244,7 @@ export function ConsentProvider({
   }
 
   function saveCustomPreferences() {
+    persistPreferencesLocally(draftPreferences);
     setHasInteracted(true);
     setPreferences(draftPreferences);
     setIsPanelOpen(false);
@@ -230,6 +260,7 @@ export function ConsentProvider({
       canUseAds: ready && preferences.ads,
       canUseMarketing: ready && preferences.marketing,
       savePreferences: (nextPreferences) => {
+        persistPreferencesLocally(nextPreferences);
         setHasInteracted(true);
         setPreferences(nextPreferences);
         setDraftPreferences(nextPreferences);

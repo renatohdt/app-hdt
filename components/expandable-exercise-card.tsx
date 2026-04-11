@@ -120,8 +120,10 @@ export function ExpandableExerciseCard({
   const setEntries = ensureSetEntries(draftState.setEntries, totalSetRows);
   const panelId = `exercise-panel-${exercise.id}`;
   const posterUrl = resolveVideoPoster(exercise.videoUrl);
+  const isMobilityExercise = exercise.isMobility;
   const isCombinedExercise = matchesCombinedTechnique(exercise.blockType ?? exercise.technique);
   const hasTechniqueTag = shouldShowTechniqueTag(exercise.technique, exercise.isMobility);
+  const techniqueDescription = getTechniqueDescription(exercise.technique);
   const combinedBadgeLabel = isCombinedExercise
     ? [exercise.blockOrder, exercise.technique].filter(Boolean).join(" · ") || "Bloco combinado"
     : null;
@@ -194,11 +196,15 @@ export function ExpandableExerciseCard({
           "rounded-[26px] p-4 shadow-none transition sm:p-5",
           isCombinedExercise
             ? "border border-[#f59e0b]/18 bg-[linear-gradient(180deg,rgba(245,158,11,0.1),rgba(18,20,16,0.96))]"
-            : "border border-white/10 bg-[#0d100d]/80",
+            : isMobilityExercise
+              ? "border border-[#38bdf8]/18 bg-[linear-gradient(180deg,rgba(56,189,248,0.09),rgba(18,20,16,0.96))]"
+              : "border border-white/10 bg-[#0d100d]/80",
           expanded &&
             (isCombinedExercise
               ? "border-[#f59e0b]/28 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(18,20,16,0.98))]"
-              : "border-primary/18 bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(255,255,255,0.02))]")
+              : isMobilityExercise
+                ? "border-[#38bdf8]/28 bg-[linear-gradient(180deg,rgba(56,189,248,0.13),rgba(18,20,16,0.98))]"
+                : "border-primary/18 bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(255,255,255,0.02))]")
         )}
       >
         <button
@@ -214,6 +220,8 @@ export function ExpandableExerciseCard({
                 "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border text-base font-semibold",
                 isCombinedExercise
                   ? "border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#f7b955]"
+                  : isMobilityExercise
+                    ? "border-[#38bdf8]/22 bg-[#38bdf8]/10 text-[#67d3ff]"
                   : "border-primary/15 bg-primary/10 text-primary"
               )}
             >
@@ -258,8 +266,12 @@ export function ExpandableExerciseCard({
 
         {expanded ? (
           <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+            {hasTechniqueTag && techniqueDescription ? (
+              <p className="text-[12px] leading-5 text-[#f7b955]">{techniqueDescription}</p>
+            ) : null}
+
             <section className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-              <p className="text-[10px] font-semibold tracking-[0.08em] text-white/50 min-[380px]:text-[11px]">Musculos:</p>
+              <p className="text-[10px] font-semibold tracking-[0.08em] text-white/50 min-[380px]:text-[11px]">Músculos:</p>
               {muscleBadges.map((muscle) => (
                 <span key={muscle} className="text-[11px] font-medium leading-5 text-white/78 min-[380px]:text-[12px]">
                   {muscle}
@@ -322,7 +334,7 @@ export function ExpandableExerciseCard({
                 <span className="text-[11px] font-medium text-white/48">{restLabel}</span>
               </div>
 
-              <div className="grid grid-cols-[2rem_2.7rem_.5rem_3.35rem_3.35rem_2.35rem] items-center gap-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">
+              <div className="grid grid-cols-[2rem_2.45rem_.25rem_3.35rem_3.35rem_2.35rem] items-center gap-x-1.5 gap-y-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">
                 <span className="text-center">Série</span>
                 <span className="text-center">Reps</span>
                 <span className="mx-auto h-4 w-px rounded-full bg-white/8" aria-hidden />
@@ -335,7 +347,7 @@ export function ExpandableExerciseCard({
                 {setEntries.map((entry, setIndex) => (
                   <div
                     key={`${exercise.id}-set-${setIndex}`}
-                    className="grid grid-cols-[2rem_2.7rem_.5rem_3.35rem_3.35rem_2.35rem] items-center gap-2"
+                    className="grid grid-cols-[2rem_2.45rem_.25rem_3.35rem_3.35rem_2.35rem] items-center gap-x-1.5 gap-y-2"
                   >
                     <span
                       className={clsx(
@@ -453,6 +465,52 @@ function normalizeTechniqueLabel(value?: string | null) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function getTechniqueDescription(value?: string | null) {
+  const normalized = normalizeTechniqueLabel(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes("superset") || normalized.includes("superserie")) {
+    return "Alterne com o próximo exercício do bloco e descanse só ao final.";
+  }
+
+  if (normalized.includes("bi-set") || normalized.includes("biset")) {
+    return "Execute os dois exercícios em sequência e recupere apenas no fim da dupla.";
+  }
+
+  if (normalized.includes("tri-set") || normalized.includes("triset")) {
+    return "Faca os tres exercicios seguidos e descanse somente ao terminar o bloco.";
+  }
+
+  if (normalized.includes("circuit") || normalized.includes("circuito")) {
+    return "Passe por todo o bloco em sequência antes de fazer a recuperação.";
+  }
+
+  if (normalized.includes("conjugado") || normalized.includes("conjugada")) {
+    return "Este exercício faz parte de um bloco combinado e deve seguir para o próximo sem pausa longa.";
+  }
+
+  if (normalized.includes("drop-set") || normalized.includes("dropset")) {
+    return "Ao terminar a serie, reduza a carga e continue sem descanso prolongado.";
+  }
+
+  if (normalized.includes("rest-pause") || normalized.includes("restpause")) {
+    return "Faca uma pausa bem curta e retome a serie para completar repeticoes extras.";
+  }
+
+  if (normalized.includes("tempo controlado") || normalized.includes("tempo_controlado") || normalized === "tempo") {
+    return "Controle a velocidade do movimento, principalmente na fase de descida.";
+  }
+
+  if (normalized.includes("isometria") || normalized.includes("isometric")) {
+    return "Segure a posicao pelo tempo prescrito mantendo tensao constante.";
+  }
+
+  return null;
 }
 
 function createEmptySetEntry(): ExerciseSetEntry {

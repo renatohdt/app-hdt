@@ -17,7 +17,7 @@ const profileContent: Record<UserProfile, DiagnosisResult> = {
     profile: "inconsistent",
     title: "Inconsistente",
     message: "Seu maior problema é a falta de consistência, não a variedade de exercícios. Sem regularidade, nenhum treino funciona bem.",
-    trainingShift: "Vamos reduzir a friccao com uma divisao mais simples, sessoes curtas e um plano mais facil de manter."
+    trainingShift: "Vamos reduzir a fricção com uma divisão mais simples, sessões curtas e um plano mais fácil de manter."
   },
   stagnated: {
     profile: "stagnated",

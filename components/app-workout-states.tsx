@@ -57,10 +57,10 @@ export function AppWorkoutUnavailableScreen({
         </div>
 
         <div className="space-y-2">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-primary/90">Plano ainda nao pronto</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-primary/90">Plano ainda não pronto</p>
           <h1 className="text-2xl font-semibold text-white">Precisamos revisar seus dados antes de seguir</h1>
           <p className="text-sm text-white/58">
-            Ajuste o perfil ou gere uma nova sugestao para liberar a nova home e a tela de treino.
+            Ajuste o perfil ou gere uma nova sugestão para liberar a nova home e a tela de treino.
           </p>
         </div>
 
@@ -73,7 +73,7 @@ export function AppWorkoutUnavailableScreen({
             Ajustar meu perfil
           </Button>
           <Button onClick={() => void onGenerateWorkoutNow()} disabled={generatingWorkout}>
-            {generatingWorkout ? "Gerando sugestao..." : "Gerar sugestao agora"}
+            {generatingWorkout ? "Gerando sugestão..." : "Gerar sugestão agora"}
           </Button>
         </div>
 
@@ -84,12 +84,12 @@ export function AppWorkoutUnavailableScreen({
             </span>
             <div className="space-y-1">
               <p className="text-sm font-semibold text-white">
-                {autoRedirect ? "Redirecionamento automatico" : "Ajuste manualmente se precisar"}
+                {autoRedirect ? "Redirecionamento automático" : "Ajuste manualmente se precisar"}
               </p>
               <p className="text-sm text-white/58">
                 {autoRedirect
-                  ? "Se preferir, voce sera levado ao perfil em alguns segundos."
-                  : "Voce pode revisar seus dados ou tentar gerar o plano novamente quando quiser."}
+                  ? "Se preferir, você será levado ao perfil em alguns segundos."
+                  : "Você pode revisar seus dados ou tentar gerar o plano novamente quando quiser."}
               </p>
             </div>
           </div>

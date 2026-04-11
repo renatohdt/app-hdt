@@ -14,10 +14,10 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       <Card className="space-y-4 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Calendario</p>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Calendário</p>
             <h1 className="mt-1 text-[1.9rem] font-semibold leading-tight text-white">Organize sua semana</h1>
             <p className="mt-2 text-sm leading-6 text-white/62">
-              Distribuicao sugerida para encaixar o plano na rotina com recuperacao entre as sessoes.
+              Distribuição sugerida para encaixar o plano na rotina com recuperação entre as sessões.
             </p>
           </div>
 
@@ -43,7 +43,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white">{item.dayLabel}</p>
                   <p className="mt-1 text-sm text-white/58">
-                    {item.isRest ? "Dia de recuperacao" : item.workoutLabel}
+                    {item.isRest ? "Dia de recuperação" : item.workoutLabel}
                   </p>
                 </div>
 
@@ -70,7 +70,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           <div className="space-y-1.5">
             <p className="text-sm font-semibold text-white">Como usar essa base</p>
             <p className="text-sm leading-6 text-white/62">
-              Esta tela ja deixa pronta a estrutura para encaixar check-ins, reagendamento e controle real de execucao nas proximas sprints.
+              Esta tela já deixa pronta a estrutura para encaixar check-ins, reagendamento e controle real de execução nas próximas sprints.
             </p>
           </div>
         </div>

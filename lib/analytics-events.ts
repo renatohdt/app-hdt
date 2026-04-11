@@ -7,6 +7,7 @@ export type AnalyticsEventName =
   | "signup"
   | "sign_up"
   | "quiz_completed"
+  | "workout_generated"
   | "workout_viewed"
   | "viewed_workout"
   | "content_recommendation_generated"
@@ -21,6 +22,7 @@ export const SIGNUP_EVENTS: AnalyticsEventName[] = ["signup", "sign_up", "quiz_c
 export const CTA_EVENTS: AnalyticsEventName[] = ["cta_click", "cta_clicked", "clicked_cta"];
 export const RETURN_ACTIVITY_EVENTS: AnalyticsEventName[] = [
   "app_session",
+  "workout_generated",
   "viewed_workout",
   "workout_viewed",
   "content_recommendation_generated",

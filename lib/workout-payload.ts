@@ -301,6 +301,13 @@ function normalizeExercise(value: unknown): WorkoutExercise | null {
         : typeof exercise.observations === "string"
           ? (exercise.observations as string)
           : null,
+    muscleGroups: normalizeMuscleStringList(
+      exercise.muscleGroups ??
+        exercise.muscle_groups ??
+        (typeof exercise.metadata === "object" && exercise.metadata
+          ? ((exercise.metadata as UnknownRecord).muscle_groups ?? (exercise.metadata as UnknownRecord).muscles)
+          : null)
+    ),
     primaryMuscles: normalizeMuscleStringList(exercise.primaryMuscles ?? exercise.primary_muscles),
     secondaryMuscles: normalizeMuscleStringList(exercise.secondaryMuscles ?? exercise.secondary_muscles),
     order: typeof exercise.order === "string" ? exercise.order : null,
@@ -367,7 +374,7 @@ function buildWorkoutTitle(rawWorkout: unknown, diagnosis?: DiagnosisResult) {
     return String((rawWorkout as UnknownRecord).title);
   }
 
-  return diagnosis ? `Sugestao ${diagnosis.title}` : "Plano sugerido";
+  return diagnosis ? `Sugestão ${diagnosis.title}` : "Plano sugerido";
 }
 
 function buildWorkoutSubtitle(rawWorkout: unknown) {

@@ -2,7 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import { resolveBodyType } from "@/lib/body-type";
 import { createHmac } from "node:crypto";
-import { formatExerciseMuscleLabel, normalizeExerciseMuscleGroup } from "@/lib/exercise-library";
+import { formatExerciseMuscleLabel, getExerciseMuscleGroups, normalizeExerciseMuscleGroup } from "@/lib/exercise-library";
 import { repairPtBrText } from "@/lib/pt-br-text";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import {
@@ -203,7 +203,7 @@ export async function generateWorkoutWithAI(
     "Responda sempre em português do Brasil, com acentuação, pontuação e caracteres UTF-8 corretos.",
     "",
     "REGRAS:",
-    "- cada sessao precisa caber realisticamente no tempo informado; nao trate esse campo como mera preferencia",
+    "- cada sessão precisa caber realisticamente no tempo informado; não trate esse campo como mera preferência",
     "- decida a divisão com base na frequência, nível, tempo e equipamentos",
     "- não assuma full body para todos os perfis",
     "- organize em Treino A, Treino B, Treino C e assim por diante",
@@ -216,7 +216,7 @@ export async function generateWorkoutWithAI(
     "- não repita o mesmo exercício na mesma sessão",
     "- sets, reps e rest devem ser numeros inteiros fixos",
     "- a quantidade de exercicios, series, descansos e blocos precisa mudar de verdade conforme o tempo disponivel",
-    "- treinos de 15-20 min devem ser enxutos, com poucos exercicios uteis e densidade alta",
+    "- treinos de 15-20 min devem ser enxutos, com poucos exercícios úteis e densidade alta",
     "- treinos de 75-90 min devem ter mais volume util, mais refinamento por grupamento e estrutura mais completa",
     "- técnicas avançadas devem ser pontuais e coerentes",
     "- iniciantes podem receber supersérie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderência e continuar seguro",
@@ -224,7 +224,7 @@ export async function generateWorkoutWithAI(
     "- avançados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessão em caos metabólico",
     "- blocos combinados devem ser reais e coerentes, não apenas exercícios aleatórios com o mesmo rótulo",
     "- evite redundância e respeite a relação estímulo/fadiga",
-    "- considere tempo de execucao das series, descansos, transicoes e tempo extra de tecnicas ao decidir o volume",
+    "- considere tempo de execução das séries, descansos, transições e tempo extra de técnicas ao decidir o volume",
     "",
     "TIPOS DE BLOCO POSSIVEIS:",
     "- normal",
@@ -450,7 +450,7 @@ function validateAndBuildWorkoutPlan(
           day: "A",
           title: "Treino A",
           splitType: strategy.splitType,
-          sessionFocus: strategy.sessions[0]?.sessionFocus ?? "Sessao principal",
+          sessionFocus: strategy.sessions[0]?.sessionFocus ?? "Sessão principal",
           rationale: strategy.sessions[0]?.rationale ?? strategy.rationale,
           exercises: responseData.workout as AiWorkoutExercise[]
         }
@@ -538,7 +538,7 @@ function validateAndBuildWorkoutPlan(
   const durationSummary = summarizeWorkoutDurations(sectionEstimates, strategy.timeBudget);
 
   return {
-    title: `Sugestao ${diagnosis.title}`,
+    title: `Sugestão ${diagnosis.title}`,
     subtitle: `${strategy.splitLabel} pensado para ${formatGoal(answers.goal)} com foco em eficiencia real.`,
     estimatedDuration: durationSummary.durationRange,
     estimatedDurationMinutes: durationSummary.estimatedDurationMinutes,
@@ -549,7 +549,7 @@ function validateAndBuildWorkoutPlan(
       `Objetivo: ${formatGoal(answers.goal)}`,
       `Nivel: ${formatLevel(strategy.level)}`,
       `Frequencia: ${strategy.dayCount} dia(s)`,
-      `Tempo por sessao: ${durationSummary.durationRange}`
+      `Tempo por sessão: ${durationSummary.durationRange}`
     ],
     splitType: strategy.splitType,
     rationale:
@@ -826,6 +826,7 @@ function buildFallbackExercise(
       trainingTechnique,
       rationale: buildExerciseRationale(blockType, blueprint, lookup.profile.primaryMuscles[0]),
       notes: buildExerciseNotes(blockType, lookup.profile.movementType, strategy.level),
+      muscleGroups: getExerciseMuscleGroups(lookup.source),
       primaryMuscles: lookup.profile.primaryMuscles,
       secondaryMuscles: lookup.profile.secondaryMuscles,
       videoUrl: lookup.source.video_url,
@@ -1145,7 +1146,7 @@ function buildSectionTimeFitRationale(
   const combinedNote =
     combinedBlocks > 0 ? `${combinedBlocks} bloco${combinedBlocks === 1 ? "" : "s"} combinado${combinedBlocks === 1 ? "" : "s"}` : "sem bloco combinado obrigatorio";
 
-  return `Sessao ajustada para ${strategy.timeBudget.availableTimeMinutes} min com ${estimate.workingExerciseCount} exercicios uteis, ${combinedNote} e estimativa de ${estimate.durationRange}.`;
+  return `Sessão ajustada para ${strategy.timeBudget.availableTimeMinutes} min com ${estimate.workingExerciseCount} exercícios úteis, ${combinedNote} e estimativa de ${estimate.durationRange}.`;
 }
 
 function sanitizeAiDayExercises(
@@ -1208,6 +1209,7 @@ function sanitizeAiDayExercises(
         rationale:
           cleanText(exercise.rationale) || buildExerciseRationale(blockType, blueprint, lookup.profile.primaryMuscles[0]),
         notes: cleanText(exercise.notes) || buildExerciseNotes(blockType, movementType, strategy.level),
+        muscleGroups: getExerciseMuscleGroups(lookup.source),
         primaryMuscles: normalizeMuscleList(exercise.primaryMuscles, lookup.profile.primaryMuscles),
         secondaryMuscles: normalizeMuscleList(exercise.secondaryMuscles, lookup.profile.secondaryMuscles),
         videoUrl: lookup.source.video_url,
@@ -1891,6 +1893,7 @@ function buildFallbackMobility(blueprint: SessionBlueprint): SanitizedExercise {
     trainingTechnique: "mobilidade",
     rationale: "Prepara articulações e melhora a qualidade do primeiro movimento principal.",
     notes: "Use ritmo controlado e respiração constante.",
+    muscleGroups: [blueprint.primaryMuscles[0] ?? "full_body"],
     primaryMuscles: [blueprint.primaryMuscles[0] ?? "full_body"],
     secondaryMuscles: [],
     videoUrl: null,

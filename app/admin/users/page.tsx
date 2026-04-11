@@ -5,7 +5,7 @@ export default function AdminUsersPage() {
   return (
     <section className="space-y-8">
       <SectionTitle
-        eyebrow="Administracao"
+        eyebrow="Administração"
         title="Usuários"
         description="Tabela simples com dados principais e acesso rápido ao detalhe de cada usuário."
       />

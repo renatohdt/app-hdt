@@ -16,7 +16,7 @@ export async function DELETE(request: Request) {
   }
 
   const externalLimitations = [
-    "Registros historicos e integracoes externas, como plataformas de analytics, anuncios e automacao, podem exigir remocao operacional separada fora do app."
+    "Registros históricos e integrações externas, como plataformas de analytics, anúncios e automação, podem exigir remoção operacional separada fora do app."
   ];
 
   const { error } = await supabase.auth.admin.deleteUser(auth.user.id);

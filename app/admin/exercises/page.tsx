@@ -5,7 +5,7 @@ export default function AdminExercisesPage() {
   return (
     <section className="space-y-8">
       <SectionTitle
-        eyebrow="Administracao"
+        eyebrow="Administração"
         title="Exercícios"
         description="Gerencie a biblioteca com cadastro protegido contra duplicidade, filtros úteis e visão clara de cobertura."
       />

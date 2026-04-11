@@ -137,7 +137,7 @@ export function generateWorkout(
   );
 
   return {
-    title: `Sugestao ${diagnosis.title}`,
+    title: `Sugestão ${diagnosis.title}`,
     subtitle: "Treino montado por prioridade muscular, frequencia semanal e disponibilidade real.",
     estimatedDuration: profile.volume.duration,
     focus: [

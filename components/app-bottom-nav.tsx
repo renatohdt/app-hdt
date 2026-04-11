@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   {
     key: "calendar",
     href: "/calendario",
-    label: "Calendario",
+    label: "Calendário",
     icon: CalendarDays
   },
   {

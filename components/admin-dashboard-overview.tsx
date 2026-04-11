@@ -55,14 +55,14 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
     <div className="space-y-4">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <SummaryMetricCard
-          label="Usuarios totais"
+          label="Usuários totais"
           value={String(totalUsers)}
           description={getTotalUsersDescription(period, activeUsers)}
         />
         <SummaryMetricCard
-          label="Contas excluidas"
+          label="Contas excluídas"
           value={String(deletedUsers)}
-          description="Usuarios que deletaram a conta."
+          description="Usuários que deletaram a conta."
         />
 
         {data.retention.map((metric) => (
@@ -76,16 +76,16 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
             <div className="min-w-0 space-y-2">
               <h2 className="text-[1.2rem] font-semibold text-white">Funil</h2>
               <p className="text-[12px] leading-5 text-white/56">
-                Eventos do produto com fallback persistido de onboarding quando o topo do funil nao foi trackeado.
+                Eventos do produto com fallback persistido de onboarding quando o topo do funil não foi trackeado.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
               <PeriodButton active={period === "daily"} onClick={() => setPeriod("daily")}>
-                Visao diaria
+                Visão diária
               </PeriodButton>
               <PeriodButton active={period === "weekly"} onClick={() => setPeriod("weekly")}>
-                Visao semanal
+                Visão semanal
               </PeriodButton>
               <button
                 type="button"
@@ -103,20 +103,20 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
 
         <div className="grid min-w-0 gap-4">
           <DistributionBarCard
-            title="Distribuicao por idade"
+            title="Distribuição por idade"
             data={data.ageDistribution}
             emptyLabel="Sem faixa etaria registrada."
           />
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
             <DistributionPieCard
-              title="Distribuicao por genero"
+              title="Distribuição por gênero"
               data={data.genderDistribution}
               total={totalForPie.gender}
-              emptyLabel="Sem genero registrado."
+              emptyLabel="Sem gênero registrado."
             />
             <DistributionPieCard
-              title="Distribuicao por objetivo"
+              title="Distribuição por objetivo"
               data={data.goalDistribution}
               total={totalForPie.goal}
               emptyLabel="Sem objetivo registrado."
@@ -129,7 +129,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         <div className="space-y-2">
           <h2 className="text-[1.2rem] font-semibold text-white">Log de erros</h2>
           <p className="text-[12px] leading-5 text-white/56">
-            Ultimos erros capturados pelo sistema para apoio operacional do admin.
+            Últimos erros capturados pelo sistema para apoio operacional do admin.
           </p>
         </div>
 
@@ -179,8 +179,8 @@ function RetentionMetricCard({ metric }: { metric: RetentionMetric }) {
   const valueLabel = metric.percentage === null ? "Sem base" : `${metric.percentage}%`;
   const detailLabel =
     metric.eligibleUsers === 0
-      ? "Ainda nao ha usuarios suficientes para fechar essa janela."
-      : `${metric.returnedUsers} de ${metric.eligibleUsers} usuarios elegiveis retornaram.`;
+      ? "Ainda não há usuários suficientes para fechar essa janela."
+      : `${metric.returnedUsers} de ${metric.eligibleUsers} usuários elegíveis retornaram.`;
 
   return (
     <Card className="min-w-0 space-y-2.5 overflow-hidden p-4 sm:p-[1.15rem]">
@@ -309,7 +309,7 @@ function FunnelView({ funnel }: { funnel: DashboardPeriod }) {
           <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{step.label}</p>
           <p className="mt-2.5 text-[1.85rem] font-semibold leading-none text-white">{step.value}</p>
           <p className="mt-2 text-[12px] leading-5 text-white/56">
-            {step.conversion === null ? "Base inicial" : `${step.conversion}% de conversao`}
+            {step.conversion === null ? "Base inicial" : `${step.conversion}% de conversão`}
           </p>
         </div>
       ))}
@@ -336,5 +336,5 @@ function getTotalUsersDescription(period: DashboardWindowKey, activeUsers: numbe
     return `${activeUsers} com atividade ou onboarding salvo hoje.`;
   }
 
-  return `${activeUsers} com atividade ou onboarding salvo nos ultimos 7 dias.`;
+  return `${activeUsers} com atividade ou onboarding salvo nos últimos 7 dias.`;
 }

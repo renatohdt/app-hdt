@@ -193,7 +193,7 @@ export function buildTrainingExerciseRows(section?: WorkoutSection | null) {
       name: exercise.name,
       sets: exercise.sets || "-",
       reps: exercise.reps || "-",
-      rest: exercise.rest || "-",
+      rest: formatCompactRestValue(exercise.rest),
       technique: techniqueLabel,
       blockType: normalizedBlockType,
       blockOrder: exercise.order?.trim() || null,
@@ -201,7 +201,7 @@ export function buildTrainingExerciseRows(section?: WorkoutSection | null) {
       note: exercise.notes?.trim() || exercise.blockNotes?.trim() || null,
       videoUrl: exercise.videoUrl ?? null,
       isMobility: normalizedBlockType === "mobility" || exercise.type === "mobility",
-      muscles: normalizeExerciseMuscles(exercise.primaryMuscles, exercise.secondaryMuscles),
+      muscles: normalizeExerciseMuscles(exercise.muscleGroups, exercise.primaryMuscles, exercise.secondaryMuscles),
       plannedSetsCount: parsePositiveInteger(exercise.sets),
       plannedRepsLabel: exercise.reps || "-",
       plannedRestSeconds: parseRestDurationSeconds(exercise.rest),
@@ -465,8 +465,13 @@ function formatOptionalMethod(value?: string | null) {
   return raw;
 }
 
-function normalizeExerciseMuscles(primaryMuscles?: string[] | null, secondaryMuscles?: string[] | null) {
-  const muscles = [...(primaryMuscles ?? []), ...(secondaryMuscles ?? [])]
+function normalizeExerciseMuscles(
+  explicitGroups?: string[] | null,
+  primaryMuscles?: string[] | null,
+  secondaryMuscles?: string[] | null
+) {
+  const sourceGroups = explicitGroups?.length ? explicitGroups : [...(primaryMuscles ?? []), ...(secondaryMuscles ?? [])];
+  const muscles = sourceGroups
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
     .map((value) => formatExerciseMuscleLabel(value));
@@ -495,6 +500,28 @@ function parseRestDurationSeconds(value?: string | null) {
 
   const average = Math.round(matches.reduce((sum, item) => sum + item, 0) / matches.length);
   return /min/i.test(value ?? "") ? average * 60 : average;
+}
+
+function formatCompactRestValue(value?: string | null) {
+  const raw = value?.trim();
+
+  if (!raw) {
+    return "-";
+  }
+
+  return raw
+    .replace(/\bsegundos?\b/gi, "s")
+    .replace(/\bseconds?\b/gi, "s")
+    .replace(/\bsecs?\b/gi, "s")
+    .replace(/\bseg\b/gi, "s")
+    .replace(/\bminutos?\b/gi, "min")
+    .replace(/\bminutes?\b/gi, "min")
+    .replace(/\bmins?\b/gi, "min")
+    .replace(/(\d)\s+s\b/gi, "$1s")
+    .replace(/(\d)\s+min\b/gi, "$1min")
+    .replace(/\s*-\s*/g, "-")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function normalizeMediaDurationLabel(value?: string | null) {

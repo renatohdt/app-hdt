@@ -97,6 +97,7 @@ export type WorkoutExercise = {
   notes?: string | null;
   primaryMuscles?: string[];
   secondaryMuscles?: string[];
+  muscleGroups?: string[];
   videoUrl?: string | null;
   order?: string | null;
   blockId?: string | null;

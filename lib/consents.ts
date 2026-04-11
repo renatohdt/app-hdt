@@ -64,7 +64,7 @@ export async function getUserConsentRows(supabase: SupabaseLike, userId: string)
   };
 
   if (error) {
-    throw new Error(error.message || "Nao foi possivel carregar os consentimentos.");
+    throw new Error(error.message || "Não foi possível carregar os consentimentos.");
   }
 
   return (data ?? []) as ConsentRow[];

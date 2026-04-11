@@ -123,7 +123,7 @@ export function AdminUserDetails({ userId }: { userId: string }) {
   return (
     <section className="space-y-8">
       <SectionTitle
-        eyebrow="Administracao"
+        eyebrow="Administração"
         title={user.name}
         description={`${user.emailMasked} | ${formatDate(user.createdAt)}`}
       />
@@ -140,7 +140,7 @@ export function AdminUserDetails({ userId }: { userId: string }) {
           <p className="text-sm text-white/72">Objetivo: {user.summary.goal}</p>
           <p className="text-sm text-white/72">Gênero: {user.summary.gender}</p>
           <p className="text-sm text-white/72">Biotipo: {user.summary.bodyType}</p>
-          <p className="text-sm text-white/72">Nivel: {user.summary.level}</p>
+          <p className="text-sm text-white/72">Nível: {user.summary.level}</p>
           <p className="text-sm text-white/72">Dias: {user.summary.days}</p>
           <p className="text-sm text-white/72">Tempo: {user.summary.time}</p>
         </Card>
@@ -148,21 +148,21 @@ export function AdminUserDetails({ userId }: { userId: string }) {
         <Card className="space-y-4 xl:col-span-1">
           <h2 className="text-xl font-semibold">Treino atual</h2>
           <p className="text-sm text-white/72">Gerado em: {formatDate(workout.createdAt ?? undefined)}</p>
-          <p className="text-sm text-white/72">Total de sessoes: {workout.sectionCount}</p>
+          <p className="text-sm text-white/72">Total de sessões: {workout.sectionCount}</p>
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.16em] text-white/45">Focos</p>
-            <p className="text-sm text-white/72">{workout.focus.length ? workout.focus.join(", ") : "Nao informado"}</p>
+            <p className="text-sm text-white/72">{workout.focus.length ? workout.focus.join(", ") : "Não informado"}</p>
           </div>
           <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.16em] text-white/45">Sessoes</p>
-            <p className="text-sm text-white/72">{workout.sections.length ? workout.sections.join(", ") : "Nenhuma sessao registrada"}</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-white/45">Sessões</p>
+            <p className="text-sm text-white/72">{workout.sections.length ? workout.sections.join(", ") : "Nenhuma sessão registrada"}</p>
           </div>
         </Card>
 
         <Card className="space-y-4 xl:col-span-1">
           <h2 className="text-xl font-semibold">Dados ampliados</h2>
           <p className="text-sm text-white/64">
-            Respostas brutas do quiz e treino bruto ficam ocultos por padrao. Revele apenas quando houver necessidade operacional clara.
+            Respostas brutas do quiz e treino bruto ficam ocultos por padrão. Revele apenas quando houver necessidade operacional clara.
           </p>
           <Button onClick={handleRevealExtendedData} disabled={isLoadingExtended || Boolean(extendedData)}>
             {extendedData ? "Dados ampliados carregados" : isLoadingExtended ? "Registrando acesso..." : "Revelar dados ampliados"}

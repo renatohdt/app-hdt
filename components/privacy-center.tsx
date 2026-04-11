@@ -123,7 +123,7 @@ export function PrivacyCenter() {
       {
         key: "marketing",
         title: "Marketing",
-        description: "Usado para Meta Pixel, automacoes e integracoes de remarketing, como LeadLovers."
+        description: "Usado para Meta Pixel, automações e integrações de remarketing, como LeadLovers."
       }
     ],
     []
@@ -163,7 +163,7 @@ export function PrivacyCenter() {
       }
 
       setConsentPayload(result.data);
-      setFeedback({ tone: "success", text: "Preferencias de privacidade atualizadas com sucesso." });
+      setFeedback({ tone: "success", text: "Preferências de privacidade atualizadas com sucesso." });
     } catch (error) {
       savePreferences(previousPreferences);
       setDraftPreferences(previousPreferences);
@@ -198,7 +198,7 @@ export function PrivacyCenter() {
       anchor.click();
       window.URL.revokeObjectURL(url);
 
-      setFeedback({ tone: "success", text: "Exportacao iniciada. O arquivo JSON foi preparado para download." });
+      setFeedback({ tone: "success", text: "Exportação iniciada. O arquivo JSON foi preparado para download." });
     } catch (error) {
       setFeedback({
         tone: "error",
@@ -268,7 +268,7 @@ export function PrivacyCenter() {
             <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
             <h1 className="text-3xl font-semibold text-white">Entre para acessar sua central de privacidade</h1>
             <p className="text-sm text-white/66">
-              Aqui voce pode exportar seus dados, revisar consentimentos opcionais e solicitar a exclusao da conta.
+              Aqui você pode exportar seus dados, revisar consentimentos opcionais e solicitar a exclusão da conta.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link href="/login" className="inline-flex">
@@ -276,7 +276,7 @@ export function PrivacyCenter() {
               </Link>
               <Link href="/politica-de-privacidade" className="inline-flex">
                 <Button variant="secondary" className="w-full sm:w-auto">
-                  Ver politica de privacidade
+                  Ver política de privacidade
                 </Button>
               </Link>
             </div>
@@ -293,11 +293,11 @@ export function PrivacyCenter() {
           <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
           <h1 className="text-3xl font-semibold text-white">Central de privacidade e direitos do titular</h1>
           <p className="max-w-3xl text-sm leading-6 text-white/66">
-            O treino e sugerido com base nas respostas fornecidas e deve ser utilizado como uma opcao de referencia.
+            O treino é sugerido com base nas respostas fornecidas e deve ser utilizado como uma opção de referência.
           </p>
           <div className="flex flex-wrap gap-3 text-sm text-white/68">
             <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
-              Ver politica de privacidade
+              Ver política de privacidade
             </Link>
             <Link href="/perfil" className="font-semibold text-white/72 transition hover:text-white">
               Voltar ao perfil
@@ -311,7 +311,7 @@ export function PrivacyCenter() {
           <div className="space-y-2">
             <h2 className="text-xl font-semibold text-white">Consentimentos atuais</h2>
             <p className="text-sm text-white/64">
-              Atualize os consentimentos opcionais sempre que quiser. A revogacao passa a valer imediatamente para novas execucoes do app.
+              Atualize os consentimentos opcionais sempre que quiser. A revogação passa a valer imediatamente para novas execuções do app.
             </p>
           </div>
 
@@ -357,23 +357,23 @@ export function PrivacyCenter() {
           <Card className="space-y-4">
             <h2 className="text-xl font-semibold text-white">Uso dos dados no app</h2>
             <p className="text-sm text-white/72">
-              O Hora do Treino usa respostas gerais de treino, como objetivo, nivel, frequencia, disponibilidade e preferencias, para montar sugestoes de treino.
+              O Hora do Treino usa respostas gerais de treino, como objetivo, nível, frequência, disponibilidade e preferências, para montar sugestões de treino.
             </p>
             <p className="text-sm text-white/58">
-              Os consentimentos opcionais desta tela cobrem apenas analytics, anuncios e marketing.
+              Os consentimentos opcionais desta tela cobrem apenas analytics, anúncios e marketing.
             </p>
             <p className="text-sm text-white/58">
-              Versao atual dos consentimentos: {consentPayload?.version ?? "nao identificada"}.
+              Versão atual dos consentimentos: {consentPayload?.version ?? "não identificada"}.
             </p>
           </Card>
 
           <Card className="space-y-4">
-            <h2 className="text-xl font-semibold text-white">Exportacao de dados</h2>
+            <h2 className="text-xl font-semibold text-white">Exportação de dados</h2>
             <p className="text-sm text-white/64">
               Gere um arquivo JSON com perfil, respostas do quiz, treinos, consentimentos, eventos e metadados relevantes da sua conta.
             </p>
             <Button onClick={handleExportData} disabled={exportingData}>
-              {exportingData ? "Preparando exportacao..." : "Baixar meus dados"}
+              {exportingData ? "Preparando exportação..." : "Baixar meus dados"}
             </Button>
           </Card>
         </div>
@@ -381,10 +381,10 @@ export function PrivacyCenter() {
         <Card className="space-y-4 border-red-400/20">
           <h2 className="text-xl font-semibold text-white">Excluir conta</h2>
           <p className="text-sm text-white/72">
-            Ao excluir sua conta, apagaremos seus dados de acesso, respostas do quiz, treinos e historico interno, salvo o que precisarmos manter por obrigacao legal ou seguranca.
+            Ao excluir sua conta, apagaremos seus dados de acesso, respostas do quiz, treinos e histórico interno, salvo o que precisarmos manter por obrigação legal ou segurança.
           </p>
           <p className="text-sm text-white/58">
-            Integracoes externas de marketing, anuncios e analytics podem exigir tratamento operacional complementar fora do app.
+            Integrações externas de marketing, anúncios e analytics podem exigir tratamento operacional complementar fora do app.
           </p>
           <Button variant="secondary" onClick={handleDeleteAccount} disabled={deletingAccount}>
             {deletingAccount ? "Excluindo conta..." : "Excluir minha conta"}

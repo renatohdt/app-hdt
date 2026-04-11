@@ -268,15 +268,15 @@ export function summarizeWorkoutDurations(
   const withinBudgetCount = estimates.filter((estimate) => estimate.withinAvailableTime).length;
   const fitMessage =
     withinBudgetCount === estimates.length
-      ? "todas as sessoes cabem no tempo informado"
+      ? "todas as sessões cabem no tempo informado"
       : withinBudgetCount > 0
-        ? "a maior parte das sessoes foi ajustada para caber no tempo informado"
-        : "as sessoes foram comprimidas para respeitar o tempo informado";
+        ? "a maior parte das sessões foi ajustada para caber no tempo informado"
+        : "as sessões foram comprimidas para respeitar o tempo informado";
 
   return {
     estimatedDurationMinutes: Math.round(average),
     durationRange: formatDurationRange(min, max),
-    timeFitRationale: `${budget.timeFitRationale} Estimativa media de ${Math.round(average)} min por sessao; ${fitMessage}.`
+    timeFitRationale: `${budget.timeFitRationale} Estimativa média de ${Math.round(average)} min por sessão; ${fitMessage}.`
   };
 }
 
@@ -408,11 +408,11 @@ function buildBudgetRationale(input: {
   allowAdvancedTechniques: boolean;
 }) {
   const styleMap: Record<DensityStrategy, string> = {
-    express_compound_focus: "sessao enxuta com foco em compostos e densidade alta",
-    efficient_session: "sessao eficiente com principal + complementares sem excesso de volume",
-    balanced_session: "sessao equilibrada com bloco principal, secundarios e acessorios uteis",
-    volume_expansion: "sessao volumosa com mais refinamento por grupamento e volume util",
-    extended_volume: "sessao completa com mais volume total e blocos estrategicos"
+    express_compound_focus: "sessão enxuta com foco em compostos e densidade alta",
+    efficient_session: "sessão eficiente com principal + complementares sem excesso de volume",
+    balanced_session: "sessão equilibrada com bloco principal, secundários e acessórios úteis",
+    volume_expansion: "sessão volumosa com mais refinamento por grupamento e volume útil",
+    extended_volume: "sessão completa com mais volume total e blocos estratégicos"
   };
   const restMap: Record<RestProfile, string> = {
     short: "descansos curtos",
@@ -421,10 +421,10 @@ function buildBudgetRationale(input: {
     moderate_to_long: "descansos moderados a longos"
   };
   const techniqueNote = input.allowAdvancedTechniques
-    ? "tecnicas avancadas pontuais quando fizer sentido"
-    : "tecnicas avancadas limitadas para nao estourar o tempo";
+    ? "técnicas avançadas pontuais quando fizer sentido"
+    : "técnicas avançadas limitadas para não estourar o tempo";
 
-  return `Sessao calibrada para ${input.availableTimeMinutes} min, buscando ${input.targetExerciseCount} exercicios uteis dentro da faixa ${input.exerciseCountRange.min}-${input.exerciseCountRange.max}, ${restMap[input.restProfile]} e ${styleMap[input.densityStrategy]}; ${techniqueNote}.`;
+  return `Sessão calibrada para ${input.availableTimeMinutes} min, buscando ${input.targetExerciseCount} exercícios úteis dentro da faixa ${input.exerciseCountRange.min}-${input.exerciseCountRange.max}, ${restMap[input.restProfile]} e ${styleMap[input.densityStrategy]}; ${techniqueNote}.`;
 }
 
 function formatDurationRange(min: number, max: number) {

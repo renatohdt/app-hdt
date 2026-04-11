@@ -16,7 +16,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   {
     table: "public.users",
     dataType: "Perfil interno minimo da conta no app.",
-    suggestedRetention: "Enquanto a conta estiver ativa; remocao imediata pelo fluxo de exclusao da conta.",
+    suggestedRetention: "Enquanto a conta estiver ativa; remoção imediata pelo fluxo de exclusão da conta.",
     defaultWindowDays: null,
     destinationAfterWindow: "delete",
     automatedByDefault: false,
@@ -26,32 +26,32 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   {
     table: "public.user_answers",
     dataType: "Respostas do onboarding e dados gerais de personalizacao do treino.",
-    suggestedRetention: "Enquanto a conta estiver ativa; graca de ate 30 dias se o registro for marcado para expurgo interno.",
+    suggestedRetention: "Enquanto a conta estiver ativa; graça de até 30 dias se o registro for marcado para expurgo interno.",
     defaultWindowDays: 30,
     destinationAfterWindow: "anonymize",
     automatedByDefault: false,
     notes:
-      "Nao existe expurgo automatico para contas ativas. A anonimização automatica so atua em registros previamente marcados com deleted_at/expires_at."
+      "Não existe expurgo automático para contas ativas. A anonimização automática só atua em registros previamente marcados com deleted_at/expires_at."
   },
   {
     table: "public.workouts",
-    dataType: "Sugestoes de treino e historico de montagem.",
-    suggestedRetention: "Enquanto a conta estiver ativa; graca de ate 30 dias se o registro for marcado para expurgo interno.",
+    dataType: "Sugestões de treino e histórico de montagem.",
+    suggestedRetention: "Enquanto a conta estiver ativa; graça de até 30 dias se o registro for marcado para expurgo interno.",
     defaultWindowDays: 30,
     destinationAfterWindow: "anonymize",
     automatedByDefault: false,
     notes:
-      "Nao ha limpeza automatica de treinos de contas ativas. A rotina anonimiza apenas registros ja marcados para descarte."
+      "Não há limpeza automática de treinos de contas ativas. A rotina anonimiza apenas registros já marcados para descarte."
   },
   {
     table: "public.workout_session_logs",
-    dataType: "Marcacoes de sessoes concluídas e base de historico de execução do treino.",
-    suggestedRetention: "Enquanto a conta estiver ativa; graca de ate 30 dias se o registro for marcado para expurgo interno.",
+    dataType: "Marcações de sessões concluídas e base de histórico de execução do treino.",
+    suggestedRetention: "Enquanto a conta estiver ativa; graça de até 30 dias se o registro for marcado para expurgo interno.",
     defaultWindowDays: 30,
     destinationAfterWindow: "delete",
     automatedByDefault: false,
     notes:
-      "Os registros sustentam o contador de sessoes e o futuro historico do treino. Nesta fase nao existe limpeza automatica para contas ativas."
+      "Os registros sustentam o contador de sessões e o futuro histórico do treino. Nesta fase não existe limpeza automática para contas ativas."
   },
   {
     table: "public.analytics_events",
@@ -81,7 +81,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
     destinationAfterWindow: "operational_hold",
     automatedByDefault: false,
     notes:
-      "Nao ha expurgo automatico de consentimentos ativos. Campos de expiracao e deleted_at ficam preparados para uma politica juridica posterior."
+      "Não há expurgo automático de consentimentos ativos. Campos de expiração e deleted_at ficam preparados para uma política jurídica posterior."
   },
   {
     table: "public.workout_review_requests",
@@ -91,7 +91,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
     destinationAfterWindow: "delete",
     automatedByDefault: true,
     notes:
-      "Mantido por compatibilidade de banco e rotina de limpeza. O app atual nao expõe esse fluxo ao usuario."
+      "Mantido por compatibilidade de banco e rotina de limpeza. O app atual não expõe esse fluxo ao usuário."
   },
   {
     table: "public.admin_audit_logs",
