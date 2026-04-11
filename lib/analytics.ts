@@ -9,7 +9,6 @@ declare global {
   interface Window {
     dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
-    __hdtGaInitializedFor?: string;
     [key: `ga-disable-${string}`]: boolean | undefined;
   }
 }
@@ -59,10 +58,6 @@ function getGoogleAnalyticsStatus() {
   return { ready: true, reason: "ready" } as const;
 }
 
-function canSendGoogleAnalyticsEvents() {
-  return getGoogleAnalyticsStatus().ready;
-}
-
 export function isGoogleAnalyticsDebugEnabled() {
   if (typeof window === "undefined") {
     return false;
@@ -91,40 +86,6 @@ export function logGoogleAnalyticsDiagnostic(message: string, meta?: Record<stri
   }
 
   clientLogInfo(`[GA4] ${message}`, meta);
-}
-
-export function initializeGoogleAnalytics() {
-  if (typeof window === "undefined" || !GA_MEASUREMENT_ID) {
-    logGoogleAnalyticsDiagnostic("init_skipped", {
-      measurement_id: GA_MEASUREMENT_ID || null,
-      reason: typeof window === "undefined" ? "server" : "missing_measurement_id"
-    });
-    return false;
-  }
-
-  window.dataLayer = window.dataLayer || [];
-  window.gtag =
-    window.gtag ||
-    function gtag(...args: unknown[]) {
-      window.dataLayer?.push(args);
-    };
-
-  if (window.__hdtGaInitializedFor === GA_MEASUREMENT_ID) {
-    logGoogleAnalyticsDiagnostic("init_already_done", {
-      measurement_id: GA_MEASUREMENT_ID
-    });
-    return true;
-  }
-
-  window.gtag("js", new Date());
-  window.gtag("config", GA_MEASUREMENT_ID, { send_page_view: false });
-  window.__hdtGaInitializedFor = GA_MEASUREMENT_ID;
-
-  logGoogleAnalyticsDiagnostic("gtag_initialized", {
-    measurement_id: GA_MEASUREMENT_ID
-  });
-
-  return true;
 }
 
 export function setGoogleAnalyticsCollectionEnabled(enabled: boolean) {
