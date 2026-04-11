@@ -72,6 +72,55 @@ export async function getWorkoutSessionStats(
   return finalizeWorkoutSessionStats(currentResult, input.workoutId);
 }
 
+export async function listWorkoutSessionLogs(
+  supabase: SupabaseLike,
+  input: {
+    workoutId: string;
+    workoutHash?: string | null;
+    limit?: number | null;
+  }
+) {
+  const result = await readWorkoutSessionLogs(supabase, input, {
+    includeWorkoutHash: Boolean(input.workoutHash),
+    useLegacySelect: false
+  });
+
+  if (isMissingSessionLogsTable(result.error)) {
+    logWarn("WORKOUT", "Workout session log list unavailable", {
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return [] as WorkoutSessionLogEntry[];
+  }
+
+  if (input.workoutHash && isMissingSessionLogColumn(result.error, "workout_hash")) {
+    logWarn("WORKOUT", "Workout session log list fallback without workout_hash", {
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return readWorkoutSessionLogsSafely(supabase, input, {
+      includeWorkoutHash: false,
+      useLegacySelect: false
+    });
+  }
+
+  if (hasLegacyLatestSelectIssue(result.error)) {
+    logWarn("WORKOUT", "Workout session log list fallback with legacy fields", {
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return readWorkoutSessionLogsSafely(supabase, input, {
+      includeWorkoutHash: Boolean(input.workoutHash),
+      useLegacySelect: true
+    });
+  }
+
+  return finalizeWorkoutSessionLogs(result, input.workoutId);
+}
+
 export async function createWorkoutSessionLog(
   supabase: SupabaseLike,
   input: {
@@ -199,6 +248,27 @@ async function readWorkoutSessionStatsSafely(
   return finalizeWorkoutSessionStats(result, input.workoutId);
 }
 
+async function readWorkoutSessionLogsSafely(
+  supabase: SupabaseLike,
+  input: {
+    workoutId: string;
+    workoutHash?: string | null;
+    limit?: number | null;
+  },
+  options: {
+    includeWorkoutHash: boolean;
+    useLegacySelect: boolean;
+  }
+) {
+  const result = await readWorkoutSessionLogs(supabase, input, options);
+
+  if (isMissingSessionLogsTable(result.error)) {
+    return [] as WorkoutSessionLogEntry[];
+  }
+
+  return finalizeWorkoutSessionLogs(result, input.workoutId);
+}
+
 async function readWorkoutSessionStats(
   supabase: SupabaseLike,
   input: {
@@ -230,6 +300,32 @@ async function readWorkoutSessionStats(
     countResult,
     latestResult
   };
+}
+
+async function readWorkoutSessionLogs(
+  supabase: SupabaseLike,
+  input: {
+    workoutId: string;
+    workoutHash?: string | null;
+    limit?: number | null;
+  },
+  options: {
+    includeWorkoutHash: boolean;
+    useLegacySelect: boolean;
+  }
+) {
+  let query = supabase
+    .from("workout_session_logs")
+    .select(buildLatestSessionFields(options.useLegacySelect))
+    .eq("workout_id", input.workoutId)
+    .order("completed_at", { ascending: false })
+    .limit(Math.max(Number(input.limit) || 120, 1));
+
+  if (options.includeWorkoutHash && input.workoutHash) {
+    query = query.eq("workout_hash", input.workoutHash);
+  }
+
+  return query;
 }
 
 async function insertWorkoutSessionLog(
@@ -303,6 +399,29 @@ function finalizeWorkoutSessionStats(
     completedSessions: Number(result.countResult.count) || 0,
     lastLog: result.latestResult.data ? mapSessionLogRow(result.latestResult.data as SessionLogRow) : null
   };
+}
+
+function finalizeWorkoutSessionLogs(
+  result: {
+    data?: unknown;
+    error?: unknown;
+  },
+  workoutId: string
+) {
+  if (result.error) {
+    logError("WORKOUT", "Workout session log list failed", {
+      workout_id: workoutId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return [] as WorkoutSessionLogEntry[];
+  }
+
+  if (!Array.isArray(result.data)) {
+    return [] as WorkoutSessionLogEntry[];
+  }
+
+  return result.data.map((row) => mapSessionLogRow(row as SessionLogRow));
 }
 
 function buildLatestSessionFields(useLegacySelect: boolean) {

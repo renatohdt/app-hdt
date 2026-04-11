@@ -1,7 +1,12 @@
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { formatExerciseMuscleLabel } from "@/lib/exercise-library";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
-import { buildWorkoutSessionProgress, type WorkoutSessionProgress } from "@/lib/workout-sessions";
+import {
+  buildWorkoutSessionProgress,
+  normalizeWorkoutKey,
+  type WorkoutSessionLogEntry,
+  type WorkoutSessionProgress
+} from "@/lib/workout-sessions";
 import { formatBlockTypeLabel, formatSplitTypeLabel, normalizeBlockType } from "@/lib/workout-strategy";
 import type { Goal, WorkoutPlan, WorkoutSection } from "@/lib/types";
 
@@ -28,6 +33,7 @@ export type AppWorkoutPayload = {
   answers: AppWorkoutAnswers;
   workout: WorkoutPlan | null;
   sessionProgress?: WorkoutSessionProgress | null;
+  sessionLogs?: WorkoutSessionLogEntry[] | null;
 };
 
 export type AppWorkoutData = {
@@ -52,6 +58,7 @@ export type AppWorkoutData = {
     sessionCount: number;
   };
   sessionProgress: WorkoutSessionProgress;
+  sessionLogs: WorkoutSessionLogEntry[];
   weeklyTarget: number;
   averageDurationMinutes: number;
   estimatedWeeklyMinutes: number;
@@ -141,6 +148,7 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     lastCompletedWorkoutKey: payload.sessionProgress?.lastCompletedWorkoutKey ?? null,
     lastCompletedSessionNumber: payload.sessionProgress?.lastCompletedSessionNumber ?? null
   });
+  const sessionLogs = normalizeWorkoutSessionLogs(payload.sessionLogs);
 
   return {
     raw: payload,
@@ -164,6 +172,7 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
       sessionCount
     },
     sessionProgress,
+    sessionLogs,
     weeklyTarget,
     averageDurationMinutes,
     estimatedWeeklyMinutes: averageDurationMinutes * sessionCount,
@@ -568,4 +577,27 @@ function getSafeInteger(value: unknown, fallback: number) {
   }
 
   return Math.round(numericValue);
+}
+
+function normalizeWorkoutSessionLogs(value?: WorkoutSessionLogEntry[] | null) {
+  if (!Array.isArray(value)) {
+    return [] as WorkoutSessionLogEntry[];
+  }
+
+  return value
+    .filter((entry) => typeof entry?.id === "string" && typeof entry?.completedAt === "string")
+    .map((entry) => {
+      const status: WorkoutSessionLogEntry["status"] = entry.status === "completed" ? "completed" : "not_started";
+
+      return {
+        id: entry.id,
+        workoutId: entry.workoutId,
+        workoutKey: normalizeWorkoutKey(entry.workoutKey),
+        sessionNumber: getSafeInteger(entry.sessionNumber, 0),
+        status,
+        completedAt: entry.completedAt,
+        createdAt: entry.createdAt ?? null
+      } satisfies WorkoutSessionLogEntry;
+    })
+    .sort((left, right) => new Date(right.completedAt).getTime() - new Date(left.completedAt).getTime());
 }

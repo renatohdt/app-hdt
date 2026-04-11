@@ -10,7 +10,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { fetchLatestWorkoutRecord, saveWorkoutRecord } from "@/lib/workout-record-store";
-import { getWorkoutSessionStats } from "@/lib/workout-session-store";
+import { getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
 import { buildWorkoutSessionProgress, calculateWorkoutTotalSessions } from "@/lib/workout-sessions";
@@ -82,7 +82,8 @@ export async function GET(request: NextRequest) {
           answers: serializeAnswersForResponse(answers),
           diagnosis,
           workout: null,
-          sessionProgress: null
+          sessionProgress: null,
+          sessionLogs: []
         }
       });
     }
@@ -111,7 +112,8 @@ export async function GET(request: NextRequest) {
           answers: serializeAnswersForResponse(answers),
           diagnosis,
           workout: null,
-          sessionProgress: null
+          sessionProgress: null,
+          sessionLogs: []
         }
       });
     }
@@ -124,6 +126,11 @@ export async function GET(request: NextRequest) {
     const sessionStats = await getWorkoutSessionStats(supabase, {
       workoutId: workoutRecord.id,
       workoutHash: workoutRecord.hash ?? null
+    });
+    const sessionLogs = await listWorkoutSessionLogs(supabase, {
+      workoutId: workoutRecord.id,
+      workoutHash: workoutRecord.hash ?? null,
+      limit: 180
     });
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions,
@@ -144,7 +151,8 @@ export async function GET(request: NextRequest) {
         answers: serializeAnswersForResponse(answers),
         diagnosis,
         workout: normalizedWorkout,
-        sessionProgress
+        sessionProgress,
+        sessionLogs
       }
     });
   } catch {
@@ -294,7 +302,8 @@ export async function POST(request: Request) {
         sessionProgress: buildWorkoutSessionProgress({
           totalSessions,
           completedSessions: 0
-        })
+        }),
+        sessionLogs: []
       }
     });
   } catch {

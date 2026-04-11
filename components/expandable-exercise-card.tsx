@@ -127,7 +127,7 @@ export function ExpandableExerciseCard({
   const combinedBadgeLabel = isCombinedExercise
     ? [exercise.blockOrder, exercise.technique].filter(Boolean).join(" · ") || "Bloco combinado"
     : null;
-  const referenceLabel = buildSetReferenceLabel(draftState.lastCompletedReps, exercise.plannedRepsLabel);
+  const plannedRepsLabel = exercise.plannedRepsLabel?.trim() || "-";
   const restLabel = formatRestLabel(draftState.preferredRestSeconds ?? exercise.plannedRestSeconds);
 
   function updateDraft(next: Partial<ExerciseExecutionDraft>) {
@@ -359,7 +359,7 @@ export function ExpandableExerciseCard({
                     </span>
 
                     <span className="truncate text-center text-[11px] font-medium text-white/54">
-                      {buildPreviousSetValue(setEntries, setIndex, referenceLabel)}
+                      {plannedRepsLabel}
                     </span>
 
                     <span className="mx-auto h-6 w-px rounded-full bg-white/8" aria-hidden />
@@ -534,23 +534,6 @@ function normalizeSetEntry(entry?: Partial<ExerciseSetEntry> | null): ExerciseSe
     reps: typeof entry?.reps === "string" ? entry.reps : "",
     completed: Boolean(entry?.completed)
   };
-}
-
-function buildSetReferenceLabel(lastCompletedReps?: string | null, plannedRepsLabel?: string | null) {
-  if (lastCompletedReps?.trim()) {
-    return lastCompletedReps.trim();
-  }
-
-  return plannedRepsLabel?.trim() || "-";
-}
-
-function buildPreviousSetValue(setEntries: ExerciseSetEntry[], setIndex: number, fallback: string) {
-  const previousEntry = setEntries[setIndex - 1];
-  if (previousEntry?.reps.trim()) {
-    return previousEntry.reps.trim();
-  }
-
-  return fallback;
 }
 
 function readExerciseDraft(
