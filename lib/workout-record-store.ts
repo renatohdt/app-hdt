@@ -27,7 +27,7 @@ type SaveWorkoutOptions = {
   hash: string | null;
   exercises: unknown;
   totalSessions: number;
-  createdAt: string;
+  createdAt?: string | null;
   scope?: string;
 };
 
@@ -65,13 +65,17 @@ export async function fetchLatestWorkoutRecord(supabase: SupabaseLike, options: 
 
 export async function saveWorkoutRecord(supabase: SupabaseLike, options: SaveWorkoutOptions) {
   const scope = options.scope ?? "WORKOUT";
-  const fullPayload = {
+  const fullPayload: Record<string, unknown> = {
     user_id: options.userId,
     hash: options.hash,
     exercises: options.exercises,
-    total_sessions: options.totalSessions,
-    created_at: options.createdAt
+    total_sessions: options.totalSessions
   };
+
+  if (typeof options.createdAt === "string" && options.createdAt.trim()) {
+    fullPayload.created_at = options.createdAt;
+  }
+
   const currentResult = await runWorkoutSave(supabase, options, fullPayload);
 
   if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "total_sessions")) {

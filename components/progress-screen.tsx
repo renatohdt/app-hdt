@@ -60,6 +60,9 @@ export function ProgressScreen({ data }: { data: AppWorkoutData }) {
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Leitura rapida</p>
           <h2 className="text-xl font-semibold text-white">{achievement.title}</h2>
           <p className="text-sm leading-6 text-white/62">{achievement.description}</p>
+          <p className="text-sm leading-6 text-white/48">
+            Bloco atual: {data.plan.blockDurationWeeks} semana(s) e {data.plan.totalSessions} sessoes planejadas.
+          </p>
         </div>
 
         <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">

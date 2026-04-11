@@ -274,7 +274,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <StatPill label="Planejadas" value={`${plannedSessionsInMonth}`} tone="planned" />
           <StatPill label="Concluídas" value={`${completedSessionsInMonth}`} tone="completed" />
-          <StatPill label="Meta atual" value={`${data.sessionProgress.currentSessionNumber}/${data.sessionProgress.totalSessions}`} />
+          <StatPill label="Ciclo atual" value={`${data.sessionProgress.currentSessionNumber}/${data.sessionProgress.totalSessions}`} />
         </div>
       </Card>
 

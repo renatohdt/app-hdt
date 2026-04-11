@@ -2,29 +2,31 @@ import { formatBodyTypeLabel } from "@/lib/body-type";
 import { formatExerciseMuscleLabel } from "@/lib/exercise-library";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import {
+  applyWorkoutPlanSessionConfig,
   buildWorkoutSessionProgress,
+  resolveWorkoutPlanSessionConfig,
   normalizeWorkoutKey,
   type WorkoutSessionLogEntry,
   type WorkoutSessionProgress
 } from "@/lib/workout-sessions";
 import { formatBlockTypeLabel, formatSplitTypeLabel, normalizeBlockType } from "@/lib/workout-strategy";
-import type { Goal, WorkoutPlan, WorkoutSection } from "@/lib/types";
+import type { Goal, QuizAnswers, WorkoutPlan, WorkoutSection } from "@/lib/types";
 
 type AppWorkoutAnswers = {
   goal?: Goal;
-  wrist?: string;
+  wrist?: QuizAnswers["wrist"] | string;
   body_type_raw?: string;
   body_type?: string;
-  gender?: string;
+  gender?: QuizAnswers["gender"];
   age?: number;
   weight?: number;
   height?: number;
   profession?: string;
-  location?: string;
+  location?: QuizAnswers["location"];
   equipment?: string[];
   time?: number;
   days?: number;
-  experience?: string;
+  experience?: QuizAnswers["experience"];
 };
 
 export type AppWorkoutPayload = {
@@ -56,6 +58,9 @@ export type AppWorkoutData = {
     rationale?: string | null;
     progressionNotes?: string | null;
     sessionCount: number;
+    blockDurationWeeks: number;
+    totalSessions: number;
+    sessionStrategyReason: string;
   };
   sessionProgress: WorkoutSessionProgress;
   sessionLogs: WorkoutSessionLogEntry[];
@@ -140,9 +145,17 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
   const totalExercises = sections.reduce((total, section) => total + buildTrainingExerciseRows(section).length, 0);
   const averageDurationMinutes = getAverageDurationMinutes(sections, payload.workout.estimatedDurationMinutes);
   const sessionCount = payload.workout.sessionCount ?? sections.length;
-  const fallbackTotalSessions = Math.max(sessionCount, weeklyTarget, 1);
+  const planWithSessionConfig = applyWorkoutPlanSessionConfig(
+    payload.workout,
+    resolveWorkoutPlanSessionConfig({
+      workout: payload.workout,
+      storedTotalSessions: payload.sessionProgress?.totalSessions ?? payload.workout.totalSessions ?? null,
+      answers: payload.answers as Partial<QuizAnswers>,
+      fallbackWeeklyFrequency: sessionCount
+    })
+  );
   const sessionProgress = buildWorkoutSessionProgress({
-    totalSessions: payload.sessionProgress?.totalSessions ?? fallbackTotalSessions,
+    totalSessions: payload.sessionProgress?.totalSessions ?? planWithSessionConfig.totalSessions,
     completedSessions: payload.sessionProgress?.completedSessions ?? 0,
     lastCompletedAt: payload.sessionProgress?.lastCompletedAt ?? null,
     lastCompletedWorkoutKey: payload.sessionProgress?.lastCompletedWorkoutKey ?? null,
@@ -165,11 +178,14 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     workouts,
     workoutOrder,
     plan: {
-      splitType: payload.workout.splitType,
-      splitLabel: formatSplitTypeLabel(payload.workout.splitType),
-      rationale: payload.workout.rationale ?? null,
-      progressionNotes: payload.workout.progressionNotes ?? null,
-      sessionCount
+      splitType: planWithSessionConfig.splitType,
+      splitLabel: formatSplitTypeLabel(planWithSessionConfig.splitType),
+      rationale: planWithSessionConfig.rationale ?? null,
+      progressionNotes: planWithSessionConfig.progressionNotes ?? null,
+      sessionCount,
+      blockDurationWeeks: planWithSessionConfig.blockDurationWeeks ?? 0,
+      totalSessions: planWithSessionConfig.totalSessions ?? sessionProgress.totalSessions,
+      sessionStrategyReason: planWithSessionConfig.sessionStrategyReason ?? ""
     },
     sessionProgress,
     sessionLogs,

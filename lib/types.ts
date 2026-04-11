@@ -151,6 +151,10 @@ export type WorkoutPlan = {
   splitType?: string;
   rationale?: string | null;
   sessionCount?: number;
+  blockDurationWeeks?: number;
+  totalSessions?: number;
+  sessionStrategyReason?: string | null;
+  planCycleId?: string | null;
   progressionNotes?: string | null;
   sections: WorkoutSection[];
   exercises: WorkoutExercise[];

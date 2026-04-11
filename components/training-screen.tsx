@@ -3,11 +3,12 @@
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
+import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
-import GoogleAd from "@/components/GoogleAd";
 import { Badge, Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
+import { trackEvent } from "@/lib/analytics-client";
 import {
   buildTrainingExerciseRows,
   formatDurationLabel,
@@ -15,7 +16,6 @@ import {
   formatWorkoutDisplayTitle,
   type AppWorkoutData
 } from "@/lib/app-workout";
-import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 
@@ -36,6 +36,8 @@ type FeedbackState = {
   tone: "success" | "error" | "info";
   text: string;
 };
+
+const COMPLETE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel marcar o treino como conclu\u00eddo.";
 
 export function TrainingScreen({ data }: { data: AppWorkoutData }) {
   const [activeWorkoutKey, setActiveWorkoutKey] = useState(data.workoutOrder[0] ?? "");
@@ -66,7 +68,7 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
   const workout = data.workouts[activeWorkoutKey] ?? data.workouts[data.workoutOrder[0] ?? ""];
   const exerciseRows = useMemo(() => buildTrainingExerciseRows(workout), [workout]);
   const sessionLabel = formatSessionCounter(sessionProgress);
-  const isCycleComplete = sessionProgress.completedSessions >= sessionProgress.totalSessions;
+  const isCycleComplete = sessionProgress.cycleCompleted;
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
 
   if (!workout) {
@@ -74,7 +76,7 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
       <AppShell>
         <Card className="p-5 shadow-none sm:p-6">
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Treinos</p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Nenhum treino disponível</h1>
+          <h1 className="mt-2 text-2xl font-semibold text-white">Nenhum treino disponivel</h1>
           <p className="mt-2 text-sm leading-6 text-white/62">
             Gere ou atualize seu plano no perfil para voltar ao fluxo principal do treino.
           </p>
@@ -101,14 +103,14 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
       const result = await parseJsonResponse<CompletionResponse>(response);
 
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error ?? "Não foi possível marcar o treino como concluído.");
+        throw new Error(result.error ?? COMPLETE_WORKOUT_ERROR_MESSAGE);
       }
 
       setSessionProgress(result.data.sessionProgress);
       setConfirmCompletion(false);
       setFeedback({
         tone: "success",
-        text: `${formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} registrado com sucesso. ${formatSessionCounter(result.data.sessionProgress)}.`
+        text: `${formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} contou +1 sessao no plano. ${formatSessionCounter(result.data.sessionProgress)}.`
       });
 
       trackEvent("cta_click", data.user.id, {
@@ -119,7 +121,7 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
     } catch (requestError) {
       setFeedback({
         tone: "error",
-        text: getRequestErrorMessage(requestError, "Não foi possível marcar o treino como concluído.")
+        text: getRequestErrorMessage(requestError, COMPLETE_WORKOUT_ERROR_MESSAGE)
       });
     } finally {
       setCompletingWorkout(false);
@@ -176,7 +178,7 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
       <Card className="space-y-3 p-5 shadow-none sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Sessão selecionada</p>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Sessao selecionada</p>
             <h2 className="text-[22px] font-semibold leading-tight text-white">
               {formatWorkoutDisplayTitle(workout.title, workout.day)}
             </h2>
@@ -189,12 +191,24 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
         </div>
 
         <p className="max-w-none text-sm leading-6 text-white/58">{workout.subtitle?.trim() || data.plan.splitLabel}</p>
+
+        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3">
+          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white/38">Progresso do plano</p>
+          <p className="mt-2 text-sm font-semibold text-white">
+            {sessionProgress.completedSessions}/{sessionProgress.totalSessions} sessoes concluidas
+          </p>
+          <p className="mt-1 text-sm text-white/58">
+            {sessionProgress.remainingSessions === 0
+              ? "Este ciclo foi concluido e a proxima renovacao vai trocar todos os treinos juntos."
+              : `Faltam ${sessionProgress.remainingSessions} ${sessionProgress.remainingSessions === 1 ? "sessao" : "sessoes"} para fechar o ciclo do plano.`}
+          </p>
+        </div>
       </Card>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3 px-1">
           <div>
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Exercícios</p>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Exercicios</p>
           </div>
 
           <Badge className="border-white/10 bg-white/[0.04] text-white/58">{exerciseRows.length} itens</Badge>
@@ -223,16 +237,16 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
 
         {isCycleComplete ? (
           <div className="rounded-[24px] border border-primary/18 bg-primary/10 p-4">
-            <p className="text-sm font-semibold text-white">Ciclo concluído</p>
+            <p className="text-sm font-semibold text-white">Ciclo concluido</p>
             <p className="mt-1 text-sm text-white/62">
-              Você já registrou todas as sessões deste plano. Se quiser reiniciar, gere um novo treino no perfil.
+              Voce ja registrou todas as sessoes do plano atual. Quando renovar, todos os treinos do plano serao trocados juntos.
             </p>
           </div>
         ) : confirmCompletion ? (
           <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-            <p className="text-sm font-semibold text-white">Confirmar conclusão</p>
+            <p className="text-sm font-semibold text-white">Confirmar conclusao</p>
             <p className="mt-1 text-sm text-white/62">
-              Confirmar que você concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
+              Confirmar que voce concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
             </p>
             <div className="mt-4 flex flex-col gap-3 min-[380px]:flex-row">
               <Button variant="secondary" onClick={() => setConfirmCompletion(false)} className="flex-1">

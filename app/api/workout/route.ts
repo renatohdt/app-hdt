@@ -1,33 +1,46 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { diagnoseUser } from "@/lib/diagnosis";
+import { normalizeExerciseRecord } from "@/lib/exercise-library";
 import { enforceRateLimit, getRequestFingerprint } from "@/lib/rate-limit";
+import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
-import { jsonError } from "@/lib/server-response";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { ExerciseRecord, QuizAnswers } from "@/lib/types";
+import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
-import { fetchLatestWorkoutRecord, saveWorkoutRecord } from "@/lib/workout-record-store";
-import { getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
-import { buildWorkoutSessionProgress, calculateWorkoutTotalSessions } from "@/lib/workout-sessions";
-import { normalizeExerciseRecord } from "@/lib/exercise-library";
+import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
+import { getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
+import {
+  applyWorkoutPlanSessionConfig,
+  buildWorkoutSessionProgress,
+  hasWorkoutPlanSessionConfig,
+  resolveWorkoutPlanSessionConfig
+} from "@/lib/workout-sessions";
 
 export const dynamic = "force-dynamic";
+
+const SESSION_EXPIRED_MESSAGE = "Sua sess\u00e3o expirou. Fa\u00e7a login novamente.";
+const LOAD_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seu treino agora.";
+const LOAD_ANSWERS_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seus dados agora.";
+const GENERATE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel gerar seu treino agora. Tente novamente.";
+const SAVE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seu treino no momento.";
+const RATE_LIMIT_ERROR_MESSAGE = "Voc\u00ea atingiu o limite de tentativas. Tente novamente em alguns minutos.";
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
-      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
+      return auth.response ?? jsonError(SESSION_EXPIRED_MESSAGE, 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Não foi possível carregar seu treino agora.", 500);
+      return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     const requestedUserId = request.nextUrl.searchParams.get("userId");
@@ -41,7 +54,7 @@ export async function GET(request: NextRequest) {
     const { data: user, error: userError } = await supabase.from("users").select("id, name").eq("id", userId).maybeSingle();
 
     if (userError || !user) {
-      return jsonError("Sua sessão expirou. Faça login novamente.", 404);
+      return jsonError(SESSION_EXPIRED_MESSAGE, 404);
     }
 
     const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
@@ -55,7 +68,7 @@ export async function GET(request: NextRequest) {
         user_id: user.id,
         error_code: getSupabaseErrorCode(workoutError)
       });
-      return jsonError("Não foi possível carregar seu treino agora.", 500);
+      return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, user.id);
@@ -118,22 +131,19 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const totalSessions = resolveWorkoutTotalSessions({
-      storedTotalSessions: workoutRecord.total_sessions,
-      answers,
-      distinctWorkoutCount: normalizedWorkout.sessionCount ?? normalizedWorkout.sections.length
+    const workoutState = resolveWorkoutPlanState({
+      workoutRecord,
+      workout: normalizedWorkout,
+      answers
     });
-    const sessionStats = await getWorkoutSessionStats(supabase, {
-      workoutId: workoutRecord.id,
-      workoutHash: workoutRecord.hash ?? null
-    });
+    const sessionStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
     const sessionLogs = await listWorkoutSessionLogs(supabase, {
       workoutId: workoutRecord.id,
-      workoutHash: workoutRecord.hash ?? null,
-      limit: 180
+      limit: 180,
+      allCycles: true
     });
     const sessionProgress = buildWorkoutSessionProgress({
-      totalSessions,
+      totalSessions: workoutState.sessionConfig.totalSessions,
       completedSessions: sessionStats.completedSessions,
       lastCompletedAt: sessionStats.lastLog?.completedAt ?? null,
       lastCompletedWorkoutKey: sessionStats.lastLog?.workoutKey ?? null,
@@ -150,14 +160,14 @@ export async function GET(request: NextRequest) {
         },
         answers: serializeAnswersForResponse(answers),
         diagnosis,
-        workout: normalizedWorkout,
+        workout: workoutState.workout,
         sessionProgress,
         sessionLogs
       }
     });
   } catch {
     logError("WORKOUT", "Workout GET unexpected failure", {});
-    return jsonError("Não foi possível carregar seu treino agora.", 500);
+    return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
   }
 }
 
@@ -165,12 +175,12 @@ export async function POST(request: Request) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
-      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
+      return auth.response ?? jsonError(SESSION_EXPIRED_MESSAGE, 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+      return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     const body = (await request.json().catch(() => ({}))) as { userId?: string };
@@ -186,18 +196,18 @@ export async function POST(request: Request) {
 
     if (!rateLimit.allowed) {
       logWarn("AI", "Workout generation rate limited", { user_id: userId });
-      return jsonError("Você atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
+      return jsonError(RATE_LIMIT_ERROR_MESSAGE, 429);
     }
 
     const { data: user, error: userError } = await supabase.from("users").select("id, name").eq("id", userId).maybeSingle();
 
     if (userError || !user) {
-      return jsonError("Sua sessão expirou. Faça login novamente.", 404);
+      return jsonError(SESSION_EXPIRED_MESSAGE, 404);
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, user.id);
     if (!savedAnswers) {
-      return jsonError("Não foi possível carregar seus dados agora.", 404);
+      return jsonError(LOAD_ANSWERS_ERROR_MESSAGE, 404);
     }
 
     const answers = buildRuntimeQuizAnswers(savedAnswers);
@@ -207,13 +217,14 @@ export async function POST(request: Request) {
 
     if (exercisesError) {
       logError("AI", "Exercise catalog load failed", { user_id: userId });
-      return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+      return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     const normalizedExercises = ((exercises ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
     const filteredExercises = filterExercisesForAI(answers, normalizedExercises);
     const { data: existingWorkout, error: existingWorkoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: user.id,
+      includeCreatedAt: true,
       scope: "AI"
     });
 
@@ -222,39 +233,102 @@ export async function POST(request: Request) {
         user_id: user.id,
         error_code: getSupabaseErrorCode(existingWorkoutError)
       });
-      return jsonError("Não foi possível carregar seu treino agora.", 500);
+      return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    const reusableWorkout = existingWorkout?.hash === workoutHash ? existingWorkout : null;
-    let workout = normalizeWorkoutSafely(reusableWorkout?.exercises ?? null, {
-      diagnosis,
+    const existingWorkoutState = buildExistingWorkoutState({
+      workoutRecord: existingWorkout,
       answers,
-      userId,
-      workoutId: reusableWorkout?.id ?? null
+      diagnosis,
+      userId
     });
+    const existingSessionStats = existingWorkoutState
+      ? await getWorkoutSessionStats(supabase, existingWorkoutState.sessionFilter)
+      : null;
+    const existingSessionProgress = existingWorkoutState
+      ? buildWorkoutSessionProgress({
+          totalSessions: existingWorkoutState.sessionConfig.totalSessions,
+          completedSessions: existingSessionStats?.completedSessions ?? 0,
+          lastCompletedAt: existingSessionStats?.lastLog?.completedAt ?? null,
+          lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
+          lastCompletedSessionNumber: existingSessionStats?.lastLog?.sessionNumber ?? null
+        })
+      : null;
 
-    if (workout) {
+    if (
+      existingWorkout &&
+      existingWorkoutState &&
+      existingWorkout.hash === workoutHash &&
+      !existingSessionProgress?.cycleCompleted
+    ) {
       logInfo("AI", "Workout cached", { user_id: userId });
-    } else {
-      try {
-        logInfo("AI", "Workout generation started", { user_id: userId });
-        workout = normalizeWorkoutPayload(await generateWorkoutWithAI(answers, diagnosis, filteredExercises), {
-          diagnosis,
-          answers
-        });
-        logInfo("AI", "Workout generation completed", { user_id: userId });
-      } catch (error) {
-        if (isOpenAIQuotaError(error)) {
-          return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 503);
-        }
 
-        logError("AI", "Workout generation failed", { user_id: userId });
-        return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+      const shouldPersistCurrentPlan =
+        existingWorkout.total_sessions !== existingWorkoutState.sessionConfig.totalSessions ||
+        !hasWorkoutPlanSessionConfig(existingWorkoutState.normalizedWorkout, existingWorkoutState.sessionConfig);
+
+      if (shouldPersistCurrentPlan) {
+        const workoutSaveResult = await saveWorkoutRecord(supabase, {
+          userId: user.id,
+          existingWorkoutId: existingWorkout.id,
+          hash: workoutHash,
+          exercises: existingWorkoutState.workout,
+          totalSessions: existingWorkoutState.sessionConfig.totalSessions,
+          scope: "AI"
+        });
+
+        if (workoutSaveResult.error) {
+          logError("AI", "Workout save failed", {
+            user_id: user.id,
+            error_code: getSupabaseErrorCode(workoutSaveResult.error)
+          });
+          return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
+        }
       }
+
+      const sessionLogs = await listWorkoutSessionLogs(supabase, {
+        workoutId: existingWorkout.id,
+        limit: 180,
+        allCycles: true
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          hasWorkout: true,
+          user: {
+            id: user.id,
+            name: user.name
+          },
+          answers: serializeAnswersForResponse(answers),
+          diagnosis,
+          workout: existingWorkoutState.workout,
+          sessionProgress: existingSessionProgress,
+          sessionLogs
+        }
+      });
+    }
+
+    let workout = null as WorkoutPlan | null;
+
+    try {
+      logInfo("AI", "Workout generation started", { user_id: userId });
+      workout = normalizeWorkoutPayload(await generateWorkoutWithAI(answers, diagnosis, filteredExercises), {
+        diagnosis,
+        answers
+      });
+      logInfo("AI", "Workout generation completed", { user_id: userId });
+    } catch (error) {
+      if (isOpenAIQuotaError(error)) {
+        return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 503);
+      }
+
+      logError("AI", "Workout generation failed", { user_id: userId });
+      return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     if (!workout) {
-      return jsonError("Não foi possível salvar seu treino no momento.", 500);
+      return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     logInfo("AI", "Workout normalized", {
@@ -263,19 +337,22 @@ export async function POST(request: Request) {
       split_type: workout.splitType ?? null
     });
 
-    const totalSessions =
-      reusableWorkout?.total_sessions ??
-      resolveWorkoutTotalSessions({
-        storedTotalSessions: null,
+    const nextWorkoutConfig = {
+      ...resolveWorkoutPlanSessionConfig({
         answers,
-        distinctWorkoutCount: workout.sessionCount ?? workout.sections.length
-      });
+        workout,
+        storedTotalSessions: null,
+        fallbackWeeklyFrequency: workout.sessionCount ?? workout.sections.length
+      }),
+      planCycleId: randomUUID()
+    };
+    const persistedWorkout = applyWorkoutPlanSessionConfig(workout, nextWorkoutConfig);
     const workoutSaveResult = await saveWorkoutRecord(supabase, {
       userId: user.id,
       existingWorkoutId: existingWorkout?.id ?? null,
       hash: workoutHash,
-      exercises: workout,
-      totalSessions,
+      exercises: persistedWorkout,
+      totalSessions: nextWorkoutConfig.totalSessions,
       createdAt: new Date().toISOString(),
       scope: "AI"
     });
@@ -285,7 +362,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         error_code: getSupabaseErrorCode(workoutSaveResult.error)
       });
-      return jsonError("Não foi possível salvar seu treino no momento.", 500);
+      return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     return NextResponse.json({
@@ -298,9 +375,9 @@ export async function POST(request: Request) {
         },
         answers: serializeAnswersForResponse(answers),
         diagnosis,
-        workout,
+        workout: persistedWorkout,
         sessionProgress: buildWorkoutSessionProgress({
-          totalSessions,
+          totalSessions: nextWorkoutConfig.totalSessions,
           completedSessions: 0
         }),
         sessionLogs: []
@@ -308,8 +385,63 @@ export async function POST(request: Request) {
     });
   } catch {
     logError("AI", "Workout POST unexpected failure", {});
-    return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+    return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
   }
+}
+
+function buildExistingWorkoutState(input: {
+  workoutRecord: WorkoutRecordRow | null;
+  answers: QuizAnswers;
+  diagnosis: ReturnType<typeof diagnoseUser>;
+  userId: string;
+}) {
+  if (!input.workoutRecord) {
+    return null;
+  }
+
+  const normalizedWorkout = normalizeWorkoutSafely(input.workoutRecord.exercises, {
+    diagnosis: input.diagnosis,
+    answers: input.answers,
+    userId: input.userId,
+    workoutId: input.workoutRecord.id
+  });
+
+  if (!normalizedWorkout) {
+    return null;
+  }
+
+  return {
+    normalizedWorkout,
+    ...resolveWorkoutPlanState({
+      workoutRecord: input.workoutRecord,
+      workout: normalizedWorkout,
+      answers: input.answers
+    })
+  };
+}
+
+function resolveWorkoutPlanState(input: {
+  workoutRecord: WorkoutRecordRow;
+  workout: WorkoutPlan;
+  answers: QuizAnswers;
+}) {
+  const sessionConfig = resolveWorkoutPlanSessionConfig({
+    answers: input.answers,
+    workout: input.workout,
+    storedTotalSessions: input.workoutRecord.total_sessions,
+    fallbackWeeklyFrequency: input.workout.sessionCount ?? input.workout.sections.length
+  });
+
+  return {
+    workout: applyWorkoutPlanSessionConfig(input.workout, sessionConfig),
+    sessionConfig,
+    sessionFilter: {
+      workoutId: input.workoutRecord.id,
+      workoutHash: input.workoutRecord.hash ?? null,
+      planCycleId: sessionConfig.planCycleId,
+      cycleStartedAt: input.workoutRecord.created_at ?? null
+    }
+  };
 }
 
 function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null) {
@@ -374,23 +506,6 @@ function normalizeWorkoutSafely(
     });
     return null;
   }
-}
-
-function resolveWorkoutTotalSessions(input: {
-  storedTotalSessions?: number | null;
-  answers: QuizAnswers;
-  distinctWorkoutCount: number;
-}) {
-  const storedTotalSessions = toNumber(input.storedTotalSessions);
-
-  if (storedTotalSessions > 0) {
-    return storedTotalSessions;
-  }
-
-  return calculateWorkoutTotalSessions({
-    daysPerWeek: input.answers.days,
-    distinctWorkoutCount: input.distinctWorkoutCount
-  });
 }
 
 function toNumber(value: unknown) {

@@ -120,9 +120,9 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
       </Card>
 
       <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-        <p className="mb-[10px] text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Meta da semana</p>
+        <p className="mb-[10px] text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Ciclo do plano</p>
         <h2 className="mb-3 text-[20px] font-bold leading-[1.15] text-white">
-          {coverage.coveredSessions}/{coverage.totalSessions} treinos
+          {coverage.coveredSessions}/{coverage.totalSessions} sessoes
         </h2>
         <p className="mb-4 text-[14px] leading-[1.45] text-white/58">
           {remainingSessions === 0
@@ -139,7 +139,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
 
         <div className="flex items-center justify-between gap-3 text-[13px] font-semibold text-white/52">
           <span>{formatSessionCounter(data.sessionProgress)}</span>
-          <span>{coverage.percentage}% da meta</span>
+          <span>{coverage.percentage}% do ciclo</span>
         </div>
       </Card>
 

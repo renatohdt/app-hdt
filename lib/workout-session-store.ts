@@ -20,105 +20,155 @@ type SessionLogRow = {
   created_at?: string | null;
 };
 
-export async function getWorkoutSessionStats(
-  supabase: SupabaseLike,
-  input: {
-    workoutId: string;
-    workoutHash?: string | null;
-  }
-) {
-  const currentResult = await readWorkoutSessionStats(supabase, input, {
-    includeWorkoutHash: Boolean(input.workoutHash),
-    useLegacyLatestSelect: false
-  });
+type SessionStatsInput = {
+  workoutId: string;
+  workoutHash?: string | null;
+  planCycleId?: string | null;
+  cycleStartedAt?: string | null;
+};
 
-  if (isMissingSessionLogsTable(currentResult.countResult.error) || isMissingSessionLogsTable(currentResult.latestResult.error)) {
-    logWarn("WORKOUT", "Workout session logs table unavailable", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(currentResult.countResult.error ?? currentResult.latestResult.error)
-    });
+type SessionListInput = SessionStatsInput & {
+  limit?: number | null;
+  allCycles?: boolean;
+};
 
-    return emptyWorkoutSessionStats();
-  }
+type SessionFilterMode = "plan_cycle_id" | "workout_hash" | "cycle_started_at" | "none";
 
-  if (
-    input.workoutHash &&
-    (isMissingSessionLogColumn(currentResult.countResult.error, "workout_hash") ||
-      isMissingSessionLogColumn(currentResult.latestResult.error, "workout_hash"))
-  ) {
-    logWarn("WORKOUT", "Workout session stats fallback without workout_hash", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(currentResult.countResult.error ?? currentResult.latestResult.error)
-    });
-
-    return readWorkoutSessionStatsSafely(supabase, input, {
-      includeWorkoutHash: false,
+export async function getWorkoutSessionStats(supabase: SupabaseLike, input: SessionStatsInput) {
+  for (const filterMode of getSessionFilterModes(input)) {
+    const result = await readWorkoutSessionStats(supabase, input, {
+      filterMode,
       useLegacyLatestSelect: false
     });
+
+    if (isMissingSessionLogsTable(result.countResult.error) || isMissingSessionLogsTable(result.latestResult.error)) {
+      logWarn("WORKOUT", "Workout session logs table unavailable", {
+        workout_id: input.workoutId,
+        error_code: getSupabaseErrorCode(result.countResult.error ?? result.latestResult.error)
+      });
+
+      return emptyWorkoutSessionStats();
+    }
+
+    if (shouldFallbackSessionFilter(filterMode, result.countResult.error, result.latestResult.error)) {
+      logWarn("WORKOUT", "Workout session stats fallback with older cycle filter", {
+        workout_id: input.workoutId,
+        filter_mode: filterMode,
+        error_code: getSupabaseErrorCode(result.countResult.error ?? result.latestResult.error)
+      });
+      continue;
+    }
+
+    if (hasLegacyLatestSelectIssue(result.latestResult.error)) {
+      logWarn("WORKOUT", "Workout session latest fetch fallback with legacy fields", {
+        workout_id: input.workoutId,
+        error_code: getSupabaseErrorCode(result.latestResult.error)
+      });
+
+      const legacyResult = await readWorkoutSessionStats(supabase, input, {
+        filterMode,
+        useLegacyLatestSelect: true
+      });
+
+      if (isMissingSessionLogsTable(legacyResult.countResult.error) || isMissingSessionLogsTable(legacyResult.latestResult.error)) {
+        return emptyWorkoutSessionStats();
+      }
+
+      if (shouldFallbackSessionFilter(filterMode, legacyResult.countResult.error, legacyResult.latestResult.error)) {
+        continue;
+      }
+
+      return finalizeWorkoutSessionStats(legacyResult, input.workoutId);
+    }
+
+    return finalizeWorkoutSessionStats(result, input.workoutId);
   }
 
-  if (hasLegacyLatestSelectIssue(currentResult.latestResult.error)) {
-    logWarn("WORKOUT", "Workout session latest fetch fallback with legacy fields", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(currentResult.latestResult.error)
-    });
-
-    return readWorkoutSessionStatsSafely(supabase, input, {
-      includeWorkoutHash: Boolean(input.workoutHash),
-      useLegacyLatestSelect: true
-    });
-  }
-
-  return finalizeWorkoutSessionStats(currentResult, input.workoutId);
+  return emptyWorkoutSessionStats();
 }
 
-export async function listWorkoutSessionLogs(
-  supabase: SupabaseLike,
-  input: {
-    workoutId: string;
-    workoutHash?: string | null;
-    limit?: number | null;
-  }
-) {
-  const result = await readWorkoutSessionLogs(supabase, input, {
-    includeWorkoutHash: Boolean(input.workoutHash),
-    useLegacySelect: false
-  });
-
-  if (isMissingSessionLogsTable(result.error)) {
-    logWarn("WORKOUT", "Workout session log list unavailable", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(result.error)
-    });
-
-    return [] as WorkoutSessionLogEntry[];
-  }
-
-  if (input.workoutHash && isMissingSessionLogColumn(result.error, "workout_hash")) {
-    logWarn("WORKOUT", "Workout session log list fallback without workout_hash", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(result.error)
-    });
-
-    return readWorkoutSessionLogsSafely(supabase, input, {
-      includeWorkoutHash: false,
+export async function listWorkoutSessionLogs(supabase: SupabaseLike, input: SessionListInput) {
+  if (input.allCycles) {
+    const result = await readWorkoutSessionLogs(supabase, input, {
+      filterMode: "none",
       useLegacySelect: false
     });
+
+    if (isMissingSessionLogsTable(result.error)) {
+      logWarn("WORKOUT", "Workout session log list unavailable", {
+        workout_id: input.workoutId,
+        error_code: getSupabaseErrorCode(result.error)
+      });
+
+      return [] as WorkoutSessionLogEntry[];
+    }
+
+    if (hasLegacyLatestSelectIssue(result.error)) {
+      const legacyResult = await readWorkoutSessionLogs(supabase, input, {
+        filterMode: "none",
+        useLegacySelect: true
+      });
+
+      if (isMissingSessionLogsTable(legacyResult.error)) {
+        return [] as WorkoutSessionLogEntry[];
+      }
+
+      return finalizeWorkoutSessionLogs(legacyResult, input.workoutId);
+    }
+
+    return finalizeWorkoutSessionLogs(result, input.workoutId);
   }
 
-  if (hasLegacyLatestSelectIssue(result.error)) {
-    logWarn("WORKOUT", "Workout session log list fallback with legacy fields", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(result.error)
+  for (const filterMode of getSessionFilterModes(input)) {
+    const result = await readWorkoutSessionLogs(supabase, input, {
+      filterMode,
+      useLegacySelect: false
     });
 
-    return readWorkoutSessionLogsSafely(supabase, input, {
-      includeWorkoutHash: Boolean(input.workoutHash),
-      useLegacySelect: true
-    });
+    if (isMissingSessionLogsTable(result.error)) {
+      logWarn("WORKOUT", "Workout session log list unavailable", {
+        workout_id: input.workoutId,
+        error_code: getSupabaseErrorCode(result.error)
+      });
+
+      return [] as WorkoutSessionLogEntry[];
+    }
+
+    if (shouldFallbackSessionFilter(filterMode, result.error)) {
+      logWarn("WORKOUT", "Workout session log list fallback with older cycle filter", {
+        workout_id: input.workoutId,
+        filter_mode: filterMode,
+        error_code: getSupabaseErrorCode(result.error)
+      });
+      continue;
+    }
+
+    if (hasLegacyLatestSelectIssue(result.error)) {
+      logWarn("WORKOUT", "Workout session log list fallback with legacy fields", {
+        workout_id: input.workoutId,
+        error_code: getSupabaseErrorCode(result.error)
+      });
+
+      const legacyResult = await readWorkoutSessionLogs(supabase, input, {
+        filterMode,
+        useLegacySelect: true
+      });
+
+      if (isMissingSessionLogsTable(legacyResult.error)) {
+        return [] as WorkoutSessionLogEntry[];
+      }
+
+      if (shouldFallbackSessionFilter(filterMode, legacyResult.error)) {
+        continue;
+      }
+
+      return finalizeWorkoutSessionLogs(legacyResult, input.workoutId);
+    }
+
+    return finalizeWorkoutSessionLogs(result, input.workoutId);
   }
 
-  return finalizeWorkoutSessionLogs(result, input.workoutId);
+  return [] as WorkoutSessionLogEntry[];
 }
 
 export async function createWorkoutSessionLog(
@@ -128,13 +178,15 @@ export async function createWorkoutSessionLog(
     userId: string;
     workoutHash?: string | null;
     workoutKey?: string | null;
+    planCycleId?: string | null;
     sessionNumber: number;
     completedAt: string;
   }
 ) {
   const currentResult = await insertWorkoutSessionLog(supabase, input, {
-    includeWorkoutHash: true,
-    includeWorkoutKey: true,
+    includePlanCycleId: Boolean(input.planCycleId),
+    includeWorkoutHash: Boolean(input.workoutHash),
+    includeWorkoutKey: Boolean(input.workoutKey),
     useLegacySelect: false
   });
 
@@ -150,26 +202,21 @@ export async function createWorkoutSessionLog(
     };
   }
 
-  if (
-    isMissingSessionLogColumn(currentResult.error, "workout_hash") ||
-    isMissingSessionLogColumn(currentResult.error, "workout_key")
-  ) {
-    logWarn("WORKOUT", "Workout session log insert fallback without optional cycle fields", {
+  if (isMissingSessionLogColumn(currentResult.error, "plan_cycle_id")) {
+    logWarn("WORKOUT", "Workout session log insert fallback without plan_cycle_id", {
       workout_id: input.workoutId,
       error_code: getSupabaseErrorCode(currentResult.error)
     });
 
     const fallbackResult = await insertWorkoutSessionLog(supabase, input, {
-      includeWorkoutHash: false,
-      includeWorkoutKey: false,
-      useLegacySelect: true
+      includePlanCycleId: false,
+      includeWorkoutHash: Boolean(input.workoutHash),
+      includeWorkoutKey: Boolean(input.workoutKey),
+      useLegacySelect: false
     });
 
     if (fallbackResult.error || !fallbackResult.data) {
-      return {
-        data: null,
-        error: fallbackResult.error ?? { message: "Workout session insert failed" }
-      };
+      return handleLegacyWorkoutSessionInsert(supabase, input, fallbackResult);
     }
 
     return {
@@ -179,35 +226,7 @@ export async function createWorkoutSessionLog(
   }
 
   if (currentResult.error || !currentResult.data) {
-    if (hasLegacyLatestSelectIssue(currentResult.error)) {
-      const fallbackResult = await insertWorkoutSessionLog(supabase, input, {
-        includeWorkoutHash: true,
-        includeWorkoutKey: true,
-        useLegacySelect: true
-      });
-
-      if (fallbackResult.error || !fallbackResult.data) {
-        return {
-          data: null,
-          error: fallbackResult.error ?? { message: "Workout session insert failed" }
-        };
-      }
-
-      return {
-        data: mapSessionLogRow(fallbackResult.data as SessionLogRow),
-        error: null
-      };
-    }
-
-    logError("WORKOUT", "Workout session log insert failed", {
-      workout_id: input.workoutId,
-      error_code: getSupabaseErrorCode(currentResult.error)
-    });
-
-    return {
-      data: null,
-      error: currentResult.error ?? { message: "Workout session insert failed" }
-    };
+    return handleLegacyWorkoutSessionInsert(supabase, input, currentResult);
   }
 
   return {
@@ -228,55 +247,95 @@ function mapSessionLogRow(row: SessionLogRow): WorkoutSessionLogEntry {
   };
 }
 
-async function readWorkoutSessionStatsSafely(
+async function handleLegacyWorkoutSessionInsert(
   supabase: SupabaseLike,
   input: {
     workoutId: string;
+    userId: string;
     workoutHash?: string | null;
+    workoutKey?: string | null;
+    planCycleId?: string | null;
+    sessionNumber: number;
+    completedAt: string;
   },
-  options: {
-    includeWorkoutHash: boolean;
-    useLegacyLatestSelect: boolean;
+  result: {
+    data?: unknown;
+    error?: unknown;
   }
 ) {
-  const result = await readWorkoutSessionStats(supabase, input, options);
+  if (
+    isMissingSessionLogColumn(result.error, "workout_hash") ||
+    isMissingSessionLogColumn(result.error, "workout_key")
+  ) {
+    logWarn("WORKOUT", "Workout session log insert fallback without optional legacy fields", {
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
 
-  if (isMissingSessionLogsTable(result.countResult.error) || isMissingSessionLogsTable(result.latestResult.error)) {
-    return emptyWorkoutSessionStats();
+    const fallbackResult = await insertWorkoutSessionLog(supabase, input, {
+      includePlanCycleId: false,
+      includeWorkoutHash: false,
+      includeWorkoutKey: false,
+      useLegacySelect: true
+    });
+
+    if (fallbackResult.error || !fallbackResult.data) {
+      return {
+        data: null,
+        error: fallbackResult.error ?? { message: "Workout session insert failed" }
+      };
+    }
+
+    return {
+      data: mapSessionLogRow(fallbackResult.data as SessionLogRow),
+      error: null
+    };
   }
 
-  return finalizeWorkoutSessionStats(result, input.workoutId);
-}
+  if (hasLegacyLatestSelectIssue(result.error)) {
+    const fallbackResult = await insertWorkoutSessionLog(supabase, input, {
+      includePlanCycleId: false,
+      includeWorkoutHash: Boolean(input.workoutHash),
+      includeWorkoutKey: Boolean(input.workoutKey),
+      useLegacySelect: true
+    });
 
-async function readWorkoutSessionLogsSafely(
-  supabase: SupabaseLike,
-  input: {
-    workoutId: string;
-    workoutHash?: string | null;
-    limit?: number | null;
-  },
-  options: {
-    includeWorkoutHash: boolean;
-    useLegacySelect: boolean;
+    if (fallbackResult.error || !fallbackResult.data) {
+      return {
+        data: null,
+        error: fallbackResult.error ?? { message: "Workout session insert failed" }
+      };
+    }
+
+    return {
+      data: mapSessionLogRow(fallbackResult.data as SessionLogRow),
+      error: null
+    };
   }
-) {
-  const result = await readWorkoutSessionLogs(supabase, input, options);
 
-  if (isMissingSessionLogsTable(result.error)) {
-    return [] as WorkoutSessionLogEntry[];
+  if (result.error || !result.data) {
+    logError("WORKOUT", "Workout session log insert failed", {
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return {
+      data: null,
+      error: result.error ?? { message: "Workout session insert failed" }
+    };
   }
 
-  return finalizeWorkoutSessionLogs(result, input.workoutId);
+  return {
+    data: mapSessionLogRow(result.data as SessionLogRow),
+    error: null
+  };
 }
 
 async function readWorkoutSessionStats(
   supabase: SupabaseLike,
-  input: {
-    workoutId: string;
-    workoutHash?: string | null;
-  },
+  input: SessionStatsInput,
   options: {
-    includeWorkoutHash: boolean;
+    filterMode: SessionFilterMode;
     useLegacyLatestSelect: boolean;
   }
 ) {
@@ -289,10 +348,8 @@ async function readWorkoutSessionStats(
     .limit(1)
     .maybeSingle();
 
-  if (options.includeWorkoutHash && input.workoutHash) {
-    countQuery = countQuery.eq("workout_hash", input.workoutHash);
-    latestQuery = latestQuery.eq("workout_hash", input.workoutHash);
-  }
+  countQuery = applySessionLogFilter(countQuery, input, options.filterMode);
+  latestQuery = applySessionLogFilter(latestQuery, input, options.filterMode);
 
   const [countResult, latestResult] = await Promise.all([countQuery, latestQuery]);
 
@@ -304,13 +361,9 @@ async function readWorkoutSessionStats(
 
 async function readWorkoutSessionLogs(
   supabase: SupabaseLike,
-  input: {
-    workoutId: string;
-    workoutHash?: string | null;
-    limit?: number | null;
-  },
+  input: SessionListInput,
   options: {
-    includeWorkoutHash: boolean;
+    filterMode: SessionFilterMode;
     useLegacySelect: boolean;
   }
 ) {
@@ -321,9 +374,7 @@ async function readWorkoutSessionLogs(
     .order("completed_at", { ascending: false })
     .limit(Math.max(Number(input.limit) || 120, 1));
 
-  if (options.includeWorkoutHash && input.workoutHash) {
-    query = query.eq("workout_hash", input.workoutHash);
-  }
+  query = applySessionLogFilter(query, input, options.filterMode);
 
   return query;
 }
@@ -335,10 +386,12 @@ async function insertWorkoutSessionLog(
     userId: string;
     workoutHash?: string | null;
     workoutKey?: string | null;
+    planCycleId?: string | null;
     sessionNumber: number;
     completedAt: string;
   },
   options: {
+    includePlanCycleId: boolean;
     includeWorkoutHash: boolean;
     includeWorkoutKey: boolean;
     useLegacySelect: boolean;
@@ -351,6 +404,10 @@ async function insertWorkoutSessionLog(
     status: "completed",
     completed_at: input.completedAt
   };
+
+  if (options.includePlanCycleId) {
+    payload.plan_cycle_id = input.planCycleId ?? null;
+  }
 
   if (options.includeWorkoutHash) {
     payload.workout_hash = input.workoutHash ?? null;
@@ -365,6 +422,26 @@ async function insertWorkoutSessionLog(
     .insert(payload)
     .select(buildLatestSessionFields(options.useLegacySelect))
     .single();
+}
+
+function applySessionLogFilter<TQuery extends { eq: Function; gte: Function }>(
+  query: TQuery,
+  input: SessionStatsInput,
+  filterMode: SessionFilterMode
+) {
+  if (filterMode === "plan_cycle_id" && input.planCycleId) {
+    return query.eq("plan_cycle_id", input.planCycleId);
+  }
+
+  if (filterMode === "workout_hash" && input.workoutHash) {
+    return query.eq("workout_hash", input.workoutHash);
+  }
+
+  if (filterMode === "cycle_started_at" && input.cycleStartedAt) {
+    return query.gte("completed_at", input.cycleStartedAt);
+  }
+
+  return query;
 }
 
 function finalizeWorkoutSessionStats(
@@ -435,6 +512,29 @@ function emptyWorkoutSessionStats() {
     completedSessions: 0,
     lastLog: null
   };
+}
+
+function getSessionFilterModes(input: SessionStatsInput) {
+  const orderedModes = [
+    input.planCycleId ? "plan_cycle_id" : null,
+    input.workoutHash ? "workout_hash" : null,
+    input.cycleStartedAt ? "cycle_started_at" : null,
+    "none"
+  ].filter((mode): mode is SessionFilterMode => Boolean(mode));
+
+  return Array.from(new Set(orderedModes));
+}
+
+function shouldFallbackSessionFilter(filterMode: SessionFilterMode, ...errors: unknown[]) {
+  if (filterMode === "plan_cycle_id") {
+    return errors.some((error) => isMissingSessionLogColumn(error, "plan_cycle_id"));
+  }
+
+  if (filterMode === "workout_hash") {
+    return errors.some((error) => isMissingSessionLogColumn(error, "workout_hash"));
+  }
+
+  return false;
 }
 
 function hasLegacyLatestSelectIssue(error: unknown) {

@@ -1,23 +1,30 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { normalizeConsentInput, saveUserConsents } from "@/lib/consents";
 import type { ConsentScope } from "@/lib/consent-types";
 import { diagnoseUser } from "@/lib/diagnosis";
+import { normalizeExerciseRecord } from "@/lib/exercise-library";
 import { recordTermsOfUseAcceptance } from "@/lib/legal-log";
 import { sendLeadLoversLead } from "@/lib/leadlovers";
 import { enforceRateLimit, getRequestFingerprint } from "@/lib/rate-limit";
+import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
-import { jsonError } from "@/lib/server-response";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { ExerciseRecord, QuizAnswers } from "@/lib/types";
+import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { saveUserAnswers } from "@/lib/user-answers";
-import { fetchLatestWorkoutRecord, saveWorkoutRecord } from "@/lib/workout-record-store";
-import { filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError, buildWorkoutHash } from "@/lib/workout-ai";
+import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
-import { calculateWorkoutTotalSessions } from "@/lib/workout-sessions";
-import { normalizeExerciseRecord } from "@/lib/exercise-library";
+import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
+import { getWorkoutSessionStats } from "@/lib/workout-session-store";
+import {
+  applyWorkoutPlanSessionConfig,
+  buildWorkoutSessionProgress,
+  hasWorkoutPlanSessionConfig,
+  resolveWorkoutPlanSessionConfig
+} from "@/lib/workout-sessions";
 
 type QuizSubmissionBody = Partial<QuizAnswers> & {
   name?: string;
@@ -25,17 +32,26 @@ type QuizSubmissionBody = Partial<QuizAnswers> & {
   consents?: Partial<Record<ConsentScope, boolean>>;
 };
 
+const SESSION_EXPIRED_MESSAGE = "Sua sess\u00e3o expirou. Fa\u00e7a login novamente.";
+const SAVE_PROFILE_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seus dados no momento.";
+const ACCEPT_TERMS_ERROR_MESSAGE = "Voc\u00ea precisa aceitar os Termos de Uso para continuar.";
+const RATE_LIMIT_ERROR_MESSAGE = "Voc\u00ea atingiu o limite de tentativas. Tente novamente em alguns minutos.";
+const GENERATE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel gerar seu treino agora. Tente novamente.";
+const LOAD_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seu treino agora.";
+const SAVE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seu treino no momento.";
+const SAVE_CONSENTS_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seus consentimentos no momento.";
+
 export async function POST(request: Request) {
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
       logWarn("AUTH", "Quiz submit denied", { reason: "unauthenticated" });
-      return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
+      return auth.response ?? jsonError(SESSION_EXPIRED_MESSAGE, 401);
     }
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
-      return jsonError("Não foi possível salvar seus dados no momento.", 500);
+      return jsonError(SAVE_PROFILE_ERROR_MESSAGE, 500);
     }
 
     const body = (await request.json()) as QuizSubmissionBody;
@@ -43,7 +59,7 @@ export async function POST(request: Request) {
     const requestedConsents = normalizeConsentInput(body.consents);
 
     if (body.acceptedTerms !== true) {
-      return jsonError("Você precisa aceitar os Termos de Uso para continuar.", 400);
+      return jsonError(ACCEPT_TERMS_ERROR_MESSAGE, 400);
     }
 
     logInfo("AUTH", "Signup completion flow started", {
@@ -88,7 +104,7 @@ export async function POST(request: Request) {
 
     if (!rateLimit.allowed) {
       logWarn("AI", "Workout generation rate limited", { user_id: userId });
-      return jsonError("Você atingiu o limite de tentativas. Tente novamente em alguns minutos.", 429);
+      return jsonError(RATE_LIMIT_ERROR_MESSAGE, 429);
     }
 
     const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : "Aluno";
@@ -102,7 +118,7 @@ export async function POST(request: Request) {
 
     if (existingUserError) {
       logError("AUTH", "User profile lookup failed", { user_id: userId });
-      return jsonError("Não foi possível salvar seus dados no momento.", 500);
+      return jsonError(SAVE_PROFILE_ERROR_MESSAGE, 500);
     }
 
     let savedUser = existingUser;
@@ -116,7 +132,7 @@ export async function POST(request: Request) {
 
       if (insertUserError || !insertedUser) {
         logError("AUTH", "User profile insert failed", { user_id: userId });
-        return jsonError("Não foi possível salvar seus dados no momento.", 500);
+        return jsonError(SAVE_PROFILE_ERROR_MESSAGE, 500);
       }
 
       logInfo("AUTH", "User profile created successfully", {
@@ -132,7 +148,7 @@ export async function POST(request: Request) {
 
     if (consentResult.error) {
       logError("PRIVACY", "Consent save failed", { user_id: savedUser.id });
-      return jsonError("Não foi possível salvar seus consentimentos no momento.", 500);
+      return jsonError(SAVE_CONSENTS_ERROR_MESSAGE, 500);
     }
 
     await recordTermsOfUseAcceptance(savedUser.id, new Date().toISOString());
@@ -143,13 +159,14 @@ export async function POST(request: Request) {
 
     if (exercisesError) {
       logError("AI", "Exercise catalog load failed", { user_id: userId });
-      return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+      return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     const normalizedExercises = ((exercises ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
     const filteredExercises = filterExercisesForAI(answers, normalizedExercises);
     const { data: existingWorkout, error: existingWorkoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: savedUser.id,
+      includeCreatedAt: true,
       scope: "AI"
     });
 
@@ -158,39 +175,73 @@ export async function POST(request: Request) {
         user_id: savedUser.id,
         error_code: getSupabaseErrorCode(existingWorkoutError)
       });
-      return jsonError("Não foi possível carregar seu treino agora.", 500);
+      return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    const reusableWorkout = existingWorkout?.hash === workoutHash ? existingWorkout : null;
-    let workout = normalizeWorkoutPayload(reusableWorkout?.exercises, {
-      diagnosis,
-      answers
+    const existingWorkoutState = buildExistingWorkoutState({
+      workoutRecord: existingWorkout,
+      answers,
+      diagnosis
     });
+    const existingSessionStats = existingWorkoutState
+      ? await getWorkoutSessionStats(supabase, existingWorkoutState.sessionFilter)
+      : null;
+    const existingSessionProgress = existingWorkoutState
+      ? buildWorkoutSessionProgress({
+          totalSessions: existingWorkoutState.sessionConfig.totalSessions,
+          completedSessions: existingSessionStats?.completedSessions ?? 0,
+          lastCompletedAt: existingSessionStats?.lastLog?.completedAt ?? null,
+          lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
+          lastCompletedSessionNumber: existingSessionStats?.lastLog?.sessionNumber ?? null
+        })
+      : null;
+    const canReuseCurrentPlan =
+      Boolean(existingWorkoutState) &&
+      existingWorkout?.hash === workoutHash &&
+      !existingSessionProgress?.cycleCompleted;
+
+    let workout = canReuseCurrentPlan && existingWorkoutState ? existingWorkoutState.workout : null;
 
     if (workout) {
       logInfo("AI", "Workout cached", { user_id: userId });
     } else {
       try {
         logInfo("AI", "Workout generation started", { user_id: userId });
-        workout = normalizeWorkoutPayload(await generateWorkoutWithAI(answers, diagnosis, filteredExercises), {
+        const generatedWorkout = normalizeWorkoutPayload(await generateWorkoutWithAI(answers, diagnosis, filteredExercises), {
           diagnosis,
           answers
         });
+
+        if (!generatedWorkout) {
+          workout = null;
+        } else {
+          const nextWorkoutConfig = {
+            ...resolveWorkoutPlanSessionConfig({
+              answers,
+              workout: generatedWorkout,
+              storedTotalSessions: null,
+              fallbackWeeklyFrequency: generatedWorkout.sessionCount ?? generatedWorkout.sections.length
+            }),
+            planCycleId: randomUUID()
+          };
+          workout = applyWorkoutPlanSessionConfig(generatedWorkout, nextWorkoutConfig);
+        }
+
         logInfo("AI", "Workout generation completed", { user_id: userId });
       } catch (error) {
         if (isOpenAIQuotaError(error)) {
           logWarn("AI", "OpenAI unavailable", { user_id: userId });
-          return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 503);
+          return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 503);
         }
 
         logError("AI", "Workout generation failed", { user_id: userId });
-        return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+        return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
       }
     }
 
     if (!workout) {
       logError("AI", "Workout normalization failed", { user_id: userId });
-      return jsonError("Não foi possível salvar seu treino no momento.", 500);
+      return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
     logInfo("AI", "Workout normalized", {
@@ -202,7 +253,7 @@ export async function POST(request: Request) {
     const answersResult = await saveUserAnswers(supabase, savedUser.id, answers);
     if (answersResult.error) {
       logError("AUTH", "User answers save failed", { user_id: savedUser.id });
-      return jsonError("Não foi possível salvar seus dados no momento.", 500);
+      return jsonError(SAVE_PROFILE_ERROR_MESSAGE, 500);
     }
 
     if (requestedConsents.marketing === true) {
@@ -226,27 +277,36 @@ export async function POST(request: Request) {
       });
     }
 
-    const workoutResult = await saveWorkoutRecord(supabase, {
-      userId: savedUser.id,
-      existingWorkoutId: existingWorkout?.id ?? null,
-      hash: workoutHash,
-      exercises: workout,
-      totalSessions:
-        existingWorkout?.total_sessions ??
-        calculateWorkoutTotalSessions({
-          daysPerWeek: answers.days,
-          distinctWorkoutCount: workout.sessionCount ?? workout.sections.length
-        }),
-      createdAt: new Date().toISOString(),
-      scope: "AI"
+    const currentWorkoutConfig = resolveWorkoutPlanSessionConfig({
+      answers,
+      workout,
+      storedTotalSessions: canReuseCurrentPlan && existingWorkout ? existingWorkout.total_sessions : null,
+      fallbackWeeklyFrequency: workout.sessionCount ?? workout.sections.length
     });
+    const shouldPersistWorkout =
+      !canReuseCurrentPlan ||
+      !existingWorkoutState ||
+      existingWorkout?.total_sessions !== currentWorkoutConfig.totalSessions ||
+      !hasWorkoutPlanSessionConfig(existingWorkoutState.normalizedWorkout, currentWorkoutConfig);
 
-    if (workoutResult.error) {
-      logError("AI", "Workout save failed", {
-        user_id: savedUser.id,
-        error_code: getSupabaseErrorCode(workoutResult.error)
+    if (shouldPersistWorkout) {
+      const workoutResult = await saveWorkoutRecord(supabase, {
+        userId: savedUser.id,
+        existingWorkoutId: existingWorkout?.id ?? null,
+        hash: workoutHash,
+        exercises: workout,
+        totalSessions: currentWorkoutConfig.totalSessions,
+        createdAt: canReuseCurrentPlan ? undefined : new Date().toISOString(),
+        scope: "AI"
       });
-      return jsonError("Não foi possível salvar seu treino no momento.", 500);
+
+      if (workoutResult.error) {
+        logError("AI", "Workout save failed", {
+          user_id: savedUser.id,
+          error_code: getSupabaseErrorCode(workoutResult.error)
+        });
+        return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
+      }
     }
 
     return NextResponse.json({
@@ -258,8 +318,66 @@ export async function POST(request: Request) {
     });
   } catch {
     logError("AI", "Workout validation failed", {});
-    return jsonError("Não foi possível gerar seu treino agora. Tente novamente.", 500);
+    return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
   }
+}
+
+function buildExistingWorkoutState(input: {
+  workoutRecord: WorkoutRecordRow | null;
+  answers: QuizAnswers;
+  diagnosis: ReturnType<typeof diagnoseUser>;
+}) {
+  if (!input.workoutRecord) {
+    return null;
+  }
+
+  let normalizedWorkout = null as WorkoutPlan | null;
+
+  try {
+    normalizedWorkout = normalizeWorkoutPayload(input.workoutRecord.exercises, {
+      diagnosis: input.diagnosis,
+      answers: input.answers
+    });
+  } catch {
+    normalizedWorkout = null;
+  }
+
+  if (!normalizedWorkout) {
+    return null;
+  }
+
+  return {
+    normalizedWorkout,
+    ...resolveWorkoutPlanState({
+      workoutRecord: input.workoutRecord,
+      workout: normalizedWorkout,
+      answers: input.answers
+    })
+  };
+}
+
+function resolveWorkoutPlanState(input: {
+  workoutRecord: WorkoutRecordRow;
+  workout: WorkoutPlan;
+  answers: QuizAnswers;
+}) {
+  const sessionConfig = resolveWorkoutPlanSessionConfig({
+    answers: input.answers,
+    workout: input.workout,
+    storedTotalSessions: input.workoutRecord.total_sessions,
+    fallbackWeeklyFrequency: input.workout.sessionCount ?? input.workout.sections.length
+  });
+
+  return {
+    workout: applyWorkoutPlanSessionConfig(input.workout, sessionConfig),
+    sessionConfig,
+    sessionFilter: {
+      workoutId: input.workoutRecord.id,
+      workoutHash: input.workoutRecord.hash ?? null,
+      planCycleId: sessionConfig.planCycleId,
+      cycleStartedAt: input.workoutRecord.created_at ?? null
+    }
+  };
 }
 
 function toNumber(value: unknown) {

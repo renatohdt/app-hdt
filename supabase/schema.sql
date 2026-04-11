@@ -228,6 +228,7 @@ create table if not exists public.workout_session_logs (
   id uuid primary key default gen_random_uuid(),
   workout_id uuid not null references public.workouts(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
+  plan_cycle_id text check (plan_cycle_id is null or btrim(plan_cycle_id) <> ''),
   workout_hash text check (workout_hash is null or workout_hash ~ '^[a-f0-9]{64}$'),
   workout_key text check (workout_key is null or btrim(workout_key) <> ''),
   session_number integer not null check (session_number > 0),
@@ -420,6 +421,23 @@ set hash = null
 where hash is not null
   and hash !~ '^[a-f0-9]{64}$';
 
+alter table public.workout_session_logs
+  add column if not exists plan_cycle_id text;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'workout_session_logs_plan_cycle_id_check'
+  ) then
+    alter table public.workout_session_logs
+      add constraint workout_session_logs_plan_cycle_id_check
+      check (plan_cycle_id is null or btrim(plan_cycle_id) <> '');
+  end if;
+end
+$$;
+
 create unique index if not exists user_answers_user_id_key on public.user_answers(user_id);
 create unique index if not exists workouts_user_id_key on public.workouts(user_id);
 create unique index if not exists user_consents_user_scope_key on public.user_consents(user_id, scope);
@@ -443,10 +461,22 @@ create index if not exists workouts_hash_idx on public.workouts(hash);
 create index if not exists workouts_created_at_idx on public.workouts(created_at desc);
 create index if not exists workouts_deleted_at_idx on public.workouts(deleted_at) where deleted_at is not null;
 create index if not exists workouts_expires_at_idx on public.workouts(expires_at) where expires_at is not null;
-create unique index if not exists workout_session_logs_unique_cycle_session_idx
-  on public.workout_session_logs(workout_id, coalesce(workout_hash, ''), session_number);
-create index if not exists workout_session_logs_workout_cycle_idx
-  on public.workout_session_logs(workout_id, workout_hash, completed_at desc);
+drop index if exists workout_session_logs_unique_cycle_session_idx;
+drop index if exists workout_session_logs_workout_cycle_idx;
+create unique index if not exists workout_session_logs_unique_plan_cycle_session_idx
+  on public.workout_session_logs(workout_id, plan_cycle_id, session_number)
+  where plan_cycle_id is not null;
+create unique index if not exists workout_session_logs_unique_legacy_cycle_session_idx
+  on public.workout_session_logs(workout_id, coalesce(workout_hash, ''), session_number)
+  where plan_cycle_id is null;
+create index if not exists workout_session_logs_workout_plan_cycle_idx
+  on public.workout_session_logs(workout_id, plan_cycle_id, completed_at desc)
+  where plan_cycle_id is not null;
+create index if not exists workout_session_logs_workout_hash_cycle_idx
+  on public.workout_session_logs(workout_id, workout_hash, completed_at desc)
+  where plan_cycle_id is null and workout_hash is not null;
+create index if not exists workout_session_logs_workout_completed_at_idx
+  on public.workout_session_logs(workout_id, completed_at desc);
 create index if not exists workout_session_logs_user_completed_at_idx
   on public.workout_session_logs(user_id, completed_at desc);
 
