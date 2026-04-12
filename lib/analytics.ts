@@ -28,6 +28,10 @@ export function pageview(pagePath: string) {
 
   const normalizedPath = pagePath || `${window.location.pathname}${window.location.search}`;
 
+  if (process.env.NODE_ENV === "development") {
+    console.log("[GA4 Debug] pageview:", normalizedPath);
+  }
+
   window.gtag!("event", "page_view", {
     page_path: normalizedPath,
     page_location: new URL(normalizedPath, window.location.origin).toString(),
@@ -40,6 +44,10 @@ export function trackEvent(eventName: string, params?: AnalyticsParams) {
     return;
   }
 
+  if (process.env.NODE_ENV === "development") {
+    console.log("[GA4 Debug] trackEvent:", eventName, params);
+  }
+
   window.gtag!("event", eventName, normalizeParams(params));
 }
 
@@ -48,6 +56,27 @@ export function trackSignUpSuccess(params?: AnalyticsParams) {
     method: "app_form",
     ...params
   });
+}
+
+/**
+ * Atualiza o Consent Mode v2 do GA4 quando o usuário muda as preferências de cookies.
+ * Deve ser chamado sempre que o consentimento for aceito, recusado ou personalizado.
+ */
+export function updateGtagConsent(preferences: { ads: boolean; marketing: boolean }) {
+  if (typeof window === "undefined" || typeof window.gtag !== "function") {
+    return;
+  }
+
+  window.gtag("consent", "update", {
+    analytics_storage: "granted",
+    ad_storage: preferences.ads ? "granted" : "denied",
+    ad_user_data: preferences.ads ? "granted" : "denied",
+    ad_personalization: preferences.marketing ? "granted" : "denied"
+  });
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[GA4 Debug] consent update:", preferences);
+  }
 }
 
 export {};

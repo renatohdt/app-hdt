@@ -17,6 +17,7 @@ import {
   writeStoredConsentPreferences
 } from "@/lib/consent-storage";
 import { clientLogError, clientLogInfo } from "@/lib/client-logger";
+import { updateGtagConsent } from "@/lib/analytics";
 import { FACEBOOK_PIXEL_ID } from "@/lib/facebook-pixel";
 
 declare global {
@@ -69,6 +70,7 @@ export function ConsentProvider({
   const [isCustomizing, setIsCustomizing] = useState(false);
   const [draftPreferences, setDraftPreferences] = useState<ConsentPreferenceMap>(DEFAULT_CONSENT_PREFERENCES);
   const lastSyncedPayloadRef = useRef<string>("");
+  const gtagConsentInitializedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -121,6 +123,16 @@ export function ConsentProvider({
       active = false;
     };
   }, [currentVersion]);
+
+  // Aplica o estado de consentimento ao GA4 assim que o provider termina de carregar.
+  // Isso garante que o gtag reflita as preferências salvas anteriormente pelo usuário.
+  useEffect(() => {
+    if (!ready || gtagConsentInitializedRef.current) {
+      return;
+    }
+    gtagConsentInitializedRef.current = true;
+    updateGtagConsent(preferences);
+  }, [ready, preferences]);
 
   useEffect(() => {
     if (!ready || !hasInteracted) {
@@ -193,6 +205,7 @@ export function ConsentProvider({
       ads: true
     };
 
+    updateGtagConsent(next);
     persistPreferencesLocally(next);
     setHasInteracted(true);
     setPreferences(next);
@@ -202,6 +215,7 @@ export function ConsentProvider({
   }
 
   function rejectNonEssential() {
+    updateGtagConsent(DEFAULT_CONSENT_PREFERENCES);
     persistPreferencesLocally(DEFAULT_CONSENT_PREFERENCES);
     setHasInteracted(true);
     setPreferences(DEFAULT_CONSENT_PREFERENCES);
@@ -217,6 +231,7 @@ export function ConsentProvider({
   }
 
   function saveCustomPreferences() {
+    updateGtagConsent(draftPreferences);
     persistPreferencesLocally(draftPreferences);
     setHasInteracted(true);
     setPreferences(draftPreferences);
