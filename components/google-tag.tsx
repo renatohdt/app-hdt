@@ -21,6 +21,34 @@ export function GoogleTag() {
       <Script id="google-tag-init" strategy="beforeInteractive">
         {`
           window.dataLayer = window.dataLayer || [];
+          (function attachGoogleTagScriptReadyListener() {
+            function dispatchReady() {
+              window.__hdtGaScriptReady = true;
+              window.dispatchEvent(new CustomEvent('hdt:ga-script-ready'));
+            }
+
+            var scriptElement = document.getElementById('google-tag-src');
+            if (!scriptElement) {
+              window.setTimeout(attachGoogleTagScriptReadyListener, 0);
+              return;
+            }
+
+            if (scriptElement.dataset.hdtReadyListenerAttached === 'true') {
+              return;
+            }
+
+            scriptElement.dataset.hdtReadyListenerAttached = 'true';
+            scriptElement.addEventListener('load', dispatchReady, { once: true });
+
+            if (scriptElement.getAttribute('data-hdt-script-ready') === 'true') {
+              dispatchReady();
+              return;
+            }
+
+            if (scriptElement.readyState === 'complete' || scriptElement.readyState === 'loaded') {
+              dispatchReady();
+            }
+          })();
           (function () {
             var analyticsEnabled = false;
             try {
@@ -47,6 +75,8 @@ export function GoogleTag() {
             analytics_storage: window.__hdtAnalyticsConsentBootstrap ? 'granted' : 'denied'
           });
           window.gtag('config', '${GA_MEASUREMENT_ID}', { send_page_view: false });
+          window.__hdtGaBootstrapReady = true;
+          window.dispatchEvent(new CustomEvent('hdt:ga-bootstrap-ready'));
         `}
       </Script>
       <GoogleTagClient />

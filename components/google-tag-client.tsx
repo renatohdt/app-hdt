@@ -5,7 +5,10 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useConsentPreferences } from "@/components/consent-provider";
 import {
   GA_MEASUREMENT_ID,
+  flushQueuedGoogleAnalyticsEvents,
   logGoogleAnalyticsDiagnostic,
+  markGoogleAnalyticsBootstrapReady,
+  markGoogleAnalyticsScriptReady,
   pageview,
   setGoogleAnalyticsCollectionEnabled
 } from "@/lib/analytics";
@@ -37,6 +40,32 @@ export function GoogleTagClient() {
   }, []);
 
   useEffect(() => {
+    function handleBootstrapReady() {
+      markGoogleAnalyticsBootstrapReady();
+    }
+
+    function handleScriptReady() {
+      markGoogleAnalyticsScriptReady();
+    }
+
+    window.addEventListener("hdt:ga-bootstrap-ready", handleBootstrapReady);
+    window.addEventListener("hdt:ga-script-ready", handleScriptReady);
+
+    if (window.__hdtGaBootstrapReady) {
+      handleBootstrapReady();
+    }
+
+    if (window.__hdtGaScriptReady) {
+      handleScriptReady();
+    }
+
+    return () => {
+      window.removeEventListener("hdt:ga-bootstrap-ready", handleBootstrapReady);
+      window.removeEventListener("hdt:ga-script-ready", handleScriptReady);
+    };
+  }, []);
+
+  useEffect(() => {
     logGoogleAnalyticsDiagnostic("consent_state", {
       ready,
       has_interacted: hasInteracted,
@@ -52,6 +81,7 @@ export function GoogleTagClient() {
     }
 
     setGoogleAnalyticsCollectionEnabled(canUseAnalytics);
+    flushQueuedGoogleAnalyticsEvents("client_toggle");
   }, [canUseAnalytics, ready]);
 
   useEffect(() => {

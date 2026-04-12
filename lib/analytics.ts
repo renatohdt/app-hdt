@@ -4,14 +4,34 @@ export type AnalyticsParams = Record<string, string | number | boolean | null | 
 
 export const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "";
 export const GA_DEBUG_STORAGE_KEY = "hdt-ga-debug";
+const GA_EVENT_QUEUE_LIMIT = 50;
 
 declare global {
   interface Window {
     dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
+    __hdtGaBootstrapReady?: boolean;
+    __hdtGaScriptReady?: boolean;
+    __hdtGaHasLoggedGtagAvailable?: boolean;
+    __hdtGaEventQueue?: GoogleAnalyticsQueuedCall[];
     [key: `ga-disable-${string}`]: boolean | undefined;
   }
 }
+
+type GoogleAnalyticsQueuedCall =
+  | {
+      type: "page_view";
+      pagePath: string;
+      queuedAt: string;
+      dedupeKey: string;
+    }
+  | {
+      type: "event";
+      eventName: string;
+      params?: AnalyticsParams;
+      queuedAt: string;
+      dedupeKey: string;
+    };
 
 function getGoogleAnalyticsDisableKey() {
   return `ga-disable-${GA_MEASUREMENT_ID}` as const;
@@ -49,6 +69,10 @@ function getGoogleAnalyticsStatus() {
 
   if (window[getGoogleAnalyticsDisableKey()]) {
     return { ready: false, reason: "collection_disabled" } as const;
+  }
+
+  if (!window.__hdtGaBootstrapReady) {
+    return { ready: false, reason: "bootstrap_not_ready" } as const;
   }
 
   if (typeof window.gtag !== "function") {
@@ -110,11 +134,30 @@ export function setGoogleAnalyticsCollectionEnabled(enabled: boolean) {
     measurement_id: GA_MEASUREMENT_ID,
     disable_flag: window[getGoogleAnalyticsDisableKey()] ?? null
   });
+
+  if (enabled) {
+    flushQueuedGoogleAnalyticsEvents("collection_enabled");
+  }
 }
 
 export function pageview(pagePath: string) {
   const status = getGoogleAnalyticsStatus();
   if (!status.ready) {
+    if (status.reason === "bootstrap_not_ready" || status.reason === "gtag_not_ready") {
+      enqueueGoogleAnalyticsCall({
+        type: "page_view",
+        pagePath,
+        queuedAt: new Date().toISOString(),
+        dedupeKey: `page_view:${pagePath}`
+      });
+      logGoogleAnalyticsDiagnostic("page_view_queued", {
+        page_path: pagePath || null,
+        reason: status.reason,
+        queue_length: window.__hdtGaEventQueue?.length ?? 0
+      });
+      return;
+    }
+
     logGoogleAnalyticsDiagnostic("page_view_skipped", {
       page_path: pagePath || null,
       reason: status.reason
@@ -123,6 +166,11 @@ export function pageview(pagePath: string) {
   }
 
   const normalizedPath = pagePath || `${window.location.pathname}${window.location.search}`;
+  logGoogleAnalyticsDiagnostic("gtag_available", {
+    source: "page_view",
+    script_ready: window.__hdtGaScriptReady ?? false,
+    bootstrap_ready: window.__hdtGaBootstrapReady ?? false
+  });
 
   const pageViewParams = withDebugMode({
     page_path: normalizedPath,
@@ -142,6 +190,26 @@ export function pageview(pagePath: string) {
 export function trackEvent(eventName: string, params?: AnalyticsParams) {
   const status = getGoogleAnalyticsStatus();
   if (!status.ready) {
+    if (status.reason === "bootstrap_not_ready" || status.reason === "gtag_not_ready") {
+      enqueueGoogleAnalyticsCall({
+        type: "event",
+        eventName,
+        params,
+        queuedAt: new Date().toISOString(),
+        dedupeKey: JSON.stringify({
+          event_name: eventName,
+          params: normalizeParams(params) ?? {}
+        })
+      });
+      logGoogleAnalyticsDiagnostic("event_queued", {
+        event_name: eventName,
+        reason: status.reason,
+        params: normalizeParams(params),
+        queue_length: window.__hdtGaEventQueue?.length ?? 0
+      });
+      return;
+    }
+
     logGoogleAnalyticsDiagnostic("event_skipped", {
       event_name: eventName,
       reason: status.reason,
@@ -151,6 +219,12 @@ export function trackEvent(eventName: string, params?: AnalyticsParams) {
   }
 
   const normalizedParams = withDebugMode(params);
+  logGoogleAnalyticsDiagnostic("gtag_available", {
+    source: "event",
+    event_name: eventName,
+    script_ready: window.__hdtGaScriptReady ?? false,
+    bootstrap_ready: window.__hdtGaBootstrapReady ?? false
+  });
   window.gtag!("event", eventName, normalizedParams);
   logGoogleAnalyticsDiagnostic("event_sent", {
     event_name: eventName,
@@ -164,6 +238,100 @@ export function trackSignUpSuccess(params?: AnalyticsParams) {
     method: "app_form",
     ...params
   });
+}
+
+export function markGoogleAnalyticsBootstrapReady() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.__hdtGaBootstrapReady = true;
+  logGoogleAnalyticsDiagnostic("gtag_bootstrap_ready", {
+    script_ready: window.__hdtGaScriptReady ?? false,
+    gtag_available: typeof window.gtag === "function"
+  });
+
+  if (typeof window.gtag === "function" && !window.__hdtGaHasLoggedGtagAvailable) {
+    window.__hdtGaHasLoggedGtagAvailable = true;
+    logGoogleAnalyticsDiagnostic("gtag_available", {
+      source: "bootstrap_ready",
+      script_ready: window.__hdtGaScriptReady ?? false,
+      bootstrap_ready: true
+    });
+  }
+
+  flushQueuedGoogleAnalyticsEvents("bootstrap_ready");
+}
+
+export function markGoogleAnalyticsScriptReady() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.__hdtGaScriptReady = true;
+  logGoogleAnalyticsDiagnostic("gtag_script_ready", {
+    gtag_available: typeof window.gtag === "function",
+    bootstrap_ready: window.__hdtGaBootstrapReady ?? false
+  });
+
+  if (typeof window.gtag === "function" && !window.__hdtGaHasLoggedGtagAvailable) {
+    window.__hdtGaHasLoggedGtagAvailable = true;
+    logGoogleAnalyticsDiagnostic("gtag_available", {
+      source: "script_ready",
+      script_ready: true,
+      bootstrap_ready: window.__hdtGaBootstrapReady ?? false
+    });
+  }
+
+  flushQueuedGoogleAnalyticsEvents("script_ready");
+}
+
+export function flushQueuedGoogleAnalyticsEvents(trigger: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const queue = window.__hdtGaEventQueue ?? [];
+  if (!queue.length) {
+    return;
+  }
+
+  const status = getGoogleAnalyticsStatus();
+  if (!status.ready) {
+    logGoogleAnalyticsDiagnostic("queue_flush_blocked", {
+      trigger,
+      reason: status.reason,
+      queue_length: queue.length
+    });
+    return;
+  }
+
+  const pendingQueue = [...queue];
+  window.__hdtGaEventQueue = [];
+
+  logGoogleAnalyticsDiagnostic("queue_flush_started", {
+    trigger,
+    queue_length: pendingQueue.length
+  });
+
+  pendingQueue.forEach((item) => {
+    if (item.type === "page_view") {
+      pageview(item.pagePath);
+      return;
+    }
+
+    trackEvent(item.eventName, item.params);
+  });
+}
+
+function enqueueGoogleAnalyticsCall(call: GoogleAnalyticsQueuedCall) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const queue = window.__hdtGaEventQueue ?? [];
+  const nextQueue = [...queue.filter((item) => item.dedupeKey !== call.dedupeKey), call].slice(-GA_EVENT_QUEUE_LIMIT);
+  window.__hdtGaEventQueue = nextQueue;
 }
 
 export {};
