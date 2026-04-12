@@ -4,8 +4,6 @@ import Script from "next/script";
 import { Suspense, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-tracker";
-import { clearPendingAnalyticsEvents, flushPendingAnalyticsEvents } from "@/lib/analytics-client";
-import { logGoogleAnalyticsDiagnostic } from "@/lib/analytics";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
 import {
   type ConsentPreferenceMap,
@@ -40,7 +38,6 @@ type ConsentContextValue = {
   ready: boolean;
   hasInteracted: boolean;
   preferences: ConsentPreferenceMap;
-  canUseAnalytics: boolean;
   canUseAds: boolean;
   canUseMarketing: boolean;
   savePreferences: (nextPreferences: ConsentPreferenceMap) => void;
@@ -79,21 +76,10 @@ export function ConsentProvider({
     async function bootstrap() {
       const localPreferences = readStoredConsentPreferences();
 
-      logGoogleAnalyticsDiagnostic("consent_bootstrap_started", {
-        current_version: currentVersion,
-        stored_version: localPreferences?.version ?? null,
-        stored_has_interacted: localPreferences?.hasInteracted ?? false,
-        stored_analytics: localPreferences?.preferences.analytics ?? null
-      });
-
       if (localPreferences?.version === currentVersion) {
         if (!active) return;
 
         applyStoredPreferences(localPreferences);
-        logGoogleAnalyticsDiagnostic("consent_bootstrap_local_applied", {
-          version: currentVersion,
-          analytics: localPreferences.preferences.analytics
-        });
         setReady(true);
         return;
       }
@@ -102,11 +88,6 @@ export function ConsentProvider({
         const token = await getAccessToken();
         if (!token) {
           if (!active) return;
-
-          logGoogleAnalyticsDiagnostic("consent_bootstrap_no_token", {
-            current_version: currentVersion,
-            stored_version: localPreferences?.version ?? null
-          });
           setReady(true);
           return;
         }
@@ -118,23 +99,15 @@ export function ConsentProvider({
 
         if (response.ok && payload?.success && payload.data?.hasStoredConsents) {
           const stored = createStoredConsentPreferences(currentVersion, {
-            analytics: Boolean(payload.data.consents?.analytics),
             marketing: Boolean(payload.data.consents?.marketing),
             ads: Boolean(payload.data.consents?.ads)
           });
 
           applyStoredPreferences(stored);
           writeStoredConsentPreferences(stored);
-          logGoogleAnalyticsDiagnostic("consent_bootstrap_server_applied", {
-            version: currentVersion,
-            analytics: stored.preferences.analytics
-          });
         }
       } catch (error) {
         clientLogError("CONSENT BOOTSTRAP ERROR", error);
-        logGoogleAnalyticsDiagnostic("consent_bootstrap_error", {
-          message: error instanceof Error ? error.message : "unknown"
-        });
       } finally {
         if (active) {
           setReady(true);
@@ -204,19 +177,6 @@ export function ConsentProvider({
     };
   }, [hasInteracted, preferences, ready]);
 
-  useEffect(() => {
-    if (!ready || !hasInteracted) {
-      return;
-    }
-
-    if (preferences.analytics) {
-      flushPendingAnalyticsEvents();
-      return;
-    }
-
-    clearPendingAnalyticsEvents();
-  }, [hasInteracted, preferences.analytics, ready]);
-
   function applyStoredPreferences(value: StoredConsentPreferences) {
     setHasInteracted(value.hasInteracted);
     setPreferences(value.preferences);
@@ -229,7 +189,6 @@ export function ConsentProvider({
 
   function acceptAll() {
     const next = {
-      analytics: true,
       marketing: true,
       ads: true
     };
@@ -270,7 +229,6 @@ export function ConsentProvider({
       ready,
       hasInteracted,
       preferences,
-      canUseAnalytics: ready && preferences.analytics,
       canUseAds: ready && preferences.ads,
       canUseMarketing: ready && preferences.marketing,
       savePreferences: (nextPreferences) => {
@@ -301,18 +259,12 @@ export function ConsentProvider({
               <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">Privacidade</p>
               <h2 className="text-[15px] font-semibold leading-snug text-white sm:text-base">Escolha como o app pode usar cookies e integrações opcionais.</h2>
               <p className="max-w-[52rem] text-[13px] leading-5 text-white/62 sm:text-sm sm:leading-6">
-                Você pode permitir analytics, anúncios e integrações de marketing para melhorar a experiência. Os recursos essenciais do Hora do Treino continuam funcionando mesmo sem os consentimentos não essenciais.
+                Você pode permitir anúncios e integrações de marketing para melhorar a experiência. Os recursos essenciais do Hora do Treino continuam funcionando mesmo sem os consentimentos não essenciais.
               </p>
             </div>
 
             {isCustomizing ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <ConsentToggleCard
-                  title="Analytics"
-                  description="Mede uso de telas e conversões internas."
-                  checked={draftPreferences.analytics}
-                  onChange={(checked) => setDraftPreferences((current) => ({ ...current, analytics: checked }))}
-                />
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <ConsentToggleCard
                   title="Ads"
                   description="Permite Google AdSense e anúncios opcionais."

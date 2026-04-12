@@ -8,7 +8,7 @@ const sections = [
       "Dados de cadastro, como nome e e-mail.",
       "Respostas do onboarding e do quiz para personalizar treinos.",
       "Dados gerais de treino e rotina, como idade, peso, altura, dias disponíveis, tempo por sessão e equipamentos.",
-      "Dados de uso e consentimentos sobre analytics, anúncios e marketing, quando autorizados."
+      "Dados de uso do app e consentimentos sobre anúncios e marketing, quando autorizados."
     ]
   },
   {
@@ -31,14 +31,14 @@ const sections = [
     title: "Terceiros e integrações",
     items: [
       "Usamos serviços de infraestrutura, autenticação, banco de dados e geração assistida por IA para viabilizar o produto.",
-      "Podemos usar integrações opcionais de analytics, anúncios, pixel e automação de marketing somente conforme seus consentimentos.",
+      "Podemos usar analytics para medir o uso do produto e integrações opcionais de anúncios, pixel e automação de marketing conforme seus consentimentos.",
       "Esses serviços atuam para viabilizar o funcionamento do produto ou comunicações autorizadas."
     ]
   },
   {
     title: "Cookies, tracking e preferências",
     items: [
-      "Analytics, anúncios e marketing são tratados como categorias opcionais.",
+      "Anúncios e marketing são tratados como categorias opcionais.",
       "Você pode aceitar, recusar ou revisar essas escolhas no banner de consentimento e na central de privacidade.",
       "A revogação vale para novas execuções do app e futuras coletas."
     ]

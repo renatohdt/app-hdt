@@ -48,7 +48,6 @@ export function normalizeConsentInput(input?: Partial<Record<ConsentScope, unkno
 export function toConsentPreferenceMap(consents: Partial<Record<ConsentScope, boolean>>): ConsentPreferenceMap {
   return {
     ...DEFAULT_CONSENT_PREFERENCES,
-    analytics: Boolean(consents.analytics),
     marketing: Boolean(consents.marketing),
     ads: Boolean(consents.ads)
   };

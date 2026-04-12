@@ -78,7 +78,6 @@ export function PrivacyCenter() {
 
         setConsentPayload(result.data);
         setDraftPreferences({
-          analytics: Boolean(result.data.consents.analytics),
           ads: Boolean(result.data.consents.ads),
           marketing: Boolean(result.data.consents.marketing)
         });
@@ -104,17 +103,10 @@ export function PrivacyCenter() {
   }, []);
 
   const hasConsentChanges =
-    draftPreferences.analytics !== preferences.analytics ||
-    draftPreferences.ads !== preferences.ads ||
-    draftPreferences.marketing !== preferences.marketing;
+    draftPreferences.ads !== preferences.ads || draftPreferences.marketing !== preferences.marketing;
 
   const consentCards = useMemo(
     () => [
-      {
-        key: "analytics",
-        title: "Analytics",
-        description: "Usado para medir uso de telas, eventos e conversoes internas do produto."
-      },
       {
         key: "ads",
         title: "Ads",
@@ -360,7 +352,7 @@ export function PrivacyCenter() {
               O Hora do Treino usa respostas gerais de treino, como objetivo, nível, frequência, disponibilidade e preferências, para montar sugestões de treino.
             </p>
             <p className="text-sm text-white/58">
-              Os consentimentos opcionais desta tela cobrem apenas analytics, anúncios e marketing.
+              Os consentimentos opcionais desta tela cobrem apenas anúncios e marketing.
             </p>
             <p className="text-sm text-white/58">
               Versão atual dos consentimentos: {consentPayload?.version ?? "não identificada"}.
@@ -384,7 +376,7 @@ export function PrivacyCenter() {
             Ao excluir sua conta, apagaremos seus dados de acesso, respostas do quiz, treinos e histórico interno, salvo o que precisarmos manter por obrigação legal ou segurança.
           </p>
           <p className="text-sm text-white/58">
-            Integrações externas de marketing, anúncios e analytics podem exigir tratamento operacional complementar fora do app.
+            Integrações externas de marketing e anúncios podem exigir tratamento operacional complementar fora do app.
           </p>
           <Button variant="secondary" onClick={handleDeleteAccount} disabled={deletingAccount}>
             {deletingAccount ? "Excluindo conta..." : "Excluir minha conta"}

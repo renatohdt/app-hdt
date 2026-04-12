@@ -48,7 +48,6 @@ export function readStoredConsentPreferences(): StoredConsentPreferences | null 
       version: typeof parsed.version === "string" ? parsed.version : "",
       hasInteracted: Boolean(parsed.hasInteracted),
       preferences: {
-        analytics: Boolean(preferences.analytics),
         marketing: Boolean(preferences.marketing),
         ads: Boolean(preferences.ads)
       },
