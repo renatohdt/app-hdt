@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui";
 import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-tracker";
+import { clearPendingAnalyticsEvents, flushPendingAnalyticsEvents } from "@/lib/analytics-client";
 import { logGoogleAnalyticsDiagnostic } from "@/lib/analytics";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
 import {
@@ -202,6 +203,19 @@ export function ConsentProvider({
       active = false;
     };
   }, [hasInteracted, preferences, ready]);
+
+  useEffect(() => {
+    if (!ready || !hasInteracted) {
+      return;
+    }
+
+    if (preferences.analytics) {
+      flushPendingAnalyticsEvents();
+      return;
+    }
+
+    clearPendingAnalyticsEvents();
+  }, [hasInteracted, preferences.analytics, ready]);
 
   function applyStoredPreferences(value: StoredConsentPreferences) {
     setHasInteracted(value.hasInteracted);
