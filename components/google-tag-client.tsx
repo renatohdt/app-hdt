@@ -47,8 +47,12 @@ export function GoogleTagClient() {
   }, [ready, hasInteracted, preferences.analytics, canUseAnalytics]);
 
   useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
     setGoogleAnalyticsCollectionEnabled(canUseAnalytics);
-  }, [canUseAnalytics]);
+  }, [canUseAnalytics, ready]);
 
   useEffect(() => {
     if (!ready || !GA_MEASUREMENT_ID || !pagePath) {

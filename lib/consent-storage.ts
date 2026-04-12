@@ -5,8 +5,7 @@ import {
   type ConsentPreferenceMap,
   DEFAULT_CONSENT_PREFERENCES
 } from "@/lib/consent-types";
-
-export const CONSENT_STORAGE_KEY = "hora-do-treino-consent-preferences";
+import { CONSENT_STORAGE_KEY } from "@/lib/consent-constants";
 
 export type StoredConsentPreferences = {
   version: string;

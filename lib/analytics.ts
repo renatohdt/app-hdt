@@ -98,9 +98,17 @@ export function setGoogleAnalyticsCollectionEnabled(enabled: boolean) {
   }
 
   window[getGoogleAnalyticsDisableKey()] = !enabled;
+
+  if (typeof window.gtag === "function") {
+    window.gtag("consent", "update", {
+      analytics_storage: enabled ? "granted" : "denied"
+    });
+  }
+
   logGoogleAnalyticsDiagnostic("collection_toggled", {
     enabled,
-    measurement_id: GA_MEASUREMENT_ID
+    measurement_id: GA_MEASUREMENT_ID,
+    disable_flag: window[getGoogleAnalyticsDisableKey()] ?? null
   });
 }
 
