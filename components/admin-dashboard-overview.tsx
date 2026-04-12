@@ -70,6 +70,29 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         ))}
       </section>
 
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetricCard
+          label="Novos (7 dias)"
+          value={String(data.newUsersLast7Days)}
+          description="Cadastros nos últimos 7 dias."
+        />
+        <SummaryMetricCard
+          label="Novos (30 dias)"
+          value={String(data.newUsersLast30Days)}
+          description="Cadastros nos últimos 30 dias."
+        />
+        <SummaryMetricCard
+          label="Treinos gerados"
+          value={String(data.workoutsGenerated)}
+          description="Total histórico de treinos gerados."
+        />
+        <SummaryMetricCard
+          label="Taxa de geração"
+          value={data.completionRate !== null ? `${data.completionRate}%` : "—"}
+          description="Usuários que geraram treino."
+        />
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.95fr)]">
         <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

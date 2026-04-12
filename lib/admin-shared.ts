@@ -50,6 +50,11 @@ export type AdminDashboardData = {
     weekly: DashboardPeriod;
   };
   errors: AdminErrorLog[];
+  newUsersLast7Days: number;
+  newUsersLast30Days: number;
+  workoutsGenerated: number;
+  workoutsLast7Days: number;
+  completionRate: number | null;
 };
 
 export function getGoalLabel(goal?: QuizAnswers["goal"]) {

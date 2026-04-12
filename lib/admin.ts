@@ -193,14 +193,19 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           origin: "config",
           created_at: new Date().toISOString()
         }
-      ]
+      ],
+      newUsersLast7Days: 0,
+      newUsersLast30Days: 0,
+      workoutsGenerated: 0,
+      workoutsLast7Days: 0,
+      completionRate: null
     };
   }
 
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery] =
+    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery] =
       await Promise.all([
         supabase
           .from("users")
@@ -216,6 +221,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .select("id, event_name, user_id, visitor_id, metadata, created_at")
           .is("deleted_at", null)
           .in("event_name", DASHBOARD_EVENT_NAMES)
+          // Bug 2: limita a janela de 30 dias para evitar full-table scan.
+          // 30 dias é suficiente para funil semanal e retenção D30.
+          .gte("created_at", startOfLastDays(30).toISOString())
           .order("created_at", { ascending: false }),
         supabase
           .from("analytics_events")
@@ -223,14 +231,19 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .is("deleted_at", null)
           .ilike("event_name", "%error%")
           .order("created_at", { ascending: false })
-          .limit(10)
+          .limit(10),
+        supabase
+          .from("workouts")
+          .select("id, user_id, created_at")
+          .order("created_at", { ascending: false })
       ]);
 
     const dashboardQueryErrors = [
       buildQueryError("users-error", dashboardUsersQuery.error?.message, "users"),
       buildQueryError("answers-error", dashboardAnswersQuery.error?.message, "user_answers"),
       buildQueryError("events-error", dashboardEventsQuery.error?.message, "analytics_events"),
-      buildQueryError("error-events-error", dashboardErrorEventsQuery.error?.message, "analytics_events")
+      buildQueryError("error-events-error", dashboardErrorEventsQuery.error?.message, "analytics_events"),
+      buildQueryError("workouts-error", dashboardWorkoutsQuery.error?.message, "workouts")
     ].filter(Boolean) as AdminErrorLog[];
 
     if (dashboardQueryErrors.length) {
@@ -249,7 +262,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           daily: buildLegacyFunnelPeriod([], startOfToday(), "Diario"),
           weekly: buildLegacyFunnelPeriod([], startOfLastDays(7), "Semanal")
         },
-        errors: dashboardQueryErrors
+        errors: dashboardQueryErrors,
+        newUsersLast7Days: 0,
+        newUsersLast30Days: 0,
+        workoutsGenerated: 0,
+        workoutsLast7Days: 0,
+        completionRate: null
       };
     }
 
@@ -264,6 +282,18 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       .map((row) => normalizeAnswers(row.answers))
       .filter(Boolean) as Array<Partial<QuizAnswers> & Record<string, unknown>>;
     const dashboardAllEvents = [...dashboardEvents, ...dashboardErrorEvents];
+
+    // Novas métricas de crescimento
+    const dashboardWorkouts = (dashboardWorkoutsQuery.data ?? []) as Array<{ id: string; user_id: string; created_at: string }>;
+    const sevenDaysAgo = startOfLastDays(7);
+    const thirtyDaysAgo = startOfLastDays(30);
+    const newUsersLast7Days = dashboardUsers.filter((u) => new Date(u.created_at) >= sevenDaysAgo).length;
+    const newUsersLast30Days = dashboardUsers.filter((u) => new Date(u.created_at) >= thirtyDaysAgo).length;
+    const workoutsGenerated = dashboardWorkouts.length;
+    const workoutsLast7Days = dashboardWorkouts.filter((w) => new Date(w.created_at) >= sevenDaysAgo).length;
+    const completionRate = dashboardUsers.length > 0
+      ? Math.round((workoutsGenerated / dashboardUsers.length) * 100)
+      : null;
 
     return {
       totalUsers: dashboardUsers.length,
@@ -292,7 +322,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           label: "Semanal"
         })
       },
-      errors: [...dashboardQueryErrors, ...getRecentSystemErrors(dashboardAllEvents)].slice(0, 10)
+      errors: [...dashboardQueryErrors, ...getRecentSystemErrors(dashboardAllEvents)].slice(0, 10),
+      newUsersLast7Days,
+      newUsersLast30Days,
+      workoutsGenerated,
+      workoutsLast7Days,
+      completionRate
     };
   }
 
@@ -335,7 +370,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         daily: buildFunnelPeriod([], startOfToday(), "Diário"),
         weekly: buildFunnelPeriod([], startOfLastDays(7), "Semanal")
       },
-      errors: queryErrors
+      errors: queryErrors,
+      newUsersLast7Days: 0,
+      newUsersLast30Days: 0,
+      workoutsGenerated: 0,
+      workoutsLast7Days: 0,
+      completionRate: null
     };
   }
 
@@ -367,7 +407,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       daily: buildFunnelPeriod(events, startOfToday(), "Diário"),
       weekly: buildFunnelPeriod(events, startOfLastDays(7), "Semanal")
     },
-    errors: [...queryErrors, ...getRecentSystemErrors(events)].slice(0, 10)
+    errors: [...queryErrors, ...getRecentSystemErrors(events)].slice(0, 10),
+    newUsersLast7Days: 0,
+    newUsersLast30Days: 0,
+    workoutsGenerated: 0,
+    workoutsLast7Days: 0,
+    completionRate: null
   };
 }
 
@@ -614,7 +659,14 @@ function buildFunnelCountsForWindow(
   const filteredEvents = events.filter((event) => isWithinWindow(event.created_at, window));
   const homeEventIdentities = collectEventIdentities(filteredEvents, HOME_VIEW_EVENTS, resolveIdentity);
   const quizEventIdentities = collectEventIdentities(filteredEvents, QUIZ_START_EVENTS, resolveIdentity);
-  const signupIdentities = collectCreatedUserIdentities(users, window);
+  // Bug 1 fix: usa o mesmo resolvedor de identidade no passo de signup para que
+  // visitantes anônimos (visitor:V) e usuários cadastrados (user:U) sejam
+  // unificados na mesma identidade em todas as etapas. Sem isso, a etapa de
+  // signup (que usava a tabela users diretamente) podia ter count > quiz/home,
+  // gerando conversão > 100%.
+  const signupEventIdentities = collectEventIdentities(filteredEvents, SIGNUP_EVENTS, resolveIdentity);
+  const createdUserIdentities = collectCreatedUserIdentities(users, window);
+  const signupIdentities = signupEventIdentities.size ? signupEventIdentities : createdUserIdentities;
   const onboardingFallbackIdentities = collectOnboardingFallbackIdentities(users, userAnswers, window);
   const ctaIdentities = collectEventIdentities(filteredEvents, CTA_EVENTS, resolveIdentity);
 
