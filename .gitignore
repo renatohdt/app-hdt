@@ -13,3 +13,5 @@ build
 coverage
 .DS_Store
 Thumbs.db
+tsconfig.tsbuildinfo
+.claude/
