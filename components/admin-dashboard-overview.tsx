@@ -57,7 +57,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         <SummaryMetricCard
           label="Usuários totais"
           value={String(totalUsers)}
-          description={getTotalUsersDescription(period, activeUsers)}
+          description="Total de cadastros realizados no app."
         />
         <SummaryMetricCard
           label="Contas excluídas"
