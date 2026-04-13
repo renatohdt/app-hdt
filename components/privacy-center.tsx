@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Card, Container, PageShell } from "@/components/ui";
@@ -281,6 +282,13 @@ export function PrivacyCenter() {
   return (
     <PageShell>
       <Container className="max-w-5xl space-y-5 py-6">
+        <Link
+          href="/perfil"
+          className="inline-flex items-center gap-1.5 text-sm text-white/52 transition hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Link>
         <div className="space-y-3">
           <p className="text-sm uppercase tracking-[0.24em] text-primary">Privacidade</p>
           <h1 className="text-3xl font-semibold text-white">Central de privacidade e direitos do titular</h1>

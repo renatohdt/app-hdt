@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { CalendarDays, Dumbbell, House, Timer, UserRound } from "lucide-react";
 import { RestTimer } from "@/components/rest-timer";
@@ -43,6 +43,7 @@ export function AppBottomNav() {
   const pathname = usePathname();
   const [timerOpen, setTimerOpen] = useState(false);
   const [suggestedSeconds, setSuggestedSeconds] = useState(60);
+  const swipeStartY = useRef<number | null>(null);
 
   useEffect(() => {
     function handleSuggestedRest(event: Event) {
@@ -60,7 +61,23 @@ export function AppBottomNav() {
   return (
     <nav aria-label="Navegacao principal do app" className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
       {timerOpen ? (
-        <div className="pointer-events-auto mx-auto mb-3 w-full max-w-[var(--app-shell-max)] px-4">
+        <div
+          className="pointer-events-auto mx-auto mb-3 w-full max-w-[var(--app-shell-max)] px-4"
+          onTouchStart={(e) => { swipeStartY.current = e.touches[0].clientY; }}
+          onTouchEnd={(e) => {
+            if (swipeStartY.current === null) return;
+            const delta = e.changedTouches[0].clientY - swipeStartY.current;
+            if (delta > 60) setTimerOpen(false);
+            swipeStartY.current = null;
+          }}
+          onMouseDown={(e) => { swipeStartY.current = e.clientY; }}
+          onMouseUp={(e) => {
+            if (swipeStartY.current === null) return;
+            const delta = e.clientY - swipeStartY.current;
+            if (delta > 60) setTimerOpen(false);
+            swipeStartY.current = null;
+          }}
+        >
           <div className="rounded-[28px] border border-white/10 bg-[#070907]/92 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.52)] backdrop-blur-2xl">
             <RestTimer title="Cronômetro" suggestedSeconds={suggestedSeconds} initialSeconds={suggestedSeconds} compact />
           </div>

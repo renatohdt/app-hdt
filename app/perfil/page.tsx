@@ -1,11 +1,13 @@
 "use client";
 
 import clsx from "clsx";
+import { Bell, CalendarDays, ChevronRight, Lock, Ruler, Shield, Target, UserRound, Weight } from "lucide-react";
+import Link from "next/link";
 import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
-import { Badge, BadgeGroup, Button, Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/auth-errors";
@@ -109,11 +111,15 @@ const EMPTY_FORM_STATE: ProfileFormState = {
   equipment: ["nenhum"]
 };
 
+type EditingSection = "personal" | "physical" | "training";
+
 export default function PerfilPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editingSection, setEditingSection] = useState<EditingSection | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,16 +211,6 @@ export default function PerfilPage() {
     });
   }
 
-  function handleEdit() {
-    if (!payload) {
-      return;
-    }
-
-    setForm(buildFormState(payload));
-    setFeedback(null);
-    setIsEditing(true);
-  }
-
   function handleCancel() {
     if (!payload) {
       return;
@@ -223,6 +219,7 @@ export default function PerfilPage() {
     setForm(buildFormState(payload));
     setFeedback(null);
     setIsEditing(false);
+    setEditingSection(null);
   }
 
   async function handleSave() {
@@ -274,6 +271,7 @@ export default function PerfilPage() {
       setPayload(result.data);
       setForm(buildFormState(result.data));
       setIsEditing(false);
+      setEditingSection(null);
       setFeedback({ tone: "success", text: "Seus dados foram salvos com sucesso." });
     } catch (saveError) {
       setFeedback({
@@ -334,6 +332,19 @@ export default function PerfilPage() {
     }
   }
 
+  function openSection(section: EditingSection) {
+    if (!payload) {
+      return;
+    }
+
+    setForm(buildFormState(payload));
+    setFeedback(null);
+    setEditingSection(section);
+    setIsEditing(true);
+  }
+
+  // ── Loading / signing out ───────────────────────────────────────────────────
+
   if (loading || isSigningOut) {
     return (
       <AppShell>
@@ -357,321 +368,367 @@ export default function PerfilPage() {
     );
   }
 
+  // ── Editing view ────────────────────────────────────────────────────────────
+
+  if (isEditing && editingSection) {
+    const sectionTitle: Record<EditingSection, string> = {
+      personal: "Dados Pessoais",
+      physical: "Dados Físicos",
+      training: "Dados de Treino"
+    };
+
+    return (
+      <AppShell>
+        <AppSessionTracker userId={payload.user.id} source="profile" />
+
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold text-white">{sectionTitle[editingSection]}</h1>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="min-h-10 text-sm"
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} className="min-h-10 text-sm">
+              {isSaving ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
+        </div>
+
+        {feedback ? <FeedbackBanner feedback={feedback} /> : null}
+
+        {editingSection === "personal" && (
+          <Card className="space-y-5 p-5">
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Nome</p>
+              <TextInput
+                value={form.name}
+                onChange={(value) => updateForm(setForm, "name", value)}
+                placeholder="Seu nome"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">E-mail</p>
+              <TextInput
+                type="email"
+                value={form.email}
+                onChange={(value) => updateForm(setForm, "email", value)}
+                placeholder="voce@exemplo.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Profissão</p>
+              <TextInput
+                value={form.profession}
+                onChange={(value) => updateForm(setForm, "profession", value)}
+                placeholder="Ex: trabalho sentado"
+              />
+            </div>
+          </Card>
+        )}
+
+        {editingSection === "physical" && (
+          <Card className="space-y-5 p-5">
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Idade</p>
+              <TextInput
+                type="number"
+                inputMode="numeric"
+                min={12}
+                max={80}
+                value={form.age}
+                onChange={(value) => updateForm(setForm, "age", value)}
+                placeholder="25"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Peso (kg)</p>
+              <TextInput
+                type="number"
+                inputMode="decimal"
+                min={30}
+                max={200}
+                value={form.weight}
+                onChange={(value) => updateForm(setForm, "weight", value)}
+                placeholder="70"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Altura (cm)</p>
+              <TextInput
+                type="number"
+                inputMode="numeric"
+                min={140}
+                max={210}
+                value={form.height}
+                onChange={(value) => updateForm(setForm, "height", value)}
+                placeholder="170"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Biotipo</p>
+              <SelectField
+                value={form.body_type}
+                options={BODY_TYPE_OPTIONS}
+                onChange={(value) => updateForm(setForm, "body_type", value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Gênero</p>
+              <SelectField
+                value={form.gender}
+                options={GENDER_OPTIONS}
+                onChange={(value) => updateForm(setForm, "gender", value)}
+              />
+            </div>
+          </Card>
+        )}
+
+        {editingSection === "training" && (
+          <Card className="space-y-5 p-5">
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Objetivo</p>
+              <SelectField
+                value={form.goal}
+                options={GOAL_OPTIONS}
+                onChange={(value) => updateForm(setForm, "goal", value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Dias disponíveis</p>
+              <SelectField
+                value={form.days}
+                options={DAYS_OPTIONS}
+                onChange={(value) => updateForm(setForm, "days", value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Tempo por treino</p>
+              <SelectField
+                value={form.time}
+                options={TIME_OPTIONS}
+                onChange={(value) => updateForm(setForm, "time", value)}
+              />
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs text-white/50">Equipamentos</p>
+              <div className="flex flex-wrap gap-2">
+                {EQUIPMENT_OPTIONS.map((option) => {
+                  const selected = form.equipment.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => toggleEquipment(setForm, option.value)}
+                      className={clsx(
+                        "inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition",
+                        selected
+                          ? "border-primary/40 bg-primary/12 text-white"
+                          : "border-white/10 bg-white/[0.04] text-white/72 hover:bg-white/[0.08] hover:text-white"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        )}
+      </AppShell>
+    );
+  }
+
+  // ── Profile view ────────────────────────────────────────────────────────────
+
+  const userInitial = (payload.user.name?.[0] ?? "U").toUpperCase();
+
   return (
     <AppShell>
       <AppSessionTracker userId={payload.user.id} source="profile" />
 
-      <Card className="space-y-4 p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Perfil</p>
-            <h1 className="text-[1.9rem] font-semibold leading-tight text-white">Seus dados e preferencias</h1>
-            <p className="text-sm text-white/62">Ajuste o que for necessario para manter o treino coerente com sua rotina.</p>
-          </div>
+      {/* Cabeçalho */}
+      <div className="space-y-1">
+        <h1 className="text-[1.9rem] font-semibold leading-tight text-white">Perfil</h1>
+        <p className="text-sm text-white/56">Gerencie seus dados e preferências</p>
+      </div>
 
-          <div className="flex flex-wrap gap-2">
-            {isEditing ? (
-              <>
-                <Button
-                  variant="secondary"
-                  onClick={handleCancel}
-                  disabled={isSaving || isGenerating}
-                  className="min-h-11"
-                >
-                  Cancelar
-                </Button>
-                <Button onClick={handleSave} disabled={isSaving || isGenerating} className="min-h-11">
-                  {isSaving ? "Salvando..." : "Salvar"}
-                </Button>
-              </>
-            ) : (
-              <Button onClick={handleEdit} disabled={isGenerating} className="min-h-11">
-                Editar perfil
-              </Button>
-            )}
+      {/* Card do usuário */}
+      <div className="rounded-[20px] border border-primary/20 bg-primary/10 p-4">
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-black">
+            {userInitial}
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="font-semibold leading-snug text-white">{payload.user.name || "Sem nome"}</p>
+            <p className="text-[13px] text-white/60">{payload.user.email || "Sem e-mail"}</p>
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              <span className="rounded-full bg-primary/25 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                {getLevelBadge(payload.answers.goal)}
+              </span>
+              <span className="rounded-full border border-white/12 bg-white/5 px-2.5 py-0.5 text-[11px] text-white/65">
+                {formatGoal(payload.answers.goal)}
+              </span>
+              {payload.answers.age ? (
+                <span className="rounded-full border border-white/12 bg-white/5 px-2.5 py-0.5 text-[11px] text-white/65">
+                  {payload.answers.age} anos
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
+      </div>
 
-        <BadgeGroup>
-          <Badge>{payload.user.email || "Sem e-mail"}</Badge>
-          <Badge>{formatGoal(payload.answers.goal)}</Badge>
-          <Badge>{formatDays(payload.answers.days)}</Badge>
-        </BadgeGroup>
+      {/* Estatísticas rápidas */}
+      <div className="grid grid-cols-3 gap-2.5">
+        <StatCard
+          icon={<Weight className="h-4 w-4 text-white/30" />}
+          value={payload.answers.weight ? `${payload.answers.weight} kg` : "—"}
+          label="Peso"
+        />
+        <StatCard
+          icon={<Ruler className="h-4 w-4 text-white/30" />}
+          value={payload.answers.height ? `${payload.answers.height} cm` : "—"}
+          label="Altura"
+        />
+        <StatCard
+          icon={<CalendarDays className="h-4 w-4 text-white/30" />}
+          value={payload.answers.days ? `${payload.answers.days}x` : "—"}
+          label="Dias/sem"
+        />
+      </div>
 
-        {feedback ? <FeedbackBanner feedback={feedback} /> : null}
+      {/* Plano Atual */}
+      <Card className="p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Plano Atual</p>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
+            Gratuito
+          </span>
+          <Link
+            href="/dashboard"
+            className="text-[13px] font-semibold text-primary transition hover:text-primary/80"
+          >
+            Ver plano
+          </Link>
+        </div>
       </Card>
 
-      <div className="grid gap-5">
-        <Card className="space-y-4 p-5 sm:p-6">
-          <h2 className="text-xl font-semibold text-white">Informacoes basicas</h2>
-          <ProfileGrid
-            columns={1}
-            items={[
-              {
-                label: "Nome",
-                content: isEditing ? (
-                  <TextInput
-                    value={form.name}
-                    onChange={(value) => updateForm(setForm, "name", value)}
-                    placeholder="Seu nome"
-                  />
-                ) : (
-                  <StaticValue>{payload.user.name || "Não informado"}</StaticValue>
-                )
-              },
-              {
-                label: "E-mail",
-                content: isEditing ? (
-                  <TextInput
-                    type="email"
-                    value={form.email}
-                    onChange={(value) => updateForm(setForm, "email", value)}
-                    placeholder="voce@exemplo.com"
-                  />
-                ) : (
-                  <StaticValue>{payload.user.email || "Não informado"}</StaticValue>
-                )
-              },
-              {
-                label: "Profissão",
-                content: isEditing ? (
-                  <TextInput
-                    value={form.profession}
-                    onChange={(value) => updateForm(setForm, "profession", value)}
-                    placeholder="Ex: trabalho sentado"
-                  />
-                ) : (
-                  <StaticValue>{payload.answers.profession?.trim() || "Não informado"}</StaticValue>
-                )
-              }
-            ]}
-          />
-        </Card>
+      {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
-        <Card className="space-y-4 p-5 sm:p-6">
-          <h2 className="text-xl font-semibold text-white">Dados fisicos</h2>
-          <ProfileGrid
-            columns={1}
-            items={[
-              {
-                label: "Idade",
-                content: isEditing ? (
-                  <TextInput
-                    type="number"
-                    inputMode="numeric"
-                    min={12}
-                    max={80}
-                    value={form.age}
-                    onChange={(value) => updateForm(setForm, "age", value)}
-                    placeholder="25"
-                  />
-                ) : (
-                  <StaticValue>{formatAge(payload.answers.age)}</StaticValue>
-                )
-              },
-              {
-                label: "Peso",
-                content: isEditing ? (
-                  <TextInput
-                    type="number"
-                    inputMode="decimal"
-                    min={30}
-                    max={200}
-                    value={form.weight}
-                    onChange={(value) => updateForm(setForm, "weight", value)}
-                    placeholder="70"
-                  />
-                ) : (
-                  <StaticValue>{formatWeight(payload.answers.weight)}</StaticValue>
-                )
-              },
-              {
-                label: "Altura",
-                content: isEditing ? (
-                  <TextInput
-                    type="number"
-                    inputMode="numeric"
-                    min={140}
-                    max={210}
-                    value={form.height}
-                    onChange={(value) => updateForm(setForm, "height", value)}
-                    placeholder="170"
-                  />
-                ) : (
-                  <StaticValue>{formatHeight(payload.answers.height)}</StaticValue>
-                )
-              }
-            ]}
+      {/* Meus Dados */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Meus Dados</p>
+        <Card className="overflow-hidden p-0">
+          <SettingsRow
+            icon={<UserRound className="h-5 w-5 text-primary" />}
+            title="Dados Pessoais"
+            subtitle={`${payload.user.name || "—"} · ${truncate(payload.answers.profession, 20)}`}
+            onClick={() => openSection("personal")}
+          />
+          <SettingsRow
+            icon={<Weight className="h-5 w-5 text-primary" />}
+            title="Dados Físicos"
+            subtitle={`${formatBodyType(payload.answers.body_type ?? payload.answers.body_type_raw ?? payload.answers.wrist)} · ${payload.answers.weight ?? "—"}kg · ${payload.answers.height ?? "—"}cm`}
+            onClick={() => openSection("physical")}
+          />
+          <SettingsRow
+            icon={<Target className="h-5 w-5 text-primary" />}
+            title="Dados de Treino"
+            subtitle={`${formatGoal(payload.answers.goal)} · ${payload.answers.days ?? "—"}x/sem · ${payload.answers.time ?? "—"}min`}
+            onClick={() => openSection("training")}
+            isLast
           />
         </Card>
       </div>
 
-      <Card className="space-y-4 p-5 sm:p-6">
-        <h2 className="text-xl font-semibold text-white">Preferências do treino</h2>
-        <ProfileGrid
-          items={[
-            {
-              label: "Objetivo",
-              content: isEditing ? (
-                <SelectField
-                  value={form.goal}
-                  options={GOAL_OPTIONS}
-                  onChange={(value) => updateForm(setForm, "goal", value)}
-                />
-              ) : (
-                <StaticValue>{formatGoal(payload.answers.goal)}</StaticValue>
-              )
-            },
-            {
-              label: "Gênero",
-              content: isEditing ? (
-                <SelectField
-                  value={form.gender}
-                  options={GENDER_OPTIONS}
-                  onChange={(value) => updateForm(setForm, "gender", value)}
-                />
-              ) : (
-                <StaticValue>{formatGender(payload.answers.gender)}</StaticValue>
-              )
-            },
-            {
-              label: "Biotipo físico",
-              content: isEditing ? (
-                <SelectField
-                  value={form.body_type}
-                  options={BODY_TYPE_OPTIONS}
-                  onChange={(value) => updateForm(setForm, "body_type", value)}
-                />
-              ) : (
-                <StaticValue>
-                  {formatBodyType(payload.answers.body_type ?? payload.answers.body_type_raw ?? payload.answers.wrist)}
-                </StaticValue>
-              )
-            },
-            {
-              label: "Dias disponíveis",
-              content: isEditing ? (
-                <SelectField
-                  value={form.days}
-                  options={DAYS_OPTIONS}
-                  onChange={(value) => updateForm(setForm, "days", value)}
-                />
-              ) : (
-                <StaticValue>{formatDays(payload.answers.days)}</StaticValue>
-              )
-            },
-            {
-              label: "Tempo por treino",
-              content: isEditing ? (
-                <SelectField
-                  value={form.time}
-                  options={TIME_OPTIONS}
-                  onChange={(value) => updateForm(setForm, "time", value)}
-                />
-              ) : (
-                <StaticValue>{formatTime(payload.answers.time)}</StaticValue>
-              )
-            }
-          ]}
-        />
-
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/45">Equipamentos</p>
-
-          {isEditing ? (
-            <div className="flex flex-wrap gap-2">
-              {EQUIPMENT_OPTIONS.map((option) => {
-                const selected = form.equipment.includes(option.value);
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => toggleEquipment(setForm, option.value)}
-                    className={clsx(
-                      "inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition",
-                      selected
-                        ? "border-primary/40 bg-primary/12 text-white"
-                        : "border-white/10 bg-white/[0.04] text-white/72 hover:bg-white/[0.08] hover:text-white"
-                    )}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
+      {/* Preferências */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Preferências</p>
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-center gap-3 border-b border-white/8 px-4 py-3.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15">
+              <Bell className="h-5 w-5 text-primary" />
             </div>
-          ) : (
-            <BadgeGroup className="min-w-0">
-              {(payload.answers.equipment?.length ? payload.answers.equipment : ["nenhum"]).map((item) => (
-                <Badge key={item}>{formatEquipment(item)}</Badge>
-              ))}
-            </BadgeGroup>
-          )}
+            <span className="flex-1 text-sm font-medium text-white">Notificações</span>
+            {/* TODO: integrar com web push */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notificationsEnabled}
+              onClick={() => setNotificationsEnabled((prev) => !prev)}
+              className={clsx(
+                "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                notificationsEnabled ? "bg-primary" : "bg-white/20"
+              )}
+            >
+              <span
+                className={clsx(
+                  "absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  notificationsEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                )}
+              />
+            </button>
+          </div>
+          <Link
+            href="/privacidade"
+            className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-white/[0.03]"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15">
+              <Shield className="h-5 w-5 text-primary" />
+            </div>
+            <span className="flex-1 text-sm font-medium text-white">Privacidade</span>
+            <ChevronRight className="h-4 w-4 text-white/30" />
+          </Link>
+        </Card>
+      </div>
+
+      {/* Card Premium — placeholder para gerar treino */}
+      <Card className="space-y-4 p-4">
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Premium</p>
+          <p className="font-semibold text-white">Gerar plano personalizado</p>
+          <p className="text-[13px] leading-5 text-white/54">
+            Atualize seu plano sempre que mudar seus dados físicos ou de treino.
+          </p>
         </div>
+        {/* Botão desabilitado — recurso premium. handleGenerateWorkout e
+            ENABLE_WORKOUT_REGENERATION mantidos abaixo para integração futura. */}
+        <button
+          type="button"
+          disabled
+          title="Disponível em breve para planos premium"
+          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/38 cursor-not-allowed"
+        >
+          <Lock className="h-4 w-4" />
+          Em breve
+        </button>
+        {ENABLE_WORKOUT_REGENERATION && false ? (
+          <Button onClick={handleGenerateWorkout} disabled={isEditing || isSaving || isGenerating}>
+            {isGenerating ? "Gerando novo treino..." : "Gerar novo treino"}
+          </Button>
+        ) : null}
       </Card>
 
-      {ENABLE_WORKOUT_REGENERATION ? (
-        <Card className="space-y-4 p-5 sm:p-6">
-          <div className="space-y-1">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Novo treino</p>
-            <h2 className="text-xl font-semibold text-white">Gerar plano atualizado</h2>
-            <p className="text-sm text-white/62">
-              O treino só é recalculado quando você clicar neste botão. Salvar o perfil não dispara uma nova geração.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-white/62">
-              {isEditing
-                ? "Salve ou cancele a edição atual antes de gerar um novo treino."
-                : "Quando quiser atualizar seu plano, use os dados mais recentes que ficaram salvos no perfil."}
-            </p>
-
-            <Button onClick={handleGenerateWorkout} disabled={isEditing || isSaving || isGenerating}>
-              {isGenerating ? "Gerando novo treino..." : "Gerar novo treino"}
-            </Button>
-          </div>
-        </Card>
-      ) : null}
-
+      {/* Sair da conta */}
       <div className="pt-1">
-        <Button
-          variant="secondary"
+        <button
+          type="button"
           onClick={handleLogout}
           disabled={isSigningOut || isSaving || isGenerating}
-          className="min-h-10 border-white/10 bg-transparent px-4 py-2 text-white/64 hover:bg-white/[0.04] hover:text-white"
+          className="text-sm text-white/40 transition hover:text-red-400 disabled:opacity-50"
         >
           {isSigningOut ? "Saindo..." : "Sair da conta"}
-        </Button>
+        </button>
       </div>
     </AppShell>
   );
 }
 
-function ProfileGrid({
-  items,
-  columns = 3
-}: {
-  items: Array<{ label: string; content: ReactNode }>;
-  columns?: 1 | 2 | 3;
-}) {
-  const className =
-    columns === 1
-      ? "grid gap-4"
-      : columns === 2
-        ? "grid gap-4 sm:grid-cols-2"
-        : "grid gap-4 sm:grid-cols-2";
-
-  return (
-    <div className={className}>
-      {items.map((item) => (
-        <div key={item.label} className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-          <p className="text-xs uppercase tracking-[0.16em] text-white/45">{item.label}</p>
-          <div className="mt-2">{item.content}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+// ── UI components ─────────────────────────────────────────────────────────────
 
 function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
   const toneClassName =
@@ -682,10 +739,6 @@ function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
         : "border-red-400/30 bg-red-500/10 text-red-200";
 
   return <div className={clsx("rounded-2xl border px-4 py-3 text-sm", toneClassName)}>{feedback.text}</div>;
-}
-
-function StaticValue({ children }: { children: ReactNode }) {
-  return <p className="break-words text-sm font-medium text-white">{children}</p>;
 }
 
 function TextInput({
@@ -734,6 +787,52 @@ function SelectField({
   );
 }
 
+function StatCard({ icon, value, label }: { icon: ReactNode; value: string; label: string }) {
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3 text-center">
+      <div className="flex justify-center">{icon}</div>
+      <p className="mt-1.5 text-[1.05rem] font-semibold leading-none text-white">{value}</p>
+      <p className="mt-1 text-[11px] text-white/50">{label}</p>
+    </div>
+  );
+}
+
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  onClick,
+  isLast = false
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+  isLast?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        "flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[0.03]",
+        !isLast && "border-b border-white/8"
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-white">{title}</p>
+        <p className="mt-0.5 truncate text-xs text-white/46">{subtitle}</p>
+      </div>
+      <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
+    </button>
+  );
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
 function buildFormState(payload: ProfilePayload): ProfileFormState {
   return {
     name: payload.user.name ?? "",
@@ -755,10 +854,7 @@ function buildFormState(payload: ProfilePayload): ProfileFormState {
 }
 
 function updateForm(setForm: Dispatch<SetStateAction<ProfileFormState>>, field: keyof ProfileFormState, value: string) {
-  setForm((current) => ({
-    ...current,
-    [field]: value
-  }));
+  setForm((current) => ({ ...current, [field]: value }));
 }
 
 function toggleEquipment(setForm: Dispatch<SetStateAction<ProfileFormState>>, value: string) {
@@ -766,20 +862,14 @@ function toggleEquipment(setForm: Dispatch<SetStateAction<ProfileFormState>>, va
     const currentEquipment = current.equipment.length ? current.equipment : ["nenhum"];
 
     if (value === "nenhum") {
-      return {
-        ...current,
-        equipment: ["nenhum"]
-      };
+      return { ...current, equipment: ["nenhum"] };
     }
 
     const withoutNone = currentEquipment.filter((item) => item !== "nenhum");
     const exists = withoutNone.includes(value);
     const nextEquipment = exists ? withoutNone.filter((item) => item !== value) : [...withoutNone, value];
 
-    return {
-      ...current,
-      equipment: nextEquipment.length ? nextEquipment : ["nenhum"]
-    };
+    return { ...current, equipment: nextEquipment.length ? nextEquipment : ["nenhum"] };
   });
 }
 
@@ -789,18 +879,9 @@ function normalizeBodyTypeValue(value?: string) {
   if (normalized === "endomorph" || normalized === "mesomorph" || normalized === "ectomorph") {
     return normalized;
   }
-
-  if (normalized === "not_touch" || normalized === "dont_touch") {
-    return "endomorph";
-  }
-
-  if (normalized === "just_touch") {
-    return "mesomorph";
-  }
-
-  if (normalized === "overlap") {
-    return "ectomorph";
-  }
+  if (normalized === "not_touch" || normalized === "dont_touch") return "endomorph";
+  if (normalized === "just_touch") return "mesomorph";
+  if (normalized === "overlap") return "ectomorph";
 
   return undefined;
 }
@@ -810,15 +891,14 @@ function normalizeEquipment(equipment?: string[]) {
     EQUIPMENT_OPTIONS.some((option) => option.value === item)
   );
 
-  if (!filtered.length) {
-    return ["nenhum"];
-  }
-
-  if (filtered.includes("nenhum")) {
-    return ["nenhum"];
-  }
-
+  if (!filtered.length) return ["nenhum"];
+  if (filtered.includes("nenhum")) return ["nenhum"];
   return filtered;
+}
+
+function truncate(value?: string, max = 20) {
+  if (!value) return "—";
+  return value.length > max ? value.slice(0, max) + "..." : value;
 }
 
 function formatGoal(goal?: string) {
@@ -860,4 +940,10 @@ function formatHeight(value?: number) {
 
 function formatEquipment(value: string) {
   return EQUIPMENT_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
+
+function getLevelBadge(goal?: string) {
+  if (goal === "gain_muscle" || goal === "body_recomposition") return "Intermediário";
+  if (goal === "improve_conditioning") return "Avançado";
+  return "Iniciante";
 }
