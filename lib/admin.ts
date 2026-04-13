@@ -205,7 +205,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery] =
+    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery, authUsersResult] =
       await Promise.all([
         supabase
           .from("users")
@@ -235,7 +235,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         supabase
           .from("workouts")
           .select("id, user_id, created_at")
-          .order("created_at", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase.auth.admin.listUsers({ perPage: 1 })
       ]);
 
     const dashboardQueryErrors = [
@@ -295,8 +296,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ? Math.round((workoutsGenerated / dashboardUsers.length) * 100)
       : null;
 
+    // Total de cadastros vem do auth.users (fonte de verdade de todos que criaram conta)
+    const totalUsers = authUsersResult.data?.total ?? dashboardUsers.length;
+
     return {
-      totalUsers: dashboardUsers.length,
+      totalUsers,
       deletedUsers,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
