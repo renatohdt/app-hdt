@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import { AdminDashboardShell } from "@/components/admin-dashboard-shell";
 import { Card } from "@/components/ui";

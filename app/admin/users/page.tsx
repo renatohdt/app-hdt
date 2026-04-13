@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { AdminUsersList } from "@/components/admin-users-list";
 import { SectionTitle } from "@/components/ui";
 
