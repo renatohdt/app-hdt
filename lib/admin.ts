@@ -297,7 +297,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       : null;
 
     // Total de cadastros vem do auth.users (fonte de verdade de todos que criaram conta)
-    const totalUsers = authUsersResult.data?.total ?? dashboardUsers.length;
+    const authData = authUsersResult.data;
+    const totalUsers = (authData && "total" in authData ? authData.total : null) ?? dashboardUsers.length;
 
     return {
       totalUsers,
