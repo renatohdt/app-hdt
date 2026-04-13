@@ -195,7 +195,7 @@ export async function generateWorkoutWithAI(
   });
 
   const promptMontagemTreino = [
-    "O tempo disponivel para treinar e uma restricao operacional dura e obrigatoria.",
+    "O tempo disponível para treinar é uma restrição operacional dura e obrigatória.",
     "Você é um personal trainer experiente.",
     "",
     "Monte um plano de treino com lógica real de prescrição, não uma lista aleatória de exercícios.",
@@ -215,7 +215,7 @@ export async function generateWorkoutWithAI(
     "- não invente exercícios",
     "- não repita o mesmo exercício na mesma sessão",
     "- sets, reps e rest devem ser numeros inteiros fixos",
-    "- a quantidade de exercicios, series, descansos e blocos precisa mudar de verdade conforme o tempo disponivel",
+    "- a quantidade de exercícios, séries, descansos e blocos precisa mudar de verdade conforme o tempo disponível",
     "- treinos de 15-20 min devem ser enxutos, com poucos exercícios úteis e densidade alta",
     "- treinos de 75-90 min devem ter mais volume util, mais refinamento por grupamento e estrutura mais completa",
     "- técnicas avançadas devem ser pontuais e coerentes",
@@ -2157,13 +2157,13 @@ function normalizeEquipmentList(values?: string[] | null) {
 
 function mobilityNameByFocus(focus: string) {
   const labels: Record<string, string> = {
-    chest: "Mobilidade toracica",
+    chest: "Mobilidade torácica",
     back: "Mobilidade escapular",
     quadriceps: "Mobilidade de quadril",
     hamstrings: "Mobilidade de posterior",
-    glutes: "Ativacao de gluteos",
-    shoulders: "Rotacao de ombros",
-    abs: "Ativacao de core",
+    glutes: "Ativação de glúteos",
+    shoulders: "Rotação de ombros",
+    abs: "Ativação de core",
     lower_back: "Mobilidade de coluna lombar",
     full_body: "Mobilidade global"
   };
@@ -2175,7 +2175,7 @@ function formatGoal(goal: QuizAnswers["goal"]) {
   const labels: Record<QuizAnswers["goal"], string> = {
     lose_weight: "emagrecimento",
     gain_muscle: "hipertrofia",
-    body_recomposition: "recomposicao corporal",
+    body_recomposition: "recomposição corporal",
     improve_conditioning: "condicionamento"
   };
 

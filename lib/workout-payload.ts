@@ -1,5 +1,11 @@
-import { DiagnosisResult, QuizAnswers, WorkoutExercise, WorkoutPlan, WorkoutSection } from "@/lib/types";
-import { formatExerciseMuscleLabel, normalizeExerciseMuscleGroup } from "@/lib/exercise-library";
+import { DiagnosisResult, ExerciseRecord, QuizAnswers, WorkoutExercise, WorkoutPlan, WorkoutSection } from "@/lib/types";
+import {
+  formatExerciseMuscleLabel,
+  getExerciseMuscleGroups,
+  normalizeExerciseMuscleGroup,
+  normalizeExerciseName,
+  normalizeExerciseRecord
+} from "@/lib/exercise-library";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import { formatSplitTypeLabel, normalizeBlockType } from "@/lib/workout-strategy";
 import { buildSessionTimeBudget } from "@/lib/workout-time";
@@ -113,6 +119,41 @@ export function normalizeWorkoutPayload(
     progressionNotes: null,
     sections: [fallbackSection],
     exercises: [...fallbackSection.mobility, ...fallbackSection.exercises]
+  };
+}
+
+export function syncWorkoutWithExerciseLibrary(workout: WorkoutPlan, exerciseLibrary: ExerciseRecord[]) {
+  if (!exerciseLibrary.length) {
+    return workout;
+  }
+
+  const exerciseLookup = new Map<string, ExerciseRecord>();
+
+  exerciseLibrary
+    .map((exercise) => normalizeExerciseRecord(exercise))
+    .forEach((exercise) => {
+      const key = normalizeExerciseName(exercise.name);
+      if (key && !exerciseLookup.has(key)) {
+        exerciseLookup.set(key, exercise);
+      }
+    });
+
+  const sections = workout.sections.map((section) => {
+    const mobility = section.mobility.map((exercise) => syncWorkoutExerciseWithCatalog(exercise, exerciseLookup));
+    const exercises = section.exercises.map((exercise) => syncWorkoutExerciseWithCatalog(exercise, exerciseLookup));
+
+    return {
+      ...section,
+      mobility,
+      exercises,
+      items: buildWorkoutSectionItems(mobility, exercises)
+    };
+  });
+
+  return {
+    ...workout,
+    sections,
+    exercises: sections.flatMap((section) => [...section.mobility, ...section.exercises])
   };
 }
 
@@ -342,6 +383,23 @@ function normalizeExercise(value: unknown): WorkoutExercise | null {
         : typeof exercise.video_url === "string"
           ? (exercise.video_url as string)
           : null
+  };
+}
+
+function syncWorkoutExerciseWithCatalog(
+  exercise: WorkoutExercise,
+  exerciseLookup: Map<string, ExerciseRecord>
+) {
+  const key = normalizeExerciseName(exercise.name);
+  const catalogExercise = key ? exerciseLookup.get(key) : null;
+
+  if (!catalogExercise) {
+    return exercise;
+  }
+
+  return {
+    ...exercise,
+    muscleGroups: getExerciseMuscleGroups(catalogExercise)
   };
 }
 

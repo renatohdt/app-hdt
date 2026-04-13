@@ -229,6 +229,7 @@ create table if not exists public.workout_session_logs (
   workout_id uuid not null references public.workouts(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   plan_cycle_id text check (plan_cycle_id is null or btrim(plan_cycle_id) <> ''),
+  completed_day_sp date,
   workout_hash text check (workout_hash is null or workout_hash ~ '^[a-f0-9]{64}$'),
   workout_key text check (workout_key is null or btrim(workout_key) <> ''),
   session_number integer not null check (session_number > 0),
@@ -424,6 +425,9 @@ where hash is not null
 alter table public.workout_session_logs
   add column if not exists plan_cycle_id text;
 
+alter table public.workout_session_logs
+  add column if not exists completed_day_sp date;
+
 do $$
 begin
   if not exists (
@@ -479,6 +483,9 @@ create index if not exists workout_session_logs_workout_completed_at_idx
   on public.workout_session_logs(workout_id, completed_at desc);
 create index if not exists workout_session_logs_user_completed_at_idx
   on public.workout_session_logs(user_id, completed_at desc);
+create unique index if not exists workout_session_logs_user_completed_day_sp_key
+  on public.workout_session_logs(user_id, completed_day_sp)
+  where completed_day_sp is not null;
 
 create index if not exists user_consents_user_id_idx on public.user_consents(user_id);
 create index if not exists user_consents_scope_granted_idx on public.user_consents(scope, granted);

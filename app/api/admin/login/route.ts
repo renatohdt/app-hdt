@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
       if (!isEmailMatch || !isPasswordMatch) {
         logWarn("ADMIN", "Env admin login denied", { email });
-        return jsonError("E-mail ou senha de admin invalidos.", 401);
+        return jsonError("E-mail ou senha de admin inválidos.", 401);
       }
 
       const response = jsonSuccess({ mode: "env" }, 200);
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     if (error || !data.user?.id) {
       logWarn("ADMIN", "Supabase admin login denied", { email });
-      return jsonError("E-mail ou senha de admin invalidos.", 401);
+      return jsonError("E-mail ou senha de admin inválidos.", 401);
     }
 
     const { data: userRow, error: roleError } = await supabaseAdmin

@@ -12,6 +12,7 @@ import { trackEvent } from "@/lib/analytics-client";
 import {
   buildTrainingExerciseRows,
   formatDurationLabel,
+  getFeaturedWorkoutKey,
   formatSessionCounter,
   formatWorkoutDisplayTitle,
   type AppWorkoutData
@@ -21,13 +22,15 @@ import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 
 type CompletionResponse = {
   success: boolean;
+  already_completed_today?: boolean;
+  message?: string;
   data?: {
     sessionProgress: WorkoutSessionProgress;
-    completion: {
+    completion?: {
       workoutKey: string | null;
       sessionNumber: number;
       completedAt: string;
-    };
+    } | null;
   };
   error?: string;
 };
@@ -37,15 +40,20 @@ type FeedbackState = {
   text: string;
 };
 
-const COMPLETE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel marcar o treino como conclu\u00eddo.";
+const COMPLETE_WORKOUT_ERROR_MESSAGE = "Não foi possível marcar o treino como concluído.";
+const ALREADY_COMPLETED_TODAY_MESSAGE = "Você já treinou hoje. Agora é descansar e voltar amanhã.";
 
 export function TrainingScreen({ data }: { data: AppWorkoutData }) {
-  const [activeWorkoutKey, setActiveWorkoutKey] = useState(data.workoutOrder[0] ?? "");
+  const [activeWorkoutKey, setActiveWorkoutKey] = useState(data.featuredWorkoutKey ?? data.workoutOrder[0] ?? "");
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   const [sessionProgress, setSessionProgress] = useState(data.sessionProgress);
   const [confirmCompletion, setConfirmCompletion] = useState(false);
   const [completingWorkout, setCompletingWorkout] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const featuredWorkoutKey = useMemo(
+    () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
+    [data.workoutOrder, sessionProgress.lastCompletedWorkoutKey]
+  );
 
   useEffect(() => {
     setSessionProgress(data.sessionProgress);
@@ -53,9 +61,9 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
 
   useEffect(() => {
     if (!data.workouts[activeWorkoutKey]) {
-      setActiveWorkoutKey(data.workoutOrder[0] ?? "");
+      setActiveWorkoutKey(featuredWorkoutKey ?? data.workoutOrder[0] ?? "");
     }
-  }, [activeWorkoutKey, data.workoutOrder, data.workouts]);
+  }, [activeWorkoutKey, data.workoutOrder, data.workouts, featuredWorkoutKey]);
 
   useEffect(() => {
     trackEvent("workout_viewed", data.user.id, {
@@ -76,7 +84,7 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
       <AppShell>
         <Card className="p-5 shadow-none sm:p-6">
           <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Treinos</p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Nenhum treino disponivel</h1>
+          <h1 className="mt-2 text-2xl font-semibold text-white">Nenhum treino disponível</h1>
           <p className="mt-2 text-sm leading-6 text-white/62">
             Gere ou atualize seu plano no perfil para voltar ao fluxo principal do treino.
           </p>
@@ -102,21 +110,41 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
 
       const result = await parseJsonResponse<CompletionResponse>(response);
 
+      if (result.already_completed_today) {
+        if (result.data?.sessionProgress) {
+          setSessionProgress(result.data.sessionProgress);
+        }
+
+        setConfirmCompletion(false);
+        setFeedback({
+          tone: "info",
+          text: result.message ?? result.error ?? ALREADY_COMPLETED_TODAY_MESSAGE
+        });
+        return;
+      }
+
       if (!response.ok || !result.success || !result.data) {
-        throw new Error(result.error ?? COMPLETE_WORKOUT_ERROR_MESSAGE);
+        throw new Error(result.message ?? result.error ?? COMPLETE_WORKOUT_ERROR_MESSAGE);
       }
 
       setSessionProgress(result.data.sessionProgress);
+      const nextWorkoutKey = getFeaturedWorkoutKey(data.workoutOrder, result.data.sessionProgress.lastCompletedWorkoutKey);
+      const nextWorkoutLabel = formatWorkoutDisplayTitle(data.workouts[nextWorkoutKey ?? ""]?.title, nextWorkoutKey);
+
+      if (nextWorkoutKey) {
+        setActiveWorkoutKey(nextWorkoutKey);
+      }
+
       setConfirmCompletion(false);
       setFeedback({
         tone: "success",
-        text: `${formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} contou +1 sessao no plano. ${formatSessionCounter(result.data.sessionProgress)}.`
+        text: `${formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} contou +1 sessão no plano. Próximo em destaque: ${nextWorkoutLabel}.`
       });
 
       trackEvent("cta_click", data.user.id, {
         source: "complete_workout",
         workout_key: activeWorkoutKey,
-        session_number: result.data.completion.sessionNumber
+        session_number: result.data.completion?.sessionNumber ?? null
       });
     } catch (requestError) {
       setFeedback({
@@ -224,16 +252,16 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
 
         {isCycleComplete ? (
           <div className="rounded-[24px] border border-primary/18 bg-primary/10 p-4">
-            <p className="text-sm font-semibold text-white">Ciclo concluido</p>
+            <p className="text-sm font-semibold text-white">Ciclo concluído</p>
             <p className="mt-1 text-sm text-white/62">
-              Voce ja registrou todas as sessoes do plano atual. Quando renovar, todos os treinos do plano serao trocados juntos.
+              Você já registrou todas as sessões do plano atual. Quando renovar, todos os treinos do plano serão trocados juntos.
             </p>
           </div>
         ) : confirmCompletion ? (
           <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-            <p className="text-sm font-semibold text-white">Confirmar conclusao</p>
+            <p className="text-sm font-semibold text-white">Confirmar conclusão</p>
             <p className="mt-1 text-sm text-white/62">
-              Confirmar que voce concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
+              Confirmar que você concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
             </p>
             <div className="mt-4 flex flex-col gap-3 min-[380px]:flex-row">
               <Button variant="secondary" onClick={() => setConfirmCompletion(false)} className="flex-1">

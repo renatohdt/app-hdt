@@ -57,16 +57,16 @@ export function ProgressScreen({ data }: { data: AppWorkoutData }) {
 
       <Card className="space-y-4 p-5 sm:p-6">
         <div className="space-y-1.5">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Leitura rapida</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Leitura rápida</p>
           <h2 className="text-xl font-semibold text-white">{achievement.title}</h2>
           <p className="text-sm leading-6 text-white/62">{achievement.description}</p>
           <p className="text-sm leading-6 text-white/48">
-            Bloco atual: {data.plan.blockDurationWeeks} semana(s) e {data.plan.totalSessions} sessoes planejadas.
+            Bloco atual: {data.plan.blockDurationWeeks} semana(s) e {data.plan.totalSessions} sessões planejadas.
           </p>
         </div>
 
         <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-white/38">Progressao do plano</p>
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-white/38">Progressão do plano</p>
           <p className="mt-2 text-sm leading-6 text-white/62">
             {data.sessionProgress.lastCompletedAt
               ? `Último registro em ${new Intl.DateTimeFormat("pt-BR", {

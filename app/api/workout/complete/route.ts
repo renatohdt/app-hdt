@@ -10,10 +10,15 @@ import type { QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow } from "@/lib/workout-record-store";
-import { createWorkoutSessionLog, getWorkoutSessionStats } from "@/lib/workout-session-store";
+import {
+  createWorkoutSessionLog,
+  getUserWorkoutSessionForLocalDay,
+  getWorkoutSessionStats
+} from "@/lib/workout-session-store";
 import {
   buildWorkoutSessionProgress,
   normalizeWorkoutKey,
+  type WorkoutSessionLogEntry,
   resolveWorkoutPlanSessionConfig
 } from "@/lib/workout-sessions";
 
@@ -23,14 +28,15 @@ type CompleteWorkoutBody = {
 
 export const dynamic = "force-dynamic";
 
-const SESSION_EXPIRED_MESSAGE = "Sua sess\u00e3o expirou. Fa\u00e7a login novamente.";
-const COMPLETE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel registrar a conclus\u00e3o do treino.";
-const LOAD_CURRENT_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seu treino atual.";
-const WORKOUT_NOT_FOUND_MESSAGE = "Treino n\u00e3o encontrado.";
-const INVALID_WORKOUT_MESSAGE = "Treino selecionado inv\u00e1lido.";
-const PLAN_ALREADY_COMPLETED_MESSAGE = "Todas as sess\u00f5es deste plano j\u00e1 foram conclu\u00eddas.";
-const SESSION_LOG_UNAVAILABLE_MESSAGE = "O registro de sess\u00f5es ainda n\u00e3o est\u00e1 dispon\u00edvel neste ambiente.";
-const COMPLETE_MARK_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel marcar o treino como conclu\u00eddo.";
+const SESSION_EXPIRED_MESSAGE = "Sua sessão expirou. Faça login novamente.";
+const COMPLETE_WORKOUT_ERROR_MESSAGE = "Não foi possível registrar a conclusão do treino.";
+const LOAD_CURRENT_WORKOUT_ERROR_MESSAGE = "Não foi possível carregar seu treino atual.";
+const WORKOUT_NOT_FOUND_MESSAGE = "Treino não encontrado.";
+const INVALID_WORKOUT_MESSAGE = "Treino selecionado inválido.";
+const PLAN_ALREADY_COMPLETED_MESSAGE = "Todas as sessões deste plano já foram concluídas.";
+const SESSION_LOG_UNAVAILABLE_MESSAGE = "O registro de sessões ainda não está disponível neste ambiente.";
+const COMPLETE_MARK_ERROR_MESSAGE = "Não foi possível marcar o treino como concluído.";
+const ALREADY_COMPLETED_TODAY_MESSAGE = "Você já treinou hoje. Agora é descansar e voltar amanhã.";
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,7 +96,20 @@ export async function POST(request: NextRequest) {
       workout: normalizedWorkout,
       answers
     });
-    const sessionStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
+    const [sessionStats, todayCompletion] = await Promise.all([
+      getWorkoutSessionStats(supabase, workoutState.sessionFilter),
+      getUserWorkoutSessionForLocalDay(supabase, {
+        userId: auth.user.id
+      })
+    ]);
+
+    if (todayCompletion.log) {
+      return buildAlreadyCompletedTodayResponse({
+        totalSessions: workoutState.sessionConfig.totalSessions,
+        sessionStats,
+        completion: todayCompletion.log
+      });
+    }
 
     if (sessionStats.completedSessions >= workoutState.sessionConfig.totalSessions) {
       return jsonError(PLAN_ALREADY_COMPLETED_MESSAGE, 409);
@@ -105,14 +124,28 @@ export async function POST(request: NextRequest) {
       workoutKey,
       planCycleId: workoutState.sessionConfig.planCycleId,
       sessionNumber,
-      completedAt
+      completedAt,
+      completedDaySp: todayCompletion.dayKey
     });
 
     if (completionResult.error || !completionResult.data) {
       const errorCode = (completionResult.error as { code?: string } | null)?.code;
 
       if (errorCode === "23505") {
-        const refreshedStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
+        const [refreshedStats, refreshedTodayCompletion] = await Promise.all([
+          getWorkoutSessionStats(supabase, workoutState.sessionFilter),
+          getUserWorkoutSessionForLocalDay(supabase, {
+            userId: auth.user.id
+          })
+        ]);
+
+        if (refreshedTodayCompletion.log) {
+          return buildAlreadyCompletedTodayResponse({
+            totalSessions: workoutState.sessionConfig.totalSessions,
+            sessionStats: refreshedStats,
+            completion: refreshedTodayCompletion.log
+          });
+        }
 
         return NextResponse.json({
           success: true,
@@ -124,7 +157,7 @@ export async function POST(request: NextRequest) {
               lastCompletedWorkoutKey: refreshedStats.lastLog?.workoutKey ?? null,
               lastCompletedSessionNumber: refreshedStats.lastLog?.sessionNumber ?? null
             }),
-            completion: refreshedStats.lastLog
+            completion: refreshedStats.lastLog ? serializeWorkoutCompletion(refreshedStats.lastLog) : null
           }
         });
       }
@@ -151,7 +184,7 @@ export async function POST(request: NextRequest) {
           lastCompletedWorkoutKey: completionResult.data.workoutKey,
           lastCompletedSessionNumber: completionResult.data.sessionNumber
         }),
-        completion: completionResult.data
+        completion: serializeWorkoutCompletion(completionResult.data)
       }
     });
   } catch {
@@ -225,4 +258,43 @@ function resolveWorkoutPlanState(input: {
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.round(parsed) : 0;
+}
+
+function buildAlreadyCompletedTodayResponse(input: {
+  totalSessions: number;
+  sessionStats: {
+    completedSessions: number;
+    lastLog: WorkoutSessionLogEntry | null;
+  };
+  completion: WorkoutSessionLogEntry;
+}) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: ALREADY_COMPLETED_TODAY_MESSAGE,
+      message: ALREADY_COMPLETED_TODAY_MESSAGE,
+      already_completed_today: true,
+      data: {
+        sessionProgress: buildWorkoutSessionProgress({
+          totalSessions: input.totalSessions,
+          completedSessions: input.sessionStats.completedSessions,
+          lastCompletedAt: input.sessionStats.lastLog?.completedAt ?? null,
+          lastCompletedWorkoutKey: input.sessionStats.lastLog?.workoutKey ?? null,
+          lastCompletedSessionNumber: input.sessionStats.lastLog?.sessionNumber ?? null
+        }),
+        completion: serializeWorkoutCompletion(input.completion)
+      }
+    },
+    {
+      status: 409
+    }
+  );
+}
+
+function serializeWorkoutCompletion(completion: WorkoutSessionLogEntry) {
+  return {
+    workoutKey: completion.workoutKey ?? null,
+    sessionNumber: completion.sessionNumber,
+    completedAt: completion.completedAt
+  };
 }

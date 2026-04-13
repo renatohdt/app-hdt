@@ -16,7 +16,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { saveUserAnswers } from "@/lib/user-answers";
 import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
-import { normalizeWorkoutPayload } from "@/lib/workout-payload";
+import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getWorkoutSessionStats } from "@/lib/workout-session-store";
 import {
@@ -32,14 +32,14 @@ type QuizSubmissionBody = Partial<QuizAnswers> & {
   consents?: Partial<Record<ConsentScope, boolean>>;
 };
 
-const SESSION_EXPIRED_MESSAGE = "Sua sess\u00e3o expirou. Fa\u00e7a login novamente.";
-const SAVE_PROFILE_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seus dados no momento.";
-const ACCEPT_TERMS_ERROR_MESSAGE = "Voc\u00ea precisa aceitar os Termos de Uso para continuar.";
-const RATE_LIMIT_ERROR_MESSAGE = "Voc\u00ea atingiu o limite de tentativas. Tente novamente em alguns minutos.";
-const GENERATE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel gerar seu treino agora. Tente novamente.";
-const LOAD_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seu treino agora.";
-const SAVE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seu treino no momento.";
-const SAVE_CONSENTS_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seus consentimentos no momento.";
+const SESSION_EXPIRED_MESSAGE = "Sua sessão expirou. Faça login novamente.";
+const SAVE_PROFILE_ERROR_MESSAGE = "Não foi possível salvar seus dados no momento.";
+const ACCEPT_TERMS_ERROR_MESSAGE = "Você precisa aceitar os Termos de Uso para continuar.";
+const RATE_LIMIT_ERROR_MESSAGE = "Você atingiu o limite de tentativas. Tente novamente em alguns minutos.";
+const GENERATE_WORKOUT_ERROR_MESSAGE = "Não foi possível gerar seu treino agora. Tente novamente.";
+const LOAD_WORKOUT_ERROR_MESSAGE = "Não foi possível carregar seu treino agora.";
+const SAVE_WORKOUT_ERROR_MESSAGE = "Não foi possível salvar seu treino no momento.";
+const SAVE_CONSENTS_ERROR_MESSAGE = "Não foi possível salvar seus consentimentos no momento.";
 
 export async function POST(request: Request) {
   try {
@@ -181,7 +181,8 @@ export async function POST(request: Request) {
     const existingWorkoutState = buildExistingWorkoutState({
       workoutRecord: existingWorkout,
       answers,
-      diagnosis
+      diagnosis,
+      exerciseLibrary: normalizedExercises
     });
     const existingSessionStats = existingWorkoutState
       ? await getWorkoutSessionStats(supabase, existingWorkoutState.sessionFilter)
@@ -215,16 +216,17 @@ export async function POST(request: Request) {
         if (!generatedWorkout) {
           workout = null;
         } else {
+          const catalogSyncedWorkout = syncWorkoutWithExerciseLibrary(generatedWorkout, normalizedExercises);
           const nextWorkoutConfig = {
             ...resolveWorkoutPlanSessionConfig({
               answers,
-              workout: generatedWorkout,
+              workout: catalogSyncedWorkout,
               storedTotalSessions: null,
-              fallbackWeeklyFrequency: generatedWorkout.sessionCount ?? generatedWorkout.sections.length
+              fallbackWeeklyFrequency: catalogSyncedWorkout.sessionCount ?? catalogSyncedWorkout.sections.length
             }),
             planCycleId: randomUUID()
           };
-          workout = applyWorkoutPlanSessionConfig(generatedWorkout, nextWorkoutConfig);
+          workout = applyWorkoutPlanSessionConfig(catalogSyncedWorkout, nextWorkoutConfig);
         }
 
         logInfo("AI", "Workout generation completed", { user_id: userId });
@@ -326,6 +328,7 @@ function buildExistingWorkoutState(input: {
   workoutRecord: WorkoutRecordRow | null;
   answers: QuizAnswers;
   diagnosis: ReturnType<typeof diagnoseUser>;
+  exerciseLibrary: ExerciseRecord[];
 }) {
   if (!input.workoutRecord) {
     return null;
@@ -338,6 +341,9 @@ function buildExistingWorkoutState(input: {
       diagnosis: input.diagnosis,
       answers: input.answers
     });
+    if (normalizedWorkout) {
+      normalizedWorkout = syncWorkoutWithExerciseLibrary(normalizedWorkout, input.exerciseLibrary);
+    }
   } catch {
     normalizedWorkout = null;
   }

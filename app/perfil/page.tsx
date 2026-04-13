@@ -291,7 +291,7 @@ export default function PerfilPage() {
     if (isEditing) {
       setFeedback({
         tone: "info",
-        text: "Salve suas alteracoes antes de gerar um novo treino."
+        text: "Salve suas alterações antes de gerar um novo treino."
       });
       return;
     }
@@ -362,7 +362,7 @@ export default function PerfilPage() {
       <AppShell>
         <Card className="space-y-3 p-5 sm:p-6">
           <h1 className="text-2xl font-semibold text-white">Não foi possível abrir seu perfil</h1>
-          <p className="text-sm text-white/64">{error ?? "Perfil indisponivel."}</p>
+          <p className="text-sm text-white/64">{error ?? "Perfil indisponível."}</p>
         </Card>
       </AppShell>
     );

@@ -76,7 +76,7 @@ function ResultsContent() {
         const response = await fetchWithAuth(`/api/workout?userId=${userId}`);
         if (!response.ok) {
           const responsePayload = await parseJsonResponse<{ success: false; error?: string }>(response);
-          throw new Error(responsePayload.error ?? "Erro na requisicao");
+          throw new Error(responsePayload.error ?? "Erro na requisição");
         }
 
         const result = await parseJsonResponse<{ success: true; data: ResultPayload }>(response);

@@ -34,6 +34,30 @@ type SessionListInput = SessionStatsInput & {
 
 type SessionFilterMode = "plan_cycle_id" | "workout_hash" | "cycle_started_at" | "none";
 
+type UserSessionDayLookupInput = {
+  userId: string;
+  referenceDate?: Date | string | number | null;
+  timeZone?: string;
+};
+
+type LocalDayRange = {
+  dayKey: string;
+  timeZone: string;
+  startUtcIso: string;
+  endUtcIso: string;
+};
+
+type ZonedDateTimeParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+const WORKOUT_SESSION_TIMEZONE = "America/Sao_Paulo";
+
 export async function getWorkoutSessionStats(supabase: SupabaseLike, input: SessionStatsInput) {
   for (const filterMode of getSessionFilterModes(input)) {
     const result = await readWorkoutSessionStats(supabase, input, {
@@ -171,6 +195,72 @@ export async function listWorkoutSessionLogs(supabase: SupabaseLike, input: Sess
   return [] as WorkoutSessionLogEntry[];
 }
 
+export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, input: UserSessionDayLookupInput) {
+  const dayRange = getLocalDayRange(input.referenceDate, input.timeZone ?? WORKOUT_SESSION_TIMEZONE);
+  const result = await readUserWorkoutSessionForLocalDay(supabase, input.userId, dayRange, {
+    useLegacySelect: false
+  });
+
+  if (isMissingSessionLogsTable(result.error)) {
+    logWarn("WORKOUT", "Workout session local-day lookup unavailable", {
+      user_id: input.userId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return {
+      ...dayRange,
+      log: null
+    };
+  }
+
+  if (hasLegacyLatestSelectIssue(result.error)) {
+    const legacyResult = await readUserWorkoutSessionForLocalDay(supabase, input.userId, dayRange, {
+      useLegacySelect: true
+    });
+
+    if (isMissingSessionLogsTable(legacyResult.error)) {
+      return {
+        ...dayRange,
+        log: null
+      };
+    }
+
+    if (legacyResult.error) {
+      logError("WORKOUT", "Workout session local-day legacy lookup failed", {
+        user_id: input.userId,
+        error_code: getSupabaseErrorCode(legacyResult.error)
+      });
+
+      return {
+        ...dayRange,
+        log: null
+      };
+    }
+
+    return {
+      ...dayRange,
+      log: legacyResult.data ? mapSessionLogRow(legacyResult.data as SessionLogRow) : null
+    };
+  }
+
+  if (result.error) {
+    logError("WORKOUT", "Workout session local-day lookup failed", {
+      user_id: input.userId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return {
+      ...dayRange,
+      log: null
+    };
+  }
+
+  return {
+    ...dayRange,
+    log: result.data ? mapSessionLogRow(result.data as SessionLogRow) : null
+  };
+}
+
 export async function createWorkoutSessionLog(
   supabase: SupabaseLike,
   input: {
@@ -181,14 +271,17 @@ export async function createWorkoutSessionLog(
     planCycleId?: string | null;
     sessionNumber: number;
     completedAt: string;
+    completedDaySp?: string | null;
   }
 ) {
-  const currentResult = await insertWorkoutSessionLog(supabase, input, {
+  let insertOptions = {
     includePlanCycleId: Boolean(input.planCycleId),
     includeWorkoutHash: Boolean(input.workoutHash),
     includeWorkoutKey: Boolean(input.workoutKey),
+    includeCompletedDaySp: Boolean(input.completedDaySp),
     useLegacySelect: false
-  });
+  };
+  let currentResult = await insertWorkoutSessionLog(supabase, input, insertOptions);
 
   if (isMissingSessionLogsTable(currentResult.error)) {
     logWarn("WORKOUT", "Workout session log insert skipped because table is unavailable", {
@@ -208,25 +301,28 @@ export async function createWorkoutSessionLog(
       error_code: getSupabaseErrorCode(currentResult.error)
     });
 
-    const fallbackResult = await insertWorkoutSessionLog(supabase, input, {
-      includePlanCycleId: false,
-      includeWorkoutHash: Boolean(input.workoutHash),
-      includeWorkoutKey: Boolean(input.workoutKey),
-      useLegacySelect: false
+    insertOptions = {
+      ...insertOptions,
+      includePlanCycleId: false
+    };
+    currentResult = await insertWorkoutSessionLog(supabase, input, insertOptions);
+  }
+
+  if (isMissingSessionLogColumn(currentResult.error, "completed_day_sp")) {
+    logWarn("WORKOUT", "Workout session log insert fallback without completed_day_sp", {
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(currentResult.error)
     });
 
-    if (fallbackResult.error || !fallbackResult.data) {
-      return handleLegacyWorkoutSessionInsert(supabase, input, fallbackResult);
-    }
-
-    return {
-      data: mapSessionLogRow(fallbackResult.data as SessionLogRow),
-      error: null
+    insertOptions = {
+      ...insertOptions,
+      includeCompletedDaySp: false
     };
+    currentResult = await insertWorkoutSessionLog(supabase, input, insertOptions);
   }
 
   if (currentResult.error || !currentResult.data) {
-    return handleLegacyWorkoutSessionInsert(supabase, input, currentResult);
+    return handleLegacyWorkoutSessionInsert(supabase, input, currentResult, insertOptions);
   }
 
   return {
@@ -257,10 +353,18 @@ async function handleLegacyWorkoutSessionInsert(
     planCycleId?: string | null;
     sessionNumber: number;
     completedAt: string;
+    completedDaySp?: string | null;
   },
   result: {
     data?: unknown;
     error?: unknown;
+  },
+  options: {
+    includePlanCycleId: boolean;
+    includeWorkoutHash: boolean;
+    includeWorkoutKey: boolean;
+    includeCompletedDaySp: boolean;
+    useLegacySelect: boolean;
   }
 ) {
   if (
@@ -276,6 +380,7 @@ async function handleLegacyWorkoutSessionInsert(
       includePlanCycleId: false,
       includeWorkoutHash: false,
       includeWorkoutKey: false,
+      includeCompletedDaySp: false,
       useLegacySelect: true
     });
 
@@ -294,9 +399,10 @@ async function handleLegacyWorkoutSessionInsert(
 
   if (hasLegacyLatestSelectIssue(result.error)) {
     const fallbackResult = await insertWorkoutSessionLog(supabase, input, {
-      includePlanCycleId: false,
-      includeWorkoutHash: Boolean(input.workoutHash),
-      includeWorkoutKey: Boolean(input.workoutKey),
+      includePlanCycleId: options.includePlanCycleId,
+      includeWorkoutHash: options.includeWorkoutHash,
+      includeWorkoutKey: options.includeWorkoutKey,
+      includeCompletedDaySp: options.includeCompletedDaySp,
       useLegacySelect: true
     });
 
@@ -389,11 +495,13 @@ async function insertWorkoutSessionLog(
     planCycleId?: string | null;
     sessionNumber: number;
     completedAt: string;
+    completedDaySp?: string | null;
   },
   options: {
     includePlanCycleId: boolean;
     includeWorkoutHash: boolean;
     includeWorkoutKey: boolean;
+    includeCompletedDaySp: boolean;
     useLegacySelect: boolean;
   }
 ) {
@@ -417,11 +525,34 @@ async function insertWorkoutSessionLog(
     payload.workout_key = input.workoutKey ?? null;
   }
 
+  if (options.includeCompletedDaySp) {
+    payload.completed_day_sp = input.completedDaySp ?? null;
+  }
+
   return supabase
     .from("workout_session_logs")
     .insert(payload)
     .select(buildLatestSessionFields(options.useLegacySelect))
     .single();
+}
+
+async function readUserWorkoutSessionForLocalDay(
+  supabase: SupabaseLike,
+  userId: string,
+  dayRange: LocalDayRange,
+  options: {
+    useLegacySelect: boolean;
+  }
+) {
+  return supabase
+    .from("workout_session_logs")
+    .select(buildLatestSessionFields(options.useLegacySelect))
+    .eq("user_id", userId)
+    .gte("completed_at", dayRange.startUtcIso)
+    .lt("completed_at", dayRange.endUtcIso)
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 }
 
 function applySessionLogFilter<TQuery extends { eq: Function; gte: Function }>(
@@ -551,4 +682,125 @@ function isMissingSessionLogsTable(error: unknown) {
 
 function isMissingSessionLogColumn(error: unknown, column: string) {
   return isSupabaseMissingColumnError(error, column);
+}
+
+function getLocalDayRange(referenceDate: Date | string | number | null | undefined, timeZone: string): LocalDayRange {
+  const reference = normalizeReferenceDate(referenceDate);
+  const localNow = getTimeZoneParts(reference, timeZone);
+  const nextLocalDay = addUtcCalendarDays(localNow.year, localNow.month, localNow.day, 1);
+  const startUtc = zonedDateTimeToUtc(
+    {
+      year: localNow.year,
+      month: localNow.month,
+      day: localNow.day,
+      hour: 0,
+      minute: 0,
+      second: 0
+    },
+    timeZone
+  );
+  const endUtc = zonedDateTimeToUtc(
+    {
+      year: nextLocalDay.year,
+      month: nextLocalDay.month,
+      day: nextLocalDay.day,
+      hour: 0,
+      minute: 0,
+      second: 0
+    },
+    timeZone
+  );
+
+  return {
+    dayKey: `${localNow.year}-${padNumber(localNow.month)}-${padNumber(localNow.day)}`,
+    timeZone,
+    startUtcIso: startUtc.toISOString(),
+    endUtcIso: endUtc.toISOString()
+  };
+}
+
+function normalizeReferenceDate(referenceDate: Date | string | number | null | undefined) {
+  if (referenceDate instanceof Date && Number.isFinite(referenceDate.getTime())) {
+    return referenceDate;
+  }
+
+  if (typeof referenceDate === "string" || typeof referenceDate === "number") {
+    const parsed = new Date(referenceDate);
+
+    if (Number.isFinite(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return new Date();
+}
+
+function getTimeZoneParts(date: Date, timeZone: string): ZonedDateTimeParts {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  });
+  const parts = formatter.formatToParts(date);
+  const lookup = new Map<string, string>();
+
+  parts.forEach((part) => {
+    if (part.type !== "literal") {
+      lookup.set(part.type, part.value);
+    }
+  });
+
+  return {
+    year: Number(lookup.get("year") ?? "0"),
+    month: Number(lookup.get("month") ?? "0"),
+    day: Number(lookup.get("day") ?? "0"),
+    hour: Number(lookup.get("hour") ?? "0"),
+    minute: Number(lookup.get("minute") ?? "0"),
+    second: Number(lookup.get("second") ?? "0")
+  };
+}
+
+function zonedDateTimeToUtc(parts: ZonedDateTimeParts, timeZone: string) {
+  const targetUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  let guessUtc = targetUtc;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const resolved = getTimeZoneParts(new Date(guessUtc), timeZone);
+    const resolvedUtc = Date.UTC(
+      resolved.year,
+      resolved.month - 1,
+      resolved.day,
+      resolved.hour,
+      resolved.minute,
+      resolved.second
+    );
+    const diff = targetUtc - resolvedUtc;
+
+    if (diff === 0) {
+      break;
+    }
+
+    guessUtc += diff;
+  }
+
+  return new Date(guessUtc);
+}
+
+function addUtcCalendarDays(year: number, month: number, day: number, daysToAdd: number) {
+  const next = new Date(Date.UTC(year, month - 1, day + daysToAdd, 0, 0, 0));
+
+  return {
+    year: next.getUTCFullYear(),
+    month: next.getUTCMonth() + 1,
+    day: next.getUTCDate()
+  };
+}
+
+function padNumber(value: number) {
+  return String(value).padStart(2, "0");
 }

@@ -348,7 +348,7 @@ export function PrivacyCenter() {
               onClick={() => setDraftPreferences(preferences)}
               disabled={savingConsents || !hasConsentChanges}
             >
-              Descartar alteracoes
+              Descartar alterações
             </Button>
           </div>
         </Card>

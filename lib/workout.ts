@@ -386,16 +386,16 @@ function scoreExerciseForDay(exercise: ExerciseRecord, dayPlan: DayPlan, profile
 
 function getMobilityByFocus(focus: string): WorkoutExercise[] {
   const mobilityMap: Record<string, string[]> = {
-    chest: ["Mobilidade toracica na parede", "Alongamento dinamico de peitoral"],
-    back: ["Mobilidade escapular", "Rotacao toracica"],
-    quadriceps: ["Mobilidade de tornozelo", "Alongamento dinamico de quadril"],
-    hamstrings: ["Mobilidade de quadril", "Alongamento dinamico de posterior"],
-    glutes: ["Mobilidade de quadril", "Ativacao de gluteos"],
-    shoulders: ["Rotacao de ombros", "Mobilidade toracica"],
-    conditioning: ["Mobilidade global", "Ativacao de core"]
+    chest: ["Mobilidade torácica na parede", "Alongamento dinâmico de peitoral"],
+    back: ["Mobilidade escapular", "Rotação torácica"],
+    quadriceps: ["Mobilidade de tornozelo", "Alongamento dinâmico de quadril"],
+    hamstrings: ["Mobilidade de quadril", "Alongamento dinâmico de posterior"],
+    glutes: ["Mobilidade de quadril", "Ativação de glúteos"],
+    shoulders: ["Rotação de ombros", "Mobilidade torácica"],
+    conditioning: ["Mobilidade global", "Ativação de core"]
   };
 
-  return (mobilityMap[focus] ?? ["Mobilidade de quadril", "Rotacao de ombros"]).slice(0, 2).map((name) => ({
+  return (mobilityMap[focus] ?? ["Mobilidade de quadril", "Rotação de ombros"]).slice(0, 2).map((name) => ({
     name,
     sets: "1-2",
     reps: "30-45s",

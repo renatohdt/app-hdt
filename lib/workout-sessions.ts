@@ -237,21 +237,21 @@ function buildWorkoutSessionStrategyReason(input: {
   const limitApplied = rawTotalSessions !== input.totalSessions;
   const limitReason =
     input.totalSessions === MIN_TOTAL_SESSIONS
-      ? `, ajustado para ${MIN_TOTAL_SESSIONS} pelo minimo de sessoes`
-      : `, ajustado para ${MAX_TOTAL_SESSIONS} pelo maximo de sessoes`;
+      ? `, ajustado para ${MIN_TOTAL_SESSIONS} pelo mínimo de sessões`
+      : `, ajustado para ${MAX_TOTAL_SESSIONS} pelo máximo de sessões`;
 
-  return `Frequencia semanal de ${input.weeklyFrequency} treino(s), nivel ${formatExperienceBandLabel(input.experienceBand)} e objetivo ${formatGoalLabel(input.goal)} definem bloco de ${input.blockDurationWeeks} semana(s). Total do plano: ${input.weeklyFrequency} x ${input.blockDurationWeeks} = ${rawTotalSessions}${limitApplied ? limitReason : ""}.`;
+  return `Frequência semanal de ${input.weeklyFrequency} treino(s), nível ${formatExperienceBandLabel(input.experienceBand)} e objetivo ${formatGoalLabel(input.goal)} definem bloco de ${input.blockDurationWeeks} semana(s). Total do plano: ${input.weeklyFrequency} x ${input.blockDurationWeeks} = ${rawTotalSessions}${limitApplied ? limitReason : ""}.`;
 }
 
 function formatExperienceBandLabel(value: WorkoutExperienceBand) {
-  if (value === "intermediate") return "intermediario";
-  if (value === "advanced") return "avancado";
+  if (value === "intermediate") return "intermediário";
+  if (value === "advanced") return "avançado";
   return "iniciante";
 }
 
 function formatGoalLabel(value?: Goal | null) {
   if (value === "gain_muscle") return "hipertrofia";
-  if (value === "body_recomposition") return "recomposicao corporal";
+  if (value === "body_recomposition") return "recomposição corporal";
   if (value === "improve_conditioning") return "condicionamento";
   return "emagrecimento";
 }

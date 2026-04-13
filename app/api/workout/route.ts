@@ -12,7 +12,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
-import { normalizeWorkoutPayload } from "@/lib/workout-payload";
+import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import {
@@ -24,12 +24,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const SESSION_EXPIRED_MESSAGE = "Sua sess\u00e3o expirou. Fa\u00e7a login novamente.";
-const LOAD_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seu treino agora.";
-const LOAD_ANSWERS_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel carregar seus dados agora.";
-const GENERATE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel gerar seu treino agora. Tente novamente.";
-const SAVE_WORKOUT_ERROR_MESSAGE = "N\u00e3o foi poss\u00edvel salvar seu treino no momento.";
-const RATE_LIMIT_ERROR_MESSAGE = "Voc\u00ea atingiu o limite de tentativas. Tente novamente em alguns minutos.";
+const SESSION_EXPIRED_MESSAGE = "Sua sessão expirou. Faça login novamente.";
+const LOAD_WORKOUT_ERROR_MESSAGE = "Não foi possível carregar seu treino agora.";
+const LOAD_ANSWERS_ERROR_MESSAGE = "Não foi possível carregar seus dados agora.";
+const GENERATE_WORKOUT_ERROR_MESSAGE = "Não foi possível gerar seu treino agora. Tente novamente.";
+const SAVE_WORKOUT_ERROR_MESSAGE = "Não foi possível salvar seu treino no momento.";
+const RATE_LIMIT_ERROR_MESSAGE = "Você atingiu o limite de tentativas. Tente novamente em alguns minutos.";
 
 export async function GET(request: NextRequest) {
   try {
@@ -101,9 +101,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const exerciseLibrary = await loadExerciseCatalog(supabase, user.id);
     const normalizedWorkout = normalizeWorkoutSafely(workoutRecord.exercises, {
       diagnosis,
       answers,
+      exerciseLibrary,
       userId: user.id,
       workoutId: workoutRecord.id
     });
@@ -240,6 +242,7 @@ export async function POST(request: Request) {
       workoutRecord: existingWorkout,
       answers,
       diagnosis,
+      exerciseLibrary: normalizedExercises,
       userId
     });
     const existingSessionStats = existingWorkoutState
@@ -317,6 +320,9 @@ export async function POST(request: Request) {
         diagnosis,
         answers
       });
+      if (workout) {
+        workout = syncWorkoutWithExerciseLibrary(workout, normalizedExercises);
+      }
       logInfo("AI", "Workout generation completed", { user_id: userId });
     } catch (error) {
       if (isOpenAIQuotaError(error)) {
@@ -393,6 +399,7 @@ function buildExistingWorkoutState(input: {
   workoutRecord: WorkoutRecordRow | null;
   answers: QuizAnswers;
   diagnosis: ReturnType<typeof diagnoseUser>;
+  exerciseLibrary: ExerciseRecord[];
   userId: string;
 }) {
   if (!input.workoutRecord) {
@@ -402,6 +409,7 @@ function buildExistingWorkoutState(input: {
   const normalizedWorkout = normalizeWorkoutSafely(input.workoutRecord.exercises, {
     diagnosis: input.diagnosis,
     answers: input.answers,
+    exerciseLibrary: input.exerciseLibrary,
     userId: input.userId,
     workoutId: input.workoutRecord.id
   });
@@ -490,15 +498,20 @@ function normalizeWorkoutSafely(
   input: {
     diagnosis: ReturnType<typeof diagnoseUser>;
     answers: QuizAnswers;
+    exerciseLibrary?: ExerciseRecord[];
     userId: string;
     workoutId?: string | null;
   }
 ) {
   try {
-    return normalizeWorkoutPayload(rawWorkout, {
+    const normalizedWorkout = normalizeWorkoutPayload(rawWorkout, {
       diagnosis: input.diagnosis,
       answers: input.answers
     });
+
+    return normalizedWorkout && input.exerciseLibrary?.length
+      ? syncWorkoutWithExerciseLibrary(normalizedWorkout, input.exerciseLibrary)
+      : normalizedWorkout;
   } catch {
     logWarn("WORKOUT", "Workout payload parsing failed", {
       user_id: input.userId,
@@ -511,4 +524,21 @@ function normalizeWorkoutSafely(
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.round(parsed) : 0;
+}
+
+async function loadExerciseCatalog(
+  supabase: NonNullable<ReturnType<typeof createSupabaseUserClient>>,
+  userId: string
+) {
+  const { data, error } = await supabase.from("exercises").select("*");
+
+  if (error) {
+    logWarn("WORKOUT", "Exercise catalog enrichment skipped", {
+      user_id: userId,
+      error_code: getSupabaseErrorCode(error)
+    });
+    return [] as ExerciseRecord[];
+  }
+
+  return ((data ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
 }

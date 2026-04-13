@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV !== "development") {
-    return jsonError("Endpoint disponivel apenas em desenvolvimento local.", 404);
+    return jsonError("Endpoint disponível apenas em desenvolvimento local.", 404);
   }
 
   try {

@@ -21,7 +21,7 @@ export function getAdminSessionSecret() {
 export function signAdminSession(payload: AdminSessionPayload) {
   const secret = getAdminSessionSecret();
   if (!secret) {
-    throw new Error("ADMIN_SESSION_SECRET nao configurado.");
+    throw new Error("ADMIN_SESSION_SECRET não configurado.");
   }
 
   const serialized = JSON.stringify(payload);

@@ -59,7 +59,7 @@ export function AppBottomNav() {
   }, []);
 
   return (
-    <nav aria-label="Navegacao principal do app" className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
+    <nav aria-label="Navegação principal do app" className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
       {timerOpen ? (
         <div
           className="pointer-events-auto mx-auto mb-3 w-full max-w-[var(--app-shell-max)] px-4"

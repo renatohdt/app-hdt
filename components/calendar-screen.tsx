@@ -72,7 +72,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           ? formatWorkoutDisplayTitle(workout.title, workout.day)
           : entry.workoutKey
             ? `Treino ${entry.workoutKey}`
-            : "Treino concluido";
+            : "Treino concluído";
 
         return {
           id: entry.id,

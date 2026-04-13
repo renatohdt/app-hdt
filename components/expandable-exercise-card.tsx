@@ -483,7 +483,7 @@ function getTechniqueDescription(value?: string | null) {
   }
 
   if (normalized.includes("tri-set") || normalized.includes("triset")) {
-    return "Faca os tres exercicios seguidos e descanse somente ao terminar o bloco.";
+    return "Faça os três exercícios seguidos e descanse somente ao terminar o bloco.";
   }
 
   if (normalized.includes("circuit") || normalized.includes("circuito")) {
@@ -499,7 +499,7 @@ function getTechniqueDescription(value?: string | null) {
   }
 
   if (normalized.includes("rest-pause") || normalized.includes("restpause")) {
-    return "Faca uma pausa bem curta e retome a serie para completar repeticoes extras.";
+    return "Faça uma pausa bem curta e retome a série para completar repetições extras.";
   }
 
   if (normalized.includes("tempo controlado") || normalized.includes("tempo_controlado") || normalized === "tempo") {

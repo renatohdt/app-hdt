@@ -15,17 +15,17 @@ export type DataRetentionPolicyEntry = {
 export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   {
     table: "public.users",
-    dataType: "Perfil interno minimo da conta no app.",
+    dataType: "Perfil interno mínimo da conta no app.",
     suggestedRetention: "Enquanto a conta estiver ativa; remoção imediata pelo fluxo de exclusão da conta.",
     defaultWindowDays: null,
     destinationAfterWindow: "delete",
     automatedByDefault: false,
     notes:
-      "A conta ativa continua sendo a base principal de retencao. A estrutura de soft delete e anonimização fica preparada para cenarios operacionais futuros, mas a decisao juridica final ainda precisa ser validada."
+      "A conta ativa continua sendo a base principal de retenção. A estrutura de soft delete e anonimização fica preparada para cenários operacionais futuros, mas a decisão jurídica final ainda precisa ser validada."
   },
   {
     table: "public.user_answers",
-    dataType: "Respostas do onboarding e dados gerais de personalizacao do treino.",
+    dataType: "Respostas do onboarding e dados gerais de personalização do treino.",
     suggestedRetention: "Enquanto a conta estiver ativa; graça de até 30 dias se o registro for marcado para expurgo interno.",
     defaultWindowDays: 30,
     destinationAfterWindow: "anonymize",
@@ -56,7 +56,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   {
     table: "public.analytics_events",
     dataType: "Eventos comportamentais permitidos por consentimento.",
-    suggestedRetention: "180 dias por padrao tecnico.",
+    suggestedRetention: "180 dias por padrão técnico.",
     defaultWindowDays: 180,
     destinationAfterWindow: "delete",
     automatedByDefault: true,
@@ -65,18 +65,18 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   },
   {
     table: "public.content_recommendations",
-    dataType: "Recomendacoes temporarias de conteudo.",
-    suggestedRetention: "24 horas por padrao tecnico.",
+    dataType: "Recomendações temporárias de conteúdo.",
+    suggestedRetention: "24 horas por padrão técnico.",
     defaultWindowDays: 1,
     destinationAfterWindow: "delete",
     automatedByDefault: true,
     notes:
-      "A tabela ja possui expires_at e agora entra formalmente na rotina de limpeza automatica."
+      "A tabela já possui expires_at e agora entra formalmente na rotina de limpeza automática."
   },
   {
     table: "public.user_consents",
-    dataType: "Estado atual de consentimentos e evidencias minimas do produto.",
-    suggestedRetention: "Enquanto a conta estiver ativa; prazo final depende de decisao juridica sobre guarda probatoria.",
+    dataType: "Estado atual de consentimentos e evidências mínimas do produto.",
+    suggestedRetention: "Enquanto a conta estiver ativa; prazo final depende de decisão jurídica sobre guarda probatória.",
     defaultWindowDays: null,
     destinationAfterWindow: "operational_hold",
     automatedByDefault: false,
@@ -86,7 +86,7 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   {
     table: "public.workout_review_requests",
     dataType: "Registros operacionais legados associados a um fluxo descontinuado.",
-    suggestedRetention: "24 meses para controle tecnico-operacional.",
+    suggestedRetention: "24 meses para controle técnico-operacional.",
     defaultWindowDays: 730,
     destinationAfterWindow: "delete",
     automatedByDefault: true,
@@ -96,11 +96,11 @@ export const DATA_RETENTION_POLICY: DataRetentionPolicyEntry[] = [
   {
     table: "public.admin_audit_logs",
     dataType: "Trilha de auditoria do painel administrativo.",
-    suggestedRetention: "24 meses por padrao tecnico-operacional.",
+    suggestedRetention: "24 meses por padrão técnico-operacional.",
     defaultWindowDays: 730,
     destinationAfterWindow: "delete",
     automatedByDefault: true,
     notes:
-      "Pode receber retention_hold quando houver investigacao, incidente ou necessidade de preservacao."
+      "Pode receber retention_hold quando houver investigação, incidente ou necessidade de preservação."
   }
 ];

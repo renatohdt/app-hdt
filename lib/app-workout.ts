@@ -52,6 +52,8 @@ export type AppWorkoutData = {
   answers: AppWorkoutAnswers;
   workouts: Record<string, WorkoutSection & { day: string }>;
   workoutOrder: string[];
+  featuredWorkoutKey: string | null;
+  featuredWorkoutLabel: string;
   plan: {
     splitType?: string;
     splitLabel: string;
@@ -162,6 +164,8 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     lastCompletedSessionNumber: payload.sessionProgress?.lastCompletedSessionNumber ?? null
   });
   const sessionLogs = normalizeWorkoutSessionLogs(payload.sessionLogs);
+  const featuredWorkoutKey = getFeaturedWorkoutKey(workoutOrder, sessionProgress.lastCompletedWorkoutKey);
+  const featuredWorkoutLabel = formatWorkoutDisplayTitle(workouts[featuredWorkoutKey ?? ""]?.title, featuredWorkoutKey);
 
   return {
     raw: payload,
@@ -177,6 +181,8 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     answers: payload.answers,
     workouts,
     workoutOrder,
+    featuredWorkoutKey,
+    featuredWorkoutLabel,
     plan: {
       splitType: planWithSessionConfig.splitType,
       splitLabel: formatSplitTypeLabel(planWithSessionConfig.splitType),
@@ -394,6 +400,26 @@ export function formatWorkoutDisplayTitle(title?: string | null, day?: string | 
   }
 
   return "Treino";
+}
+
+export function getFeaturedWorkoutKey(workoutOrder: string[], lastCompletedWorkoutKey?: string | null) {
+  if (!workoutOrder.length) {
+    return null;
+  }
+
+  const normalizedLastCompletedKey = normalizeWorkoutKey(lastCompletedWorkoutKey);
+
+  if (!normalizedLastCompletedKey) {
+    return workoutOrder[0] ?? null;
+  }
+
+  const currentIndex = workoutOrder.findIndex((workoutKey) => normalizeWorkoutKey(workoutKey) === normalizedLastCompletedKey);
+
+  if (currentIndex < 0) {
+    return workoutOrder[0] ?? null;
+  }
+
+  return workoutOrder[(currentIndex + 1) % workoutOrder.length] ?? workoutOrder[0] ?? null;
 }
 
 export function formatDurationLabel(minutes?: number | null, fallback?: string | null) {

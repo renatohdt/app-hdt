@@ -279,7 +279,7 @@ function buildSearchQueries(goal?: string, location?: string) {
 function buildGoalQuery(goal?: string) {
   if (goal === "lose_weight") return "emagrecer perder gordura";
   if (goal === "gain_muscle") return "ganhar massa hipertrofia musculacao";
-  if (goal === "body_recomposition") return "definicao recomposicao corporal";
+  if (goal === "body_recomposition") return "definição recomposição corporal";
   if (goal === "improve_conditioning") return "condicionamento cardio resistencia";
   return "treino";
 }
@@ -358,7 +358,7 @@ function inferArticleTags(content: string, goal?: string, location?: string, lev
 
   if (normalized.includes("emagrec")) tags.add("emagrecimento");
   if (normalized.includes("hipertrof") || normalized.includes("massa muscular")) tags.add("hipertrofia");
-  if (normalized.includes("defini")) tags.add("definicao");
+  if (normalized.includes("defini")) tags.add("definição");
   if (normalized.includes("condicion") || normalized.includes("resist")) tags.add("condicionamento");
   if (normalized.includes("iniciant")) tags.add("iniciante");
   if (normalized.includes("academia")) tags.add("academia");

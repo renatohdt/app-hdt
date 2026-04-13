@@ -40,6 +40,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const achievement = useMemo(() => getAchievementCopy(data), [data]);
   const fallbackArticles = useMemo(() => sanitizeArticleRecommendations(getEvergreenFallbackArticles()), []);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
+  const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -89,6 +90,10 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           </h1>
           <p className="mx-auto mb-[22px] max-w-[24rem] text-[13px] font-normal leading-[1.45] text-white/56">
             {getMotivationLine(data.user.goal)}
+          </p>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-primary/86">Próximo treino</p>
+          <p className="mx-auto mb-[18px] max-w-[18rem] text-[18px] font-bold leading-[1.15] text-white">
+            {featuredWorkoutText}
           </p>
         </div>
 

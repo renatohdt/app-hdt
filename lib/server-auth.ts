@@ -85,7 +85,7 @@ export async function requireAdminUser(request: Request, scope = "ADMIN") {
   const supabase = createSupabaseUserClient(request);
   const { data: userRow, error } = supabase
     ? await supabase.from("users").select("role").eq("id", auth.user.id).maybeSingle()
-    : { data: null, error: new Error("Supabase user client indisponivel") };
+    : { data: null, error: new Error("Supabase user client indisponível") };
   const role = typeof userRow?.role === "string" ? userRow.role.trim().toLowerCase() : "";
 
   if (error) {
