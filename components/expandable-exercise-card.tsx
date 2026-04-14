@@ -507,7 +507,7 @@ function getTechniqueDescription(value?: string | null) {
   }
 
   if (normalized.includes("isometria") || normalized.includes("isometric")) {
-    return "Segure a posicao pelo tempo prescrito mantendo tensao constante.";
+    return "Segure a posição pelo tempo prescrito mantendo tensão constante.";
   }
 
   return null;

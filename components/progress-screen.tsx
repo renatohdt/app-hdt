@@ -18,7 +18,7 @@ export function ProgressScreen({ data }: { data: AppWorkoutData }) {
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Progresso</p>
             <h1 className="mt-1 text-[1.9rem] font-semibold leading-tight text-white">Base de acompanhamento</h1>
             <p className="mt-2 text-sm leading-6 text-white/62">
-              Resumo do plano atual e da carga semanal estimada para preparar a evolucao real nas proximas entregas.
+              Resumo do plano atual e da carga semanal estimada para preparar a evolução real nas próximas entregas.
             </p>
           </div>
 

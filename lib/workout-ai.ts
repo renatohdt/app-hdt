@@ -2,9 +2,15 @@ import "server-only";
 import OpenAI from "openai";
 import { resolveBodyType } from "@/lib/body-type";
 import { createHmac } from "node:crypto";
-import { formatExerciseMuscleLabel, getExerciseMuscleGroups, normalizeExerciseMuscleGroup } from "@/lib/exercise-library";
+import {
+  formatExerciseMuscleLabel,
+  getExerciseLevels,
+  getExerciseMuscleGroups,
+  normalizeExerciseMuscleGroup
+} from "@/lib/exercise-library";
 import { repairPtBrText } from "@/lib/pt-br-text";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
+import { normalizeWorkoutKey } from "@/lib/workout-sessions";
 import {
   buildCoachBrief,
   buildExerciseProfile,
@@ -82,6 +88,11 @@ type SanitizedExercise = WorkoutExercise & {
   movementType: string;
 };
 
+type MobilitySelectionContext = {
+  previousWorkout?: WorkoutPlan | null;
+  lastCompletedWorkoutKey?: string | null;
+};
+
 type BlockWindow = {
   start: number;
   indexes: number[];
@@ -128,6 +139,18 @@ export function buildWorkoutHash(answers: QuizAnswers) {
 }
 
 export function filterExercisesForAI(answers: QuizAnswers, exerciseLibrary: ExerciseRecord[]) {
+  return selectExercisesForAiCatalog(answers, exerciseLibrary, {
+    excludeMobility: true
+  });
+}
+
+function selectExercisesForAiCatalog(
+  answers: QuizAnswers,
+  exerciseLibrary: ExerciseRecord[],
+  options: {
+    excludeMobility: boolean;
+  }
+) {
   const strategy = buildWorkoutStrategy(answers);
   const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
   const scored = exerciseLibrary
@@ -138,6 +161,7 @@ export function filterExercisesForAI(answers: QuizAnswers, exerciseLibrary: Exer
       profile: buildExerciseProfile(exercise),
       score: scoreExerciseForStrategy(exercise, strategy)
     }))
+    .filter((entry) => (options.excludeMobility ? entry.profile.movementType !== "mobility" : true))
     .sort((a, b) => b.score - a.score);
 
   const results: ExerciseRecord[] = [];
@@ -146,8 +170,10 @@ export function filterExercisesForAI(answers: QuizAnswers, exerciseLibrary: Exer
     new Set(strategy.sessions.flatMap((session) => [...session.primaryMuscles, ...session.secondaryMuscles]))
   );
 
-  for (const item of scored.filter((entry) => entry.profile.movementType === "mobility").slice(0, Math.max(2, strategy.sessions.length))) {
-    pushExercise(results, added, item.exercise);
+  if (!options.excludeMobility) {
+    for (const item of scored.filter((entry) => entry.profile.movementType === "mobility").slice(0, Math.max(2, strategy.sessions.length))) {
+      pushExercise(results, added, item.exercise);
+    }
   }
 
   for (const muscle of priorityMuscles) {
@@ -168,30 +194,36 @@ export function filterExercisesForAI(answers: QuizAnswers, exerciseLibrary: Exer
 export async function generateWorkoutWithAI(
   answers: QuizAnswers,
   diagnosis: DiagnosisResult,
-  exerciseLibrary: ExerciseRecord[]
+  exerciseLibrary: ExerciseRecord[],
+  mobilityContext: MobilitySelectionContext = {}
 ): Promise<WorkoutPlan> {
   const openai = getOpenAIClient();
   const strategy = buildWorkoutStrategy(answers);
+  const catalogBeforeMobilityFilter = selectExercisesForAiCatalog(answers, exerciseLibrary, {
+    excludeMobility: false
+  });
   const filteredLibrary = filterExercisesForAI(answers, exerciseLibrary);
 
   if (!filteredLibrary.length) {
     throw new Error("Nenhum exercício elegível foi encontrado para a IA.");
   }
 
-  const availableExercises = filteredLibrary.map((exercise) => {
-    const profile = buildExerciseProfile(exercise);
+  const availableExercisesBeforeMobilityFilter = catalogBeforeMobilityFilter.map(buildAiCatalogExercise);
+  const availableExercises = filteredLibrary.map(buildAiCatalogExercise);
+  const mobilityExercisesExcludedFromCatalog = Math.max(0, catalogBeforeMobilityFilter.length - filteredLibrary.length);
+  const promptCatalogCharsBeforeMobilityFilter = JSON.stringify(availableExercisesBeforeMobilityFilter).length;
+  const promptCatalogCharsAfterMobilityFilter = JSON.stringify(availableExercises).length;
 
-    return {
-      id: exercise.id,
-      name: exercise.name,
-      primaryMuscles: profile.primaryMuscles,
-      secondaryMuscles: profile.secondaryMuscles,
-      movementPattern: profile.movementPattern,
-      movementType: profile.movementType,
-      equipment: normalizeStringArray(exercise.equipment ?? exercise.metadata?.equipment).map(normalizeEquipment),
-      location: normalizeStringArray(exercise.location ?? exercise.metadata?.location).map(normalizeLocation),
-      recommendedBlockTypes: profile.recommendedBlockTypes
-    };
+  logInfo("AI", "Mobility exercises excluded from AI catalog", {
+    total_catalog_before_filter: exerciseLibrary.length,
+    ai_catalog_before_mobility_filter: catalogBeforeMobilityFilter.length,
+    mobility_excluded_count: mobilityExercisesExcludedFromCatalog,
+    approx_catalog_chars_before_mobility_filter: promptCatalogCharsBeforeMobilityFilter,
+    approx_catalog_chars_after_mobility_filter: promptCatalogCharsAfterMobilityFilter
+  });
+  logInfo("AI", "AI exercise catalog size after mobility filter", {
+    catalog_size: filteredLibrary.length,
+    mobility_candidates_sent_to_ai: availableExercises.filter((exercise) => exercise.movementType === "mobility").length
   });
 
   const promptMontagemTreino = [
@@ -209,7 +241,7 @@ export async function generateWorkoutWithAI(
     "- organize em Treino A, Treino B, Treino C e assim por diante",
     "- respeite recuperação entre grupamentos primários e secundários",
     "- use compostos antes de acessórios e isoladores",
-    "- inclua 1 exercício de mobilidade ou ativação por sessão",
+    "- não inclua exercícios de mobilidade ou ativação; esse bloco será adicionado localmente pelo app",
     "- sempre pense a sessão em 4 momentos: preparação, bloco principal, acessórios/blocos combinados e finalização",
     "- use APENAS os exercícios fornecidos",
     "- não invente exercícios",
@@ -228,7 +260,6 @@ export async function generateWorkoutWithAI(
     "",
     "TIPOS DE BLOCO POSSIVEIS:",
     "- normal",
-    "- mobility",
     "- superset",
     "- bi-set",
     "- tri-set",
@@ -311,6 +342,12 @@ export async function generateWorkoutWithAI(
     )
   ].join("\n");
 
+  logInfo("AI", "AI prompt payload diagnostics", {
+    prompt_chars: promptMontagemTreino.length,
+    prompt_catalog_chars_before_mobility_filter: promptCatalogCharsBeforeMobilityFilter,
+    prompt_catalog_chars_after_mobility_filter: promptCatalogCharsAfterMobilityFilter
+  });
+
   try {
     logInfo("AI", "Workout AI request started", {
       split_type: strategy.splitType,
@@ -345,7 +382,7 @@ export async function generateWorkoutWithAI(
     }
 
     const parsed = extractAiWorkoutResponse(treinoIA);
-    const validated = validateAndBuildWorkoutPlan(parsed, answers, diagnosis, filteredLibrary, strategy);
+    const validated = validateAndBuildWorkoutPlan(parsed, answers, diagnosis, exerciseLibrary, strategy, mobilityContext);
 
     if (!validated) {
       throw new Error("A resposta da IA não passou na validação do backend.");
@@ -407,6 +444,22 @@ export function isOpenAIQuotaError(error: unknown) {
   );
 }
 
+function buildAiCatalogExercise(exercise: ExerciseRecord) {
+  const profile = buildExerciseProfile(exercise);
+
+  return {
+    id: exercise.id,
+    name: exercise.name,
+    primaryMuscles: profile.primaryMuscles,
+    secondaryMuscles: profile.secondaryMuscles,
+    movementPattern: profile.movementPattern,
+    movementType: profile.movementType,
+    equipment: normalizeStringArray(exercise.equipment ?? exercise.metadata?.equipment).map(normalizeEquipment),
+    location: normalizeStringArray(exercise.location ?? exercise.metadata?.location).map(normalizeLocation),
+    recommendedBlockTypes: profile.recommendedBlockTypes
+  };
+}
+
 function extractAiWorkoutResponse(content: string): AiWorkoutResponse {
   const raw = content.trim();
   const fencedMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -429,7 +482,8 @@ function validateAndBuildWorkoutPlan(
   answers: QuizAnswers,
   diagnosis: DiagnosisResult,
   exerciseLibrary: ExerciseRecord[],
-  strategy: WorkoutStrategy
+  strategy: WorkoutStrategy,
+  mobilityContext: MobilitySelectionContext
 ): WorkoutPlan | null {
   const responseData = aiResponse as AiWorkoutResponse & {
     workout?: AiWorkoutDay[] | AiWorkoutExercise[];
@@ -485,13 +539,30 @@ function validateAndBuildWorkoutPlan(
       continue;
     }
 
-    const mobility = sanitized.filter((exercise) => exercise.blockType === "mobility");
+    const aiMobilityExercises = sanitized.filter((exercise) => exercise.blockType === "mobility");
     const exercises = sanitized.filter((exercise) => exercise.blockType !== "mobility");
+
+    if (aiMobilityExercises.length) {
+      logInfo("AI", "Mobility returned by AI was ignored and replaced locally", {
+        ignored_mobility_count: aiMobilityExercises.length,
+        session_index: index + 1
+      });
+    }
 
     if (!exercises.length) {
       logWarn("AI", "Workout AI session adjusted after exercise validation");
       continue;
     }
+
+    const mobility = selectLocalMobilityExercises({
+      answers,
+      strategy,
+      blueprint,
+      exerciseMap,
+      sectionExercises: exercises,
+      previousWorkout: mobilityContext.previousWorkout,
+      lastCompletedWorkoutKey: mobilityContext.lastCompletedWorkoutKey
+    });
 
     const fittedSession = fitSessionToTimeBudget({
       mobility,
@@ -564,6 +635,314 @@ function validateAndBuildWorkoutPlan(
   };
 }
 
+function selectLocalMobilityExercises(input: {
+  answers: QuizAnswers;
+  strategy: WorkoutStrategy;
+  blueprint: SessionBlueprint;
+  exerciseMap: Map<string, ExerciseLookup>;
+  sectionExercises: SanitizedExercise[];
+  previousWorkout?: WorkoutPlan | null;
+  lastCompletedWorkoutKey?: string | null;
+}) {
+  const desiredCount = getMobilityExerciseTargetCount(input.strategy.timeBudget.availableTimeMinutes);
+  const targetMuscles = resolveMobilityTargetMuscles(input.sectionExercises, input.blueprint);
+  const previousMobilityNames = getPreviousMobilityNames(input.previousWorkout, input.lastCompletedWorkoutKey);
+  const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(input.answers.equipment)]);
+  const allMobilityLookups = Array.from(input.exerciseMap.values()).filter((lookup) => lookup.profile.movementType === "mobility");
+  const strictMobilityLookups = allMobilityLookups
+    .filter((lookup) => matchesLocation(lookup.source, input.answers.location))
+    .filter((lookup) => matchesEquipment(lookup.source, allowedEquipment));
+  const strictGroupLookups = strictMobilityLookups.filter((lookup) => matchesMobilityTargets(lookup.profile, targetMuscles));
+  const strictLevelLookups = strictGroupLookups.filter((lookup) =>
+    matchesMobilityLevel(lookup.source, input.strategy.level, false, false)
+  );
+  const strictNoRepeatLookups = strictLevelLookups.filter((lookup) => {
+    const nameKey = normalizeText(lookup.source.name);
+    return Boolean(nameKey) && !previousMobilityNames.has(nameKey);
+  });
+
+  const selected: SanitizedExercise[] = [];
+  const selectedNames = new Set<string>();
+  let selectedStage = "strict";
+  const stages = [
+    { label: "strict", relaxLevel: false, relaxGroup: false, allowRepeat: false, allowAnyLevel: false, relaxLocationEquipment: false },
+    { label: "level_fallback", relaxLevel: true, relaxGroup: false, allowRepeat: false, allowAnyLevel: false, relaxLocationEquipment: false },
+    { label: "group_fallback", relaxLevel: true, relaxGroup: true, allowRepeat: false, allowAnyLevel: false, relaxLocationEquipment: false },
+    { label: "repeat_fallback", relaxLevel: true, relaxGroup: true, allowRepeat: true, allowAnyLevel: false, relaxLocationEquipment: false },
+    { label: "equipment_location_fallback", relaxLevel: true, relaxGroup: true, allowRepeat: true, allowAnyLevel: false, relaxLocationEquipment: true },
+    { label: "any_mobility_available", relaxLevel: true, relaxGroup: true, allowRepeat: true, allowAnyLevel: true, relaxLocationEquipment: true }
+  ] as const;
+
+  for (const stage of stages) {
+    const sourceLookups = stage.relaxLocationEquipment ? allMobilityLookups : strictMobilityLookups;
+    const candidates = sourceLookups
+      .filter((lookup) => {
+        const nameKey = normalizeText(lookup.source.name);
+        if (!nameKey || selectedNames.has(nameKey)) {
+          return false;
+        }
+
+        if (!stage.allowRepeat && previousMobilityNames.has(nameKey)) {
+          return false;
+        }
+
+        if (!stage.relaxGroup && !matchesMobilityTargets(lookup.profile, targetMuscles)) {
+          return false;
+        }
+
+        return matchesMobilityLevel(lookup.source, input.strategy.level, stage.relaxLevel, stage.allowAnyLevel);
+      })
+      .sort((left, right) => compareMobilityCandidates(left, right, targetMuscles, input.strategy.level));
+
+    for (const candidate of candidates) {
+      const nameKey = normalizeText(candidate.source.name);
+
+      if (!nameKey || selectedNames.has(nameKey)) {
+        continue;
+      }
+
+      selected.push(buildCatalogMobilityExercise(candidate, input.strategy, input.blueprint));
+      selectedNames.add(nameKey);
+      selectedStage = stage.label;
+
+      if (selected.length >= desiredCount) {
+        logInfo("AI", "Local mobility selection diagnostics", {
+          available_time_field: "answers.time",
+          available_time_raw: input.answers.time,
+          strategy_time_available: input.strategy.timeAvailable,
+          time_budget_available: input.strategy.timeBudget.availableTimeMinutes,
+          expected_mobility_count: desiredCount,
+          total_mobility_catalog: allMobilityLookups.length,
+          mobility_after_location_equipment_filter: strictMobilityLookups.length,
+          mobility_after_group_filter: strictGroupLookups.length,
+          mobility_after_level_filter: strictLevelLookups.length,
+          mobility_after_previous_workout_filter: strictNoRepeatLookups.length,
+          inserted_mobility_count: selected.length,
+          selected_stage: selectedStage,
+          target_muscles: targetMuscles
+        });
+        return selected;
+      }
+    }
+  }
+
+  const finalSelection = selected.length ? selected : [buildFallbackMobility(input.blueprint)];
+
+  logInfo("AI", "Local mobility selection diagnostics", {
+    available_time_field: "answers.time",
+    available_time_raw: input.answers.time,
+    strategy_time_available: input.strategy.timeAvailable,
+    time_budget_available: input.strategy.timeBudget.availableTimeMinutes,
+    expected_mobility_count: desiredCount,
+    total_mobility_catalog: allMobilityLookups.length,
+    mobility_after_location_equipment_filter: strictMobilityLookups.length,
+    mobility_after_group_filter: strictGroupLookups.length,
+    mobility_after_level_filter: strictLevelLookups.length,
+    mobility_after_previous_workout_filter: strictNoRepeatLookups.length,
+    inserted_mobility_count: finalSelection.length,
+    selected_stage: selectedStage,
+    target_muscles: targetMuscles
+  });
+
+  if (finalSelection.length < desiredCount) {
+    logWarn("AI", "Local mobility selection under target", {
+      expected_mobility_count: desiredCount,
+      inserted_mobility_count: finalSelection.length,
+      total_mobility_catalog: allMobilityLookups.length,
+      mobility_after_location_equipment_filter: strictMobilityLookups.length
+    });
+  }
+
+  return finalSelection;
+}
+
+function resolveMobilityTargetMuscles(exercises: SanitizedExercise[], blueprint: SessionBlueprint) {
+  const muscleCounts = new Map<string, number>();
+
+  exercises.forEach((exercise) => {
+    [...(exercise.primaryMuscles ?? []), ...(exercise.muscleGroups ?? [])].forEach((muscle) => {
+      if (!muscle || muscle === "full_body") {
+        return;
+      }
+
+      muscleCounts.set(muscle, (muscleCounts.get(muscle) ?? 0) + 1);
+    });
+  });
+
+  const directMuscles = Array.from(muscleCounts.entries())
+    .sort((left, right) => right[1] - left[1])
+    .map(([muscle]) => muscle);
+  const seedMuscles = directMuscles.length
+    ? directMuscles
+    : [...blueprint.primaryMuscles, ...blueprint.secondaryMuscles];
+  const expanded = new Set<string>();
+
+  seedMuscles.forEach((muscle) => {
+    expandMobilityMuscles(muscle).forEach((item) => {
+      if (item && item !== "full_body") {
+        expanded.add(item);
+      }
+    });
+  });
+
+  return Array.from(expanded);
+}
+
+function expandMobilityMuscles(muscle: string) {
+  const normalized = normalizeWorkoutMuscle(muscle) ?? muscle;
+  const relationMap: Record<string, string[]> = {
+    chest: ["chest", "shoulders", "back"],
+    back: ["back", "shoulders", "lower_back"],
+    shoulders: ["shoulders", "chest", "back"],
+    biceps: ["biceps", "back", "shoulders"],
+    triceps: ["triceps", "shoulders", "chest"],
+    quadriceps: ["quadriceps", "glutes", "adductors", "hip_flexors", "calves", "tibialis"],
+    hamstrings: ["hamstrings", "glutes", "adductors", "lower_back"],
+    glutes: ["glutes", "hamstrings", "adductors", "abductors", "hip_flexors"],
+    calves: ["calves", "tibialis", "quadriceps"],
+    abs: ["abs", "hip_flexors", "lower_back", "glutes"],
+    lower_back: ["lower_back", "back", "hamstrings", "glutes"],
+    adductors: ["adductors", "quadriceps", "glutes", "hamstrings"],
+    abductors: ["abductors", "glutes", "quadriceps"],
+    tibialis: ["tibialis", "calves", "quadriceps"],
+    hip_flexors: ["hip_flexors", "abs", "quadriceps", "glutes"],
+    full_body: ["quadriceps", "hamstrings", "glutes", "back", "chest", "shoulders", "abs", "hip_flexors"]
+  };
+
+  return relationMap[normalized] ?? [normalized];
+}
+
+function getPreviousMobilityNames(previousWorkout?: WorkoutPlan | null, lastCompletedWorkoutKey?: string | null) {
+  if (!previousWorkout?.sections?.length) {
+    return new Set<string>();
+  }
+
+  const normalizedLastWorkoutKey = normalizeWorkoutKey(lastCompletedWorkoutKey);
+  const targetSections = normalizedLastWorkoutKey
+    ? previousWorkout.sections.filter((section) => normalizeWorkoutKey(section.title) === normalizedLastWorkoutKey)
+    : previousWorkout.sections;
+
+  return new Set(
+    targetSections
+      .flatMap((section) => section.mobility ?? [])
+      .map((exercise) => normalizeText(exercise.name))
+      .filter(Boolean)
+  );
+}
+
+function matchesMobilityTargets(profile: ExerciseLookup["profile"], targetMuscles: string[]) {
+  if (!targetMuscles.length) {
+    return true;
+  }
+
+  const candidateMuscles = new Set([...profile.primaryMuscles, ...profile.secondaryMuscles]);
+  return targetMuscles.some((muscle) => candidateMuscles.has(muscle));
+}
+
+function matchesMobilityLevel(
+  exercise: ExerciseRecord,
+  userLevel: WorkoutStrategy["level"],
+  relaxLevel: boolean,
+  allowAnyLevel: boolean
+) {
+  const levels = getExerciseLevels(exercise);
+
+  if (!levels.length || allowAnyLevel) {
+    return true;
+  }
+
+  const allowedLevels = relaxLevel ? getMobilityFallbackLevels(userLevel) : [userLevel];
+  return levels.some((level) => allowedLevels.includes(level));
+}
+
+function getMobilityFallbackLevels(userLevel: WorkoutStrategy["level"]) {
+  if (userLevel === "advanced") {
+    return ["advanced", "intermediate", "beginner"];
+  }
+
+  if (userLevel === "intermediate") {
+    return ["intermediate", "beginner"];
+  }
+
+  return ["beginner"];
+}
+
+function compareMobilityCandidates(
+  left: ExerciseLookup,
+  right: ExerciseLookup,
+  targetMuscles: string[],
+  userLevel: WorkoutStrategy["level"]
+) {
+  const muscleHitsDifference = countMobilityTargetHits(right.profile, targetMuscles) - countMobilityTargetHits(left.profile, targetMuscles);
+  if (muscleHitsDifference !== 0) {
+    return muscleHitsDifference;
+  }
+
+  const levelDifference = getMobilityLevelPriority(left.source, userLevel) - getMobilityLevelPriority(right.source, userLevel);
+  if (levelDifference !== 0) {
+    return levelDifference;
+  }
+
+  return left.source.name.localeCompare(right.source.name, "pt-BR");
+}
+
+function countMobilityTargetHits(profile: ExerciseLookup["profile"], targetMuscles: string[]) {
+  if (!targetMuscles.length) {
+    return 0;
+  }
+
+  const candidateMuscles = new Set([...profile.primaryMuscles, ...profile.secondaryMuscles]);
+  return targetMuscles.filter((muscle) => candidateMuscles.has(muscle)).length;
+}
+
+function getMobilityLevelPriority(exercise: ExerciseRecord, userLevel: WorkoutStrategy["level"]) {
+  const levels = getExerciseLevels(exercise);
+
+  if (!levels.length) {
+    return 1;
+  }
+
+  const order =
+    userLevel === "advanced"
+      ? ["advanced", "intermediate", "beginner"]
+      : userLevel === "intermediate"
+        ? ["intermediate", "beginner", "advanced"]
+        : ["beginner", "intermediate", "advanced"];
+  const priorities = levels
+    .map((level) => order.indexOf(level))
+    .filter((value) => value >= 0);
+
+  return priorities.length ? Math.min(...priorities) : order.length + 1;
+}
+
+function buildCatalogMobilityExercise(
+  lookup: ExerciseLookup,
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+): SanitizedExercise {
+  return applyExerciseTimePrescription(
+    {
+      name: lookup.source.name,
+      sets: "1",
+      reps: strategy.timeBudget.availableTimeMinutes > 50 ? "40 segundos" : "30 segundos",
+      rest: "15s",
+      type: "mobility",
+      method: "mobilidade",
+      technique: "mobilidade",
+      blockType: "mobility",
+      trainingTechnique: "mobilidade",
+      rationale: buildExerciseRationale("mobility", blueprint, lookup.profile.primaryMuscles[0]),
+      notes: buildExerciseNotes("mobility", "mobility", strategy.level),
+      muscleGroups: getExerciseMuscleGroups(lookup.source),
+      primaryMuscles: lookup.profile.primaryMuscles,
+      secondaryMuscles: lookup.profile.secondaryMuscles,
+      videoUrl: lookup.source.video_url,
+      movementType: "mobility"
+    },
+    strategy
+  );
+}
+
 function fitSessionToTimeBudget(input: {
   mobility: SanitizedExercise[];
   exercises: SanitizedExercise[];
@@ -627,15 +1006,28 @@ function normalizeMobilityForTime(
   blueprint: SessionBlueprint,
   strategy: WorkoutStrategy
 ) {
+  const desiredCount = getMobilityExerciseTargetCount(strategy.timeBudget.availableTimeMinutes);
   const limitedMobility = mobility
     .map((exercise) => applyExerciseTimePrescription(exercise, strategy))
-    .slice(0, strategy.timeBudget.allowExtendedMobility ? 2 : 1);
+    .slice(0, desiredCount);
 
   if (limitedMobility.length) {
     return limitedMobility;
   }
 
   return [buildFallbackMobility(blueprint)];
+}
+
+function getMobilityExerciseTargetCount(availableTimeMinutes: number) {
+  if (availableTimeMinutes <= 30) {
+    return 1;
+  }
+
+  if (availableTimeMinutes <= 50) {
+    return 2;
+  }
+
+  return 3;
 }
 
 function alignExercisesToTimeBudget(
@@ -2191,5 +2583,3 @@ function formatLevel(level: WorkoutStrategy["level"]) {
 
   return labels[level];
 }
-
-

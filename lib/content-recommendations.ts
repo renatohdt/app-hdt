@@ -278,14 +278,14 @@ function buildSearchQueries(goal?: string, location?: string) {
 
 function buildGoalQuery(goal?: string) {
   if (goal === "lose_weight") return "emagrecer perder gordura";
-  if (goal === "gain_muscle") return "ganhar massa hipertrofia musculacao";
+  if (goal === "gain_muscle") return "ganhar massa hipertrofia musculação";
   if (goal === "body_recomposition") return "definição recomposição corporal";
   if (goal === "improve_conditioning") return "condicionamento cardio resistencia";
   return "treino";
 }
 
 function buildLocationQuery(location?: string) {
-  if (location === "gym") return "academia musculacao";
+  if (location === "gym") return "academia musculação";
   return "treino em casa";
 }
 

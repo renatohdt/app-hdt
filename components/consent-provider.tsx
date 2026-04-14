@@ -269,8 +269,19 @@ export function ConsentProvider({
       {children}
       {shouldShowBanner ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-5">
-          <div className="pointer-events-auto mx-auto w-full max-w-3xl rounded-[24px] border border-white/8 bg-[#0b0b0b]/95 p-3.5 shadow-[0_18px_46px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-4">
-            <div className="space-y-2.5">
+          <div className="pointer-events-auto relative mx-auto w-full max-w-3xl rounded-[24px] border border-white/8 bg-[#0b0b0b]/95 p-3.5 shadow-[0_18px_46px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-4">
+            <button
+              type="button"
+              onClick={acceptAll}
+              aria-label="Aceitar tudo e fechar aviso de privacidade"
+              className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-white/68 transition hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+            >
+              <svg aria-hidden="true" viewBox="0 0 16 16" className="h-4 w-4" fill="none">
+                <path d="M4 4l8 8M12 4 4 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+
+            <div className="space-y-2.5 pr-10">
               <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">Privacidade</p>
               <h2 className="text-[15px] font-semibold leading-snug text-white sm:text-base">Escolha como o app pode usar cookies e integrações opcionais.</h2>
               <p className="max-w-[52rem] text-[13px] leading-5 text-white/62 sm:text-sm sm:leading-6">

@@ -15,7 +15,7 @@ import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { saveUserAnswers } from "@/lib/user-answers";
-import { buildWorkoutHash, filterExercisesForAI, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
+import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getWorkoutSessionStats } from "@/lib/workout-session-store";
@@ -163,7 +163,6 @@ export async function POST(request: Request) {
     }
 
     const normalizedExercises = ((exercises ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
-    const filteredExercises = filterExercisesForAI(answers, normalizedExercises);
     const { data: existingWorkout, error: existingWorkoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: savedUser.id,
       includeCreatedAt: true,
@@ -208,10 +207,16 @@ export async function POST(request: Request) {
     } else {
       try {
         logInfo("AI", "Workout generation started", { user_id: userId });
-        const generatedWorkout = normalizeWorkoutPayload(await generateWorkoutWithAI(answers, diagnosis, filteredExercises), {
-          diagnosis,
-          answers
-        });
+        const generatedWorkout = normalizeWorkoutPayload(
+          await generateWorkoutWithAI(answers, diagnosis, normalizedExercises, {
+            previousWorkout: existingWorkoutState?.workout ?? null,
+            lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null
+          }),
+          {
+            diagnosis,
+            answers
+          }
+        );
 
         if (!generatedWorkout) {
           workout = null;
