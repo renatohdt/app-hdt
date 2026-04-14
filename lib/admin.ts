@@ -173,6 +173,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (!supabase) {
     return {
       totalUsers: 0,
+      profiledUsers: 0,
       deletedUsers: 0,
       activeUsers: {
         daily: 0,
@@ -205,7 +206,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery, authUsersResult] =
+    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery] =
       await Promise.all([
         supabase
           .from("users")
@@ -235,8 +236,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         supabase
           .from("workouts")
           .select("id, user_id, created_at")
-          .order("created_at", { ascending: false }),
-        supabase.auth.admin.listUsers({ perPage: 1 })
+          .order("created_at", { ascending: false })
       ]);
 
     const dashboardQueryErrors = [
@@ -250,6 +250,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     if (dashboardQueryErrors.length) {
       return {
         totalUsers: 0,
+        profiledUsers: 0,
         deletedUsers: 0,
         activeUsers: {
           daily: 0,
@@ -296,12 +297,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ? Math.round((workoutsGenerated / dashboardUsers.length) * 100)
       : null;
 
-    // Total de cadastros vem do auth.users (fonte de verdade de todos que criaram conta)
-    const authData = authUsersResult.data;
-    const totalUsers = (authData && "total" in authData ? authData.total : null) ?? dashboardUsers.length;
+    // Total = usuários que completaram o cadastro (quiz finalizado, perfil salvo)
+    const totalUsers = dashboardUsers.length;
 
     return {
       totalUsers,
+      profiledUsers: dashboardUsers.length,
       deletedUsers,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
@@ -362,6 +363,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (queryErrors.length) {
     return {
       totalUsers: 0,
+      profiledUsers: 0,
       deletedUsers: 0,
       activeUsers: {
         daily: 0,
@@ -399,6 +401,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   return {
     totalUsers: users.length,
+    profiledUsers: users.length,
     deletedUsers,
     activeUsers: {
       daily: activeUsers,
@@ -957,13 +960,18 @@ function normalizeDashboardUserRole(role: string | null | undefined) {
   return typeof role === "string" ? role.trim().toLowerCase() : "user";
 }
 
-function toDistribution(values: string[]) {
+function toDistribution(values: string[], overrideTotal?: number) {
   const validValues = values.filter(Boolean);
-  const total = validValues.length;
+  const countBase = validValues.length;
 
-  if (!total) {
+  if (!countBase) {
     return [];
   }
+
+  // Se um total externo for fornecido (ex: total de cadastros), as porcentagens
+  // ficam relativas a ele — permitindo ver "% do total de usuários" em vez de
+  // "% de quem respondeu". Usa countBase como fallback.
+  const percentBase = overrideTotal && overrideTotal > 0 ? overrideTotal : countBase;
 
   const counts = new Map<string, number>();
   for (const value of validValues) {
@@ -975,7 +983,7 @@ function toDistribution(values: string[]) {
     .map(([label, value]) => ({
       label,
       value,
-      percentage: Math.round((value / total) * 100)
+      percentage: Math.round((value / percentBase) * 100)
     }));
 }
 
