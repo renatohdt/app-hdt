@@ -173,7 +173,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (!supabase) {
     return {
       totalUsers: 0,
-      profiledUsers: 0,
       deletedUsers: 0,
       activeUsers: {
         daily: 0,
@@ -250,7 +249,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     if (dashboardQueryErrors.length) {
       return {
         totalUsers: 0,
-        profiledUsers: 0,
         deletedUsers: 0,
         activeUsers: {
           daily: 0,
@@ -302,7 +300,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     return {
       totalUsers,
-      profiledUsers: dashboardUsers.length,
       deletedUsers,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
@@ -363,7 +360,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   if (queryErrors.length) {
     return {
       totalUsers: 0,
-      profiledUsers: 0,
       deletedUsers: 0,
       activeUsers: {
         daily: 0,
@@ -401,7 +397,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   return {
     totalUsers: users.length,
-    profiledUsers: users.length,
     deletedUsers,
     activeUsers: {
       daily: activeUsers,

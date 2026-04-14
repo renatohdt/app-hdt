@@ -53,6 +53,16 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          Atualizar dados
+        </button>
+      </div>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <SummaryMetricCard
           label="Usuários totais"
@@ -128,6 +138,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           <DistributionBarCard
             title="Distribuição por idade"
             data={data.ageDistribution}
+            baseCount={totalUsers}
             emptyLabel="Sem faixa etaria registrada."
           />
 
@@ -136,12 +147,14 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
               title="Distribuição por gênero"
               data={data.genderDistribution}
               total={totalForPie.gender}
+              baseCount={totalUsers}
               emptyLabel="Sem gênero registrado."
             />
             <DistributionPieCard
               title="Distribuição por objetivo"
               data={data.goalDistribution}
               total={totalForPie.goal}
+              baseCount={totalUsers}
               emptyLabel="Sem objetivo registrado."
             />
           </div>
@@ -245,15 +258,22 @@ function PeriodButton({
 function DistributionBarCard({
   title,
   data,
+  baseCount,
   emptyLabel
 }: {
   title: string;
   data: DistributionDatum[];
+  baseCount?: number;
   emptyLabel: string;
 }) {
   return (
     <Card className="min-w-0 space-y-3.5 overflow-hidden p-4 sm:p-[1.15rem]">
-      <h2 className="text-[1rem] font-semibold text-white">{title}</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[1rem] font-semibold text-white">{title}</h2>
+        {baseCount !== undefined && (
+          <span className="shrink-0 text-[10px] text-white/40">base: {baseCount} usuários</span>
+        )}
+      </div>
       {data.length ? (
         <div className="space-y-3">
           {data.map((item) => (
@@ -282,18 +302,25 @@ function DistributionPieCard({
   title,
   data,
   total,
+  baseCount,
   emptyLabel
 }: {
   title: string;
   data: DistributionDatum[];
   total: number;
+  baseCount?: number;
   emptyLabel: string;
 }) {
   const gradient = useMemo(() => buildPieGradient(data), [data]);
 
   return (
     <Card className="min-w-0 space-y-3.5 overflow-hidden p-4 sm:p-[1.15rem]">
-      <h2 className="text-[1rem] font-semibold text-white">{title}</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[1rem] font-semibold text-white">{title}</h2>
+        {baseCount !== undefined && (
+          <span className="shrink-0 text-[10px] text-white/40">base: {baseCount} usuários</span>
+        )}
+      </div>
       {data.length ? (
         <div className="grid gap-3 min-[440px]:grid-cols-[76px_minmax(0,1fr)] min-[440px]:items-center">
           <div
