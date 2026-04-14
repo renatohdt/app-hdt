@@ -5,6 +5,18 @@ export type SupabaseErrorLike = {
   hint?: string | null;
 };
 
+function getSupabaseErrorParts(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return [] as string[];
+  }
+
+  return [
+    (error as SupabaseErrorLike).message,
+    (error as SupabaseErrorLike).details,
+    (error as SupabaseErrorLike).hint
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
 export function getSupabaseErrorCode(error: unknown) {
   if (!error || typeof error !== "object") {
     return null;
@@ -15,17 +27,46 @@ export function getSupabaseErrorCode(error: unknown) {
 }
 
 export function getSupabaseErrorMessage(error: unknown) {
-  if (!error || typeof error !== "object") {
-    return "";
+  return getSupabaseErrorParts(error).join(" ").trim().toLowerCase();
+}
+
+export function getSupabaseErrorConstraint(error: unknown) {
+  for (const part of getSupabaseErrorParts(error)) {
+    const match = part.match(/(?:constraint|index)\s+"([^"]+)"/i);
+
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
   }
 
-  const parts = [
-    (error as SupabaseErrorLike).message,
-    (error as SupabaseErrorLike).details,
-    (error as SupabaseErrorLike).hint
-  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return null;
+}
 
-  return parts.join(" ").trim().toLowerCase();
+export function isSupabaseUniqueViolation(error: unknown) {
+  const code = getSupabaseErrorCode(error);
+  const message = getSupabaseErrorMessage(error);
+
+  return (
+    code === "23505" ||
+    message.includes("duplicate key value") ||
+    message.includes("unique constraint") ||
+    message.includes("already exists")
+  );
+}
+
+export function isSupabaseUniqueConstraintError(error: unknown, constraint: string) {
+  const normalizedConstraint = constraint.trim().toLowerCase();
+
+  if (!normalizedConstraint || !isSupabaseUniqueViolation(error)) {
+    return false;
+  }
+
+  const resolvedConstraint = getSupabaseErrorConstraint(error);
+
+  return (
+    resolvedConstraint?.toLowerCase() === normalizedConstraint ||
+    getSupabaseErrorMessage(error).includes(normalizedConstraint)
+  );
 }
 
 export function isSupabaseMissingColumnError(error: unknown, column: string) {

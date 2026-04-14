@@ -26,6 +26,7 @@ type CompletionResponse = {
   message?: string;
   data?: {
     sessionProgress: WorkoutSessionProgress;
+    nextWorkoutKey?: string | null;
     completion?: {
       workoutKey: string | null;
       sessionNumber: number;
@@ -123,12 +124,14 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
         return;
       }
 
-      if (!response.ok || !result.success || !result.data) {
+      if (!response.ok || !result.success || !result.data || !result.data.completion) {
         throw new Error(result.message ?? result.error ?? COMPLETE_WORKOUT_ERROR_MESSAGE);
       }
 
       setSessionProgress(result.data.sessionProgress);
-      const nextWorkoutKey = getFeaturedWorkoutKey(data.workoutOrder, result.data.sessionProgress.lastCompletedWorkoutKey);
+      const nextWorkoutKey =
+        result.data.nextWorkoutKey ??
+        getFeaturedWorkoutKey(data.workoutOrder, result.data.sessionProgress.lastCompletedWorkoutKey);
       const nextWorkoutLabel = formatWorkoutDisplayTitle(data.workouts[nextWorkoutKey ?? ""]?.title, nextWorkoutKey);
 
       if (nextWorkoutKey) {

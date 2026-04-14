@@ -3,8 +3,14 @@ import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { diagnoseUser } from "@/lib/diagnosis";
 import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
-import { logError } from "@/lib/server-logger";
-import { getSupabaseErrorCode, isSupabaseMissingRelationError } from "@/lib/supabase-errors";
+import { logError, logInfo, logWarn } from "@/lib/server-logger";
+import {
+  getSupabaseErrorCode,
+  getSupabaseErrorMessage,
+  isSupabaseMissingRelationError,
+  isSupabaseUniqueConstraintError,
+  isSupabaseUniqueViolation
+} from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
@@ -37,6 +43,12 @@ const PLAN_ALREADY_COMPLETED_MESSAGE = "Todas as sessões deste plano já foram 
 const SESSION_LOG_UNAVAILABLE_MESSAGE = "O registro de sessões ainda não está disponível neste ambiente.";
 const COMPLETE_MARK_ERROR_MESSAGE = "Não foi possível marcar o treino como concluído.";
 const ALREADY_COMPLETED_TODAY_MESSAGE = "Você já treinou hoje. Agora é descansar e voltar amanhã.";
+
+const DAILY_COMPLETION_CONSTRAINT = "workout_session_logs_user_completed_day_sp_key";
+const SESSION_NUMBER_CONSTRAINTS = [
+  "workout_session_logs_unique_plan_cycle_session_idx",
+  "workout_session_logs_unique_legacy_cycle_session_idx"
+] as const;
 
 export async function POST(request: NextRequest) {
   try {
@@ -107,7 +119,8 @@ export async function POST(request: NextRequest) {
       return buildAlreadyCompletedTodayResponse({
         totalSessions: workoutState.sessionConfig.totalSessions,
         sessionStats,
-        completion: todayCompletion.log
+        completion: todayCompletion.log,
+        workoutKeys: validWorkoutKeys
       });
     }
 
@@ -116,8 +129,9 @@ export async function POST(request: NextRequest) {
     }
 
     const completedAt = new Date().toISOString();
-    const sessionNumber = sessionStats.completedSessions + 1;
-    const completionResult = await createWorkoutSessionLog(supabase, {
+    let activeSessionStats = sessionStats;
+    let sessionNumber = getNextSessionNumber(activeSessionStats);
+    let completionResult = await createWorkoutSessionLog(supabase, {
       workoutId: workoutRecord.id,
       userId: auth.user.id,
       workoutHash: workoutRecord.hash ?? null,
@@ -128,38 +142,158 @@ export async function POST(request: NextRequest) {
       completedDaySp: todayCompletion.dayKey
     });
 
-    if (completionResult.error || !completionResult.data) {
-      const errorCode = (completionResult.error as { code?: string } | null)?.code;
+    logInfo("WORKOUT", "Workout completion attempt", {
+      user_id: auth.user.id,
+      workout_id: workoutRecord.id,
+      workout_key: workoutKey,
+      plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+      completed_day_sp: todayCompletion.dayKey,
+      session_number_calculated: sessionNumber,
+      completed_sessions_before: activeSessionStats.completedSessions,
+      completed_sessions_after: activeSessionStats.completedSessions,
+      already_completed_today: false
+    });
 
-      if (errorCode === "23505") {
+    if (completionResult.error || !completionResult.data) {
+      const alreadyCompletedTodayConflict = isAlreadyCompletedTodayConflict(completionResult.error);
+      const sessionNumberConflict = isSessionNumberConflict(completionResult.error);
+
+      logWarn("WORKOUT", "Workout completion insert rejected", {
+        user_id: auth.user.id,
+        workout_id: workoutRecord.id,
+        workout_key: workoutKey,
+        plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+        completed_day_sp: todayCompletion.dayKey,
+        session_number_calculated: sessionNumber,
+        completed_sessions_before: activeSessionStats.completedSessions,
+        completed_sessions_after: activeSessionStats.completedSessions,
+        already_completed_today: alreadyCompletedTodayConflict,
+        supabase_error_code: getSupabaseErrorCode(completionResult.error),
+        supabase_error_message: getSupabaseErrorMessage(completionResult.error)
+      });
+
+      if (isSupabaseUniqueViolation(completionResult.error)) {
         const [refreshedStats, refreshedTodayCompletion] = await Promise.all([
           getWorkoutSessionStats(supabase, workoutState.sessionFilter),
           getUserWorkoutSessionForLocalDay(supabase, {
             userId: auth.user.id
           })
         ]);
+        const alreadyCompletedToday = alreadyCompletedTodayConflict || Boolean(refreshedTodayCompletion.log);
 
-        if (refreshedTodayCompletion.log) {
+        logInfo("WORKOUT", "Workout completion conflict refreshed", {
+          user_id: auth.user.id,
+          workout_id: workoutRecord.id,
+          workout_key: workoutKey,
+          plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+          completed_day_sp: todayCompletion.dayKey,
+          session_number_calculated: sessionNumber,
+          completed_sessions_before: activeSessionStats.completedSessions,
+          completed_sessions_after: refreshedStats.completedSessions,
+          already_completed_today: alreadyCompletedToday
+        });
+
+        if (alreadyCompletedToday) {
           return buildAlreadyCompletedTodayResponse({
             totalSessions: workoutState.sessionConfig.totalSessions,
             sessionStats: refreshedStats,
-            completion: refreshedTodayCompletion.log
+            completion: refreshedTodayCompletion.log ?? null,
+            workoutKeys: validWorkoutKeys
           });
         }
 
-        return NextResponse.json({
-          success: true,
-          data: {
-            sessionProgress: buildWorkoutSessionProgress({
-              totalSessions: workoutState.sessionConfig.totalSessions,
-              completedSessions: refreshedStats.completedSessions,
-              lastCompletedAt: refreshedStats.lastLog?.completedAt ?? null,
-              lastCompletedWorkoutKey: refreshedStats.lastLog?.workoutKey ?? null,
-              lastCompletedSessionNumber: refreshedStats.lastLog?.sessionNumber ?? null
-            }),
-            completion: refreshedStats.lastLog ? serializeWorkoutCompletion(refreshedStats.lastLog) : null
+        if (sessionNumberConflict) {
+          const repairedSessionNumber = getNextSessionNumber(refreshedStats);
+
+          if (
+            repairedSessionNumber > sessionNumber &&
+            refreshedStats.completedSessions < workoutState.sessionConfig.totalSessions
+          ) {
+            logWarn("WORKOUT", "Workout completion retrying with repaired session_number", {
+              user_id: auth.user.id,
+              workout_id: workoutRecord.id,
+              workout_key: workoutKey,
+              plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+              completed_day_sp: todayCompletion.dayKey,
+              session_number_calculated: repairedSessionNumber,
+              completed_sessions_before: refreshedStats.completedSessions,
+              completed_sessions_after: refreshedStats.completedSessions,
+              already_completed_today: false
+            });
+
+            activeSessionStats = refreshedStats;
+            sessionNumber = repairedSessionNumber;
+            completionResult = await createWorkoutSessionLog(supabase, {
+              workoutId: workoutRecord.id,
+              userId: auth.user.id,
+              workoutHash: workoutRecord.hash ?? null,
+              workoutKey,
+              planCycleId: workoutState.sessionConfig.planCycleId,
+              sessionNumber,
+              completedAt,
+              completedDaySp: todayCompletion.dayKey
+            });
+
+            if (completionResult.error || !completionResult.data) {
+              const [retryStats, retryTodayCompletion] = await Promise.all([
+                getWorkoutSessionStats(supabase, workoutState.sessionFilter),
+                getUserWorkoutSessionForLocalDay(supabase, {
+                  userId: auth.user.id
+                })
+              ]);
+              const retryAlreadyCompletedToday =
+                isAlreadyCompletedTodayConflict(completionResult.error) || Boolean(retryTodayCompletion.log);
+
+              logError("WORKOUT", "Workout completion retry failed", {
+                user_id: auth.user.id,
+                workout_id: workoutRecord.id,
+                workout_key: workoutKey,
+                plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+                completed_day_sp: todayCompletion.dayKey,
+                session_number_calculated: sessionNumber,
+                completed_sessions_before: activeSessionStats.completedSessions,
+                completed_sessions_after: retryStats.completedSessions,
+                already_completed_today: retryAlreadyCompletedToday,
+                supabase_error_code: getSupabaseErrorCode(completionResult.error),
+                supabase_error_message: getSupabaseErrorMessage(completionResult.error)
+              });
+
+              if (retryAlreadyCompletedToday) {
+                return buildAlreadyCompletedTodayResponse({
+                  totalSessions: workoutState.sessionConfig.totalSessions,
+                  sessionStats: retryStats,
+                  completion: retryTodayCompletion.log ?? null,
+                  workoutKeys: validWorkoutKeys
+                });
+              }
+            } else {
+              const retriedStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
+
+              logInfo("WORKOUT", "Workout completion saved after retry", {
+                user_id: auth.user.id,
+                workout_id: workoutRecord.id,
+                workout_key: workoutKey,
+                plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+                completed_day_sp: todayCompletion.dayKey,
+                session_number_calculated: sessionNumber,
+                completed_sessions_before: activeSessionStats.completedSessions,
+                completed_sessions_after: retriedStats.completedSessions,
+                already_completed_today: false
+              });
+
+              return buildWorkoutCompletionSuccessResponse({
+                totalSessions: workoutState.sessionConfig.totalSessions,
+                sessionStats: retriedStats,
+                completion: completionResult.data,
+                workoutKeys: validWorkoutKeys
+              });
+            }
           }
-        });
+        }
+
+        if (refreshedStats.completedSessions >= workoutState.sessionConfig.totalSessions) {
+          return jsonError(PLAN_ALREADY_COMPLETED_MESSAGE, 409);
+        }
       }
 
       if (isSupabaseMissingRelationError(completionResult.error, "workout_session_logs")) {
@@ -169,23 +303,38 @@ export async function POST(request: NextRequest) {
       logError("WORKOUT", "Workout completion save failed", {
         user_id: auth.user.id,
         workout_id: workoutRecord.id,
-        error_code: getSupabaseErrorCode(completionResult.error)
+        workout_key: workoutKey,
+        plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+        completed_day_sp: todayCompletion.dayKey,
+        session_number_calculated: sessionNumber,
+        completed_sessions_before: activeSessionStats.completedSessions,
+        completed_sessions_after: activeSessionStats.completedSessions,
+        already_completed_today: false,
+        supabase_error_code: getSupabaseErrorCode(completionResult.error),
+        supabase_error_message: getSupabaseErrorMessage(completionResult.error)
       });
       return jsonError(COMPLETE_MARK_ERROR_MESSAGE, 500);
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        sessionProgress: buildWorkoutSessionProgress({
-          totalSessions: workoutState.sessionConfig.totalSessions,
-          completedSessions: sessionStats.completedSessions + 1,
-          lastCompletedAt: completionResult.data.completedAt,
-          lastCompletedWorkoutKey: completionResult.data.workoutKey,
-          lastCompletedSessionNumber: completionResult.data.sessionNumber
-        }),
-        completion: serializeWorkoutCompletion(completionResult.data)
-      }
+    const updatedStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
+
+    logInfo("WORKOUT", "Workout completion saved", {
+      user_id: auth.user.id,
+      workout_id: workoutRecord.id,
+      workout_key: workoutKey,
+      plan_cycle_id_used: workoutState.sessionConfig.planCycleId,
+      completed_day_sp: todayCompletion.dayKey,
+      session_number_calculated: sessionNumber,
+      completed_sessions_before: activeSessionStats.completedSessions,
+      completed_sessions_after: updatedStats.completedSessions,
+      already_completed_today: false
+    });
+
+    return buildWorkoutCompletionSuccessResponse({
+      totalSessions: workoutState.sessionConfig.totalSessions,
+      sessionStats: updatedStats,
+      completion: completionResult.data,
+      workoutKeys: validWorkoutKeys
     });
   } catch {
     logError("WORKOUT", "Workout completion unexpected failure", {});
@@ -266,7 +415,8 @@ function buildAlreadyCompletedTodayResponse(input: {
     completedSessions: number;
     lastLog: WorkoutSessionLogEntry | null;
   };
-  completion: WorkoutSessionLogEntry;
+  completion: WorkoutSessionLogEntry | null;
+  workoutKeys: string[];
 }) {
   return NextResponse.json(
     {
@@ -282,12 +432,82 @@ function buildAlreadyCompletedTodayResponse(input: {
           lastCompletedWorkoutKey: input.sessionStats.lastLog?.workoutKey ?? null,
           lastCompletedSessionNumber: input.sessionStats.lastLog?.sessionNumber ?? null
         }),
-        completion: serializeWorkoutCompletion(input.completion)
+        completion: input.completion ? serializeWorkoutCompletion(input.completion) : null,
+        nextWorkoutKey: resolveNextWorkoutKey(input.workoutKeys, input.sessionStats.lastLog?.workoutKey ?? null)
       }
     },
     {
       status: 409
     }
+  );
+}
+
+function buildWorkoutCompletionSuccessResponse(input: {
+  totalSessions: number;
+  sessionStats: {
+    completedSessions: number;
+    lastLog: WorkoutSessionLogEntry | null;
+  };
+  completion: WorkoutSessionLogEntry;
+  workoutKeys: string[];
+}) {
+  return NextResponse.json({
+    success: true,
+    data: {
+      sessionProgress: buildWorkoutSessionProgress({
+        totalSessions: input.totalSessions,
+        completedSessions: input.sessionStats.completedSessions,
+        lastCompletedAt: input.sessionStats.lastLog?.completedAt ?? input.completion.completedAt,
+        lastCompletedWorkoutKey: input.sessionStats.lastLog?.workoutKey ?? input.completion.workoutKey,
+        lastCompletedSessionNumber: input.sessionStats.lastLog?.sessionNumber ?? input.completion.sessionNumber
+      }),
+      completion: serializeWorkoutCompletion(input.completion),
+      nextWorkoutKey: resolveNextWorkoutKey(
+        input.workoutKeys,
+        input.sessionStats.lastLog?.workoutKey ?? input.completion.workoutKey
+      )
+    }
+  });
+}
+
+function getNextSessionNumber(sessionStats: {
+  completedSessions: number;
+  lastLog: WorkoutSessionLogEntry | null;
+}) {
+  return Math.max(sessionStats.completedSessions, sessionStats.lastLog?.sessionNumber ?? 0) + 1;
+}
+
+function resolveNextWorkoutKey(workoutKeys: string[], lastCompletedWorkoutKey?: string | null) {
+  if (!workoutKeys.length) {
+    return null;
+  }
+
+  const normalizedLastCompletedKey = normalizeWorkoutKey(lastCompletedWorkoutKey);
+
+  if (!normalizedLastCompletedKey) {
+    return workoutKeys[0] ?? null;
+  }
+
+  const currentIndex = workoutKeys.findIndex((workoutKey) => normalizeWorkoutKey(workoutKey) === normalizedLastCompletedKey);
+
+  if (currentIndex < 0) {
+    return workoutKeys[0] ?? null;
+  }
+
+  return workoutKeys[(currentIndex + 1) % workoutKeys.length] ?? workoutKeys[0] ?? null;
+}
+
+function isAlreadyCompletedTodayConflict(error: unknown) {
+  return (
+    isSupabaseUniqueConstraintError(error, DAILY_COMPLETION_CONSTRAINT) ||
+    getSupabaseErrorMessage(error).includes("completed_day_sp")
+  );
+}
+
+function isSessionNumberConflict(error: unknown) {
+  return (
+    SESSION_NUMBER_CONSTRAINTS.some((constraint) => isSupabaseUniqueConstraintError(error, constraint)) ||
+    getSupabaseErrorMessage(error).includes("session_number")
   );
 }
 

@@ -34,6 +34,14 @@ type SessionListInput = SessionStatsInput & {
 
 type SessionFilterMode = "plan_cycle_id" | "workout_hash" | "cycle_started_at" | "none";
 
+type SessionStatsCandidate = {
+  filterMode: SessionFilterMode;
+  completedSessions: number;
+  lastLog: WorkoutSessionLogEntry | null;
+  rawCount: number;
+  derivedCompletedSessions: number;
+};
+
 type UserSessionDayLookupInput = {
   userId: string;
   referenceDate?: Date | string | number | null;
@@ -59,6 +67,8 @@ type ZonedDateTimeParts = {
 const WORKOUT_SESSION_TIMEZONE = "America/Sao_Paulo";
 
 export async function getWorkoutSessionStats(supabase: SupabaseLike, input: SessionStatsInput) {
+  const candidates = [] as SessionStatsCandidate[];
+
   for (const filterMode of getSessionFilterModes(input)) {
     const result = await readWorkoutSessionStats(supabase, input, {
       filterMode,
@@ -102,13 +112,14 @@ export async function getWorkoutSessionStats(supabase: SupabaseLike, input: Sess
         continue;
       }
 
-      return finalizeWorkoutSessionStats(legacyResult, input.workoutId);
+      candidates.push(buildSessionStatsCandidate(finalizeWorkoutSessionStats(legacyResult, input.workoutId), legacyResult, filterMode));
+      continue;
     }
 
-    return finalizeWorkoutSessionStats(result, input.workoutId);
+    candidates.push(buildSessionStatsCandidate(finalizeWorkoutSessionStats(result, input.workoutId), result, filterMode));
   }
 
-  return emptyWorkoutSessionStats();
+  return selectPreferredWorkoutSessionStats(input.workoutId, candidates);
 }
 
 export async function listWorkoutSessionLogs(supabase: SupabaseLike, input: SessionListInput) {
@@ -197,14 +208,14 @@ export async function listWorkoutSessionLogs(supabase: SupabaseLike, input: Sess
 
 export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, input: UserSessionDayLookupInput) {
   const dayRange = getLocalDayRange(input.referenceDate, input.timeZone ?? WORKOUT_SESSION_TIMEZONE);
-  const result = await readUserWorkoutSessionForLocalDay(supabase, input.userId, dayRange, {
+  const completedDayResult = await readUserWorkoutSessionForCompletedDay(supabase, input.userId, dayRange, {
     useLegacySelect: false
   });
 
-  if (isMissingSessionLogsTable(result.error)) {
+  if (isMissingSessionLogsTable(completedDayResult.error)) {
     logWarn("WORKOUT", "Workout session local-day lookup unavailable", {
       user_id: input.userId,
-      error_code: getSupabaseErrorCode(result.error)
+      error_code: getSupabaseErrorCode(completedDayResult.error)
     });
 
     return {
@@ -213,8 +224,12 @@ export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, i
     };
   }
 
-  if (hasLegacyLatestSelectIssue(result.error)) {
-    const legacyResult = await readUserWorkoutSessionForLocalDay(supabase, input.userId, dayRange, {
+  if (isMissingSessionLogColumn(completedDayResult.error, "completed_day_sp")) {
+    return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
+  }
+
+  if (hasLegacyLatestSelectIssue(completedDayResult.error)) {
+    const legacyResult = await readUserWorkoutSessionForCompletedDay(supabase, input.userId, dayRange, {
       useLegacySelect: true
     });
 
@@ -237,28 +252,33 @@ export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, i
       };
     }
 
-    return {
-      ...dayRange,
-      log: legacyResult.data ? mapSessionLogRow(legacyResult.data as SessionLogRow) : null
-    };
+    if (legacyResult.data) {
+      return {
+        ...dayRange,
+        log: mapSessionLogRow(legacyResult.data as SessionLogRow)
+      };
+    }
+
+    return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
   }
 
-  if (result.error) {
-    logError("WORKOUT", "Workout session local-day lookup failed", {
+  if (completedDayResult.error) {
+    logError("WORKOUT", "Workout session completed_day_sp lookup failed", {
       user_id: input.userId,
-      error_code: getSupabaseErrorCode(result.error)
+      error_code: getSupabaseErrorCode(completedDayResult.error)
     });
 
+    return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
+  }
+
+  if (completedDayResult.data) {
     return {
       ...dayRange,
-      log: null
+      log: mapSessionLogRow(completedDayResult.data as SessionLogRow)
     };
   }
 
-  return {
-    ...dayRange,
-    log: result.data ? mapSessionLogRow(result.data as SessionLogRow) : null
-  };
+  return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
 }
 
 export async function createWorkoutSessionLog(
@@ -536,7 +556,25 @@ async function insertWorkoutSessionLog(
     .single();
 }
 
-async function readUserWorkoutSessionForLocalDay(
+async function readUserWorkoutSessionForCompletedDay(
+  supabase: SupabaseLike,
+  userId: string,
+  dayRange: LocalDayRange,
+  options: {
+    useLegacySelect: boolean;
+  }
+) {
+  return supabase
+    .from("workout_session_logs")
+    .select(buildLatestSessionFields(options.useLegacySelect))
+    .eq("user_id", userId)
+    .eq("completed_day_sp", dayRange.dayKey)
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+}
+
+async function readUserWorkoutSessionForLocalDayRange(
   supabase: SupabaseLike,
   userId: string,
   dayRange: LocalDayRange,
@@ -609,6 +647,70 @@ function finalizeWorkoutSessionStats(
   };
 }
 
+async function lookupUserWorkoutSessionForLocalDayRange(
+  supabase: SupabaseLike,
+  userId: string,
+  dayRange: LocalDayRange
+) {
+  const result = await readUserWorkoutSessionForLocalDayRange(supabase, userId, dayRange, {
+    useLegacySelect: false
+  });
+
+  if (isMissingSessionLogsTable(result.error)) {
+    return {
+      ...dayRange,
+      log: null
+    };
+  }
+
+  if (hasLegacyLatestSelectIssue(result.error)) {
+    const legacyResult = await readUserWorkoutSessionForLocalDayRange(supabase, userId, dayRange, {
+      useLegacySelect: true
+    });
+
+    if (isMissingSessionLogsTable(legacyResult.error)) {
+      return {
+        ...dayRange,
+        log: null
+      };
+    }
+
+    if (legacyResult.error) {
+      logError("WORKOUT", "Workout session local-day legacy lookup failed", {
+        user_id: userId,
+        error_code: getSupabaseErrorCode(legacyResult.error)
+      });
+
+      return {
+        ...dayRange,
+        log: null
+      };
+    }
+
+    return {
+      ...dayRange,
+      log: legacyResult.data ? mapSessionLogRow(legacyResult.data as SessionLogRow) : null
+    };
+  }
+
+  if (result.error) {
+    logError("WORKOUT", "Workout session local-day lookup failed", {
+      user_id: userId,
+      error_code: getSupabaseErrorCode(result.error)
+    });
+
+    return {
+      ...dayRange,
+      log: null
+    };
+  }
+
+  return {
+    ...dayRange,
+    log: result.data ? mapSessionLogRow(result.data as SessionLogRow) : null
+  };
+}
+
 function finalizeWorkoutSessionLogs(
   result: {
     data?: unknown;
@@ -638,10 +740,78 @@ function buildLatestSessionFields(useLegacySelect: boolean) {
     : "id, workout_id, workout_key, session_number, status, completed_at, created_at";
 }
 
+function buildSessionStatsCandidate(
+  stats: {
+    completedSessions: number;
+    lastLog: WorkoutSessionLogEntry | null;
+  },
+  result: {
+    countResult: { count?: number | null };
+  },
+  filterMode: SessionFilterMode
+) {
+  const rawCount = Number(result.countResult.count) || 0;
+  const lastSessionNumber = stats.lastLog?.sessionNumber ?? 0;
+
+  return {
+    filterMode,
+    completedSessions: stats.completedSessions,
+    lastLog: stats.lastLog,
+    rawCount,
+    derivedCompletedSessions: Math.max(rawCount, lastSessionNumber)
+  } satisfies SessionStatsCandidate;
+}
+
 function emptyWorkoutSessionStats() {
   return {
     completedSessions: 0,
     lastLog: null
+  };
+}
+
+function selectPreferredWorkoutSessionStats(workoutId: string, candidates: SessionStatsCandidate[]) {
+  if (!candidates.length) {
+    return emptyWorkoutSessionStats();
+  }
+
+  const preferredCandidates = candidates.filter((candidate) => candidate.filterMode !== "none");
+  const candidatePool = preferredCandidates.length ? preferredCandidates : candidates;
+  const bestCandidate = candidatePool.reduce((currentBest, candidate) => {
+    if (!currentBest) {
+      return candidate;
+    }
+
+    if (candidate.derivedCompletedSessions > currentBest.derivedCompletedSessions) {
+      return candidate;
+    }
+
+    if (
+      candidate.derivedCompletedSessions === currentBest.derivedCompletedSessions &&
+      getSessionFilterPriority(candidate.filterMode) < getSessionFilterPriority(currentBest.filterMode)
+    ) {
+      return candidate;
+    }
+
+    return currentBest;
+  }, null as SessionStatsCandidate | null);
+
+  if (!bestCandidate) {
+    return emptyWorkoutSessionStats();
+  }
+
+  if (bestCandidate.derivedCompletedSessions > bestCandidate.rawCount) {
+    logWarn("WORKOUT", "Workout session stats repaired from legacy cycle gaps", {
+      workout_id: workoutId,
+      filter_mode: bestCandidate.filterMode,
+      raw_completed_sessions: bestCandidate.rawCount,
+      derived_completed_sessions: bestCandidate.derivedCompletedSessions,
+      last_session_number: bestCandidate.lastLog?.sessionNumber ?? null
+    });
+  }
+
+  return {
+    completedSessions: bestCandidate.derivedCompletedSessions,
+    lastLog: bestCandidate.lastLog
   };
 }
 
@@ -654,6 +824,13 @@ function getSessionFilterModes(input: SessionStatsInput) {
   ].filter((mode): mode is SessionFilterMode => Boolean(mode));
 
   return Array.from(new Set(orderedModes));
+}
+
+function getSessionFilterPriority(filterMode: SessionFilterMode) {
+  if (filterMode === "plan_cycle_id") return 0;
+  if (filterMode === "workout_hash") return 1;
+  if (filterMode === "cycle_started_at") return 2;
+  return 3;
 }
 
 function shouldFallbackSessionFilter(filterMode: SessionFilterMode, ...errors: unknown[]) {
