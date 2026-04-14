@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import type {
   AdminDashboardData,
@@ -122,6 +123,7 @@ const RETENTION_WINDOWS = [
 }>;
 
 export async function getAdminData() {
+  noStore();
   const supabase = createSupabaseAdminClient();
 
   if (!supabase) {
@@ -168,6 +170,7 @@ export async function getAdminData() {
 }
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+  noStore();
   const supabase = createSupabaseAdminClient();
 
   if (!supabase) {
