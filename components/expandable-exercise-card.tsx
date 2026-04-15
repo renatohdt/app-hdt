@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, X } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
@@ -39,6 +39,7 @@ export function ExpandableExerciseCard({
   exerciseIndex,
   exerciseName,
   replacementLimitReached,
+  replacementCount,
   isReplaced = false,
   onExerciseReplaced
 }: {
@@ -53,6 +54,7 @@ export function ExpandableExerciseCard({
   exerciseIndex: number;
   exerciseName: string;
   replacementLimitReached: boolean;
+  replacementCount: number;
   isReplaced?: boolean;
   onExerciseReplaced: (newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) => void;
 }) {
@@ -539,6 +541,22 @@ export function ExpandableExerciseCard({
               >
                 <X className="h-4 w-4" />
               </button>
+            </div>
+
+            <div className="mb-4 rounded-[16px] border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400/80" />
+                <div className="space-y-0.5">
+                  <p className="text-xs font-semibold text-amber-300/90">
+                    Esta ação é irreversível
+                  </p>
+                  <p className="text-xs leading-4 text-white/50">
+                    {2 - replacementCount === 1
+                      ? "Resta apenas 1 substituição disponível neste plano."
+                      : `Você tem ${2 - replacementCount} de 2 substituições disponíveis neste plano.`}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">

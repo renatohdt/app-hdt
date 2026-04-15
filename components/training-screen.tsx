@@ -269,6 +269,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 exerciseIndex={index}
                 exerciseName={exercise.name}
                 replacementLimitReached={replacementLimitReached}
+                replacementCount={replacementCount}
                 isReplaced={replacedExerciseNames.has(exercise.name)}
                 onExerciseReplaced={handleExerciseReplaced}
               />
