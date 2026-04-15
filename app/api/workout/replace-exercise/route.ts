@@ -253,6 +253,10 @@ export async function POST(request: NextRequest) {
       if (index !== dayIndex) return section;
       return {
         ...section,
+        // Limpar items para forçar rebuild a partir de exercises no frontend.
+        // O buildTrainingExerciseRows usa items quando presentes — sem isso,
+        // a UI exibiria o exercício antigo mesmo após a atualização de exercises.
+        items: [],
         exercises: section.exercises.map((exercise, exIndex) =>
           exIndex === exerciseIndex ? updatedExercise : exercise
         )
