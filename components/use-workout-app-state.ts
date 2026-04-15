@@ -30,17 +30,32 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
     return result.data;
   }
 
+  async function fetchWorkoutNoCache(userId: string) {
+    const response = await fetchWithAuth(`/api/workout?userId=${userId}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache, no-store, must-revalidate" }
+    });
+
+    if (!response.ok) {
+      const result = await parseJsonResponse<{ success: false; error?: string }>(response);
+      throw new Error(result.error ?? "Não foi possível carregar o treino.");
+    }
+
+    const result = await parseJsonResponse<{ success: true; data: AppWorkoutPayload }>(response);
+    return result.data;
+  }
+
   async function reloadWorkout() {
     if (!currentUserId) return;
 
     try {
-      const data = await fetchWorkout(currentUserId);
+      const data = await fetchWorkoutNoCache(currentUserId);
       if (data) {
         setPayload(data);
         setNoWorkout(data.hasWorkout === false || !data.workout);
       }
-    } catch {
-      // falha silenciosa — dados antigos permanecem visíveis
+    } catch (reloadError) {
+      clientLogError("RELOAD_WORKOUT_ERROR", reloadError);
     }
   }
 
