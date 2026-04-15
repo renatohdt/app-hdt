@@ -138,12 +138,19 @@ export async function GET(request: NextRequest) {
       workout: normalizedWorkout,
       answers
     });
-    const sessionStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
-    const sessionLogs = await listWorkoutSessionLogs(supabase, {
-      workoutId: workoutRecord.id,
-      limit: 180,
-      allCycles: true
-    });
+    const [sessionStats, sessionLogs, replacementCountResult] = await Promise.all([
+      getWorkoutSessionStats(supabase, workoutState.sessionFilter),
+      listWorkoutSessionLogs(supabase, {
+        workoutId: workoutRecord.id,
+        limit: 180,
+        allCycles: true
+      }),
+      supabase
+        .from("workout_exercise_replacements")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("workout_id", workoutRecord.id)
+    ]);
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions: workoutState.sessionConfig.totalSessions,
       completedSessions: sessionStats.completedSessions,
@@ -156,6 +163,8 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         hasWorkout: true,
+        workoutId: workoutRecord.id,
+        replacementCount: replacementCountResult.count ?? 0,
         user: {
           id: user.id,
           name: user.name
@@ -223,6 +232,14 @@ export async function POST(request: Request) {
     }
 
     const normalizedExercises = ((exercises ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
+
+    const { data: excludedRows } = await supabase
+      .from("user_excluded_exercises")
+      .select("exercise_id")
+      .eq("user_id", userId);
+
+    const excludedExerciseIds = (excludedRows ?? []).map((row) => row.exercise_id);
+
     const { data: existingWorkout, error: existingWorkoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: user.id,
       includeCreatedAt: true,
@@ -318,7 +335,8 @@ export async function POST(request: Request) {
       workout = normalizeWorkoutPayload(
         await generateWorkoutWithAI(answers, diagnosis, normalizedExercises, {
           previousWorkout: existingWorkoutState?.workout ?? null,
-          lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null
+          lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
+          excludedExerciseIds
         }),
         {
           diagnosis,

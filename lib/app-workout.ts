@@ -31,6 +31,8 @@ type AppWorkoutAnswers = {
 
 export type AppWorkoutPayload = {
   hasWorkout?: boolean;
+  workoutId?: string | null;
+  replacementCount?: number | null;
   user: { id: string; name: string };
   answers: AppWorkoutAnswers;
   workout: WorkoutPlan | null;
@@ -40,6 +42,8 @@ export type AppWorkoutPayload = {
 
 export type AppWorkoutData = {
   raw: AppWorkoutPayload;
+  workoutId: string;
+  replacementCount: number;
   user: {
     id: string;
     name: string;
@@ -169,6 +173,8 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
 
   return {
     raw: payload,
+    workoutId: typeof payload.workoutId === "string" ? payload.workoutId : "",
+    replacementCount: typeof payload.replacementCount === "number" ? payload.replacementCount : 0,
     user: {
       id: payload.user.id,
       name: userName,

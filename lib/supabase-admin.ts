@@ -22,6 +22,12 @@ export function createSupabaseAdminClient() {
     auth: {
       persistSession: false,
       autoRefreshToken: false
+    },
+    global: {
+      // Garante que o Next.js nunca cacheia as chamadas internas do Supabase.
+      // Sem isso, o Next.js 14 intercepta o fetch e serve respostas antigas do banco.
+      fetch: (url: RequestInfo | URL, options: RequestInit = {}) =>
+        fetch(url, { ...options, cache: "no-store" })
     }
   });
 }

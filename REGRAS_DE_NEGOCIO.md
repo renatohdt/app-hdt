@@ -25,7 +25,7 @@ Ferramentas disponíveis sem custo:
 - Cronômetro
 
 Funcionalidades com limite de uso:
-- Substituição de exercício: **máximo 2x por treino**
+- Substituição de exercício: **máximo 2x por programa de treino**
 - [Adicionar outros limites aqui, ex: geração de treinos, etc.]
 
 Funcionalidades **não disponíveis** no plano gratuito:
@@ -36,7 +36,7 @@ Funcionalidades **não disponíveis** no plano gratuito:
 ### 2.2 Plano Premium
 
 Inclui tudo do plano gratuito, mais:
-- Substituição de exercício **ilimitada**
+- Substituição de exercício 2 por treino (2 para treino A, 2 para treino B...)
 - Geração de novos treinos **ilimitada**
 - Evolução de treino com IA
 - [Adicionar outros benefícios premium aqui]

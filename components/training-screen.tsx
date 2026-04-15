@@ -44,13 +44,15 @@ type FeedbackState = {
 const COMPLETE_WORKOUT_ERROR_MESSAGE = "Não foi possível marcar o treino como concluído.";
 const ALREADY_COMPLETED_TODAY_MESSAGE = "Você já treinou hoje. Agora é descansar e voltar amanhã.";
 
-export function TrainingScreen({ data }: { data: AppWorkoutData }) {
+export function TrainingScreen({ data, reloadWorkout }: { data: AppWorkoutData; reloadWorkout: () => Promise<void> }) {
   const [activeWorkoutKey, setActiveWorkoutKey] = useState(data.featuredWorkoutKey ?? data.workoutOrder[0] ?? "");
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   const [sessionProgress, setSessionProgress] = useState(data.sessionProgress);
   const [confirmCompletion, setConfirmCompletion] = useState(false);
   const [completingWorkout, setCompletingWorkout] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [replacementCount, setReplacementCount] = useState(data.replacementCount);
+  const [replacedExerciseNames, setReplacedExerciseNames] = useState<Set<string>>(new Set());
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
     [data.workoutOrder, sessionProgress.lastCompletedWorkoutKey]
@@ -79,6 +81,16 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
   const sessionLabel = formatSessionCounter(sessionProgress);
   const isCycleComplete = sessionProgress.cycleCompleted;
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
+  const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
+  const replacementLimitReached = replacementCount >= 2;
+
+  async function handleExerciseReplaced(newExerciseName: string) {
+    setReplacementCount((prev) => prev + 1);
+    if (newExerciseName) {
+      setReplacedExerciseNames((prev) => new Set([...prev, newExerciseName]));
+    }
+    await reloadWorkout();
+  }
 
   if (!workout) {
     return (
@@ -244,6 +256,13 @@ export function TrainingScreen({ data }: { data: AppWorkoutData }) {
                 index={index}
                 expanded={openExerciseId === exercise.id}
                 onToggle={handleToggleExercise}
+                workoutId={data.workoutId}
+                workoutDayId={workoutDayId}
+                exerciseIndex={index}
+                exerciseName={exercise.name}
+                replacementLimitReached={replacementLimitReached}
+                isReplaced={replacedExerciseNames.has(exercise.name)}
+                onExerciseReplaced={handleExerciseReplaced}
               />
 
               {shouldRenderAd ? <GoogleAd /> : null}

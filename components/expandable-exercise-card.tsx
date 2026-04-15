@@ -2,10 +2,11 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, PlayCircle } from "lucide-react";
-import { Card } from "@/components/ui";
+import { ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, X } from "lucide-react";
+import { Button, Card } from "@/components/ui";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
+import { fetchWithAuth } from "@/lib/authenticated-fetch";
 
 type ExerciseSetEntry = {
   weightKg: string;
@@ -32,7 +33,14 @@ export function ExpandableExerciseCard({
   exercise,
   index,
   expanded,
-  onToggle
+  onToggle,
+  workoutId,
+  workoutDayId,
+  exerciseIndex,
+  exerciseName,
+  replacementLimitReached,
+  isReplaced = false,
+  onExerciseReplaced
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -40,6 +48,13 @@ export function ExpandableExerciseCard({
   index: number;
   expanded: boolean;
   onToggle: (exerciseId: string) => void;
+  workoutId: string;
+  workoutDayId: string;
+  exerciseIndex: number;
+  exerciseName: string;
+  replacementLimitReached: boolean;
+  isReplaced?: boolean;
+  onExerciseReplaced: (newExerciseName: string) => void;
 }) {
   const storageKey = useMemo(
     () => `hdt-exercise-draft:${data.user.id}:${workoutKey}:${exercise.id}`,
@@ -48,6 +63,12 @@ export function ExpandableExerciseCard({
   const [draft, setDraft] = useState<ExerciseExecutionDraft | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [showVideo, setShowVideo] = useState(false);
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
+  const [replaceReason, setReplaceReason] = useState<string | null>(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+  const [replaceError, setReplaceError] = useState<string | null>(null);
+  const [replaceLimitError, setReplaceLimitError] = useState(false);
+  const [wasReplaced, setWasReplaced] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -189,6 +210,47 @@ export function ExpandableExerciseCard({
     }
   }
 
+  async function handleReplaceExercise() {
+    if (!replaceReason || isReplacing) return;
+
+    setIsReplacing(true);
+    setReplaceError(null);
+    setReplaceLimitError(false);
+
+    try {
+      const response = await fetchWithAuth("/api/workout/replace-exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workoutId,
+          workoutDayId,
+          exerciseName,
+          exerciseIndex,
+          reason: replaceReason
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (result?.error === "replacement_limit_reached") {
+          setReplaceLimitError(true);
+          return;
+        }
+        throw new Error(result?.error ?? "Não foi possível substituir o exercício agora.");
+      }
+
+      const newName = result?.data?.replacedExercise?.name ?? "";
+      setWasReplaced(true);
+      setShowReplaceModal(false);
+      onExerciseReplaced(newName);
+    } catch (err) {
+      setReplaceError(err instanceof Error ? err.message : "Não foi possível substituir o exercício agora. Tente novamente.");
+    } finally {
+      setIsReplacing(false);
+    }
+  }
+
   return (
     <div ref={containerRef} className="scroll-mt-4">
       <Card
@@ -233,6 +295,11 @@ export function ExpandableExerciseCard({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-start gap-2">
                     <h3 className="text-base font-semibold leading-6 text-white">{exercise.name}</h3>
+                    {wasReplaced || isReplaced ? (
+                      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/42">
+                        Substituído
+                      </span>
+                    ) : null}
                     {combinedBadgeLabel ? (
                       <span className="inline-flex items-center rounded-full border border-[#f59e0b]/18 bg-[#f59e0b]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f7b955]">
                         {combinedBadgeLabel}
@@ -277,6 +344,32 @@ export function ExpandableExerciseCard({
                   {muscle}
                 </span>
               ))}
+              {!isMobilityExercise ? (
+                replacementLimitReached ? (
+                  <span
+                    className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/24"
+                    title="Limite de substituições atingido"
+                    aria-label="Limite de substituições atingido"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReplaceModal(true);
+                      setReplaceReason(null);
+                      setReplaceError(null);
+                      setReplaceLimitError(false);
+                    }}
+                    className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/50 transition hover:border-primary/30 hover:text-primary"
+                    aria-label="Substituir exercício"
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" />
+                  </button>
+                )
+              ) : null}
             </section>
 
             <div className="overflow-hidden rounded-none bg-black/20">
@@ -423,9 +516,104 @@ export function ExpandableExerciseCard({
           </div>
         ) : null}
       </Card>
+
+      {showReplaceModal ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => { if (!isReplacing) setShowReplaceModal(false); }}
+        >
+          <div
+            className="w-full max-w-sm rounded-[26px] border border-white/10 bg-[#0d100d] p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <p className="text-sm font-semibold leading-5 text-white">
+                Por que você quer substituir este exercício?
+              </p>
+              <button
+                type="button"
+                onClick={() => { if (!isReplacing) setShowReplaceModal(false); }}
+                className="shrink-0 text-white/40 transition hover:text-white/70"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {REPLACE_REASONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setReplaceReason(option.value)}
+                  disabled={isReplacing}
+                  className={clsx(
+                    "w-full rounded-[16px] border px-4 py-3 text-left text-sm font-medium transition",
+                    replaceReason === option.value
+                      ? "border-primary/30 bg-primary/10 text-white"
+                      : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/18 hover:text-white/90"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {replaceLimitError ? (
+              <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/70">
+                Você atingiu o limite de substituições deste plano.
+                <button
+                  type="button"
+                  onClick={() => setShowReplaceModal(false)}
+                  className="mt-2 block text-sm font-semibold text-white underline-offset-2 hover:underline"
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : replaceError ? (
+              <div className="mt-4 rounded-[18px] border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {replaceError}
+              </div>
+            ) : null}
+
+            {isReplacing ? (
+              <div className="mt-4 flex items-center gap-2 text-sm text-white/60">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando o melhor substituto...
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => { if (!isReplacing) setShowReplaceModal(false); }}
+                disabled={isReplacing}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={handleReplaceExercise}
+                disabled={!replaceReason || isReplacing}
+              >
+                Substituir
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
+
+const REPLACE_REASONS = [
+  { value: "too_hard", label: "Muito difícil, não consigo fazer" },
+  { value: "too_easy", label: "Muito fácil, quero mais desafio" },
+  { value: "no_equipment", label: "Esse aparelho/material está indisponível" },
+  { value: "dont_like", label: "Não gostei, quero apenas trocar" }
+] as const;
 
 function shouldShowTechniqueTag(value?: string | null, isMobility?: boolean) {
   if (isMobility) {

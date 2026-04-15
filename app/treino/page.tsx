@@ -6,7 +6,7 @@ import { AppLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-
 import { useWorkoutAppState } from "@/components/use-workout-app-state";
 
 export default function TreinoPage() {
-  const { loading, error, noWorkout, currentUserId, generatingWorkout, data, handleGenerateWorkoutNow } =
+  const { loading, error, noWorkout, currentUserId, generatingWorkout, data, handleGenerateWorkoutNow, reloadWorkout } =
     useWorkoutAppState();
 
   if (loading) {
@@ -30,7 +30,7 @@ export default function TreinoPage() {
   return (
     <>
       <AppSessionTracker userId={currentUserId} source="training" />
-      <TrainingScreen data={data} />
+      <TrainingScreen data={data} reloadWorkout={reloadWorkout} />
     </>
   );
 }

@@ -18,6 +18,32 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [generatingWorkout, setGeneratingWorkout] = useState(false);
 
+  async function fetchWorkout(userId: string) {
+    const response = await fetchWithAuth(`/api/workout?userId=${userId}`);
+
+    if (!response.ok) {
+      const result = await parseJsonResponse<{ success: false; error?: string }>(response);
+      throw new Error(result.error ?? "Não foi possível carregar o treino.");
+    }
+
+    const result = await parseJsonResponse<{ success: true; data: AppWorkoutPayload }>(response);
+    return result.data;
+  }
+
+  async function reloadWorkout() {
+    if (!currentUserId) return;
+
+    try {
+      const data = await fetchWorkout(currentUserId);
+      if (data) {
+        setPayload(data);
+        setNoWorkout(data.hasWorkout === false || !data.workout);
+      }
+    } catch {
+      // falha silenciosa — dados antigos permanecem visíveis
+    }
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -39,7 +65,7 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
       });
     }
 
-    async function fetchWorkout(userId: string) {
+    async function fetchWorkoutInitial(userId: string) {
       const response = await fetchWithAuth(`/api/workout?userId=${userId}`);
 
       if (!response.ok) {
@@ -87,7 +113,7 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
           setCurrentUserId(userId);
         }
 
-        const data = await fetchWorkout(userId);
+        const data = await fetchWorkoutInitial(userId);
         if (!data) {
           return;
         }
@@ -160,7 +186,8 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
     currentUserId,
     generatingWorkout,
     data,
-    handleGenerateWorkoutNow
+    handleGenerateWorkoutNow,
+    reloadWorkout
   };
 }
 

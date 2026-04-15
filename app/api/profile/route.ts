@@ -45,6 +45,7 @@ type ProfilePayload = {
     time?: number;
     equipment?: string[];
   };
+  excludedExercises: Array<{ exerciseId: string; exerciseName: string }>;
 };
 
 type ProfileUpdateBody = {
@@ -94,6 +95,11 @@ export async function GET(request: Request) {
 
     const savedAnswers = await getUserAnswersByUserId(supabase, userId);
     const { data: currentAuthUser } = await supabase.auth.getUser();
+    const { data: excludedExercises } = await supabase
+      .from("user_excluded_exercises")
+      .select("exercise_id, exercise_name")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
 
     return jsonSuccess(
       buildProfilePayload(
@@ -102,7 +108,11 @@ export async function GET(request: Request) {
           name: userRow.name,
           email: currentAuthUser.user?.email ?? auth.user.email ?? ""
         },
-        savedAnswers
+        savedAnswers,
+        (excludedExercises ?? []).map((row) => ({
+          exerciseId: row.exercise_id,
+          exerciseName: row.exercise_name
+        }))
       )
     );
   } catch {
@@ -236,7 +246,11 @@ export async function PATCH(request: Request) {
   }
 }
 
-function buildProfilePayload(user: { id: string; name: string; email: string }, answers: Partial<QuizAnswers> | null): ProfilePayload {
+function buildProfilePayload(
+  user: { id: string; name: string; email: string },
+  answers: Partial<QuizAnswers> | null,
+  excludedExercises: Array<{ exerciseId: string; exerciseName: string }> = []
+): ProfilePayload {
   const normalizedAnswers = normalizeExistingAnswers(answers);
 
   return {
@@ -254,7 +268,8 @@ function buildProfilePayload(user: { id: string; name: string; email: string }, 
       days: normalizedAnswers.days,
       time: normalizedAnswers.time,
       equipment: Array.isArray(normalizedAnswers.equipment) ? normalizedAnswers.equipment : []
-    }
+    },
+    excludedExercises
   };
 }
 

@@ -6,7 +6,10 @@ import {
   formatExerciseMuscleLabel,
   getExerciseLevels,
   getExerciseMuscleGroups,
-  normalizeExerciseMuscleGroup
+  getPrimaryExerciseMuscle,
+  normalizeExerciseEquipmentList,
+  normalizeExerciseMuscleGroup,
+  normalizeStoredExerciseType
 } from "@/lib/exercise-library";
 import { repairPtBrText } from "@/lib/pt-br-text";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
@@ -91,6 +94,7 @@ type SanitizedExercise = WorkoutExercise & {
 type MobilitySelectionContext = {
   previousWorkout?: WorkoutPlan | null;
   lastCompletedWorkoutKey?: string | null;
+  excludedExerciseIds?: string[];
 };
 
 type BlockWindow = {
@@ -138,9 +142,14 @@ export function buildWorkoutHash(answers: QuizAnswers) {
   return createHmac("sha256", secret).update(JSON.stringify(cacheKey)).digest("hex");
 }
 
-export function filterExercisesForAI(answers: QuizAnswers, exerciseLibrary: ExerciseRecord[]) {
+export function filterExercisesForAI(
+  answers: QuizAnswers,
+  exerciseLibrary: ExerciseRecord[],
+  options?: { excludedExerciseIds?: string[] }
+) {
   return selectExercisesForAiCatalog(answers, exerciseLibrary, {
-    excludeMobility: true
+    excludeMobility: true,
+    excludedExerciseIds: options?.excludedExerciseIds ?? []
   });
 }
 
@@ -149,11 +158,14 @@ function selectExercisesForAiCatalog(
   exerciseLibrary: ExerciseRecord[],
   options: {
     excludeMobility: boolean;
+    excludedExerciseIds?: string[];
   }
 ) {
   const strategy = buildWorkoutStrategy(answers);
   const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+  const excludedIds = new Set(options.excludedExerciseIds ?? []);
   const scored = exerciseLibrary
+    .filter((exercise) => !excludedIds.has(exercise.id))
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment))
     .map((exercise) => ({
@@ -202,7 +214,9 @@ export async function generateWorkoutWithAI(
   const catalogBeforeMobilityFilter = selectExercisesForAiCatalog(answers, exerciseLibrary, {
     excludeMobility: false
   });
-  const filteredLibrary = filterExercisesForAI(answers, exerciseLibrary);
+  const filteredLibrary = filterExercisesForAI(answers, exerciseLibrary, {
+    excludedExerciseIds: mobilityContext.excludedExerciseIds ?? []
+  });
 
   if (!filteredLibrary.length) {
     throw new Error("Nenhum exercício elegível foi encontrado para a IA.");
@@ -2582,4 +2596,131 @@ function formatLevel(level: WorkoutStrategy["level"]) {
   };
 
   return labels[level];
+}
+
+export function filterReplacementCandidates(
+  originalExercise: ExerciseRecord,
+  exercisesInWorkoutDay: string[],
+  answers: QuizAnswers,
+  exerciseLibrary: ExerciseRecord[]
+) {
+  const primaryMuscle = getPrimaryExerciseMuscle(originalExercise);
+  const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+  const daySet = new Set(exercisesInWorkoutDay);
+
+  const candidates = exerciseLibrary
+    .filter((exercise) => exercise.id !== originalExercise.id)
+    .filter((exercise) => !daySet.has(exercise.id))
+    .filter((exercise) => normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null) !== "mobility")
+    .filter((exercise) => getPrimaryExerciseMuscle(exercise) === primaryMuscle)
+    .filter((exercise) => matchesLocation(exercise, answers.location))
+    .filter((exercise) => matchesEquipment(exercise, allowedEquipment));
+
+  return candidates.map((exercise) => ({
+    id: exercise.id,
+    name: exercise.name,
+    primaryMuscle: getPrimaryExerciseMuscle(exercise),
+    type: normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null),
+    equipment: normalizeExerciseEquipmentList(exercise.equipment ?? exercise.metadata?.equipment)
+  }));
+}
+
+type ReplacementCandidate = ReturnType<typeof filterReplacementCandidates>[number];
+
+export async function callAIForReplacement(
+  originalExercise: { id: string; name: string; primaryMuscle: string | null; type: string | null },
+  reason: string,
+  candidates: ReplacementCandidate[],
+  answers: QuizAnswers
+): Promise<{ replacementExerciseId: string; replacementExerciseName: string; reasoning: string }> {
+  const openai = getOpenAIClient();
+
+  const levelByExperience: Record<string, string> = {
+    no_training: "Iniciante",
+    lt_6_months: "Iniciante",
+    "6_to_12_months": "Intermediário",
+    gt_1_year: "Avançado"
+  };
+
+  const reasonLabel: Record<string, string> = {
+    too_hard: "Muito difícil",
+    too_easy: "Muito fácil",
+    no_equipment: "Equipamento indisponível",
+    dont_like: "Não gostei"
+  };
+
+  const level = levelByExperience[answers.experience] ?? "Iniciante";
+  const location = answers.location === "gym" ? "Academia" : "Casa";
+  const reasonPt = reasonLabel[reason] ?? reason;
+
+  const prompt = `Você é um seletor de exercícios. Sua única tarefa é escolher um exercício substituto a partir da lista de candidatos fornecida.
+
+REGRAS OBRIGATÓRIAS:
+- Escolha exatamente 1 exercício da lista de candidatos abaixo.
+- Não invente exercícios. Use somente os da lista.
+- Não altere séries, repetições, descanso, técnica ou estrutura do treino.
+- Não inclua exercícios de mobilidade.
+
+CONTEXTO DO USUÁRIO:
+- Objetivo: ${answers.goal}
+- Nível: ${level}
+- Local: ${location}
+
+EXERCÍCIO A SUBSTITUIR:
+- Nome: ${originalExercise.name}
+- Músculo principal: ${originalExercise.primaryMuscle}
+- Tipo: ${originalExercise.type ?? ""}
+
+MOTIVO DA SUBSTITUIÇÃO: ${reasonPt}
+
+CRITÉRIO DE SELEÇÃO POR MOTIVO:
+- "Muito difícil": escolha variação mais simples do mesmo grupo muscular.
+- "Muito fácil": escolha variação mais desafiadora do mesmo grupo muscular.
+- "Equipamento indisponível": escolha exercício com equipamento diferente, mesmo grupo muscular.
+- "Não gostei": escolha alternativa equivalente em função e grupo muscular.
+
+CANDIDATOS DISPONÍVEIS:
+${JSON.stringify(candidates, null, 2)}
+
+Responda APENAS com JSON válido, sem texto adicional:
+{
+  "replacementExerciseId": "id_do_exercicio",
+  "replacementExerciseName": "Nome do exercício",
+  "reasoning": "Motivo objetivo em uma frase."
+}`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.4,
+    messages: [{ role: "user", content: prompt }]
+  });
+
+  const raw = response.choices[0]?.message?.content;
+
+  if (!raw) {
+    throw new Error("A OpenAI não retornou conteúdo para a substituição de exercício.");
+  }
+
+  const fencedMatch = raw.trim().match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const jsonText = fencedMatch?.[1]?.trim() ?? raw.trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new Error(`Resposta da IA para substituição não é JSON válido: ${raw}`);
+  }
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    typeof (parsed as Record<string, unknown>).replacementExerciseId !== "string" ||
+    typeof (parsed as Record<string, unknown>).replacementExerciseName !== "string" ||
+    typeof (parsed as Record<string, unknown>).reasoning !== "string"
+  ) {
+    throw new Error(`Resposta da IA para substituição está incompleta: ${JSON.stringify(parsed)}`);
+  }
+
+  const result = parsed as { replacementExerciseId: string; replacementExerciseName: string; reasoning: string };
+  return result;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Bell, CalendarDays, ChevronRight, Lock, Ruler, Shield, Target, UserRound, Weight } from "lucide-react";
+import { Bell, CalendarDays, ChevronRight, Dumbbell, Lock, Ruler, Shield, Target, UserRound, Weight, X } from "lucide-react";
 import Link from "next/link";
 import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,6 +33,7 @@ type ProfilePayload = {
     time?: number;
     equipment?: string[];
   };
+  excludedExercises?: Array<{ exerciseId: string; exerciseName: string }>;
 };
 
 type ProfileFormState = {
@@ -126,6 +127,8 @@ export default function PerfilPage() {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [payload, setPayload] = useState<ProfilePayload | null>(null);
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM_STATE);
+  const [excludedExercises, setExcludedExercises] = useState<Array<{ exerciseId: string; exerciseName: string }>>([]);
+  const [removingExerciseId, setRemovingExerciseId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -169,6 +172,7 @@ export default function PerfilPage() {
         if (active) {
           setPayload(result.data);
           setForm(buildFormState(result.data));
+          setExcludedExercises(result.data.excludedExercises ?? []);
           setFeedback(null);
         }
       } catch (requestError) {
@@ -329,6 +333,29 @@ export default function PerfilPage() {
       });
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  async function handleReincludeExercise(exerciseId: string) {
+    if (removingExerciseId) return;
+
+    setRemovingExerciseId(exerciseId);
+
+    try {
+      const response = await fetchWithAuth(
+        `/api/workout/excluded-exercises/${exerciseId}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) throw new Error();
+
+      setExcludedExercises((current) =>
+        current.filter((item) => item.exerciseId !== exerciseId)
+      );
+    } catch {
+      // sem feedback visível — o item simplesmente volta para a lista
+    } finally {
+      setRemovingExerciseId(null);
     }
   }
 
@@ -535,6 +562,49 @@ export default function PerfilPage() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">
+                Exercícios excluídos
+              </p>
+
+              {excludedExercises.length > 0 ? (
+                <div className="max-h-[15.5rem] space-y-2 overflow-y-auto pr-1">
+                  {excludedExercises.map((item) => (
+                    <div
+                      key={item.exerciseId}
+                      className="flex items-center gap-2.5 rounded-[22px] border border-primary/14 bg-primary/[0.08] p-3"
+                    >
+                      <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/10">
+                        <Dumbbell className="h-4 w-4 text-primary/70" />
+                      </div>
+
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">
+                        {item.exerciseName}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => handleReincludeExercise(item.exerciseId)}
+                        disabled={removingExerciseId === item.exerciseId}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/40 transition hover:border-red-400/30 hover:text-red-400 disabled:opacity-40"
+                        aria-label={`Reincluir ${item.exerciseName}`}
+                      >
+                        {removingExerciseId === item.exerciseId ? (
+                          <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white/80" />
+                        ) : (
+                          <X className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-white/54">
+                  Nenhum exercício excluído ainda. Exercícios substituídos aparecerão aqui e não serão sugeridos nos próximos programas de treino.
+                </div>
+              )}
             </div>
           </Card>
         )}
