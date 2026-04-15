@@ -139,7 +139,7 @@ function ResultsContent() {
     );
   }
 
-  return <TrainingScreen data={data} reloadWorkout={async () => {}} />;
+  return <TrainingScreen data={data} reloadWorkout={async () => {}} applyWorkoutUpdate={() => {}} />;
 }
 
 function ResultsLoadingState() {
