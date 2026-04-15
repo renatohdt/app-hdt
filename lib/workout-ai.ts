@@ -2671,9 +2671,9 @@ EXERCÍCIO A SUBSTITUIR:
 - Músculo principal: ${originalExercise.primaryMuscle}
 - Tipo: ${originalExercise.type ?? ""}
 
-MOTIVO DA SUBSTITUIÇÃO: ${reasonPt}
+MOTIVO DA SUBSTITUICAO: ${reasonPt}
 
-CRITÉRIO DE SELEÇÃO POR MOTIVO:
+CRITERIO DE SELECAO POR MOTIVO:
 - "Muito difícil": escolha variação mais simples do mesmo grupo muscular.
 - "Muito fácil": escolha variação mais desafiadora do mesmo grupo muscular.
 - "Equipamento indisponível": escolha exercício com equipamento diferente, mesmo grupo muscular.
