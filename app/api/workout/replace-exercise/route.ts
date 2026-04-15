@@ -336,7 +336,8 @@ export async function POST(request: NextRequest) {
       replacedExercise: {
         id: replacementRecord.id,
         name: replacementRecord.name
-      }
+      },
+      updatedWorkout
     });
   } catch (error) {
     logError("REPLACE_EXERCISE", "Replace exercise unexpected failure", {

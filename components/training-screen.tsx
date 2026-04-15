@@ -44,7 +44,11 @@ type FeedbackState = {
 const COMPLETE_WORKOUT_ERROR_MESSAGE = "Não foi possível marcar o treino como concluído.";
 const ALREADY_COMPLETED_TODAY_MESSAGE = "Você já treinou hoje. Agora é descansar e voltar amanhã.";
 
-export function TrainingScreen({ data, reloadWorkout }: { data: AppWorkoutData; reloadWorkout: () => Promise<void> }) {
+export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
+  data: AppWorkoutData;
+  reloadWorkout: () => Promise<void>;
+  applyWorkoutUpdate: (workout: import("@/lib/types").WorkoutPlan) => void;
+}) {
   const [activeWorkoutKey, setActiveWorkoutKey] = useState(data.featuredWorkoutKey ?? data.workoutOrder[0] ?? "");
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   const [sessionProgress, setSessionProgress] = useState(data.sessionProgress);
@@ -84,12 +88,16 @@ export function TrainingScreen({ data, reloadWorkout }: { data: AppWorkoutData; 
   const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
   const replacementLimitReached = replacementCount >= 2;
 
-  async function handleExerciseReplaced(newExerciseName: string) {
+  async function handleExerciseReplaced(newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) {
     setReplacementCount((prev) => prev + 1);
     if (newExerciseName) {
       setReplacedExerciseNames((prev) => new Set([...prev, newExerciseName]));
     }
-    await reloadWorkout();
+    if (updatedWorkout) {
+      applyWorkoutUpdate(updatedWorkout);
+    } else {
+      await reloadWorkout();
+    }
   }
 
   if (!workout) {

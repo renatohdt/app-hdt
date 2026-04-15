@@ -54,7 +54,7 @@ export function ExpandableExerciseCard({
   exerciseName: string;
   replacementLimitReached: boolean;
   isReplaced?: boolean;
-  onExerciseReplaced: (newExerciseName: string) => void;
+  onExerciseReplaced: (newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) => void;
 }) {
   const storageKey = useMemo(
     () => `hdt-exercise-draft:${data.user.id}:${workoutKey}:${exercise.id}`,
@@ -241,9 +241,10 @@ export function ExpandableExerciseCard({
       }
 
       const newName = result?.data?.replacedExercise?.name ?? "";
+      const updatedWorkout = result?.data?.updatedWorkout;
       setWasReplaced(true);
       setShowReplaceModal(false);
-      onExerciseReplaced(newName);
+      onExerciseReplaced(newName, updatedWorkout);
     } catch (err) {
       setReplaceError(err instanceof Error ? err.message : "Não foi possível substituir o exercício agora. Tente novamente.");
     } finally {

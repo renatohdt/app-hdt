@@ -45,6 +45,13 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
     return result.data;
   }
 
+  function applyWorkoutUpdate(updatedWorkout: import("@/lib/types").WorkoutPlan) {
+    setPayload((current) => {
+      if (!current) return current;
+      return { ...current, workout: updatedWorkout };
+    });
+  }
+
   async function reloadWorkout() {
     if (!currentUserId) return;
 
@@ -202,7 +209,8 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
     generatingWorkout,
     data,
     handleGenerateWorkoutNow,
-    reloadWorkout
+    reloadWorkout,
+    applyWorkoutUpdate
   };
 }
 
