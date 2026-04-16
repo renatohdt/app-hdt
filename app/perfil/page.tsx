@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card } from "@/components/ui";
+import { getAllAchievementsWithStatus } from "@/lib/achievements";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/auth-errors";
@@ -34,6 +35,7 @@ type ProfilePayload = {
     equipment?: string[];
   };
   excludedExercises?: Array<{ exerciseId: string; exerciseName: string }>;
+  totalWorkoutsAllTime?: number;
 };
 
 type ProfileFormState = {
@@ -669,6 +671,43 @@ export default function PerfilPage() {
           value={payload.answers.days ? `${payload.answers.days}x` : "—"}
           label="Dias/sem"
         />
+      </div>
+
+      {/* Conquistas */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Conquistas</p>
+        <div className="grid grid-cols-1 gap-2">
+          {getAllAchievementsWithStatus(payload.totalWorkoutsAllTime ?? 0).map((achievement) => (
+            <div
+              key={achievement.id}
+              className={clsx(
+                "flex items-start gap-3 rounded-[20px] border p-3.5 transition",
+                achievement.unlocked
+                  ? "border-primary/20 bg-primary/[0.07]"
+                  : "border-white/[0.06] bg-white/[0.02] opacity-50"
+              )}
+            >
+              <div
+                className={clsx(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] text-lg",
+                  achievement.unlocked ? "bg-primary/15" : "bg-white/5"
+                )}
+              >
+                {achievement.unlocked ? "🏆" : <Lock className="h-4 w-4 text-white/30" />}
+              </div>
+              <div className="min-w-0">
+                <p className={clsx("text-sm font-semibold leading-snug", achievement.unlocked ? "text-white" : "text-white/40")}>
+                  {achievement.title}
+                </p>
+                {achievement.unlocked ? (
+                  <p className="mt-0.5 text-xs leading-4 text-white/50">{achievement.description}</p>
+                ) : (
+                  <p className="mt-0.5 text-xs text-white/28">{achievement.milestone} treinos para desbloquear</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Plano Atual */}

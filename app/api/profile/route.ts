@@ -8,6 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { BodyType, Gender, Goal, HomeEquipment, QuizAnswers } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
+import { getAllTimeWorkoutCount } from "@/lib/workout-session-store";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ type ProfilePayload = {
     equipment?: string[];
   };
   excludedExercises: Array<{ exerciseId: string; exerciseName: string }>;
+  totalWorkoutsAllTime?: number;
 };
 
 type ProfileUpdateBody = {
@@ -93,16 +95,20 @@ export async function GET(request: Request) {
       return jsonError("Não foi possível carregar seu perfil.", 404);
     }
 
-    const savedAnswers = await getUserAnswersByUserId(supabase, userId);
-    const { data: currentAuthUser } = await supabase.auth.getUser();
-    const { data: excludedExercises } = await supabase
-      .from("user_excluded_exercises")
-      .select("exercise_id, exercise_name")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+    const [savedAnswers, { data: currentAuthUser }, { data: excludedExercises }, totalWorkoutsAllTime] =
+      await Promise.all([
+        getUserAnswersByUserId(supabase, userId),
+        supabase.auth.getUser(),
+        supabase
+          .from("user_excluded_exercises")
+          .select("exercise_id, exercise_name")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false }),
+        getAllTimeWorkoutCount(supabase, userId)
+      ]);
 
-    return jsonSuccess(
-      buildProfilePayload(
+    return jsonSuccess({
+      ...buildProfilePayload(
         {
           id: userRow.id,
           name: userRow.name,
@@ -113,8 +119,9 @@ export async function GET(request: Request) {
           exerciseId: row.exercise_id,
           exerciseName: row.exercise_name
         }))
-      )
-    );
+      ),
+      totalWorkoutsAllTime
+    });
   } catch {
     return jsonError("Não foi possível carregar seu perfil.", 500);
   }

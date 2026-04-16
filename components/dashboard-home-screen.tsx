@@ -20,11 +20,11 @@ import {
 } from "@/lib/articles";
 import {
   formatSessionCounter,
-  getAchievementCopy,
   getMotivationLine,
   getPlanCoverage,
   type AppWorkoutData
 } from "@/lib/app-workout";
+import { getLastUnlockedAchievement } from "@/lib/achievements";
 import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 
@@ -37,7 +37,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const [articles, setArticles] = useState<ArticleRecommendation[]>([]);
   const metrics = useMemo(() => buildHomeMetrics(data), [data]);
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
-  const achievement = useMemo(() => getAchievementCopy(data), [data]);
+  const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
   const fallbackArticles = useMemo(() => sanitizeArticleRecommendations(getEvergreenFallbackArticles()), []);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
   const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
@@ -149,17 +149,18 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
       </Card>
 
       <div>
-        <Card className="mb-[18px] rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-          <div className="flex items-start gap-3">
-            <Trophy className="mt-0.5 h-[18px] w-[18px] shrink-0 text-primary" />
-
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Conquista recente</p>
-              <h2 className="mb-2 text-[16px] font-bold leading-[1.2] text-white">{achievement.title}</h2>
-              <p className="text-[14px] leading-[1.5] text-white/58">{achievement.description}</p>
+        {achievement ? (
+          <Card className="mb-[18px] rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
+            <div className="flex items-start gap-3">
+              <Trophy className="mt-0.5 h-[18px] w-[18px] shrink-0 text-primary" />
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Conquista recente</p>
+                <h2 className="mb-2 text-[16px] font-bold leading-[1.2] text-white">{achievement.title}</h2>
+                <p className="text-[14px] leading-[1.5] text-white/58">{achievement.description}</p>
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        ) : null}
 
         <a
           href={CONSULTORIA_URL}
