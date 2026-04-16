@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
+import { AchievementPopup } from "@/components/achievement-popup";
 import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import { Badge, Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
@@ -18,6 +19,7 @@ import {
   type AppWorkoutData
 } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { getNewlyUnlockedAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 
 type CompletionResponse = {
@@ -32,6 +34,8 @@ type CompletionResponse = {
       sessionNumber: number;
       completedAt: string;
     } | null;
+    prevTotalWorkouts?: number;
+    newTotalWorkouts?: number;
   };
   error?: string;
 };
@@ -57,6 +61,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [replacementCount, setReplacementCount] = useState(data.replacementCount);
   const [replacedExerciseNames, setReplacedExerciseNames] = useState<Set<string>>(new Set());
+  const [totalWorkoutsAllTime, setTotalWorkoutsAllTime] = useState(data.totalWorkoutsAllTime);
+  const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
     [data.workoutOrder, sessionProgress.lastCompletedWorkoutKey]
@@ -163,6 +169,14 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         tone: "success",
         text: `${formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} contou +1 sessão no plano. Próximo em destaque: ${nextWorkoutLabel}.`
       });
+
+      const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
+      const next = result.data.newTotalWorkouts ?? totalWorkoutsAllTime + 1;
+      setTotalWorkoutsAllTime(next);
+      const unlocked = getNewlyUnlockedAchievement(prev, next);
+      if (unlocked) {
+        setNewAchievement(unlocked);
+      }
 
       trackEvent("cta_click", data.user.id, {
         source: "complete_workout",
@@ -312,6 +326,12 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           </Button>
         )}
       </div>
+      {newAchievement ? (
+        <AchievementPopup
+          achievement={newAchievement}
+          onClose={() => setNewAchievement(null)}
+        />
+      ) : null}
     </AppShell>
   );
 }

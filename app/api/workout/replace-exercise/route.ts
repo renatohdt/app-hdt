@@ -9,6 +9,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { callAIForReplacement, filterReplacementCandidates } from "@/lib/workout-ai";
+import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 
 export const dynamic = "force-dynamic";
 
@@ -251,15 +252,19 @@ export async function POST(request: NextRequest) {
 
     const updatedSections = workout.sections.map((section, index) => {
       if (index !== dayIndex) return section;
+
+      const updatedExercises = section.exercises.map((exercise, exIndex) =>
+        exIndex === exerciseIndex ? updatedExercise : exercise
+      );
+
+      // Reconstruir items a partir dos exercises atualizados para manter
+      // consistência com buildTrainingExerciseRows, que usa items quando presentes.
+      const updatedItems = buildWorkoutSectionItems(section.mobility ?? [], updatedExercises);
+
       return {
         ...section,
-        // Limpar items para forçar rebuild a partir de exercises no frontend.
-        // O buildTrainingExerciseRows usa items quando presentes — sem isso,
-        // a UI exibiria o exercício antigo mesmo após a atualização de exercises.
-        items: [],
-        exercises: section.exercises.map((exercise, exIndex) =>
-          exIndex === exerciseIndex ? updatedExercise : exercise
-        )
+        exercises: updatedExercises,
+        items: updatedItems
       };
     });
 

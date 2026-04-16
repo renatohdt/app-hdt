@@ -18,6 +18,7 @@ import { normalizeWorkoutPayload } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow } from "@/lib/workout-record-store";
 import {
   createWorkoutSessionLog,
+  getAllTimeWorkoutCount,
   getUserWorkoutSessionForLocalDay,
   getWorkoutSessionStats
 } from "@/lib/workout-session-store";
@@ -108,11 +109,12 @@ export async function POST(request: NextRequest) {
       workout: normalizedWorkout,
       answers
     });
-    const [sessionStats, todayCompletion] = await Promise.all([
+    const [sessionStats, todayCompletion, prevTotalWorkouts] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
       getUserWorkoutSessionForLocalDay(supabase, {
         userId: auth.user.id
-      })
+      }),
+      getAllTimeWorkoutCount(supabase, auth.user.id)
     ]);
 
     if (todayCompletion.log) {
@@ -281,11 +283,15 @@ export async function POST(request: NextRequest) {
                 already_completed_today: false
               });
 
+              const retriedTotalWorkouts = await getAllTimeWorkoutCount(supabase, auth.user.id);
+
               return buildWorkoutCompletionSuccessResponse({
                 totalSessions: workoutState.sessionConfig.totalSessions,
                 sessionStats: retriedStats,
                 completion: completionResult.data,
-                workoutKeys: validWorkoutKeys
+                workoutKeys: validWorkoutKeys,
+                prevTotalWorkouts,
+                newTotalWorkouts: retriedTotalWorkouts
               });
             }
           }
@@ -330,11 +336,15 @@ export async function POST(request: NextRequest) {
       already_completed_today: false
     });
 
+    const newTotalWorkouts = await getAllTimeWorkoutCount(supabase, auth.user.id);
+
     return buildWorkoutCompletionSuccessResponse({
       totalSessions: workoutState.sessionConfig.totalSessions,
       sessionStats: updatedStats,
       completion: completionResult.data,
-      workoutKeys: validWorkoutKeys
+      workoutKeys: validWorkoutKeys,
+      prevTotalWorkouts,
+      newTotalWorkouts
     });
   } catch {
     logError("WORKOUT", "Workout completion unexpected failure", {});
@@ -450,6 +460,8 @@ function buildWorkoutCompletionSuccessResponse(input: {
   };
   completion: WorkoutSessionLogEntry;
   workoutKeys: string[];
+  prevTotalWorkouts: number;
+  newTotalWorkouts: number;
 }) {
   return NextResponse.json({
     success: true,
@@ -465,7 +477,9 @@ function buildWorkoutCompletionSuccessResponse(input: {
       nextWorkoutKey: resolveNextWorkoutKey(
         input.workoutKeys,
         input.sessionStats.lastLog?.workoutKey ?? input.completion.workoutKey
-      )
+      ),
+      prevTotalWorkouts: input.prevTotalWorkouts,
+      newTotalWorkouts: input.newTotalWorkouts
     }
   });
 }

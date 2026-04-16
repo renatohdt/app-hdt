@@ -673,43 +673,6 @@ export default function PerfilPage() {
         />
       </div>
 
-      {/* Conquistas */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Conquistas</p>
-        <div className="grid grid-cols-1 gap-2">
-          {getAllAchievementsWithStatus(payload.totalWorkoutsAllTime ?? 0).map((achievement) => (
-            <div
-              key={achievement.id}
-              className={clsx(
-                "flex items-start gap-3 rounded-[20px] border p-3.5 transition",
-                achievement.unlocked
-                  ? "border-primary/20 bg-primary/[0.07]"
-                  : "border-white/[0.06] bg-white/[0.02] opacity-50"
-              )}
-            >
-              <div
-                className={clsx(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] text-lg",
-                  achievement.unlocked ? "bg-primary/15" : "bg-white/5"
-                )}
-              >
-                {achievement.unlocked ? "🏆" : <Lock className="h-4 w-4 text-white/30" />}
-              </div>
-              <div className="min-w-0">
-                <p className={clsx("text-sm font-semibold leading-snug", achievement.unlocked ? "text-white" : "text-white/40")}>
-                  {achievement.title}
-                </p>
-                {achievement.unlocked ? (
-                  <p className="mt-0.5 text-xs leading-4 text-white/50">{achievement.description}</p>
-                ) : (
-                  <p className="mt-0.5 text-xs text-white/28">{achievement.milestone} treinos para desbloquear</p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Plano Atual */}
       <Card className="p-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Plano Atual</p>
@@ -753,6 +716,33 @@ export default function PerfilPage() {
           />
         </Card>
       </div>
+
+      {/* Conquistas */}
+      {getAllAchievementsWithStatus(payload.totalWorkoutsAllTime ?? 0).filter((a) => a.unlocked).length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Conquistas</p>
+          <div className="-mx-4 overflow-x-auto px-4">
+            <div className="flex gap-3 pb-2">
+              {getAllAchievementsWithStatus(payload.totalWorkoutsAllTime ?? 0)
+                .filter((a) => a.unlocked)
+                .map((achievement) => (
+                  <div
+                    key={achievement.id}
+                    className="flex w-[30vw] min-w-[110px] max-w-[148px] shrink-0 flex-col gap-2.5 rounded-[20px] border border-primary/20 bg-primary/[0.07] p-3.5"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">
+                      🏆
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold leading-snug text-white">{achievement.title}</p>
+                      <p className="mt-1 text-[11px] leading-[1.4] text-white/50">{achievement.description}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Preferências */}
       <div className="space-y-2">

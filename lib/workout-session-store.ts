@@ -281,6 +281,17 @@ export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, i
   return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
 }
 
+export async function getAllTimeWorkoutCount(
+  supabase: SupabaseLike,
+  userId: string
+): Promise<number> {
+  const { count } = await supabase
+    .from("workout_session_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  return count ?? 0;
+}
+
 export async function createWorkoutSessionLog(
   supabase: SupabaseLike,
   input: {

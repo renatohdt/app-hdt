@@ -14,7 +14,7 @@ import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
-import { getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
+import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import {
   applyWorkoutPlanSessionConfig,
   buildWorkoutSessionProgress,
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
       workout: normalizedWorkout,
       answers
     });
-    const [sessionStats, sessionLogs, replacementCountResult] = await Promise.all([
+    const [sessionStats, sessionLogs, replacementCountResult, totalWorkoutsAllTime] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
       listWorkoutSessionLogs(supabase, {
         workoutId: workoutRecord.id,
@@ -149,7 +149,8 @@ export async function GET(request: NextRequest) {
         .from("workout_exercise_replacements")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .eq("workout_id", workoutRecord.id)
+        .eq("workout_id", workoutRecord.id),
+      getAllTimeWorkoutCount(supabase, user.id)
     ]);
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions: workoutState.sessionConfig.totalSessions,
@@ -165,6 +166,7 @@ export async function GET(request: NextRequest) {
         hasWorkout: true,
         workoutId: workoutRecord.id,
         replacementCount: replacementCountResult.count ?? 0,
+        totalWorkoutsAllTime,
         user: {
           id: user.id,
           name: user.name

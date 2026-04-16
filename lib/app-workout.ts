@@ -33,6 +33,7 @@ export type AppWorkoutPayload = {
   hasWorkout?: boolean;
   workoutId?: string | null;
   replacementCount?: number | null;
+  totalWorkoutsAllTime?: number | null;
   user: { id: string; name: string };
   answers: AppWorkoutAnswers;
   workout: WorkoutPlan | null;
@@ -74,6 +75,7 @@ export type AppWorkoutData = {
   averageDurationMinutes: number;
   estimatedWeeklyMinutes: number;
   totalExercises: number;
+  totalWorkoutsAllTime: number;
 };
 
 export type TrainingExerciseRow = {
@@ -204,7 +206,8 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     weeklyTarget,
     averageDurationMinutes,
     estimatedWeeklyMinutes: averageDurationMinutes * sessionCount,
-    totalExercises
+    totalExercises,
+    totalWorkoutsAllTime: typeof payload.totalWorkoutsAllTime === "number" ? payload.totalWorkoutsAllTime : 0
   } satisfies AppWorkoutData;
 }
 
