@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card } from "@/components/ui";
-import { getAllAchievementsWithStatus } from "@/lib/achievements";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/auth-errors";
@@ -716,33 +715,6 @@ export default function PerfilPage() {
           />
         </Card>
       </div>
-
-      {/* Conquistas */}
-      {getAllAchievementsWithStatus(payload.totalWorkoutsAllTime ?? 0).filter((a) => a.unlocked).length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Conquistas</p>
-          <div className="-mx-4 overflow-x-auto px-4">
-            <div className="flex gap-3 pb-2">
-              {getAllAchievementsWithStatus(payload.totalWorkoutsAllTime ?? 0)
-                .filter((a) => a.unlocked)
-                .map((achievement) => (
-                  <div
-                    key={achievement.id}
-                    className="flex w-[30vw] min-w-[110px] max-w-[148px] shrink-0 flex-col gap-2.5 rounded-[20px] border border-primary/20 bg-primary/[0.07] p-3.5"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">
-                      🏆
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold leading-snug text-white">{achievement.title}</p>
-                      <p className="mt-1 text-[11px] leading-[1.4] text-white/50">{achievement.description}</p>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {/* Preferências */}
       <div className="space-y-2">
