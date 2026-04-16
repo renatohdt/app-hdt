@@ -2,11 +2,12 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, TrendingUp, X } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { WeightChartModal } from "@/components/weight-chart-modal";
 
 type ExerciseSetEntry = {
   weightKg: string;
@@ -65,6 +66,7 @@ export function ExpandableExerciseCard({
   const [draft, setDraft] = useState<ExerciseExecutionDraft | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [showVideo, setShowVideo] = useState(false);
+  const [showWeightChart, setShowWeightChart] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [replaceReason, setReplaceReason] = useState<string | null>(null);
   const [isReplacing, setIsReplacing] = useState(false);
@@ -74,8 +76,29 @@ export function ExpandableExerciseCard({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setDraft(readExerciseDraft(storageKey, exercise.plannedRestSeconds, exercise.plannedRepsLabel, exercise.plannedSetsCount));
-  }, [exercise.plannedRepsLabel, exercise.plannedRestSeconds, exercise.plannedSetsCount, storageKey]);
+    const current = readExerciseDraft(storageKey, exercise.plannedRestSeconds, exercise.plannedRepsLabel, exercise.plannedSetsCount);
+    setDraft(current);
+
+    const hasAnyWeight = current.setEntries.some((e) => e.weightKg !== "");
+    if (hasAnyWeight) return;
+
+    fetchWithAuth(`/api/exercise-weight?exercise=${encodeURIComponent(exercise.name)}&mode=last`)
+      .then((res) => res.json())
+      .then((result) => {
+        const kg = result?.data?.lastWeightKg;
+        if (!kg || typeof kg !== "number") return;
+        setDraft((prev) => {
+          const base = prev ?? current;
+          const anyFilled = base.setEntries.some((e) => e.weightKg !== "");
+          if (anyFilled) return base;
+          return {
+            ...base,
+            setEntries: base.setEntries.map((e) => ({ ...e, weightKg: String(kg) }))
+          };
+        });
+      })
+      .catch(() => {});
+  }, [exercise.name, exercise.plannedRepsLabel, exercise.plannedRestSeconds, exercise.plannedSetsCount, storageKey]);
 
   useEffect(() => {
     if (!draft || typeof window === "undefined") {
@@ -347,32 +370,46 @@ export function ExpandableExerciseCard({
                   {muscle}
                 </span>
               ))}
-              {!isMobilityExercise ? (
-                replacementLimitReached ? (
-                  <span
-                    className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/24"
-                    title="Limite de substituições atingido"
-                    aria-label="Limite de substituições atingido"
-                  >
-                    <Lock className="h-3.5 w-3.5" />
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowReplaceModal(true);
-                      setReplaceReason(null);
-                      setReplaceError(null);
-                      setReplaceLimitError(false);
-                    }}
-                    className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/50 transition hover:border-primary/30 hover:text-primary"
-                    aria-label="Substituir exercício"
-                  >
-                    <ArrowLeftRight className="h-3.5 w-3.5" />
-                  </button>
-                )
-              ) : null}
+              <div className="ml-auto flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowWeightChart(true);
+                  }}
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/50 transition hover:border-primary/30 hover:text-primary"
+                  aria-label="Ver evolução de carga"
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                </button>
+
+                {!isMobilityExercise ? (
+                  replacementLimitReached ? (
+                    <span
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/24"
+                      title="Limite de substituições atingido"
+                      aria-label="Limite de substituições atingido"
+                    >
+                      <Lock className="h-3.5 w-3.5" />
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowReplaceModal(true);
+                        setReplaceReason(null);
+                        setReplaceError(null);
+                        setReplaceLimitError(false);
+                      }}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/50 transition hover:border-primary/30 hover:text-primary"
+                      aria-label="Substituir exercício"
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                    </button>
+                  )
+                ) : null}
+              </div>
             </section>
 
             <div className="overflow-hidden rounded-none bg-black/20">
@@ -519,6 +556,13 @@ export function ExpandableExerciseCard({
           </div>
         ) : null}
       </Card>
+
+      {showWeightChart ? (
+        <WeightChartModal
+          exerciseName={exercise.name}
+          onClose={() => setShowWeightChart(false)}
+        />
+      ) : null}
 
       {showReplaceModal ? (
         <div

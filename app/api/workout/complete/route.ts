@@ -28,9 +28,22 @@ import {
   type WorkoutSessionLogEntry,
   resolveWorkoutPlanSessionConfig
 } from "@/lib/workout-sessions";
+import {
+  saveExerciseWeightLogs,
+  countWeightIncreases,
+  normalizeExerciseName,
+  type ExerciseWeightInput,
+  type WeightSetEntry
+} from "@/lib/exercise-weight-store";
+
+type ExerciseWeightPayload = {
+  exerciseName: string;
+  sets: { setNumber: number; weightKg: string; reps: string; completed: boolean }[];
+};
 
 type CompleteWorkoutBody = {
   workoutKey?: unknown;
+  exerciseWeights?: unknown;
 };
 
 export const dynamic = "force-dynamic";
@@ -65,6 +78,9 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as CompleteWorkoutBody;
     const selectedWorkoutKey = normalizeWorkoutKey(typeof body.workoutKey === "string" ? body.workoutKey : null);
+    const exerciseWeightsPayload = Array.isArray(body.exerciseWeights)
+      ? (body.exerciseWeights as ExerciseWeightPayload[])
+      : [];
     const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: auth.user.id,
       includeCreatedAt: true,
@@ -293,6 +309,7 @@ export async function POST(request: NextRequest) {
                 prevTotalWorkouts,
                 newTotalWorkouts: retriedTotalWorkouts
               });
+
             }
           }
         }
@@ -336,7 +353,25 @@ export async function POST(request: NextRequest) {
       already_completed_today: false
     });
 
-    const newTotalWorkouts = await getAllTimeWorkoutCount(supabase, auth.user.id);
+    const [newTotalWorkouts, prevWeightIncreases] = await Promise.all([
+      getAllTimeWorkoutCount(supabase, auth.user.id),
+      countWeightIncreases(supabase, auth.user.id)
+    ]);
+
+    const weightEntries = buildWeightLogEntries({
+      payload: exerciseWeightsPayload,
+      userId: auth.user.id,
+      workoutKey,
+      sessionLogId: completionResult.data.id,
+      completedAt
+    });
+
+    let newWeightIncreases = prevWeightIncreases;
+
+    if (weightEntries.length) {
+      await saveExerciseWeightLogs(supabase, weightEntries);
+      newWeightIncreases = await countWeightIncreases(supabase, auth.user.id);
+    }
 
     return buildWorkoutCompletionSuccessResponse({
       totalSessions: workoutState.sessionConfig.totalSessions,
@@ -344,7 +379,9 @@ export async function POST(request: NextRequest) {
       completion: completionResult.data,
       workoutKeys: validWorkoutKeys,
       prevTotalWorkouts,
-      newTotalWorkouts
+      newTotalWorkouts,
+      prevWeightIncreases,
+      newWeightIncreases
     });
   } catch {
     logError("WORKOUT", "Workout completion unexpected failure", {});
@@ -462,6 +499,8 @@ function buildWorkoutCompletionSuccessResponse(input: {
   workoutKeys: string[];
   prevTotalWorkouts: number;
   newTotalWorkouts: number;
+  prevWeightIncreases?: number;
+  newWeightIncreases?: number;
 }) {
   return NextResponse.json({
     success: true,
@@ -479,9 +518,54 @@ function buildWorkoutCompletionSuccessResponse(input: {
         input.sessionStats.lastLog?.workoutKey ?? input.completion.workoutKey
       ),
       prevTotalWorkouts: input.prevTotalWorkouts,
-      newTotalWorkouts: input.newTotalWorkouts
+      newTotalWorkouts: input.newTotalWorkouts,
+      prevWeightIncreases: input.prevWeightIncreases ?? 0,
+      newWeightIncreases: input.newWeightIncreases ?? 0
     }
   });
+}
+
+function buildWeightLogEntries(input: {
+  payload: ExerciseWeightPayload[];
+  userId: string;
+  workoutKey: string | null;
+  sessionLogId: string;
+  completedAt: string;
+}): ExerciseWeightInput[] {
+  const entries: ExerciseWeightInput[] = [];
+
+  for (const item of input.payload) {
+    if (typeof item.exerciseName !== "string" || !Array.isArray(item.sets)) continue;
+
+    const completedSets = item.sets.filter((s) => s.completed && s.weightKg);
+    if (!completedSets.length) continue;
+
+    const maxWeightKg = Math.max(
+      ...completedSets.map((s) => parseFloat(s.weightKg) || 0)
+    );
+
+    if (maxWeightKg <= 0) continue;
+
+    const setsData: WeightSetEntry[] = item.sets.map((s) => ({
+      setNumber: s.setNumber,
+      weightKg: parseFloat(s.weightKg) || 0,
+      reps: s.reps,
+      completed: s.completed
+    }));
+
+    entries.push({
+      userId: input.userId,
+      exerciseName: item.exerciseName,
+      exerciseNameNormalized: normalizeExerciseName(item.exerciseName),
+      workoutSessionLogId: input.sessionLogId,
+      maxWeightKg,
+      setsData,
+      workoutKey: input.workoutKey,
+      completedAt: input.completedAt
+    });
+  }
+
+  return entries;
 }
 
 function getNextSessionNumber(sessionStats: {

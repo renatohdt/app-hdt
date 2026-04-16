@@ -19,7 +19,7 @@ import {
   type AppWorkoutData
 } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
-import { getNewlyUnlockedAchievement, type Achievement } from "@/lib/achievements";
+import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 
 type CompletionResponse = {
@@ -36,6 +36,8 @@ type CompletionResponse = {
     } | null;
     prevTotalWorkouts?: number;
     newTotalWorkouts?: number;
+    prevWeightIncreases?: number;
+    newWeightIncreases?: number;
   };
   error?: string;
 };
@@ -125,13 +127,16 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     setFeedback(null);
 
     try {
+      const exerciseWeights = collectExerciseWeights(data.user.id, activeWorkoutKey, exerciseRows);
+
       const response = await fetchWithAuth("/api/workout/complete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          workoutKey: activeWorkoutKey
+          workoutKey: activeWorkoutKey,
+          exerciseWeights
         })
       });
 
@@ -173,7 +178,12 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
       const next = result.data.newTotalWorkouts ?? totalWorkoutsAllTime + 1;
       setTotalWorkoutsAllTime(next);
-      const unlocked = getNewlyUnlockedAchievement(prev, next);
+      const unlocked =
+        getNewlyUnlockedAchievement(prev, next) ??
+        getNewlyUnlockedWeightAchievement(
+          result.data.prevWeightIncreases ?? 0,
+          result.data.newWeightIncreases ?? 0
+        );
       if (unlocked) {
         setNewAchievement(unlocked);
       }
@@ -334,6 +344,43 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       ) : null}
     </AppShell>
   );
+}
+
+function collectExerciseWeights(
+  userId: string,
+  workoutKey: string,
+  exercises: ReturnType<typeof import("@/lib/app-workout").buildTrainingExerciseRows>
+) {
+  if (typeof window === "undefined") return [];
+
+  return exercises.flatMap((exercise) => {
+    const key = `hdt-exercise-draft:${userId}:${workoutKey}:${exercise.id}`;
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        setEntries?: { weightKg?: string; reps?: string; completed?: boolean }[];
+      };
+      const sets = Array.isArray(parsed.setEntries) ? parsed.setEntries : [];
+      const hasCarga = sets.some((s) => s.completed && s.weightKg && parseFloat(s.weightKg) > 0);
+      if (!hasCarga) return [];
+
+      return [
+        {
+          exerciseName: exercise.name,
+          sets: sets.map((s, i) => ({
+            setNumber: i + 1,
+            weightKg: s.weightKg ?? "",
+            reps: s.reps ?? "",
+            completed: Boolean(s.completed)
+          }))
+        }
+      ];
+    } catch {
+      return [];
+    }
+  });
 }
 
 function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
