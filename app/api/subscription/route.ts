@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { getSubscriptionSummary } from "@/lib/subscription";
-import { logError } from "@/lib/server-logger";
+import { logError, logInfo } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,12 @@ export async function GET(request: NextRequest) {
     }
 
     const summary = await getSubscriptionSummary(auth.user.id);
+
+    logInfo("SUBSCRIPTION", "Resumo retornado", {
+      user_id: auth.user.id,
+      is_premium: summary.isPremium,
+      plan: summary.plan,
+    });
 
     return jsonSuccess(summary);
   } catch (error) {

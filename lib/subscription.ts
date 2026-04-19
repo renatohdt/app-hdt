@@ -62,10 +62,11 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
 
 
   if (error) {
-    console.error("[subscription] Erro ao buscar assinatura:", error.message);
+    console.error("[subscription] Erro ao buscar assinatura:", error.message, "userId:", userId);
     return null;
   }
 
+  console.log("[subscription] Query resultado:", { userId, found: Boolean(data), plan: data?.plan, status: data?.status });
   return data ?? null;
 }
 
