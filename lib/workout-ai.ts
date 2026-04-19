@@ -240,6 +240,27 @@ export async function generateWorkoutWithAI(
     mobility_candidates_sent_to_ai: availableExercises.filter((exercise) => exercise.movementType === "mobility").length
   });
 
+  // Valores numericos derivados do timeBudget para serem exibidos de forma
+  // explicita nas REGRAS do prompt. A IA tende a respeitar melhor alvos
+  // numericos concretos do que descricoes qualitativas.
+  const budget = strategy.timeBudget;
+  const exerciseRangeLabel = `${budget.exerciseCountRange.min} a ${budget.exerciseCountRange.max}`;
+  const exerciseTarget = budget.targetExerciseCount;
+  const combinedRangeLabel = `${budget.combinedBlockRange.min} a ${budget.combinedBlockRange.max}`;
+  const combinedTarget = budget.targetCombinedBlocks;
+  const durationWindowLabel = `${budget.minDurationMinutes} a ${budget.maxDurationMinutes}`;
+  const targetDurationMinutes = budget.targetDurationMinutes;
+  const availableMinutes = budget.availableTimeMinutes;
+
+  // Quantidade de sessoes esperada no array "plan". Sem isso explicito a IA
+  // tende a entregar apenas Treino A, copiando o exemplo do formato JSON.
+  const sessionCountTarget = strategy.dayCount;
+  const lastSessionLetter = String.fromCharCode(64 + sessionCountTarget); // 1->A, 2->B, 3->C...
+  const expectedSessionLabels = strategy.sessions
+    .slice(0, sessionCountTarget)
+    .map((session) => `Treino ${session.day}`)
+    .join(", ");
+
   const promptMontagemTreino = [
     "O tempo disponível para treinar é uma restrição operacional dura e obrigatória.",
     "Você é um personal trainer experiente.",
@@ -249,28 +270,55 @@ export async function generateWorkoutWithAI(
     "Responda sempre em português do Brasil, com acentuação, pontuação e caracteres UTF-8 corretos.",
     "",
     "REGRAS:",
-    "- cada sessão precisa caber realisticamente no tempo informado; não trate esse campo como mera preferência",
-    "- decida a divisão com base na frequência, nível, tempo e equipamentos",
-    "- não assuma full body para todos os perfis",
+    "",
+    "QUANTIDADE DE SESSOES (obrigatorio, valor calculado pelo backend):",
+    `- o array "plan" DEVE conter EXATAMENTE ${sessionCountTarget} sessoes, uma para cada dia de treino da semana`,
+    `- as sessoes esperadas sao: ${expectedSessionLabels} (de Treino A ate Treino ${lastSessionLetter})`,
+    `- se voce entregar menos do que ${sessionCountTarget} sessoes, o usuario fica sem treino para os dias faltantes e o plano e considerado invalido`,
+    "- cada sessao deve ter foco distinto, seguindo os musculos primarios/secundarios ja definidos em ESTRATEGIA BASE OBRIGATORIA > sessions",
+    "- nao repita o mesmo conjunto de musculos primarios em sessoes diferentes",
+    "",
+    "QUANTIDADE DE EXERCICIOS POR SESSAO (obrigatorio, valores calculados pelo backend):",
+    `- cada sessao deve ter entre ${exerciseRangeLabel} exercicios principais (alvo ideal: ${exerciseTarget})`,
+    "- mobilidade e aquecimento NAO contam nesse total (sao adicionados pelo app depois)",
+    `- se voce entregar menos do que ${budget.exerciseCountRange.min} exercicios, o app vai preencher automaticamente com exercicios de fallback (qualidade pior); prefira entregar a quantidade certa`,
+    `- se voce entregar mais do que ${budget.exerciseCountRange.max} exercicios, os excedentes serao descartados pelo backend`,
+    `- blocos combinados na sessao: entre ${combinedRangeLabel} (alvo: ${combinedTarget})`,
+    "",
+    "TEMPO MEDIO POR EXERCICIO (use para calibrar a quantidade):",
+    "- exercicio composto normal: ~6 min (incluindo series, descansos e transicoes)",
+    "- exercicio isolador normal: ~4 min",
+    "- exercicio dentro de bloco combinado (superset, bi-set, tri-set, circuito): ~5 min por exercicio",
+    "- tecnicas avancadas (drop-set, rest-pause, cluster): adicione ~1 min ao tempo do exercicio",
+    `- preencha aproximadamente ${targetDurationMinutes} min de treino real, dentro da janela de ${durationWindowLabel} min (tempo total disponivel: ${availableMinutes} min)`,
+    "",
+    "ORDEM DOS EXERCICIOS DENTRO DA SESSAO (obrigatorio, na ordem abaixo):",
+    "1) compostos dos musculos PRIMARIOS da sessao (use o campo primaryMuscles do blueprint)",
+    "2) compostos dos musculos SECUNDARIOS da sessao (use o campo secondaryMuscles do blueprint)",
+    "3) isoladores dos musculos PRIMARIOS",
+    "4) isoladores dos musculos SECUNDARIOS",
+    "5) abdomen (abs), panturrilha (calves) e exercicios de core/estabilidade ficam SEMPRE por ultimo",
+    "- DENTRO de cada categoria acima, agrupe os exercicios do MESMO musculo lado a lado (ex: se ha 2 exercicios de peito, eles ficam um seguido do outro antes de entrar em ombro)",
+    "- nao alterne musculos diferentes (ex: NAO faca peito -> tricep -> peito; faca peito -> peito -> tricep)",
+    "",
+    "REGRAS GERAIS:",
+    "- decida a divisao com base na frequencia, nivel, tempo e equipamentos",
+    "- nao assuma full body para todos os perfis",
     "- organize em Treino A, Treino B, Treino C e assim por diante",
-    "- respeite recuperação entre grupamentos primários e secundários",
-    "- use compostos antes de acessórios e isoladores",
-    "- não inclua exercícios de mobilidade ou ativação; esse bloco será adicionado localmente pelo app",
-    "- sempre pense a sessão em 4 momentos: preparação, bloco principal, acessórios/blocos combinados e finalização",
-    "- use APENAS os exercícios fornecidos",
-    "- não invente exercícios",
-    "- não repita o mesmo exercício na mesma sessão",
+    "- respeite recuperacao entre grupamentos primarios e secundarios",
+    "- nao inclua exercicios de mobilidade ou ativacao; esse bloco sera adicionado localmente pelo app",
+    "- sempre pense a sessao em 4 momentos: preparacao, bloco principal, acessorios/blocos combinados e finalizacao",
+    "- escolha EXCLUSIVAMENTE exercicios pelo nome exato presente na lista EXERCICIOS DISPONIVEIS abaixo",
+    "- nao invente, traduza, abrevie, modifique ou adapte nomes de exercicios",
+    "- se um exercicio desejado nao estiver na lista, escolha outro da propria lista",
+    "- nao repita o mesmo exercicio na mesma sessao",
     "- sets, reps e rest devem ser numeros inteiros fixos",
-    "- a quantidade de exercícios, séries, descansos e blocos precisa mudar de verdade conforme o tempo disponível",
-    "- treinos de 15-20 min devem ser enxutos, com poucos exercícios úteis e densidade alta",
-    "- treinos de 75-90 min devem ter mais volume util, mais refinamento por grupamento e estrutura mais completa",
-    "- técnicas avançadas devem ser pontuais e coerentes",
-    "- iniciantes podem receber supersérie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderência e continuar seguro",
-    "- intermediários devem usar blocos combinados com frequência moderada quando houver ganho de densidade ou melhor organização muscular",
-    "- avançados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessão em caos metabólico",
-    "- blocos combinados devem ser reais e coerentes, não apenas exercícios aleatórios com o mesmo rótulo",
-    "- evite redundância e respeite a relação estímulo/fadiga",
-    "- considere tempo de execução das séries, descansos, transições e tempo extra de técnicas ao decidir o volume",
+    "- tecnicas avancadas devem ser pontuais e coerentes",
+    "- iniciantes podem receber supersérie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderencia e continuar seguro",
+    "- intermediarios devem usar blocos combinados com frequencia moderada quando houver ganho de densidade ou melhor organizacao muscular",
+    "- avancados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessao em caos metabolico",
+    "- blocos combinados devem ser reais e coerentes, nao apenas exercicios aleatorios com o mesmo rotulo",
+    "- evite redundancia e respeite a relacao estimulo/fadiga",
     "",
     "TIPOS DE BLOCO POSSIVEIS:",
     "- normal",
@@ -396,7 +444,15 @@ export async function generateWorkoutWithAI(
     }
 
     const parsed = extractAiWorkoutResponse(treinoIA);
-    const validated = validateAndBuildWorkoutPlan(parsed, answers, diagnosis, exerciseLibrary, strategy, mobilityContext);
+    const validated = validateAndBuildWorkoutPlan(
+      parsed,
+      answers,
+      diagnosis,
+      exerciseLibrary,
+      filteredLibrary,
+      strategy,
+      mobilityContext
+    );
 
     if (!validated) {
       throw new Error("A resposta da IA não passou na validação do backend.");
@@ -496,6 +552,7 @@ function validateAndBuildWorkoutPlan(
   answers: QuizAnswers,
   diagnosis: DiagnosisResult,
   exerciseLibrary: ExerciseRecord[],
+  allowedLibrary: ExerciseRecord[],
   strategy: WorkoutStrategy,
   mobilityContext: MobilitySelectionContext
 ): WorkoutPlan | null {
@@ -540,13 +597,22 @@ function validateAndBuildWorkoutPlan(
     ])
   );
 
+  // Conjunto de nomes de exercícios que o usuário PODE receber
+  // (já filtrados por equipamento, localização, exclusões etc.).
+  // Serve como segunda camada de validação: se a IA responder com um
+  // exercício que existe no banco mas não está no catálogo permitido,
+  // esse exercício é descartado em sanitizeAiDayExercises.
+  const allowedNames = new Set(
+    allowedLibrary.map((exercise) => exercise.name.trim().toLowerCase())
+  );
+
   const sections: WorkoutSection[] = [];
   const sectionEstimates: ReturnType<typeof estimateWorkoutSectionDuration>[] = [];
 
   for (const [index, day] of normalizedPlan.slice(0, strategy.dayCount).entries()) {
     const blueprint = strategy.sessions[index] ?? strategy.sessions[strategy.sessions.length - 1];
     const rawExercises = Array.isArray(day.exercises) ? day.exercises : [];
-    const sanitized = sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap);
+    const sanitized = sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames);
 
     if (!sanitized.length) {
       logWarn("AI", "Workout AI session adjusted after sanitization");
@@ -583,7 +649,8 @@ function validateAndBuildWorkoutPlan(
       exercises,
       strategy,
       blueprint,
-      exerciseMap
+      exerciseMap,
+      allowedNames
     });
     const structuredExercises = fittedSession.structuredExercises;
     const sessionFocus =
@@ -963,9 +1030,16 @@ function fitSessionToTimeBudget(input: {
   strategy: WorkoutStrategy;
   blueprint: SessionBlueprint;
   exerciseMap: Map<string, ExerciseLookup>;
+  allowedNames: Set<string>;
 }) {
   const mobility = normalizeMobilityForTime(input.mobility, input.blueprint, input.strategy);
-  let exercises = alignExercisesToTimeBudget(input.exercises, input.strategy, input.blueprint, input.exerciseMap);
+  let exercises = alignExercisesToTimeBudget(
+    input.exercises,
+    input.strategy,
+    input.blueprint,
+    input.exerciseMap,
+    input.allowedNames
+  );
   let draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -974,17 +1048,35 @@ function fitSessionToTimeBudget(input: {
       if (!simplified.length || areExercisesEqual(exercises, simplified)) {
         break;
       }
-      exercises = alignExercisesToTimeBudget(simplified, input.strategy, input.blueprint, input.exerciseMap);
+      exercises = alignExercisesToTimeBudget(
+        simplified,
+        input.strategy,
+        input.blueprint,
+        input.exerciseMap,
+        input.allowedNames
+      );
       draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
       continue;
     }
 
     if (draft.estimate.totalMinutesExact < input.strategy.timeBudget.minDurationMinutes) {
-      const expanded = expandSessionForTime(exercises, input.strategy, input.blueprint, input.exerciseMap);
+      const expanded = expandSessionForTime(
+        exercises,
+        input.strategy,
+        input.blueprint,
+        input.exerciseMap,
+        input.allowedNames
+      );
       if (!expanded.length || areExercisesEqual(exercises, expanded)) {
         break;
       }
-      exercises = alignExercisesToTimeBudget(expanded, input.strategy, input.blueprint, input.exerciseMap);
+      exercises = alignExercisesToTimeBudget(
+        expanded,
+        input.strategy,
+        input.blueprint,
+        input.exerciseMap,
+        input.allowedNames
+      );
       draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
       continue;
     }
@@ -1048,7 +1140,8 @@ function alignExercisesToTimeBudget(
   exercises: SanitizedExercise[],
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
-  exerciseMap: Map<string, ExerciseLookup>
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>
 ) {
   const budget = strategy.timeBudget;
   let normalized = [...exercises].map((exercise) => applyExerciseTimePrescription(exercise, strategy));
@@ -1060,7 +1153,7 @@ function alignExercisesToTimeBudget(
   }
 
   while (normalized.length < budget.exerciseCountRange.min) {
-    const next = pickNextFallbackExercise(normalized, strategy, blueprint, exerciseMap);
+    const next = pickNextFallbackExercise(normalized, strategy, blueprint, exerciseMap, allowedNames);
     if (!next) {
       break;
     }
@@ -1140,7 +1233,8 @@ function pickNextFallbackExercise(
   currentExercises: SanitizedExercise[],
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
-  exerciseMap: Map<string, ExerciseLookup>
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>
 ) {
   const usedNames = new Set(currentExercises.map((exercise) => exercise.name.trim().toLowerCase()));
   const currentPrimaryCounts = new Map<string, number>();
@@ -1151,9 +1245,12 @@ function pickNextFallbackExercise(
     });
   });
 
+  // O fallback NUNCA pode adicionar exercícios fora do catálogo permitido
+  // (equipamento/localização do usuário). Mobilidade é tratada em outra rota.
   const candidates = Array.from(exerciseMap.values())
     .filter((lookup) => !usedNames.has(lookup.source.name.trim().toLowerCase()))
     .filter((lookup) => lookup.profile.movementType !== "mobility")
+    .filter((lookup) => allowedNames.has(lookup.source.name.trim().toLowerCase()))
     .sort((left, right) => {
       const leftScore = scoreFallbackCandidate(left, currentExercises, strategy, blueprint, currentPrimaryCounts);
       const rightScore = scoreFallbackCandidate(right, currentExercises, strategy, blueprint, currentPrimaryCounts);
@@ -1162,6 +1259,12 @@ function pickNextFallbackExercise(
 
   const next = candidates[0];
   if (!next) {
+    logWarn("AI", "Fallback exhausted: no allowed exercise left to fit time budget", {
+      session_focus: blueprint.sessionFocus,
+      current_count: currentExercises.length,
+      target_count: strategy.timeBudget.targetExerciseCount,
+      allowed_catalog_size: allowedNames.size
+    });
     return null;
   }
 
@@ -1272,10 +1375,11 @@ function expandSessionForTime(
   exercises: SanitizedExercise[],
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
-  exerciseMap: Map<string, ExerciseLookup>
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>
 ) {
   if (exercises.length < strategy.timeBudget.targetExerciseCount) {
-    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap);
+    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap, allowedNames);
     if (next) {
       return [...exercises, next];
     }
@@ -1287,7 +1391,7 @@ function expandSessionForTime(
   }
 
   if (exercises.length < strategy.timeBudget.exerciseCountRange.max) {
-    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap);
+    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap, allowedNames);
     if (next) {
       return [...exercises, next];
     }
@@ -1559,7 +1663,8 @@ function sanitizeAiDayExercises(
   exercises: AiWorkoutExercise[],
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
-  exerciseMap: Map<string, ExerciseLookup>
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>
 ) {
   const seen = new Set<string>();
   let advancedBlocks = 0;
@@ -1576,6 +1681,18 @@ function sanitizeAiDayExercises(
       seen.add(key);
       const lookup = exerciseMap.get(key);
       if (!lookup) {
+        return null;
+      }
+
+      // Segunda camada de validação: a IA só pode escolher exercícios
+      // que estejam no catálogo permitido (equipamento/localização/etc.).
+      // Mobilidade é exceção porque é tratada localmente depois deste ponto.
+      const isMobility = lookup.profile.movementType === "mobility";
+      if (!isMobility && !allowedNames.has(key)) {
+        logWarn("AI", "AI selected exercise outside allowed catalog", {
+          exercise_name: lookup.source.name,
+          exercise_id: lookup.source.id
+        });
         return null;
       }
 
