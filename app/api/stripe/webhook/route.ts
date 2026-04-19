@@ -86,24 +86,32 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const supabase = getServiceRoleClient();
 
-  const { error } = await supabase.from("subscriptions").upsert(
-    {
-      user_id: userId,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: subscriptionId,
-      stripe_price_id: priceId,
-      plan,
-      status: mapStripeStatus(subscription.status),
-      current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
-      current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      customer_name: customerName,
-      customer_cpf: customerCpf,
-      customer_email: session.customer_email ?? null,
-      payment_method: session.payment_method_types?.includes("boleto") ? "pix" : "card",
-    },
-    { onConflict: "user_id" }
-  );
+  const subscriptionData = {
+    user_id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: subscriptionId,
+    stripe_price_id: priceId,
+    plan,
+    status: mapStripeStatus(subscription.status),
+    current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
+    current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+    cancel_at_period_end: subscription.cancel_at_period_end,
+    customer_name: customerName,
+    customer_cpf: customerCpf,
+    customer_email: session.customer_email ?? null,
+    payment_method: session.payment_method_types?.includes("boleto") ? "pix" : "card",
+  };
+
+  // Verifica se já existe registro para este stripe_subscription_id (idempotência)
+  const { data: existing } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("stripe_subscription_id", subscriptionId)
+    .maybeSingle();
+
+  const { error } = existing
+    ? await supabase.from("subscriptions").update(subscriptionData).eq("stripe_subscription_id", subscriptionId)
+    : await supabase.from("subscriptions").insert(subscriptionData);
 
   if (error) {
     logError("STRIPE_WEBHOOK", "Erro ao salvar assinatura após checkout", {
