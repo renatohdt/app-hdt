@@ -40,16 +40,7 @@ function fireConversionEvents(plan: string | null) {
     });
   }
 
-  // Google Ads — conversão de compra via gtag
-  // Substitua "AW-XXXXXXXX/YYYYYYY" pelo ID da sua conversão no Google Ads
-  if (typeof window !== "undefined" && typeof window.gtag === "function") {
-    window.gtag("event", "conversion", {
-      send_to: "AW-CONVERSION_ID/CONVERSION_LABEL", // TODO: substituir pelo ID real
-      value,
-      currency: "BRL",
-      transaction_id: `sub_${Date.now()}`,
-    });
-  }
+
 }
 
 function SuccessContent() {
