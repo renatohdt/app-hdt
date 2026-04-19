@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
       return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
-    const subscription = await getUserSubscription(auth.user.id);
+    const token = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+    const subscription = await getUserSubscription(auth.user.id, token);
 
     if (!subscription) {
       return jsonError("Nenhuma assinatura ativa encontrada.", 404);

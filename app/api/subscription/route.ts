@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { getSubscriptionSummary } from "@/lib/subscription";
-import { logError, logInfo } from "@/lib/server-logger";
+import { logError } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +15,11 @@ export async function GET(request: NextRequest) {
       return auth.response ?? jsonError("Sua sessão expirou. Faça login novamente.", 401);
     }
 
-    const summary = await getSubscriptionSummary(auth.user.id);
-
-    logInfo("SUBSCRIPTION", "Resumo retornado", {
-      user_id: auth.user.id,
-      is_premium: summary.isPremium,
-      plan: summary.plan,
-    });
+    // Extrai o token do header para usar o JWT do próprio usuário na query.
+    // Isso usa a política RLS "Users can read own subscription" (auth.uid() = user_id),
+    // sem depender da SUPABASE_SERVICE_ROLE_KEY para leitura.
+    const token = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+    const summary = await getSubscriptionSummary(auth.user.id, token);
 
     return jsonSuccess(summary);
   } catch (error) {

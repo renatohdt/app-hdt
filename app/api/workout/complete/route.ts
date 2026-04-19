@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
       return auth.response ?? jsonError(SESSION_EXPIRED_MESSAGE, 401);
     }
 
+    const userToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
       return jsonError(COMPLETE_WORKOUT_ERROR_MESSAGE, 500);
@@ -378,7 +380,7 @@ export async function POST(request: NextRequest) {
     const programCompleted = updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
 
     // Busca o plano apenas quando o programa for concluído (evita chamada desnecessária no fluxo normal)
-    const userPlan = programCompleted ? await getPlanType(auth.user.id) : null;
+    const userPlan = programCompleted ? await getPlanType(auth.user.id, userToken) : null;
 
     return buildWorkoutCompletionSuccessResponse({
       totalSessions: workoutState.sessionConfig.totalSessions,

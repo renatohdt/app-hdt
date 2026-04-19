@@ -31,8 +31,25 @@ export type Subscription = {
   updated_at: string;
 };
 
-// Cria um cliente Supabase com service_role para leitura server-side
-// Necessário pois as políticas RLS bloqueiam leitura via anon key fora do contexto do usuário
+// Cria um cliente Supabase autenticado com o JWT do próprio usuário.
+// Usa a política RLS existente "Users can read own subscription" (auth.uid() = user_id).
+// Essa abordagem não depende da SUPABASE_SERVICE_ROLE_KEY para leitura.
+function getUserAuthClient(userToken: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("Variáveis de ambiente do Supabase não configuradas.");
+  }
+
+  return createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: `Bearer ${userToken}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+// Cria um cliente Supabase com service_role (bypass de RLS).
+// Usado para operações que não têm o token do usuário disponível.
 function getServiceRoleClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -49,24 +66,30 @@ function getServiceRoleClient() {
 /**
  * Busca a assinatura ativa de um usuário no banco.
  * Retorna null se o usuário for free ou não tiver assinatura.
+ *
+ * Quando userToken é fornecido, usa o JWT do próprio usuário (mais seguro e
+ * independente da SUPABASE_SERVICE_ROLE_KEY). Caso contrário, usa service_role.
  */
-export async function getUserSubscription(userId: string): Promise<Subscription | null> {
-  const supabase = getServiceRoleClient();
+export async function getUserSubscription(
+  userId: string,
+  userToken?: string | null
+): Promise<Subscription | null> {
+  const supabase = userToken
+    ? getUserAuthClient(userToken)
+    : getServiceRoleClient();
 
   const { data, error } = await supabase
     .from("subscriptions")
     .select("*")
     .eq("user_id", userId)
-    .or("status.eq.active,status.eq.past_due")
+    .in("status", ["active", "past_due"])
     .maybeSingle();
 
-
   if (error) {
-    console.error("[subscription] Erro ao buscar assinatura:", error.message, "userId:", userId);
+    console.error("[subscription] Erro ao buscar assinatura:", error.message);
     return null;
   }
 
-  console.log("[subscription] Query resultado:", { userId, found: Boolean(data), plan: data?.plan, status: data?.status });
   return data ?? null;
 }
 
@@ -74,16 +97,16 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
  * Verifica se um usuário tem acesso premium.
  * Considera premium: status 'active' ou 'past_due' (ainda dentro do período de graça).
  */
-export async function isPremium(userId: string): Promise<boolean> {
-  const subscription = await getUserSubscription(userId);
+export async function isPremium(userId: string, userToken?: string | null): Promise<boolean> {
+  const subscription = await getUserSubscription(userId, userToken);
   return subscription !== null;
 }
 
 /**
  * Retorna o tipo de plano atual do usuário.
  */
-export async function getPlanType(userId: string): Promise<SubscriptionPlan> {
-  const subscription = await getUserSubscription(userId);
+export async function getPlanType(userId: string, userToken?: string | null): Promise<SubscriptionPlan> {
+  const subscription = await getUserSubscription(userId, userToken);
 
   if (!subscription) return "free";
   return subscription.plan;
@@ -93,8 +116,8 @@ export async function getPlanType(userId: string): Promise<SubscriptionPlan> {
  * Retorna informações resumidas do plano para exibição na UI.
  * Usado na página de perfil e nos componentes de upsell.
  */
-export async function getSubscriptionSummary(userId: string) {
-  const subscription = await getUserSubscription(userId);
+export async function getSubscriptionSummary(userId: string, userToken?: string | null) {
+  const subscription = await getUserSubscription(userId, userToken);
 
   if (!subscription) {
     return {

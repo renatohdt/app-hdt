@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = auth.user.id;
+    const userToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
     // --- Verificar limite de substituições baseado no plano real do usuário ---
     // Free:    2 substituições por programa de treino (workout_id)
     // Premium: 2 substituições por sessão de treino (workout_id + workout_day_id)
-    const userIsPremium = await isPremium(userId);
+    const userIsPremium = await isPremium(userId, userToken);
 
     if (!userIsPremium) {
       // Free: conta total de substituições no programa
