@@ -7,8 +7,17 @@ import type Stripe from "stripe";
 export const dynamic = "force-dynamic";
 
 function getServiceRoleClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    logError("STRIPE_WEBHOOK", "Variáveis de ambiente do Supabase ausentes", {
+      has_url: Boolean(url),
+      has_service_role_key: Boolean(key),
+    });
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY ou NEXT_PUBLIC_SUPABASE_URL não configurados na Vercel.");
+  }
+
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -42,9 +51,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.user_id;
   const plan = session.metadata?.plan as "monthly" | "annual" | undefined;
 
+  logInfo("STRIPE_WEBHOOK", "handleCheckoutCompleted iniciado", {
+    session_id: session.id,
+    has_user_id: Boolean(userId),
+    has_plan: Boolean(plan),
+    has_subscription: Boolean(session.subscription),
+    has_customer: Boolean(session.customer),
+  });
+
   if (!userId || !plan) {
     logWarn("STRIPE_WEBHOOK", "checkout.session.completed sem metadata obrigatório", {
       session_id: session.id,
+      metadata: session.metadata,
     });
     return;
   }
