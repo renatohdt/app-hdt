@@ -14,7 +14,11 @@ export type AnalyticsEventName =
   | "article_click"
   | "cta_click"
   | "cta_clicked"
-  | "clicked_cta";
+  | "clicked_cta"
+  // Eventos de assinatura premium
+  | "premium_page_view"
+  | "checkout_started"
+  | "purchase";
 
 export const HOME_VIEW_EVENTS: AnalyticsEventName[] = ["home_view", "page_view"];
 export const QUIZ_START_EVENTS: AnalyticsEventName[] = ["quiz_started", "quiz_start"];

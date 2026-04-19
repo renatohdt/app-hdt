@@ -1,12 +1,14 @@
 "use client";
 
 import clsx from "clsx";
-import { Bell, CalendarDays, ChevronRight, Dumbbell, Lock, Ruler, Shield, Target, UserRound, Weight, X } from "lucide-react";
+import { Bell, CalendarDays, ChevronRight, CreditCard, Dumbbell, Lock, Ruler, Shield, Sparkles, Target, UserRound, Weight, X } from "lucide-react";
 import Link from "next/link";
-import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useState } from "react";
+import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
+import { UpsellModal } from "@/components/upsell-modal";
+import { useSubscription } from "@/components/use-subscription";
 import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
@@ -119,17 +121,53 @@ export default function PerfilPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
+  const { subscription } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
   const [editingSection, setEditingSection] = useState<EditingSection | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const generatingAnimFrameRef = useRef(0);
+  const generatingCardRef = useRef<HTMLDivElement | null>(null);
+  const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [payload, setPayload] = useState<ProfilePayload | null>(null);
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM_STATE);
   const [excludedExercises, setExcludedExercises] = useState<Array<{ exerciseId: string; exerciseName: string }>>([]);
   const [removingExerciseId, setRemovingExerciseId] = useState<string | null>(null);
+
+  // Animação da barra de progresso durante geração do treino
+  useEffect(() => {
+    if (!isGenerating) {
+      setLoadingProgress(0);
+      window.cancelAnimationFrame(generatingAnimFrameRef.current);
+      return;
+    }
+
+    // Scroll para o card de progresso assim que ele aparecer
+    window.requestAnimationFrame(() => {
+      generatingCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    const startTime = window.performance.now();
+    setLoadingProgress(WORKOUT_LOADING_INITIAL);
+
+    const animate = () => {
+      const elapsed = window.performance.now() - startTime;
+      const next = getWorkoutLoadingProgress(elapsed);
+      setLoadingProgress((current) => (next > current ? next : current));
+      generatingAnimFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    generatingAnimFrameRef.current = window.requestAnimationFrame(animate);
+
+    return () => {
+      window.cancelAnimationFrame(generatingAnimFrameRef.current);
+    };
+  }, [isGenerating]);
 
   useEffect(() => {
     let active = true;
@@ -311,7 +349,8 @@ export default function PerfilPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          userId: payload.user.id
+          userId: payload.user.id,
+          force: true
         })
       });
 
@@ -325,6 +364,8 @@ export default function PerfilPage() {
         goal: payload.answers.goal ?? null,
         source: "profile_regenerate"
       });
+      setLoadingProgress(100);
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
       router.push("/dashboard");
       router.refresh();
     } catch (generationError) {
@@ -334,6 +375,30 @@ export default function PerfilPage() {
       });
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  async function handleManageSubscription() {
+    if (isManagingSubscription) return;
+
+    setIsManagingSubscription(true);
+    setFeedback(null);
+
+    try {
+      const response = await fetchWithAuth("/api/stripe/portal", { method: "POST" });
+      const result = await parseJsonResponse<{ success: boolean; data?: { url: string }; error?: string }>(response);
+
+      if (!response.ok || !result.success || !result.data?.url) {
+        throw new Error(result.error ?? "Não foi possível abrir o portal de assinatura.");
+      }
+
+      window.location.href = result.data.url;
+    } catch (portalError) {
+      setFeedback({
+        tone: "error",
+        text: portalError instanceof Error ? portalError.message : "Não foi possível abrir o portal de assinatura."
+      });
+      setIsManagingSubscription(false);
     }
   }
 
@@ -672,20 +737,66 @@ export default function PerfilPage() {
         />
       </div>
 
-      {/* Plano Atual */}
+      {/* Assinatura */}
       <Card className="p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Plano Atual</p>
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
-            Gratuito
-          </span>
-          <Link
-            href="/dashboard"
-            className="text-[13px] font-semibold text-primary transition hover:text-primary/80"
-          >
-            Ver plano
-          </Link>
+        {/* Header */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Assinatura</p>
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-white/5">
+            <CreditCard className="h-3.5 w-3.5 text-white/30" />
+          </div>
         </div>
+
+        {subscription?.isPremium ? (
+          // ── Premium: badge + data de renovação + botão gerenciar ──
+          <div className="mt-3 space-y-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
+              <Sparkles className="h-3 w-3" />
+              {subscription.plan === "annual" ? "Premium Anual" : "Premium Mensal"}
+            </span>
+
+            {(subscription.cancelAtPeriodEnd && subscription.cancelsAt) || subscription.renewsAt ? (
+              <p className="text-[13px] text-white/50">
+                {subscription.cancelAtPeriodEnd && subscription.cancelsAt
+                  ? `⚠️ Cancela em ${formatSubscriptionDate(subscription.cancelsAt)}`
+                  : `Renova em ${formatSubscriptionDate(subscription.renewsAt!)}`}
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => void handleManageSubscription()}
+              disabled={isManagingSubscription}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/8 hover:text-white disabled:opacity-50"
+            >
+              {isManagingSubscription ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/20 border-t-white/70" />
+                  Redirecionando...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Gerenciar assinatura
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          // ── Free: badge e botão lado a lado ──
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[12px] font-semibold text-white/60">
+              Gratuito
+            </span>
+            <Link
+              href="/premium"
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-2 text-[13px] font-bold text-black shadow-glow transition hover:opacity-95"
+            >
+              <Sparkles className="h-3 w-3" />
+              Fazer upgrade
+            </Link>
+          </div>
+        )}
       </Card>
 
       {feedback ? <FeedbackBanner feedback={feedback} /> : null}
@@ -757,32 +868,92 @@ export default function PerfilPage() {
         </Card>
       </div>
 
-      {/* Card Premium — placeholder para gerar treino */}
-      <Card className="space-y-4 p-4">
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Premium</p>
-          <p className="font-semibold text-white">Gerar plano personalizado</p>
-          <p className="text-[13px] leading-5 text-white/54">
-            Atualize seu plano sempre que mudar seus dados físicos ou de treino.
-          </p>
+      {/* Card — Gerar novo treino */}
+      {isGenerating ? (
+        <div ref={generatingCardRef} className="overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/14 via-[#0f0f0f] to-[#151515] p-5 shadow-glow">
+          <div className="flex flex-col gap-5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/90">Montagem do treino</p>
+              <p className="text-xl font-semibold text-white">Montando seu novo treino...</p>
+              <p className="text-sm leading-6 text-white/66">
+                Estamos usando seus dados atualizados para criar um plano mais alinhado ao seu objetivo e rotina.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-4xl font-semibold text-white">{Math.round(loadingProgress)}%</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.24em] text-white/38">Progresso estimado</p>
+              </div>
+              <div className="rounded-full border border-white/8 bg-white/[0.06] p-1">
+                <div
+                  className="h-2.5 rounded-full bg-gradient-to-r from-primary via-primaryStrong to-[#7BF1A8] transition-[width] duration-500 ease-out"
+                  style={{ width: `${Math.round(loadingProgress)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {WORKOUT_LOADING_STAGES.map((stage, index) => {
+                const stageIndex = getWorkoutLoadingStageIndex(Math.round(loadingProgress));
+                const isDone = index < stageIndex;
+                const isCurrent = index === stageIndex;
+                return (
+                  <div
+                    key={stage}
+                    className={`flex items-center gap-3 rounded-[20px] border px-4 py-3 transition ${
+                      isCurrent
+                        ? "border-primary/30 bg-primary/12 text-white"
+                        : isDone
+                          ? "border-primary/18 bg-white/[0.03] text-white/78"
+                          : "border-white/8 bg-white/[0.02] text-white/52"
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
+                        isCurrent
+                          ? "border-primary bg-primary/18 text-primary"
+                          : isDone
+                            ? "border-primary/40 bg-primary text-[#052b12]"
+                            : "border-white/12 text-white/38"
+                      }`}
+                    >
+                      {isDone ? "✓" : index + 1}
+                    </span>
+                    <p className={`min-w-0 flex-1 text-sm font-medium ${isCurrent ? "text-white" : ""}`}>{stage}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-        {/* Botão desabilitado — recurso premium. handleGenerateWorkout e
-            ENABLE_WORKOUT_REGENERATION mantidos abaixo para integração futura. */}
-        <button
-          type="button"
-          disabled
-          title="Disponível em breve para planos premium"
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/38 cursor-not-allowed"
-        >
-          <Lock className="h-4 w-4" />
-          Em breve
-        </button>
-        {ENABLE_WORKOUT_REGENERATION && false ? (
-          <Button onClick={handleGenerateWorkout} disabled={isEditing || isSaving || isGenerating}>
-            {isGenerating ? "Gerando novo treino..." : "Gerar novo treino"}
-          </Button>
-        ) : null}
-      </Card>
+      ) : (
+        <Card className="space-y-4 p-4">
+          <div className="space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Seu plano</p>
+            <p className="font-semibold text-white">Gerar novo treino</p>
+            <p className="text-[13px] leading-5 text-white/54">
+              Use este botão sempre que mudar algo no seu perfil — objetivo, dias de treino, equipamentos ou tempo disponível. A IA usará seus dados atuais para montar um plano novo.
+            </p>
+          </div>
+          {subscription?.isPremium ? (
+            // Usuário premium — botão funcional
+            <Button onClick={handleGenerateWorkout} disabled={isEditing || isSaving}>
+              Gerar novo treino
+            </Button>
+          ) : (
+            // Usuário free — botão abre upsell
+            <button
+              type="button"
+              onClick={() => setShowWorkoutUpsell(true)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/8 px-4 py-2.5 text-sm font-semibold text-primary/80 transition hover:bg-primary/12"
+            >
+              <Lock className="h-4 w-4" />
+              Gerar novo treino
+            </button>
+          )}
+        </Card>
+      )}
 
       {/* Sair da conta */}
       <div className="pt-1">
@@ -795,6 +966,10 @@ export default function PerfilPage() {
           {isSigningOut ? "Saindo..." : "Sair da conta"}
         </button>
       </div>
+
+      {showWorkoutUpsell ? (
+        <UpsellModal reason="generate_workout" onClose={() => setShowWorkoutUpsell(false)} />
+      ) : null}
     </AppShell>
   );
 }
@@ -1017,4 +1192,41 @@ function getLevelBadge(goal?: string) {
   if (goal === "gain_muscle" || goal === "body_recomposition") return "Intermediário";
   if (goal === "improve_conditioning") return "Avançado";
   return "Iniciante";
+}
+
+function formatSubscriptionDate(isoDate: string) {
+  try {
+    return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
+      new Date(isoDate)
+    );
+  } catch {
+    return isoDate;
+  }
+}
+
+// ─── Barra de progresso — geração de treino ───────────────────────────────────
+
+const WORKOUT_LOADING_STAGES = [
+  "Analisando seu perfil atualizado",
+  "Selecionando os melhores exercícios",
+  "Criando a estratégia de treino",
+  "Montando seu plano personalizado",
+  "Treino pronto!"
+];
+
+const WORKOUT_LOADING_INITIAL = 4;
+const WORKOUT_LOADING_MAX = 97;
+const WORKOUT_LOADING_DECAY_MS = 8000;
+
+function getWorkoutLoadingProgress(elapsed: number) {
+  if (elapsed <= 0) return WORKOUT_LOADING_INITIAL;
+  return WORKOUT_LOADING_INITIAL + (WORKOUT_LOADING_MAX - WORKOUT_LOADING_INITIAL) * (1 - Math.exp(-elapsed / WORKOUT_LOADING_DECAY_MS));
+}
+
+function getWorkoutLoadingStageIndex(progress: number) {
+  if (progress >= 100) return 4;
+  if (progress >= 75) return 3;
+  if (progress >= 50) return 2;
+  if (progress >= 25) return 1;
+  return 0;
 }

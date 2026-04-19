@@ -4,6 +4,7 @@ import { diagnoseUser } from "@/lib/diagnosis";
 import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
+import { getPlanType } from "@/lib/subscription";
 import {
   getSupabaseErrorCode,
   getSupabaseErrorMessage,
@@ -373,6 +374,12 @@ export async function POST(request: NextRequest) {
       newWeightIncreases = await countWeightIncreases(supabase, auth.user.id);
     }
 
+    // Detecta se o programa foi concluído nesta sessão
+    const programCompleted = updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
+
+    // Busca o plano apenas quando o programa for concluído (evita chamada desnecessária no fluxo normal)
+    const userPlan = programCompleted ? await getPlanType(auth.user.id) : null;
+
     return buildWorkoutCompletionSuccessResponse({
       totalSessions: workoutState.sessionConfig.totalSessions,
       sessionStats: updatedStats,
@@ -381,7 +388,9 @@ export async function POST(request: NextRequest) {
       prevTotalWorkouts,
       newTotalWorkouts,
       prevWeightIncreases,
-      newWeightIncreases
+      newWeightIncreases,
+      programCompleted,
+      userPlan
     });
   } catch {
     logError("WORKOUT", "Workout completion unexpected failure", {});
@@ -501,6 +510,8 @@ function buildWorkoutCompletionSuccessResponse(input: {
   newTotalWorkouts: number;
   prevWeightIncreases?: number;
   newWeightIncreases?: number;
+  programCompleted?: boolean;
+  userPlan?: string | null;
 }) {
   return NextResponse.json({
     success: true,
@@ -520,7 +531,11 @@ function buildWorkoutCompletionSuccessResponse(input: {
       prevTotalWorkouts: input.prevTotalWorkouts,
       newTotalWorkouts: input.newTotalWorkouts,
       prevWeightIncreases: input.prevWeightIncreases ?? 0,
-      newWeightIncreases: input.newWeightIncreases ?? 0
+      newWeightIncreases: input.newWeightIncreases ?? 0,
+      // Sinaliza ao frontend se o programa foi concluído e qual o plano do usuário
+      // O frontend usa isso para exibir parabéns + upsell (free) ou novo treino (premium)
+      program_completed: input.programCompleted ?? false,
+      user_plan: input.userPlan ?? null
     }
   });
 }

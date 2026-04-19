@@ -196,8 +196,9 @@ export async function POST(request: Request) {
       return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    const body = (await request.json().catch(() => ({}))) as { userId?: string };
+    const body = (await request.json().catch(() => ({}))) as { userId?: string; force?: boolean };
     const userId = auth.user.id;
+    const forceRegenerate = body.force === true;
 
     if (body.userId && body.userId !== userId) {
       logWarn("AUTH", "Workout generation denied", { user_id: userId });
@@ -277,6 +278,7 @@ export async function POST(request: Request) {
       : null;
 
     if (
+      !forceRegenerate &&
       existingWorkout &&
       existingWorkoutState &&
       existingWorkout.hash === workoutHash &&

@@ -101,6 +101,12 @@ function getGoogleAnalyticsEventName(eventName: AnalyticsEventName) {
       return "workout_viewed";
     case "workout_generated":
       return "workout_generated";
+    case "premium_page_view":
+      return "premium_page_view";
+    case "checkout_started":
+      return "begin_checkout";
+    case "purchase":
+      return "purchase";
     default:
       return null;
   }

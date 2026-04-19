@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
+import { UpsellModal } from "@/components/upsell-modal";
+import { useSubscription } from "@/components/use-subscription";
 import {
   ARTICLE_PLACEHOLDER_IMAGE,
   getEvergreenFallbackArticles,
@@ -35,12 +37,15 @@ const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/lo
 
 export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const [articles, setArticles] = useState<ArticleRecommendation[]>([]);
+  const [showUpsellBanner, setShowUpsellBanner] = useState(false);
+  const { subscription } = useSubscription();
   const metrics = useMemo(() => buildHomeMetrics(data), [data]);
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
   const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
   const fallbackArticles = useMemo(() => sanitizeArticleRecommendations(getEvergreenFallbackArticles()), []);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
   const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
+  const isFreePlan = !subscription?.isPremium;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -148,6 +153,31 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
         </div>
       </Card>
 
+      {/* Banner Premium — exibido apenas para usuários do plano free */}
+      {isFreePlan && (
+        <button
+          onClick={() => setShowUpsellBanner(true)}
+          className="w-full rounded-[24px] border border-primary/20 bg-[linear-gradient(135deg,rgba(34,197,94,0.10),rgba(16,185,129,0.05))] p-[18px] text-left transition hover:border-primary/35"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.12em] text-primary/80">
+                Premium
+              </p>
+              <p className="text-[15px] font-bold leading-snug text-white">
+                Evolua sem limites por R$&nbsp;9,90/mês
+              </p>
+              <p className="mt-1 text-[13px] text-white/50">
+                Programas e substituições ilimitados
+              </p>
+            </div>
+            <div className="shrink-0 rounded-2xl border border-primary/30 bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary">
+              Ver planos
+            </div>
+          </div>
+        </button>
+      )}
+
       <div>
         {achievement ? (
           <Card className="mb-[18px] rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
@@ -254,6 +284,10 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           ))}
         </div>
       </Card>
+
+      {showUpsellBanner ? (
+        <UpsellModal reason="home_banner" onClose={() => setShowUpsellBanner(false)} />
+      ) : null}
     </AppShell>
   );
 }

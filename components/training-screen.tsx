@@ -8,6 +8,8 @@ import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
 import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import { Badge, Button, Card } from "@/components/ui";
+import { UpsellModal } from "@/components/upsell-modal";
+import { useSubscription } from "@/components/use-subscription";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
 import {
@@ -38,6 +40,8 @@ type CompletionResponse = {
     newTotalWorkouts?: number;
     prevWeightIncreases?: number;
     newWeightIncreases?: number;
+    program_completed?: boolean;
+    user_plan?: string | null;
   };
   error?: string;
 };
@@ -62,9 +66,13 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [completingWorkout, setCompletingWorkout] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [replacementCount, setReplacementCount] = useState(data.replacementCount);
+  // Contador de substituições por sessão (Treino A, B, C...) — usado para o limite do premium
+  const [replacementsPerWorkoutKey, setReplacementsPerWorkoutKey] = useState<Record<string, number>>({});
   const [replacedExerciseNames, setReplacedExerciseNames] = useState<Set<string>>(new Set());
   const [totalWorkoutsAllTime, setTotalWorkoutsAllTime] = useState(data.totalWorkoutsAllTime);
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
+  const [showProgramUpsell, setShowProgramUpsell] = useState(false);
+  const { subscription } = useSubscription();
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
     [data.workoutOrder, sessionProgress.lastCompletedWorkoutKey]
@@ -94,10 +102,22 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const isCycleComplete = sessionProgress.cycleCompleted;
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
   const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
-  const replacementLimitReached = replacementCount >= 2;
+  const isPremiumUser = subscription?.isPremium ?? false;
+  // Free: limite de 2 por programa | Premium: limite de 2 por sessão (Treino A, B, C independentes)
+  const replacementsForActiveDay = replacementsPerWorkoutKey[activeWorkoutKey] ?? 0;
+  const replacementLimitReached = isPremiumUser
+    ? replacementsForActiveDay >= 2
+    : replacementCount >= 2;
+  // Quantas substituições restam no contexto atual (para exibir no modal)
+  const replacementsRemaining = Math.max(0, 2 - (isPremiumUser ? replacementsForActiveDay : replacementCount));
 
   async function handleExerciseReplaced(newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) {
     setReplacementCount((prev) => prev + 1);
+    // Incrementa o contador do treino ativo (A, B, C...) para controle do limite premium
+    setReplacementsPerWorkoutKey((prev) => ({
+      ...prev,
+      [activeWorkoutKey]: (prev[activeWorkoutKey] ?? 0) + 1
+    }));
     if (newExerciseName) {
       setReplacedExerciseNames((prev) => new Set([...prev, newExerciseName]));
     }
@@ -193,6 +213,11 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         workout_key: activeWorkoutKey,
         session_number: result.data.completion?.sessionNumber ?? null
       });
+
+      // Exibe upsell se o programa foi concluído e o usuário é free
+      if (result.data.program_completed && result.data.user_plan === "free") {
+        setShowProgramUpsell(true);
+      }
     } catch (requestError) {
       setFeedback({
         tone: "error",
@@ -277,7 +302,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         </div>
 
         {exerciseRows.map((exercise, index) => {
-          const shouldRenderAd = (index + 1) % 3 === 0 && index < exerciseRows.length - 1;
+          // Anúncios só são exibidos para usuários do plano free
+          const shouldRenderAd = !subscription?.isPremium && (index + 1) % 3 === 0 && index < exerciseRows.length - 1;
 
           return (
             <div key={exercise.id} className="space-y-3">
@@ -294,6 +320,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 exerciseName={exercise.name}
                 replacementLimitReached={replacementLimitReached}
                 replacementCount={replacementCount}
+                replacementsRemaining={replacementsRemaining}
+                isPremiumUser={isPremiumUser}
                 isReplaced={replacedExerciseNames.has(exercise.name)}
                 onExerciseReplaced={handleExerciseReplaced}
               />
@@ -341,6 +369,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           achievement={newAchievement}
           onClose={() => setNewAchievement(null)}
         />
+      ) : null}
+
+      {showProgramUpsell ? (
+        <UpsellModal reason="program_completed" onClose={() => setShowProgramUpsell(false)} />
       ) : null}
     </AppShell>
   );

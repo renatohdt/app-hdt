@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, TrendingUp, X } from "lucide-react";
 import { Button, Card } from "@/components/ui";
+import { UpsellModal } from "@/components/upsell-modal";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
@@ -41,6 +42,8 @@ export function ExpandableExerciseCard({
   exerciseName,
   replacementLimitReached,
   replacementCount,
+  replacementsRemaining,
+  isPremiumUser = false,
   isReplaced = false,
   onExerciseReplaced
 }: {
@@ -56,6 +59,8 @@ export function ExpandableExerciseCard({
   exerciseName: string;
   replacementLimitReached: boolean;
   replacementCount: number;
+  replacementsRemaining?: number;
+  isPremiumUser?: boolean;
   isReplaced?: boolean;
   onExerciseReplaced: (newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) => void;
 }) {
@@ -72,6 +77,7 @@ export function ExpandableExerciseCard({
   const [isReplacing, setIsReplacing] = useState(false);
   const [replaceError, setReplaceError] = useState<string | null>(null);
   const [replaceLimitError, setReplaceLimitError] = useState(false);
+  const [showUpsell, setShowUpsell] = useState(false);
   const [wasReplaced, setWasReplaced] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -260,6 +266,12 @@ export function ExpandableExerciseCard({
       if (!response.ok) {
         if (result?.error === "replacement_limit_reached") {
           setReplaceLimitError(true);
+          setShowReplaceModal(false);
+          // Premium: exibe mensagem amigável sem upsell
+          // Free: abre upsell para upgrade
+          if (result?.plan !== "premium") {
+            setShowUpsell(true);
+          }
           return;
         }
         throw new Error(result?.error ?? "Não foi possível substituir o exercício agora.");
@@ -595,9 +607,13 @@ export function ExpandableExerciseCard({
                     Esta ação é irreversível
                   </p>
                   <p className="text-xs leading-4 text-white/50">
-                    {2 - replacementCount === 1
-                      ? "Resta apenas 1 substituição disponível neste plano."
-                      : `Você tem ${2 - replacementCount} de 2 substituições disponíveis neste plano.`}
+                    {(replacementsRemaining ?? (2 - replacementCount)) === 1
+                      ? isPremiumUser
+                        ? "Resta 1 substituição nesta sessão de treino."
+                        : "Resta apenas 1 substituição disponível neste programa."
+                      : isPremiumUser
+                        ? `Você tem ${replacementsRemaining ?? (2 - replacementCount)} de 2 substituições nesta sessão.`
+                        : `Você tem ${replacementsRemaining ?? (2 - replacementCount)} de 2 substituições neste programa.`}
                   </p>
                 </div>
               </div>
@@ -624,7 +640,9 @@ export function ExpandableExerciseCard({
 
             {replaceLimitError ? (
               <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/70">
-                Você atingiu o limite de substituições deste plano.
+                {isPremiumUser
+                  ? "Você já substituiu 2 exercícios nesta sessão. Cada treino (A, B, C...) tem seu próprio limite."
+                  : "Você atingiu o limite de substituições deste plano."}
                 <button
                   type="button"
                   onClick={() => setShowReplaceModal(false)}
@@ -666,6 +684,10 @@ export function ExpandableExerciseCard({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {showUpsell ? (
+        <UpsellModal reason="replacement_limit" onClose={() => setShowUpsell(false)} />
       ) : null}
     </div>
   );

@@ -6,6 +6,7 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
+import { isPremium } from "@/lib/subscription";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { callAIForReplacement, filterReplacementCandidates } from "@/lib/workout-ai";
@@ -125,29 +126,64 @@ export async function POST(request: NextRequest) {
       return jsonError("Não é possível substituir exercícios de mobilidade.", 400);
     }
 
-    // --- Verificar limite de substituições (todos tratados como Free por enquanto) ---
-    const { count: replacementCount, error: countError } = await supabase
-      .from("workout_exercise_replacements")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("workout_id", workoutId);
+    // --- Verificar limite de substituições baseado no plano real do usuário ---
+    // Free:    2 substituições por programa de treino (workout_id)
+    // Premium: 2 substituições por sessão de treino (workout_id + workout_day_id)
+    const userIsPremium = await isPremium(userId);
 
-    if (countError) {
-      logError("REPLACE_EXERCISE", "Replacement count query failed", {
-        user_id: userId,
-        workout_id: workoutId,
-        error_code: getSupabaseErrorCode(countError)
-      });
-      return jsonError(REPLACE_ERROR_MESSAGE, 500);
-    }
+    if (!userIsPremium) {
+      // Free: conta total de substituições no programa
+      const { count: replacementCount, error: countError } = await supabase
+        .from("workout_exercise_replacements")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("workout_id", workoutId);
 
-    if ((replacementCount ?? 0) >= 2) {
-      logInfo("REPLACE_EXERCISE", "Free plan replacement limit reached", {
-        user_id: userId,
-        workout_id: workoutId,
-        count: replacementCount
-      });
-      return NextResponse.json({ success: false, error: "replacement_limit_reached", plan: "free" }, { status: 403 });
+      if (countError) {
+        logError("REPLACE_EXERCISE", "Replacement count query failed", {
+          user_id: userId,
+          workout_id: workoutId,
+          error_code: getSupabaseErrorCode(countError)
+        });
+        return jsonError(REPLACE_ERROR_MESSAGE, 500);
+      }
+
+      if ((replacementCount ?? 0) >= 2) {
+        logInfo("REPLACE_EXERCISE", "Free plan replacement limit reached", {
+          user_id: userId,
+          workout_id: workoutId,
+          count: replacementCount
+        });
+        return NextResponse.json({ success: false, error: "replacement_limit_reached", plan: "free" }, { status: 403 });
+      }
+    } else {
+      // Premium: conta substituições apenas desta sessão (Treino A, B, C... independentes)
+      const { count: dayReplacementCount, error: dayCountError } = await supabase
+        .from("workout_exercise_replacements")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("workout_id", workoutId)
+        .eq("workout_day_id", workoutDayId);
+
+      if (dayCountError) {
+        logError("REPLACE_EXERCISE", "Premium day replacement count query failed", {
+          user_id: userId,
+          workout_id: workoutId,
+          workout_day_id: workoutDayId,
+          error_code: getSupabaseErrorCode(dayCountError)
+        });
+        return jsonError(REPLACE_ERROR_MESSAGE, 500);
+      }
+
+      if ((dayReplacementCount ?? 0) >= 2) {
+        logInfo("REPLACE_EXERCISE", "Premium per-day replacement limit reached", {
+          user_id: userId,
+          workout_id: workoutId,
+          workout_day_id: workoutDayId,
+          count: dayReplacementCount
+        });
+        return NextResponse.json({ success: false, error: "replacement_limit_reached", plan: "premium" }, { status: 403 });
+      }
     }
 
     // --- Carregar catálogo de exercícios ---
@@ -303,7 +339,7 @@ export async function POST(request: NextRequest) {
       original_exercise_id: originalRecord.id,
       replacement_exercise_id: replacementRecord.id,
       reason,
-      plan_type_at_time: "free"
+      plan_type_at_time: userIsPremium ? "premium" : "free"
     });
 
     if (historyError) {
