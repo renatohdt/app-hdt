@@ -134,7 +134,7 @@ function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
   return null;
 }
 
-// Pagamento de fatura bem-sucedido → renova o período da assinatura
+// Pagamento de fatura bem-sucedido → renova o período ou cria a assinatura se ainda não existir
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
 
@@ -156,29 +156,85 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   const periodStart = firstItem?.current_period_start ?? null;
   const periodEnd = firstItem?.current_period_end ?? null;
 
+  const customerId =
+    typeof subscription.customer === "string"
+      ? subscription.customer
+      : subscription.customer?.id ?? null;
+
   const supabase = getServiceRoleClient();
 
-  const { error } = await supabase
+  // Verifica se já existe assinatura para este subscription_id
+  const { data: existing } = await supabase
     .from("subscriptions")
-    .update({
-      status: "active",
+    .select("id")
+    .eq("stripe_subscription_id", subscriptionId)
+    .maybeSingle();
+
+  if (existing) {
+    // Já existe — apenas renova o período
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({
+        status: "active",
+        stripe_price_id: priceId,
+        plan: plan ?? undefined,
+        current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
+        current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+        cancel_at_period_end: subscription.cancel_at_period_end,
+      })
+      .eq("stripe_subscription_id", subscriptionId);
+
+    if (error) {
+      logError("STRIPE_WEBHOOK", "Erro ao renovar assinatura", {
+        subscription_id: subscriptionId,
+        error: error.message,
+      });
+      return;
+    }
+
+    logInfo("STRIPE_WEBHOOK", "Assinatura renovada", { user_id: userId });
+  } else {
+    // Não existe ainda — cria (safety net caso checkout.session.completed falhe)
+    if (!plan || !customerId) {
+      logWarn("STRIPE_WEBHOOK", "invoice.payment_succeeded sem plan ou customer para criar assinatura", {
+        subscription_id: subscriptionId,
+      });
+      return;
+    }
+
+    // Busca dados de cobrança do usuário
+    const { data: userData } = await supabase
+      .from("users")
+      .select("billing_name, billing_cpf")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const { error } = await supabase.from("subscriptions").insert({
+      user_id: userId,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscriptionId,
       stripe_price_id: priceId,
-      plan: plan ?? undefined,
+      plan,
+      status: "active",
       current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
       current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       cancel_at_period_end: subscription.cancel_at_period_end,
-    })
-    .eq("stripe_subscription_id", subscriptionId);
-
-  if (error) {
-    logError("STRIPE_WEBHOOK", "Erro ao renovar assinatura", {
-      subscription_id: subscriptionId,
-      error: error.message,
+      customer_name: userData?.billing_name ?? null,
+      customer_cpf: userData?.billing_cpf ?? null,
+      customer_email: typeof invoice.customer_email === "string" ? invoice.customer_email : null,
+      payment_method: "card",
     });
-    return;
-  }
 
-  logInfo("STRIPE_WEBHOOK", "Assinatura renovada", { user_id: userId });
+    if (error) {
+      logError("STRIPE_WEBHOOK", "Erro ao criar assinatura via invoice", {
+        subscription_id: subscriptionId,
+        error: error.message,
+      });
+      return;
+    }
+
+    logInfo("STRIPE_WEBHOOK", "Assinatura criada via invoice.payment_succeeded (safety net)", { user_id: userId, plan });
+  }
 }
 
 // Falha no pagamento → marca como past_due
