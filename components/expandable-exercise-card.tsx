@@ -397,13 +397,18 @@ export function ExpandableExerciseCard({
 
                 {!isMobilityExercise ? (
                   replacementLimitReached ? (
-                    <span
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/24"
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isPremiumUser) setShowUpsell(true);
+                      }}
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/24 transition hover:border-primary/30 hover:text-primary/60"
                       title="Limite de substituições atingido"
                       aria-label="Limite de substituições atingido"
                     >
                       <Lock className="h-3.5 w-3.5" />
-                    </span>
+                    </button>
                   ) : (
                     <button
                       type="button"
