@@ -340,7 +340,8 @@ export async function POST(request: Request) {
         await generateWorkoutWithAI(answers, diagnosis, normalizedExercises, {
           previousWorkout: existingWorkoutState?.workout ?? null,
           lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
-          excludedExerciseIds
+          excludedExerciseIds,
+          userId
         }),
         {
           diagnosis,

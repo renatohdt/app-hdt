@@ -309,6 +309,30 @@ create table if not exists public.admin_audit_logs (
   retention_hold boolean not null default false
 );
 
+create table if not exists public.ai_workout_generations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete set null,
+  workout_id uuid references public.workouts(id) on delete set null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default (now() + interval '15 days'),
+  model text,
+  prompt_tokens integer,
+  completion_tokens integer,
+  total_tokens integer,
+  prompt_chars integer,
+  response_chars integer,
+  catalog_size_before_filter integer,
+  catalog_size_after_filter integer,
+  prompt_body text,
+  response_body text,
+  split_type text,
+  day_count integer,
+  duration_ms integer,
+  cost_cents integer,
+  status text not null default 'success' check (status in ('success', 'error')),
+  error_message text
+);
+
 -- Legacy cleanup kept here so the file is safe to rerun during setup.
 alter table public.users drop column if exists auth_user_id;
 alter table public.users drop column if exists email;
@@ -520,6 +544,15 @@ create index if not exists admin_audit_logs_created_at_idx on public.admin_audit
 create index if not exists admin_audit_logs_expires_at_idx on public.admin_audit_logs(expires_at)
   where retention_hold = false and deleted_at is null;
 
+create index if not exists ai_workout_generations_created_at_idx
+  on public.ai_workout_generations(created_at desc);
+create index if not exists ai_workout_generations_user_created_at_idx
+  on public.ai_workout_generations(user_id, created_at desc);
+create index if not exists ai_workout_generations_status_created_at_idx
+  on public.ai_workout_generations(status, created_at desc);
+create index if not exists ai_workout_generations_expires_at_idx
+  on public.ai_workout_generations(expires_at);
+
 drop trigger if exists users_guard_role_change on public.users;
 create trigger users_guard_role_change
 before update on public.users
@@ -554,6 +587,7 @@ alter table public.content_recommendations enable row level security;
 alter table public.workout_session_logs enable row level security;
 alter table public.workout_review_requests enable row level security;
 alter table public.admin_audit_logs enable row level security;
+alter table public.ai_workout_generations enable row level security;
 
 drop policy if exists "Users can read own row" on public.users;
 drop policy if exists "Users can insert own row" on public.users;
@@ -752,6 +786,8 @@ declare
   v_users_processed integer := 0;
   v_consents_candidates integer := 0;
   v_consents_processed integer := 0;
+  v_ai_logs_candidates integer := 0;
+  v_ai_logs_processed integer := 0;
 begin
   select count(*) into v_content_candidates
   from public.content_recommendations
@@ -804,6 +840,10 @@ begin
   where retention_hold = false
     and deleted_at is not null
     and coalesce(expires_at, deleted_at + interval '30 days') <= p_run_at;
+
+  select count(*) into v_ai_logs_candidates
+  from public.ai_workout_generations
+  where expires_at <= p_run_at;
 
   if not p_dry_run then
     delete from public.content_recommendations
@@ -864,6 +904,10 @@ begin
       and deleted_at is not null
       and coalesce(expires_at, deleted_at + interval '30 days') <= p_run_at;
     get diagnostics v_consents_processed = row_count;
+
+    delete from public.ai_workout_generations
+    where expires_at <= p_run_at;
+    get diagnostics v_ai_logs_processed = row_count;
   else
     v_content_processed := v_content_candidates;
     v_analytics_processed := v_analytics_candidates;
@@ -873,6 +917,7 @@ begin
     v_workouts_processed := v_workouts_candidates;
     v_users_processed := v_users_candidates;
     v_consents_processed := v_consents_candidates;
+    v_ai_logs_processed := v_ai_logs_candidates;
   end if;
 
   return jsonb_build_object(
@@ -886,7 +931,8 @@ begin
       'user_answers', jsonb_build_object('strategy', 'anonymize', 'eligible', v_answers_candidates, 'processed', v_answers_processed),
       'workouts', jsonb_build_object('strategy', 'anonymize', 'eligible', v_workouts_candidates, 'processed', v_workouts_processed),
       'users', jsonb_build_object('strategy', 'anonymize', 'eligible', v_users_candidates, 'processed', v_users_processed),
-      'user_consents', jsonb_build_object('strategy', 'delete_when_marked', 'eligible', v_consents_candidates, 'processed', v_consents_processed)
+      'user_consents', jsonb_build_object('strategy', 'delete_when_marked', 'eligible', v_consents_candidates, 'processed', v_consents_processed),
+      'ai_workout_generations', jsonb_build_object('strategy', 'delete', 'eligible', v_ai_logs_candidates, 'processed', v_ai_logs_processed)
     )
   );
 end;

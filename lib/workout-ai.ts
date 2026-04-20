@@ -12,6 +12,7 @@ import {
   normalizeStoredExerciseType
 } from "@/lib/exercise-library";
 import { repairPtBrText } from "@/lib/pt-br-text";
+import { recordWorkoutGeneration } from "@/lib/ai-telemetry";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { normalizeWorkoutKey } from "@/lib/workout-sessions";
 import {
@@ -95,6 +96,9 @@ type MobilitySelectionContext = {
   previousWorkout?: WorkoutPlan | null;
   lastCompletedWorkoutKey?: string | null;
   excludedExerciseIds?: string[];
+  // Opcional. Usado apenas para telemetria (gravar qual usuario gerou o
+  // treino em public.ai_workout_generations). Nao afeta a logica de geracao.
+  userId?: string | null;
 };
 
 type BlockWindow = {
@@ -410,6 +414,11 @@ export async function generateWorkoutWithAI(
     prompt_catalog_chars_after_mobility_filter: promptCatalogCharsAfterMobilityFilter
   });
 
+  // Telemetria: modelo/tempo/tokens usados para alimentar o dashboard admin
+  // de observabilidade da IA (public.ai_workout_generations).
+  const telemetryModel = process.env.OPENAI_WORKOUT_MODEL?.trim() || "gpt-4o-mini";
+  const telemetryStartedAt = Date.now();
+
   try {
     logInfo("AI", "Workout AI request started", {
       split_type: strategy.splitType,
@@ -419,7 +428,7 @@ export async function generateWorkoutWithAI(
     });
 
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_WORKOUT_MODEL?.trim() || "gpt-4o-mini",
+      model: telemetryModel,
       temperature: 0.6,
       messages: [
         {
@@ -439,7 +448,32 @@ export async function generateWorkoutWithAI(
       choice_count: response.choices.length
     });
 
+    // Captura metricas antes da validacao para que, mesmo se a validacao
+    // falhar, a gente consiga registrar a geracao como "error" com os
+    // numeros reais da chamada (tokens, custo, duracao).
+    const telemetryDurationMs = Date.now() - telemetryStartedAt;
+    const telemetryResponseBody = treinoIA ?? "";
+    const telemetryUsage = response.usage ?? null;
+
     if (!treinoIA) {
+      await recordWorkoutGeneration({
+        userId: mobilityContext.userId ?? null,
+        model: telemetryModel,
+        promptTokens: telemetryUsage?.prompt_tokens ?? null,
+        completionTokens: telemetryUsage?.completion_tokens ?? null,
+        totalTokens: telemetryUsage?.total_tokens ?? null,
+        promptChars: promptMontagemTreino.length,
+        responseChars: 0,
+        catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
+        catalogSizeAfterFilter: filteredLibrary.length,
+        promptBody: promptMontagemTreino,
+        responseBody: "",
+        splitType: strategy.splitType ?? null,
+        dayCount: strategy.dayCount ?? null,
+        durationMs: telemetryDurationMs,
+        status: "error",
+        errorMessage: "OpenAI retornou resposta vazia"
+      });
       throw new Error("A OpenAI não retornou conteúdo para o treino.");
     }
 
@@ -455,8 +489,44 @@ export async function generateWorkoutWithAI(
     );
 
     if (!validated) {
+      await recordWorkoutGeneration({
+        userId: mobilityContext.userId ?? null,
+        model: telemetryModel,
+        promptTokens: telemetryUsage?.prompt_tokens ?? null,
+        completionTokens: telemetryUsage?.completion_tokens ?? null,
+        totalTokens: telemetryUsage?.total_tokens ?? null,
+        promptChars: promptMontagemTreino.length,
+        responseChars: telemetryResponseBody.length,
+        catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
+        catalogSizeAfterFilter: filteredLibrary.length,
+        promptBody: promptMontagemTreino,
+        responseBody: telemetryResponseBody,
+        splitType: strategy.splitType ?? null,
+        dayCount: strategy.dayCount ?? null,
+        durationMs: telemetryDurationMs,
+        status: "error",
+        errorMessage: "Validação pós-IA falhou"
+      });
       throw new Error("A resposta da IA não passou na validação do backend.");
     }
+
+    await recordWorkoutGeneration({
+      userId: mobilityContext.userId ?? null,
+      model: telemetryModel,
+      promptTokens: telemetryUsage?.prompt_tokens ?? null,
+      completionTokens: telemetryUsage?.completion_tokens ?? null,
+      totalTokens: telemetryUsage?.total_tokens ?? null,
+      promptChars: promptMontagemTreino.length,
+      responseChars: telemetryResponseBody.length,
+      catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
+      catalogSizeAfterFilter: filteredLibrary.length,
+      promptBody: promptMontagemTreino,
+      responseBody: telemetryResponseBody,
+      splitType: strategy.splitType ?? null,
+      dayCount: strategy.dayCount ?? null,
+      durationMs: telemetryDurationMs,
+      status: "success"
+    });
 
     return validated;
   } catch (error) {
@@ -465,6 +535,35 @@ export async function generateWorkoutWithAI(
       status: typeof error === "object" && error && "status" in error ? (error as OpenAIWorkoutError).status ?? null : null,
       message: error instanceof Error ? error.message : "unknown"
     });
+
+    // Se o erro aconteceu ANTES de a gente conseguir gravar telemetria manual
+    // (falha de rede, quota, etc.), ainda assim registramos uma linha com
+    // status="error" para o dashboard mostrar o incidente.
+    const alreadyRecorded =
+      error instanceof Error &&
+      (error.message === "A OpenAI não retornou conteúdo para o treino." ||
+        error.message === "A resposta da IA não passou na validação do backend.");
+
+    if (!alreadyRecorded) {
+      await recordWorkoutGeneration({
+        userId: mobilityContext.userId ?? null,
+        model: telemetryModel,
+        promptTokens: null,
+        completionTokens: null,
+        totalTokens: null,
+        promptChars: promptMontagemTreino.length,
+        responseChars: 0,
+        catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
+        catalogSizeAfterFilter: filteredLibrary.length,
+        promptBody: promptMontagemTreino,
+        responseBody: "",
+        splitType: strategy.splitType ?? null,
+        dayCount: strategy.dayCount ?? null,
+        durationMs: Date.now() - telemetryStartedAt,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : "unknown"
+      });
+    }
 
     if (isOpenAIQuotaError(error)) {
       const quotaError = new Error("IA indisponível no momento. Tente novamente mais tarde.") as OpenAIWorkoutError;

@@ -210,7 +210,8 @@ export async function POST(request: Request) {
         const generatedWorkout = normalizeWorkoutPayload(
           await generateWorkoutWithAI(answers, diagnosis, normalizedExercises, {
             previousWorkout: existingWorkoutState?.workout ?? null,
-            lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null
+            lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
+            userId
           }),
           {
             diagnosis,

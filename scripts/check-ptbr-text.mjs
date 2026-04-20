@@ -5,7 +5,7 @@ const ROOT = process.cwd();
 const FILE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".md", ".html"]);
 const IGNORED_DIRS = new Set([".git", ".next", "node_modules", "public\\pwa", "public/pwa"]);
 const MOJIBAKE_PATTERNS = [
-  { regex: /[\u00c3\u00c2\uFFFD]/g, message: "Possível mojibake ou caractere quebrado." },
+  { regex: /[\u00c3\u00c2][\u0080-\u00bf]|\uFFFD/g, message: "Possível mojibake ou caractere quebrado." },
   { regex: /\u00e2[\u0080-\u00bf]/g, message: "Aspas, travessão ou seta corrompidos." }
 ];
 
