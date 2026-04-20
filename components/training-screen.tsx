@@ -340,13 +340,26 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               Você já registrou todas as sessões do plano atual. Quando renovar, todos os treinos do plano serão trocados juntos.
             </p>
           </div>
-        ) : confirmCompletion ? (
-          <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-            <p className="text-sm font-semibold text-white">Confirmar conclusão</p>
-            <p className="mt-1 text-sm text-white/62">
+        ) : (
+          <Button onClick={() => setConfirmCompletion(true)} className="min-h-14 w-full !text-[20px]">
+            Treino Concluído!
+          </Button>
+        )}
+      </div>
+      {newAchievement ? (
+        <AchievementPopup
+          achievement={newAchievement}
+          onClose={() => setNewAchievement(null)}
+        />
+      ) : null}
+
+      {confirmCompletion ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-8 sm:items-center sm:pb-0">
+          <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111] p-6 shadow-2xl">
+            <p className="text-sm text-white/62">
               Confirmar que você concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
             </p>
-            <div className="mt-4 flex flex-col gap-3 min-[380px]:flex-row">
+            <div className="mt-5 flex flex-col gap-3 min-[380px]:flex-row">
               <Button variant="secondary" onClick={() => setConfirmCompletion(false)} className="flex-1">
                 Cancelar
               </Button>
@@ -358,17 +371,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               </Button>
             </div>
           </div>
-        ) : (
-          <Button onClick={() => setConfirmCompletion(true)} className="min-h-14 w-full text-base">
-            Marcar treino como feito
-          </Button>
-        )}
-      </div>
-      {newAchievement ? (
-        <AchievementPopup
-          achievement={newAchievement}
-          onClose={() => setNewAchievement(null)}
-        />
+        </div>
       ) : null}
 
       {showProgramUpsell ? (

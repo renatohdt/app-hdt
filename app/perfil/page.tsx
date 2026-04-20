@@ -955,6 +955,22 @@ export default function PerfilPage() {
         </Card>
       )}
 
+      {/* Fale Conosco */}
+      <Card className="space-y-2 p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Fale Conosco</p>
+        <p className="text-[13px] leading-5 text-white/62">
+          Achou algum bug, tem alguma sugestão... entre em contato!
+        </p>
+        <a
+          href="https://horadotreino.com.br/fale-conosco/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary transition hover:text-primary/80"
+        >
+          Entrar em contato →
+        </a>
+      </Card>
+
       {/* Sair da conta */}
       <div className="pt-1">
         <button

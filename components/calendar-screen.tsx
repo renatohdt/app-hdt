@@ -285,14 +285,14 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         </div>
 
         {getAllAchievementsWithStatus(data.totalWorkoutsAllTime).filter((a) => a.unlocked).length > 0 ? (
-          <div className="-mx-5 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
-            <div className="flex gap-3 pb-2">
+          <div>
+            <div className="flex flex-col gap-3">
               {getAllAchievementsWithStatus(data.totalWorkoutsAllTime)
                 .filter((a) => a.unlocked)
                 .map((achievement) => (
                   <div
                     key={achievement.id}
-                    className="flex w-[30vw] min-w-[110px] max-w-[148px] shrink-0 flex-col gap-2.5 rounded-[20px] border border-primary/20 bg-primary/[0.07] p-3.5"
+                    className="flex w-full flex-row items-center gap-3 rounded-[20px] border border-primary/20 bg-primary/[0.07] p-3.5"
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">
                       🏆
