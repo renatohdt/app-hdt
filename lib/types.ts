@@ -55,6 +55,7 @@ export type ExerciseRecord = {
   location?: string[];
   level?: string | string[];
   equipment?: string[];
+  required_equipment?: string[];
   metadata?: {
     muscle?: string;
     muscle_groups?: string[];
@@ -63,6 +64,7 @@ export type ExerciseRecord = {
     location?: string[];
     level?: string | string[];
     equipment?: string[];
+    required_equipment?: string[];
   };
   video_url: string | null;
 };

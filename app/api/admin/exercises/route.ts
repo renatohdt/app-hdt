@@ -33,6 +33,7 @@ type ExerciseRequestBody = {
   type?: string;
   location?: string[] | string;
   equipment?: string[] | string;
+  required_equipment?: string[] | string;
   level?: string[] | string;
   video_url?: string | null;
   videoUrl?: string | null;
@@ -166,6 +167,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     const type = normalizeStoredExerciseType(body.type) ?? undefined;
     const location = normalizeExerciseLocations(body.location);
     const equipment = normalizeExerciseEquipmentList(body.equipment);
+    const required_equipment = normalizeExerciseEquipmentList(body.required_equipment);
     const level = normalizeExerciseLevelList(body.level);
 
     if (method === "PATCH" && !body.id) {
@@ -202,6 +204,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       type,
       location,
       equipment,
+      required_equipment,
       level,
       metadata: {
         muscle: primaryMuscle ?? "",
@@ -210,6 +213,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
         type,
         location: location ?? [],
         equipment: equipment ?? [],
+        required_equipment: required_equipment ?? [],
         level: level ?? []
       },
       video_url: (body.video_url ?? body.videoUrl)?.trim() || null

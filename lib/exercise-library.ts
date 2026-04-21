@@ -371,6 +371,14 @@ export function getExerciseEquipment(exercise?: Pick<ExerciseRecord, "equipment"
   return normalizeExerciseEquipmentList(exercise.equipment ?? exercise.metadata?.equipment ?? null);
 }
 
+export function getExerciseRequiredEquipment(exercise?: Pick<ExerciseRecord, "required_equipment" | "metadata"> | null) {
+  if (!exercise) {
+    return [];
+  }
+
+  return normalizeExerciseEquipmentList(exercise.required_equipment ?? exercise.metadata?.required_equipment ?? null);
+}
+
 export function formatExerciseEquipmentLabel(value?: string | null) {
   const normalized = normalizeExerciseEquipment(value);
   return normalized ? EQUIPMENT_LABELS.get(normalized) ?? value ?? normalized : "Não informado";

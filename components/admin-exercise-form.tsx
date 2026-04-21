@@ -11,6 +11,7 @@ import {
   EXERCISE_MUSCLE_OPTIONS,
   EXERCISE_TYPE_OPTIONS,
   getExerciseEquipment,
+  getExerciseRequiredEquipment,
   getExerciseLevels,
   getExerciseLocations,
   getExerciseMuscleGroups,
@@ -29,6 +30,7 @@ type ExerciseFormValues = {
   level: string[];
   location: string[];
   equipment: string[];
+  required_equipment: string[];
   video_url: string;
 };
 
@@ -40,6 +42,7 @@ const emptyValues: ExerciseFormValues = {
   level: [],
   location: [],
   equipment: [],
+  required_equipment: [],
   video_url: ""
 };
 
@@ -84,6 +87,7 @@ export function AdminExerciseForm({
       level: getExerciseLevels(initialValues),
       location: getExerciseLocations(initialValues),
       equipment: getExerciseEquipment(initialValues),
+      required_equipment: getExerciseRequiredEquipment(initialValues),
       video_url: initialValues.video_url ?? ""
     });
   }, [initialValues]);
@@ -140,6 +144,7 @@ export function AdminExerciseForm({
       level: ensureArray(values.level),
       location: ensureArray(values.location),
       equipment: normalizeExerciseEquipmentList(values.equipment),
+      required_equipment: normalizeExerciseEquipmentList(values.required_equipment),
       video_url: values.video_url || null
     };
 
@@ -190,7 +195,7 @@ export function AdminExerciseForm({
     });
   }
 
-  function toggleArrayValue(field: "level" | "location" | "equipment", value: string) {
+  function toggleArrayValue(field: "level" | "location" | "equipment" | "required_equipment", value: string) {
     setValues((current) => {
       const currentValues = current[field];
       const nextValues = currentValues.includes(value)
@@ -306,9 +311,18 @@ export function AdminExerciseForm({
 
         <CheckboxGroup
           title="Equipamentos"
+          description="Marque todos os materiais relacionados ao exercício (usado para exibição e filtro OR)."
           options={EXERCISE_EQUIPMENT_OPTIONS}
           selected={values.equipment}
           onToggle={(value) => toggleArrayValue("equipment", value)}
+        />
+
+        <CheckboxGroup
+          title="Equipamentos obrigatórios (todos necessários)"
+          description="Marque somente os materiais que o usuário PRECISA ter ao mesmo tempo. Ex: halteres + fitball para 'Press na Fitball'. Deixe vazio se o exercício precisa de apenas um material."
+          options={EXERCISE_EQUIPMENT_OPTIONS}
+          selected={values.required_equipment}
+          onToggle={(value) => toggleArrayValue("required_equipment", value)}
         />
 
         <div className="flex flex-wrap gap-3">

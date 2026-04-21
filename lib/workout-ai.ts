@@ -2839,6 +2839,17 @@ function matchesLocation(exercise: ExerciseRecord, location: QuizAnswers["locati
 }
 
 function matchesEquipment(exercise: ExerciseRecord, allowedEquipment: Set<string>) {
+  // Se o exercício tem equipamentos obrigatórios (todos necessários ao mesmo tempo),
+  // o usuário precisa ter TODOS eles — lógica AND.
+  const requiredEquipment = normalizeStringArray(
+    exercise.required_equipment ?? exercise.metadata?.required_equipment
+  ).map(normalizeEquipment).filter(Boolean);
+
+  if (requiredEquipment.length > 0) {
+    return requiredEquipment.every((item) => allowedEquipment.has(item));
+  }
+
+  // Sem required_equipment: comportamento padrão — usuário precisa de qualquer um — lógica OR.
   const equipment = normalizeStringArray(exercise.equipment ?? exercise.metadata?.equipment).map(normalizeEquipment);
   if (!equipment.length) return true;
   return equipment.some((item) => allowedEquipment.has(item));
