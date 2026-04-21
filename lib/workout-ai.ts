@@ -338,8 +338,10 @@ export async function generateWorkoutWithAI(
     "",
     "SELECAO DE EXERCICIOS:",
     "- Use EXCLUSIVAMENTE os nomes exatos de EXERCICIOS DISPONIVEIS abaixo; nao invente, traduza ou adapte",
-    "- Nao repita o mesmo exercicio na mesma sessao; sets/reps/rest = inteiros",
+    "- UNICIDADE ABSOLUTA: cada exercicio deve aparecer NO MAXIMO 1 VEZ em todo o plano — nunca repita o mesmo nome em sessoes diferentes",
+    "- Nao repita o mesmo exercicio dentro da mesma sessao; sets/reps/rest = inteiros",
     "- Nao inclua exercicios de mobilidade ou ativacao (o app adiciona depois)",
+    "- Abs/core (abdominais, prancha, etc.): inclua SOMENTE nas sessoes onde 'abs' estiver listado como musculo PRIMARIO da sessao; em sessoes onde abs e apenas secundario (ex: push, pull) NAO adicione exercicios isolados de abs",
     "",
     "BLOCOS COMBINADOS (tipos permitidos: ver allowedBlockTypes na estrategia):",
     "- Une exercicios muscularmente compativeis; descanso so ao final da volta",
@@ -713,10 +715,14 @@ function validateAndBuildWorkoutPlan(
   const sections: WorkoutSection[] = [];
   const sectionEstimates: ReturnType<typeof estimateWorkoutSectionDuration>[] = [];
 
+  // Garante unicidade de exercícios em todo o plano (cross-session).
+  // Cada nome que passar pela sanitização entra aqui e é bloqueado nas próximas sessões.
+  const usedAcrossSessions = new Set<string>();
+
   for (const [index, day] of normalizedPlan.slice(0, strategy.dayCount).entries()) {
     const blueprint = strategy.sessions[index] ?? strategy.sessions[strategy.sessions.length - 1];
     const rawExercises = Array.isArray(day.exercises) ? day.exercises : [];
-    const sanitized = sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames);
+    const sanitized = sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
 
     if (!sanitized.length) {
       logWarn("AI", "Workout AI session adjusted after sanitization");
@@ -1832,7 +1838,8 @@ function sanitizeAiDayExercises(
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
   exerciseMap: Map<string, ExerciseLookup>,
-  allowedNames: Set<string>
+  allowedNames: Set<string>,
+  usedAcrossSessions?: Set<string>
 ) {
   const seen = new Set<string>();
   let advancedBlocks = 0;
@@ -1846,7 +1853,14 @@ function sanitizeAiDayExercises(
         return null;
       }
 
+      // Bloqueia exercício já usado em outra sessão do mesmo plano
+      if (usedAcrossSessions?.has(key)) {
+        logWarn("AI", "Exercise rejected — already used in another session", { exercise_name: rawName });
+        return null;
+      }
+
       seen.add(key);
+      usedAcrossSessions?.add(key);
       const lookup = exerciseMap.get(key);
       if (!lookup) {
         return null;
@@ -1864,7 +1878,19 @@ function sanitizeAiDayExercises(
         return null;
       }
 
-      // Terceira camada: exercícios funcionais precisam ter ao menos um músculo
+      // Terceira camada: exercícios de abs isolado só são permitidos quando
+      // abs está nos músculos PRIMÁRIOS da sessão. Em sessões de push/pull/etc.
+      // onde abs é apenas secundário, exercícios abdominais isolados não fazem sentido.
+      const isAbsExercise = (lookup.profile.primaryMuscles ?? []).every((m) => m === "abs" || m === "lower_back");
+      if (isAbsExercise && !blueprint.primaryMuscles.includes("abs")) {
+        logWarn("AI", "Abs exercise rejected — abs is not primary in this session", {
+          exercise_name: lookup.source.name,
+          session_primary_muscles: blueprint.primaryMuscles
+        });
+        return null;
+      }
+
+      // Quarta camada: exercícios funcionais precisam ter ao menos um músculo
       // em comum com os músculos primários ou secundários da sessão.
       // Sem isso, a IA pode colocar um funcional de costas num dia de perna, por ex.
       const isFunctional = lookup.profile.movementType === "functional";
