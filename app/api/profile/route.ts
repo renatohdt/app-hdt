@@ -50,6 +50,7 @@ type ProfilePayload = {
   };
   excludedExercises: Array<{ exerciseId: string; exerciseName: string }>;
   totalWorkoutsAllTime?: number;
+  lastWorkoutGeneratedAt?: string | null;
 };
 
 type ProfileUpdateBody = {
@@ -110,6 +111,10 @@ export async function GET(request: Request) {
         getAllTimeWorkoutCount(supabase, userId)
       ]);
 
+    // lastRegeneratedAt é salvo nos answers somente quando o usuário
+    // regenera pelo perfil — treino inicial do quiz não conta.
+    const lastRegeneratedAt = (savedAnswers as Record<string, unknown> | null)?.lastRegeneratedAt;
+
     return jsonSuccess({
       ...buildProfilePayload(
         {
@@ -123,7 +128,8 @@ export async function GET(request: Request) {
           exerciseName: row.exercise_name
         }))
       ),
-      totalWorkoutsAllTime
+      totalWorkoutsAllTime,
+      lastWorkoutGeneratedAt: typeof lastRegeneratedAt === "string" ? lastRegeneratedAt : null
     });
   } catch {
     return jsonError("Não foi possível carregar seu perfil.", 500);

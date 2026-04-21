@@ -10,7 +10,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
-import { getUserAnswersByUserId } from "@/lib/user-answers";
+import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
@@ -397,6 +397,15 @@ export async function POST(request: Request) {
         error_code: getSupabaseErrorCode(workoutSaveResult.error)
       });
       return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
+    }
+
+    // Quando o usuário regenerou manualmente pelo perfil, registra o timestamp
+    // para controlar o limite de 1x a cada 30 dias no plano free.
+    if (forceRegenerate) {
+      await saveUserAnswers(supabase, user.id, {
+        ...savedAnswers,
+        lastRegeneratedAt: new Date().toISOString()
+      } as QuizAnswers & { lastRegeneratedAt: string });
     }
 
     return NextResponse.json({
