@@ -26,10 +26,17 @@ export function buildWorkoutSectionItems(mobility: WorkoutExercise[], exercises:
     blockType: "mobility"
   }));
 
+  // Garante que exercícios de aquecimento sempre vêm primeiro,
+  // independente da ordem retornada pela IA.
+  const warmupFirst = [
+    ...exercises.filter((ex) => normalizeBlockType(ex.blockType ?? ex.type) === "warmup"),
+    ...exercises.filter((ex) => normalizeBlockType(ex.blockType ?? ex.type) !== "warmup")
+  ];
+
   let cursor = 0;
 
-  while (cursor < exercises.length) {
-    const current = exercises[cursor];
+  while (cursor < warmupFirst.length) {
+    const current = warmupFirst[cursor];
     const normalizedBlockType = normalizeBlockType(
       current.blockType ?? current.type ?? current.trainingTechnique ?? current.technique
     );
@@ -39,8 +46,8 @@ export function buildWorkoutSectionItems(mobility: WorkoutExercise[], exercises:
       const group = [current];
       let lookahead = cursor + 1;
 
-      while (lookahead < exercises.length) {
-        const next = exercises[lookahead];
+      while (lookahead < warmupFirst.length) {
+        const next = warmupFirst[lookahead];
         const nextBlockType = normalizeBlockType(next.blockType ?? next.type ?? next.trainingTechnique ?? next.technique);
         const sameBlockId = Boolean(current.blockId && next.blockId && current.blockId === next.blockId);
         const sameInlineGroup = !current.blockId && nextBlockType === blockType;

@@ -173,6 +173,18 @@ const MUSCLE_TIER_MAP: Record<string, number> = {
 const TIER_BASE_QUOTAS: Record<number, number> = { 1: 8, 2: 4, 3: 3 };
 const ABS_QUOTA_BASE = 5;
 
+/**
+ * Músculos que recebem bônus de quota quando o usuário escolhe uma região de ênfase.
+ */
+const FOCUS_REGION_MUSCLES: Record<string, string[]> = {
+  chest: ["chest"],
+  back: ["back"],
+  legs: ["quadriceps", "hamstrings", "calves"],
+  legs_glutes: ["quadriceps", "hamstrings", "calves", "glutes"],
+  arms: ["biceps", "triceps"],
+  balanced: []
+};
+
 function selectExercisesForAiCatalog(
   answers: QuizAnswers,
   exerciseLibrary: ExerciseRecord[],
@@ -1053,13 +1065,15 @@ function matchesExerciseLevel(exercise: ExerciseRecord, userLevel: WorkoutStrate
 }
 
 /**
- * Exercícios do tipo cardio são excluídos do catálogo apenas para hypertrophy,
- * onde o foco é força e volume muscular. Para fat_loss, conditioning e
- * recomposition o cardio é mantido pois contribui para a estratégia de treino.
+ * Filtra exercícios incompatíveis com o objetivo do treino:
+ * - Cardio: excluído para hypertrophy (foco em força/volume, sem gasto aeróbico)
+ * - Functional: excluído para hypertrophy (treinos funcionais não são o método
+ *   principal para ganho de massa; para outros objetivos são válidos desde que
+ *   respeitem o grupo muscular da sessão)
  */
 function matchesGoalExerciseType(exercise: ExerciseRecord, goalStyle: WorkoutStrategy["goalStyle"]): boolean {
   const rawType = normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type);
-  if (rawType === "cardio" && goalStyle === "hypertrophy") {
+  if (goalStyle === "hypertrophy" && (rawType === "cardio" || rawType === "functional")) {
     return false;
   }
   return true;
@@ -1094,6 +1108,10 @@ function calcMuscleQuota(muscle: string, strategy: WorkoutStrategy): number {
   }
 
   if (strategy.dayCount >= 4) quota += 1; // planos densos precisam de mais variedade
+
+  // Bônus de ênfase regional escolhida pelo usuário
+  const focusMuscles = FOCUS_REGION_MUSCLES[strategy.focusRegion] ?? [];
+  if (focusMuscles.includes(muscle)) quota += 2;
 
   return Math.max(1, quota);
 }
@@ -1365,7 +1383,7 @@ function buildRetentionScore(
   }
 
   if (exercise.movementType === "functional") {
-    score += strategy.goalStyle === "conditioning" ? 8 : strategy.timeBudget.bucket === "express" ? 4 : 0;
+    score += strategy.goalStyle === "conditioning" ? 8 : 3;
   }
 
   if ((exercise.primaryMuscles ?? []).some((muscle) => blueprint.primaryMuscles.includes(muscle))) {
@@ -1450,7 +1468,7 @@ function scoreFallbackCandidate(
   }
 
   if (profile.movementType === "functional") {
-    score += strategy.goalStyle === "conditioning" ? 12 : strategy.timeBudget.bucket === "express" ? 4 : 0;
+    score += strategy.goalStyle === "conditioning" ? 12 : 4;
   }
 
   if (
@@ -1846,6 +1864,24 @@ function sanitizeAiDayExercises(
         return null;
       }
 
+      // Terceira camada: exercícios funcionais precisam ter ao menos um músculo
+      // em comum com os músculos primários ou secundários da sessão.
+      // Sem isso, a IA pode colocar um funcional de costas num dia de perna, por ex.
+      const isFunctional = lookup.profile.movementType === "functional";
+      if (isFunctional) {
+        const sessionMuscles = new Set([...blueprint.primaryMuscles, ...blueprint.secondaryMuscles]);
+        const exerciseMuscles = [...(lookup.profile.primaryMuscles ?? []), ...(lookup.profile.secondaryMuscles ?? [])];
+        const hasOverlap = exerciseMuscles.some((m) => sessionMuscles.has(m));
+        if (!hasOverlap) {
+          logWarn("AI", "Functional exercise rejected — muscles don't match session blueprint", {
+            exercise_name: lookup.source.name,
+            exercise_muscles: exerciseMuscles,
+            session_muscles: [...sessionMuscles]
+          });
+          return null;
+        }
+      }
+
       let blockType = normalizeBlockType(exercise.blockType ?? exercise.type ?? exercise.trainingTechnique ?? exercise.technique);
       if (lookup.profile.movementType === "mobility") {
         blockType = "mobility";
@@ -1909,7 +1945,7 @@ function scoreExerciseOrder(exercise: SanitizedExercise, blueprint: SessionBluep
   let score = 0;
 
   if (exercise.movementType === "compound") score += 28;
-  if (exercise.movementType === "functional") score -= 8;
+  if (exercise.movementType === "functional") score += 6;
   if ((exercise.primaryMuscles ?? []).some((muscle) => blueprint.primaryMuscles.includes(muscle))) score += 16;
   if ((exercise.primaryMuscles ?? []).some((muscle) => blueprint.secondaryMuscles.includes(muscle))) score += 9;
   if ((exercise.secondaryMuscles ?? []).some((muscle) => blueprint.primaryMuscles.includes(muscle))) score += 5;

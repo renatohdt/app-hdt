@@ -41,34 +41,6 @@ export const quizSteps = [
     type: "physical"
   },
   {
-    key: "profession",
-    title: "Qual é a sua profissão?",
-    type: "text",
-    placeholder: "Ex.: trabalho sentado, professor, etc."
-  },
-  {
-    key: "situation",
-    title: "Qual situação mais combina com você?",
-    type: "choice",
-    options: [
-      { label: "Eu começo, mas não consigo manter consistência", value: "cant_stay_consistent" },
-      { label: "Eu treino, mas não vejo resultados", value: "no_results" },
-      { label: "Não sei se estou treinando corretamente", value: "dont_know_correctly" },
-      { label: "Sinto que poderia ter resultados melhores", value: "could_get_better" }
-    ]
-  },
-  {
-    key: "mindMuscle",
-    title: "Você sente o músculo trabalhando durante os exercícios?",
-    type: "choice",
-    options: [
-      { label: "Sim, claramente", value: "clear" },
-      { label: "Às vezes", value: "sometimes" },
-      { label: "Raramente", value: "rarely" },
-      { label: "Nunca", value: "never" }
-    ]
-  },
-  {
     key: "wrist",
     title: "Com base na imagem, como os dedos se encontram no seu punho?",
     description: "Envolva o punho com o polegar e o dedo médio.",
@@ -142,13 +114,17 @@ export const quizSteps = [
     formatValue: (value: number) => `${value} min`
   },
   {
-    key: "structuredPlan",
-    title: "Você já seguiu um plano de treino estruturado?",
+    key: "focusRegion",
+    title: "Qual região você quer intensificar nos treinos?",
+    description: "Usamos isso para priorizar exercícios e volume nessa área.",
     type: "choice",
     options: [
-      { label: "Sim, com um personal trainer", value: "coach" },
-      { label: "Sim, por conta própria", value: "self" },
-      { label: "Não", value: "no" }
+      { label: "Peito", value: "chest" },
+      { label: "Dorsais", value: "back" },
+      { label: "Pernas", value: "legs" },
+      { label: "Pernas e Glúteo", value: "legs_glutes" },
+      { label: "Braços", value: "arms" },
+      { label: "Todos / Equilibrado", value: "balanced" }
     ]
   },
   {
@@ -165,7 +141,6 @@ export const initialAnswers: Partial<QuizAnswers> = {
   age: 25,
   weight: 70,
   height: 170,
-  profession: "",
   days: 3,
   time: 45
 };

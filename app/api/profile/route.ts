@@ -6,7 +6,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { BodyType, Gender, Goal, HomeEquipment, QuizAnswers } from "@/lib/types";
+import type { BodyType, FocusRegion, Gender, Goal, HomeEquipment, QuizAnswers } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { getAllTimeWorkoutCount } from "@/lib/workout-session-store";
 
@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 const GOAL_OPTIONS: Goal[] = ["lose_weight", "gain_muscle", "body_recomposition", "improve_conditioning"];
 const GENDER_OPTIONS: Gender[] = ["male", "female"];
 const BODY_TYPE_OPTIONS: BodyType[] = ["endomorph", "mesomorph", "ectomorph"];
+const FOCUS_REGION_OPTIONS: FocusRegion[] = ["chest", "back", "legs", "legs_glutes", "arms", "balanced"];
 const EQUIPMENT_OPTIONS: HomeEquipment[] = [
   "halteres",
   "elasticos",
@@ -42,6 +43,7 @@ type ProfilePayload = {
     weight?: number;
     height?: number;
     profession?: string;
+    focusRegion?: string;
     days?: number;
     time?: number;
     equipment?: string[];
@@ -63,6 +65,7 @@ type ProfileUpdateBody = {
   days?: unknown;
   time?: unknown;
   equipment?: unknown;
+  focusRegion?: unknown;
 };
 
 class ProfileValidationError extends Error {
@@ -173,6 +176,7 @@ export async function PATCH(request: Request) {
     const nextTime = parseTime(body.time);
     const nextProfession = parseText(body.profession);
     const nextEquipment = parseEquipment(body.equipment);
+    const nextFocusRegion = parseOptionalEnumValue(body.focusRegion, FOCUS_REGION_OPTIONS) ?? "balanced";
     const bodyTypeFields = normalizeBodyTypeFields({ body_type: nextBodyType });
 
     if (nextEmail !== currentEmail) {
@@ -203,6 +207,7 @@ export async function PATCH(request: Request) {
       days: nextDays,
       time: nextTime,
       equipment: nextEquipment,
+      focusRegion: nextFocusRegion,
       wrist: bodyTypeFields.wrist,
       body_type_raw: bodyTypeFields.body_type_raw,
       body_type: bodyTypeFields.body_type
@@ -272,6 +277,7 @@ function buildProfilePayload(
       weight: normalizedAnswers.weight,
       height: normalizedAnswers.height,
       profession: normalizedAnswers.profession,
+      focusRegion: normalizedAnswers.focusRegion ?? "balanced",
       days: normalizedAnswers.days,
       time: normalizedAnswers.time,
       equipment: Array.isArray(normalizedAnswers.equipment) ? normalizedAnswers.equipment : []
@@ -342,6 +348,11 @@ function parseEnumValue<T extends string>(value: unknown, options: readonly T[],
   }
 
   return normalized as T;
+}
+
+function parseOptionalEnumValue<T extends string>(value: unknown, options: readonly T[]) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return options.includes(normalized as T) ? (normalized as T) : null;
 }
 
 function parseEquipment(value: unknown) {

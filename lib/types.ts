@@ -11,6 +11,7 @@ export type Wrist = "dont_touch" | "not_touch" | "just_touch" | "overlap";
 export type BodyType = "endomorph" | "mesomorph" | "ectomorph" | "unknown";
 export type Location = "gym" | "home";
 export type StructuredPlan = "coach" | "self" | "no";
+export type FocusRegion = "chest" | "back" | "legs" | "legs_glutes" | "arms" | "balanced";
 export type HomeEquipment =
   | "halteres"
   | "elasticos"
@@ -29,9 +30,9 @@ export type QuizAnswers = {
   age: number;
   weight: number;
   height: number;
-  profession: string;
-  situation: Situation;
-  mindMuscle: MuscleConnection;
+  profession?: string;
+  situation?: Situation;
+  mindMuscle?: MuscleConnection;
   wrist: Wrist;
   body_type_raw?: Wrist | string;
   body_type?: BodyType | string;
@@ -39,7 +40,8 @@ export type QuizAnswers = {
   equipment: HomeEquipment[];
   days: number;
   time: number;
-  structuredPlan: StructuredPlan;
+  structuredPlan?: StructuredPlan;
+  focusRegion?: FocusRegion;
 };
 
 export type ExerciseRecord = {

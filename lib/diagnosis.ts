@@ -28,36 +28,18 @@ const profileContent: Record<UserProfile, DiagnosisResult> = {
 };
 
 export function diagnoseUser(answers: QuizAnswers): DiagnosisResult {
-  if (answers.situation === "cant_stay_consistent") {
-    return profileContent.inconsistent;
-  }
-
-  if (
-    answers.situation === "dont_know_correctly" ||
-    (answers.structuredPlan === "no" && answers.mindMuscle === "rarely") ||
-    (answers.experience === "no_training" && answers.structuredPlan === "no")
-  ) {
+  if (answers.experience === "no_training") {
     return profileContent.beginner_lost;
   }
 
-  if (
-    (answers.experience === "6_to_12_months" || answers.experience === "gt_1_year") &&
-    (answers.mindMuscle === "rarely" || answers.mindMuscle === "never") &&
-    answers.situation === "no_results"
-  ) {
+  if (answers.experience === "lt_6_months") {
+    return profileContent.beginner_lost;
+  }
+
+  if (answers.experience === "6_to_12_months") {
     return profileContent.false_intermediate;
   }
 
-  if (
-    (answers.experience === "6_to_12_months" || answers.experience === "gt_1_year") &&
-    (answers.mindMuscle === "rarely" || answers.mindMuscle === "never" || answers.situation === "could_get_better")
-  ) {
-    return profileContent.stagnated;
-  }
-
-  if (answers.structuredPlan === "no" || answers.mindMuscle === "rarely" || answers.mindMuscle === "never") {
-    return profileContent.beginner_lost;
-  }
-
-  return profileContent.false_intermediate;
+  // gt_1_year
+  return profileContent.stagnated;
 }

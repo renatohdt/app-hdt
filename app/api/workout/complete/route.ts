@@ -418,7 +418,8 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null) {
     wrist: savedAnswers?.wrist,
     body_type_raw: savedAnswers?.body_type_raw,
     body_type: savedAnswers?.body_type,
-    location: savedAnswers?.location ?? "home"
+    location: savedAnswers?.location ?? "home",
+    focusRegion: savedAnswers?.focusRegion ?? "balanced"
   }) as QuizAnswers;
 }
 

@@ -575,17 +575,7 @@ export function QuizForm() {
               <span>{step.formatValue(step.max)}</span>
             </div>
           </div>
-        ) : (
-          <div className="mt-8">
-            <input
-              type="text"
-              value={String(answers[step.key as keyof QuizAnswers] ?? "")}
-              onChange={(event) => updateCurrentAnswer(event.target.value)}
-              placeholder={step.placeholder}
-              className="min-h-16 w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 text-white outline-none transition focus:border-primary"
-            />
-          </div>
-        )}
+        ) : null}
       </div>
 
       <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

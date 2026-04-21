@@ -10,7 +10,7 @@ import {
   buildTimeBudgetBrief,
   type SessionTimeBudget
 } from "@/lib/workout-time";
-import type { ExerciseRecord, QuizAnswers, WorkoutBlockType } from "@/lib/types";
+import type { ExerciseRecord, FocusRegion, QuizAnswers, WorkoutBlockType } from "@/lib/types";
 
 export type TrainingLevel = "beginner" | "intermediate" | "advanced";
 export type TrainingGoalStyle = "fat_loss" | "hypertrophy" | "conditioning" | "recomposition";
@@ -22,7 +22,8 @@ export type WorkoutSplitType =
   | "upper_lower_full"
   | "upper_lower"
   | "push_pull_legs_plus"
-  | "body_part_split";
+  | "body_part_split"
+  | "focus_split";
 
 export type SessionBlueprint = {
   day: string;
@@ -45,6 +46,7 @@ export type WorkoutStrategy = {
   timeBudget: SessionTimeBudget;
   equipment: string[];
   bodyType: string;
+  focusRegion: FocusRegion;
   weeklyVolumeTargets: Record<string, number>;
   allowedBlockTypes: WorkoutBlockType[];
   maxAdvancedBlocksPerSession: number;
@@ -98,6 +100,7 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
   const timeAvailable = clamp(Number(answers.time) || 45, 15, 120);
   const equipment = normalizeEquipmentList(answers.equipment);
   const bodyType = resolveBodyType(answers);
+  const focusRegion: FocusRegion = answers.focusRegion ?? "balanced";
   const timeBudget = buildSessionTimeBudget({
     availableTimeMinutes: timeAvailable,
     level,
@@ -108,9 +111,10 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     level,
     goalStyle,
     timeAvailable,
-    equipment
+    equipment,
+    focusRegion
   });
-  const sessions = buildSessionBlueprints(splitType, dayCount, goalStyle);
+  const sessions = buildSessionBlueprints(splitType, dayCount, goalStyle, focusRegion);
 
   return {
     splitType,
@@ -123,6 +127,7 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     timeBudget,
     equipment,
     bodyType,
+    focusRegion,
     weeklyVolumeTargets: buildWeeklyVolumeTargets(sessions, goalStyle, level),
     allowedBlockTypes: buildAllowedBlockTypes(level, goalStyle, timeAvailable, timeBudget),
     maxAdvancedBlocksPerSession: buildTechniqueBudget(level, goalStyle, timeAvailable, timeBudget),
@@ -189,7 +194,8 @@ export function formatSplitTypeLabel(value?: string | null) {
     upper_lower_full: "Upper / Lower / Full",
     upper_lower: "Upper / Lower",
     push_pull_legs_plus: "Push / Pull / Legs + complementares",
-    body_part_split: "Divisão por grupamentos"
+    body_part_split: "Divisão por grupamentos",
+    focus_split: "Divisão com ênfase regional"
   };
 
   return value && value in labels ? labels[value as WorkoutSplitType] : "Plano sugerido";
@@ -230,6 +236,7 @@ export function buildCoachBrief(strategy: WorkoutStrategy) {
     splitType: strategy.splitType,
     splitLabel: strategy.splitLabel,
     rationale: strategy.rationale,
+    focusRegion: strategy.focusRegion !== "balanced" ? strategy.focusRegion : undefined,
     timeBudget: buildTimeBudgetBrief(strategy.timeBudget),
     weeklyVolumeTargets: strategy.weeklyVolumeTargets,
     allowedBlockTypes: strategy.allowedBlockTypes,
@@ -261,9 +268,15 @@ function decideSplitType(input: {
   goalStyle: TrainingGoalStyle;
   timeAvailable: number;
   equipment: string[];
+  focusRegion: FocusRegion;
 }): WorkoutSplitType {
   const limitedEquipment = input.equipment.length <= 1 || input.equipment.includes("nenhum");
   const shortSessions = input.timeAvailable <= 35;
+
+  // Com foco regional definido e pelo menos 3 dias, usa split dedicado
+  if (input.focusRegion !== "balanced" && input.dayCount >= 3) {
+    return "focus_split";
+  }
 
   if (input.dayCount === 1) return "full_body_single";
   if (input.dayCount === 2) {
@@ -292,8 +305,12 @@ function decideSplitType(input: {
 function buildSessionBlueprints(
   splitType: WorkoutSplitType,
   dayCount: number,
-  goalStyle: TrainingGoalStyle
+  goalStyle: TrainingGoalStyle,
+  focusRegion: FocusRegion = "balanced"
 ): SessionBlueprint[] {
+  if (splitType === "focus_split") {
+    return buildFocusSplitBlueprints(focusRegion, dayCount, goalStyle);
+  }
   const base: Record<WorkoutSplitType, SessionBlueprint[]> = {
     full_body_single: [
       session("A", "Treino A", "Full body completo com foco em grandes padrões", "Um único treino precisa cobrir empurrar, puxar e pernas sem inflar o volume.", ["quadriceps", "chest", "back"], ["glutes", "shoulders", "abs"], ["mobility", "normal"])
@@ -335,10 +352,146 @@ function buildSessionBlueprints(
       session("C", "Treino C", "Pernas com dominante de quadríceps", "Cria uma sessão forte para quadríceps e glúteos sem comprometer a recuperação posterior.", ["quadriceps", "glutes"], ["calves", "abs"], ["mobility", "normal", "drop-set"]),
       session("D", "Treino D", "Ombros e parte superior complementar", "Aumenta a frequência dos deltoides e estabilizadores do tronco.", ["shoulders", "chest", "back"], ["triceps", "biceps"], ["mobility", "normal", "bi-set"]),
       session("E", "Treino E", "Posterior, glúteos e braços complementares", "Fecha a semana com posterior e técnicas de intensificação em exercícios mais seguros.", ["hamstrings", "glutes", "biceps"], ["triceps", "abs"], ["mobility", "normal", "rest-pause", "drop-set"])
-    ]
+    ],
+    // Nunca acessado diretamente — focus_split usa buildFocusSplitBlueprints
+    focus_split: []
   };
 
   return base[splitType].slice(0, dayCount);
+}
+
+/**
+ * Blueprints de sessão para splits com ênfase regional.
+ *
+ * Princípio de ordenação: as 2 sessões do grupo foco ficam nas posições 1 e 3
+ * (A e C), garantindo que mesmo com apenas 3 dias o músculo prioritário
+ * já aparece duas vezes. A partir de 4 dias, o split fica completo.
+ *
+ * Slicando os primeiros N elementos sempre produz um programa coerente.
+ */
+function buildFocusSplitBlueprints(
+  focusRegion: FocusRegion,
+  dayCount: number,
+  goalStyle: TrainingGoalStyle
+): SessionBlueprint[] {
+  const advancedBlocks: WorkoutBlockType[] = ["normal", "superset", "bi-set", "drop-set"];
+  const baseBlocks: WorkoutBlockType[] = ["normal", "superset"];
+  const condBlocks: WorkoutBlockType[] = goalStyle === "conditioning" ? ["normal", "circuit"] : baseBlocks;
+
+  const blueprints: Record<Exclude<FocusRegion, "balanced">, SessionBlueprint[]> = {
+    // ── PEITO ──────────────────────────────────────────────────────────────────
+    chest: [
+      session("A", "Peito + Ombro + Tríceps", "Push pesado com prioridade para peitoral",
+        "Primeira sessão de push: volume alto em compostos de peito antes da fadiga acumular.",
+        ["chest", "shoulders", "triceps"], ["abs"], advancedBlocks),
+      session("B", "Pernas", "Lower completo — recuperação do tronco",
+        "Dia de pernas garante frequência de treino sem comprometer a recuperação do peito.",
+        ["quadriceps", "glutes", "hamstrings"], ["calves", "abs"], condBlocks),
+      session("C", "Peito + Ombro (volume)", "Segunda sessão de push com ênfase em volume e detalhe de peito",
+        "Reforça o estímulo de hipertrofia no peitoral com cargas moderadas e mais repetições.",
+        ["chest", "shoulders"], ["triceps", "back"], baseBlocks),
+      session("D", "Costas + Bíceps", "Pull completo",
+        "Fecha o tronco com puxadas e remadas, dando espaço para peito recuperar.",
+        ["back", "biceps"], ["shoulders", "abs"], advancedBlocks),
+      session("E", "Posterior + Core", "Lower posterior e reforço de core",
+        "Complementa o dia de pernas com cadeia posterior e estabilizadores.",
+        ["hamstrings", "glutes", "abs"], ["calves", "lower_back"], condBlocks),
+      session("F", "Ombro + Braços", "Dia de detalhamento — deltoides e braços",
+        "Aumenta a frequência de ombros e braços sem impacto no volume de peito.",
+        ["shoulders", "biceps", "triceps"], ["chest"], baseBlocks)
+    ],
+
+    // ── DORSAIS ────────────────────────────────────────────────────────────────
+    back: [
+      session("A", "Costas + Bíceps (largura)", "Pull com foco em largura — puxadas e dorsais",
+        "Primeira sessão de costas: prioriza exercícios de puxada vertical para ganho de largura.",
+        ["back", "biceps"], ["shoulders", "abs"], advancedBlocks),
+      session("B", "Peito + Ombro + Tríceps", "Push equilibrado",
+        "Dia de push complementar que não interfere na recuperação das costas.",
+        ["chest", "shoulders", "triceps"], ["abs"], baseBlocks),
+      session("C", "Costas + Bíceps (espessura)", "Pull com foco em espessura — remadas e lombares",
+        "Segunda sessão de costas: puxada horizontal e remadas para espessura e detalhamento.",
+        ["back", "lower_back", "biceps"], ["shoulders"], advancedBlocks),
+      session("D", "Pernas", "Lower completo",
+        "Dia de pernas fecha o ciclo de 4 dias sem interferir nas costas.",
+        ["quadriceps", "glutes", "hamstrings"], ["calves", "abs"], condBlocks),
+      session("E", "Posterior + Core", "Lower posterior e lombar",
+        "Reforça cadeia posterior e estabilizadores sem sobrecarregar as costas.",
+        ["hamstrings", "glutes", "abs"], ["lower_back", "calves"], condBlocks),
+      session("F", "Ombro + Braços", "Detalhamento de deltoides e braços",
+        "Aumenta frequência dos deltoides e braços no fim do ciclo.",
+        ["shoulders", "biceps", "triceps"], ["chest"], baseBlocks)
+    ],
+
+    // ── PERNAS ────────────────────────────────────────────────────────────────
+    legs: [
+      session("A", "Quadriceps + Glúteo + Abdômen", "Lower dominante de joelho e glúteo",
+        "Sessão 1 de pernas: foco em squat pattern, leg press e extensores.",
+        ["quadriceps", "glutes", "abs"], ["hamstrings", "calves"], condBlocks),
+      session("B", "Peito + Ombro + Tríceps", "Push — tronco superior descansa as pernas",
+        "Dia de push no tronco garante frequência sem impacto na recuperação de pernas.",
+        ["chest", "shoulders", "triceps"], ["abs"], baseBlocks),
+      session("C", "Posterior de coxa + Adutores + Abdutores + Panturrilha", "Lower dominante de quadril",
+        "Sessão 2 de pernas: foco em hip hinge, deadlifts, panturrilha e estabilizadores.",
+        ["hamstrings", "glutes", "adductors", "abductors"], ["calves", "abs"], condBlocks),
+      session("D", "Costas + Bíceps + Abdômen", "Pull — tronco superior",
+        "Dia de pull fecha o ciclo de 4 dias sem acumular fadiga em pernas.",
+        ["back", "biceps", "abs"], ["shoulders"], advancedBlocks),
+      session("E", "Quadriceps + Glúteo (volume)", "Terceira sessão de pernas — volume e detalhamento",
+        "Aumenta frequência de pernas com carga reduzida e mais repetições.",
+        ["quadriceps", "glutes"], ["hamstrings", "calves"], baseBlocks),
+      session("F", "Ombro + Tríceps + Bíceps", "Upper complementar leve",
+        "Fecha a semana com detalhamento de ombros e braços.",
+        ["shoulders", "biceps", "triceps"], ["chest", "back"], baseBlocks)
+    ],
+
+    // ── PERNAS E GLÚTEO ───────────────────────────────────────────────────────
+    legs_glutes: [
+      session("A", "Glúteo + Quadriceps + Adutores", "Lower com foco máximo em glúteo e quad",
+        "Sessão 1: squat pattern profundo, hip thrust e adutores para ativar e desenvolver o glúteo.",
+        ["glutes", "quadriceps", "adductors"], ["hamstrings", "calves"], condBlocks),
+      session("B", "Peito + Ombro + Tríceps", "Push — recuperação da cadeia posterior",
+        "Tronco superior mantém frequência sem interferir na recuperação do glúteo.",
+        ["chest", "shoulders", "triceps"], ["abs"], baseBlocks),
+      session("C", "Glúteo + Posterior de coxa + Abdutores + Panturrilha", "Lower com foco em glúteo e cadeia posterior",
+        "Sessão 2: hip hinge, deadlifts e isoladores de glúteo para completar o volume semanal.",
+        ["glutes", "hamstrings", "abductors"], ["calves", "abs"], condBlocks),
+      session("D", "Costas + Bíceps", "Pull — tronco superior",
+        "Pull fecha o ciclo e distribui volume de costas sem conflitar com glúteo.",
+        ["back", "biceps"], ["shoulders", "abs"], advancedBlocks),
+      session("E", "Glúteo + Core (volume e isolamento)", "Terceira sessão de glúteo — detalhamento e ativação",
+        "Sessão leve focada em isoladores de glúteo, abdômen e estabilizadores.",
+        ["glutes", "abs"], ["hamstrings", "adductors"], baseBlocks),
+      session("F", "Ombro + Braços", "Detalhamento de deltoides e braços",
+        "Complementa o ciclo com deltoides e braços no último dia.",
+        ["shoulders", "biceps", "triceps"], ["chest"], baseBlocks)
+    ],
+
+    // ── BRAÇOS ────────────────────────────────────────────────────────────────
+    arms: [
+      session("A", "Costas + Bíceps", "Pull com volume elevado de bíceps",
+        "Combina o padrão de puxada com isoladores de bíceps para frequência e volume máximos.",
+        ["back", "biceps"], ["shoulders", "forearms"], advancedBlocks),
+      session("B", "Peito + Tríceps + Ombro", "Push com volume elevado de tríceps",
+        "Compostos de empurrar naturalmente carregam o tríceps; acessórios finalizam o volume.",
+        ["chest", "triceps", "shoulders"], ["abs"], advancedBlocks),
+      session("C", "Ombro + Bíceps + Tríceps", "Dia dedicado a ombros e braços",
+        "Sessão isolada de deltoides e braços para maximizar o estímulo sem fadiga acumulada de compostos.",
+        ["shoulders", "biceps", "triceps"], ["forearms"], advancedBlocks),
+      session("D", "Pernas", "Lower completo",
+        "Dia de pernas garante recuperação total do tronco entre as sessões de braços.",
+        ["quadriceps", "glutes", "hamstrings"], ["calves", "abs"], condBlocks),
+      session("E", "Costas + Bíceps (espessura)", "Pull com ênfase em costas espessa e bíceps",
+        "Segunda sessão de puxada: remadas horizontais e mais volume de bíceps.",
+        ["back", "biceps"], ["lower_back", "forearms"], advancedBlocks),
+      session("F", "Posterior + Core", "Lower leve e core",
+        "Complementa o dia de pernas com cadeia posterior e core.",
+        ["hamstrings", "glutes", "abs"], ["calves"], baseBlocks)
+    ]
+  };
+
+  const pool = blueprints[focusRegion as Exclude<FocusRegion, "balanced">];
+  return (pool ?? []).slice(0, dayCount);
 }
 
 function buildWeeklyVolumeTargets(
@@ -431,6 +584,11 @@ function buildSplitRationale(
   goalStyle: TrainingGoalStyle,
   timeAvailable: number
 ) {
+  if (splitType === "focus_split") {
+    const density = timeAvailable <= 35 ? "sessões objetivas" : "volume adequado por grupamento";
+    return `Divisão personalizada com ênfase regional — o grupo prioritário aparece em duas sessões da semana para garantir maior frequência e volume específico, com ${density}.`;
+  }
+
   const base = formatSplitTypeLabel(splitType);
   const density = timeAvailable <= 35 ? "com sessões mais densas e objetivas" : "com volume suficiente para cada grupamento";
   const levelNote =

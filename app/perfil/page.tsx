@@ -31,6 +31,7 @@ type ProfilePayload = {
     weight?: number;
     height?: number;
     profession?: string;
+    focusRegion?: string;
     days?: number;
     time?: number;
     equipment?: string[];
@@ -52,6 +53,7 @@ type ProfileFormState = {
   days: string;
   time: string;
   equipment: string[];
+  focusRegion: string;
 };
 
 type FeedbackState = {
@@ -90,6 +92,15 @@ const TIME_OPTIONS = [15, 30, 45, 60, 75, 90].map((value) => ({
   label: `${value} min`
 }));
 
+const FOCUS_REGION_OPTIONS = [
+  { value: "balanced", label: "Todos / Equilibrado" },
+  { value: "chest", label: "Peito" },
+  { value: "back", label: "Dorsais" },
+  { value: "legs", label: "Pernas" },
+  { value: "legs_glutes", label: "Pernas e Glúteo" },
+  { value: "arms", label: "Braços" }
+];
+
 const EQUIPMENT_OPTIONS = [
   { value: "halteres", label: "Halteres" },
   { value: "elasticos", label: "Elasticos" },
@@ -112,7 +123,8 @@ const EMPTY_FORM_STATE: ProfileFormState = {
   body_type: BODY_TYPE_OPTIONS[0]?.value ?? "",
   days: "3",
   time: "45",
-  equipment: ["nenhum"]
+  equipment: ["nenhum"],
+  focusRegion: "balanced"
 };
 
 type EditingSection = "personal" | "physical" | "training";
@@ -301,7 +313,8 @@ export default function PerfilPage() {
           body_type: form.body_type,
           days: form.days,
           time: form.time,
-          equipment: form.equipment
+          equipment: form.equipment,
+          focusRegion: form.focusRegion
         })
       });
 
@@ -512,14 +525,6 @@ export default function PerfilPage() {
                 placeholder="voce@exemplo.com"
               />
             </div>
-            <div className="space-y-2">
-              <p className="text-xs text-white/50">Profissão</p>
-              <TextInput
-                value={form.profession}
-                onChange={(value) => updateForm(setForm, "profession", value)}
-                placeholder="Ex: trabalho sentado"
-              />
-            </div>
           </Card>
         )}
 
@@ -604,6 +609,14 @@ export default function PerfilPage() {
                 value={form.time}
                 options={TIME_OPTIONS}
                 onChange={(value) => updateForm(setForm, "time", value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Intensificar</p>
+              <SelectField
+                value={form.focusRegion}
+                options={FOCUS_REGION_OPTIONS}
+                onChange={(value) => updateForm(setForm, "focusRegion", value)}
               />
             </div>
             <div className="space-y-3">
@@ -713,6 +726,11 @@ export default function PerfilPage() {
                   {payload.answers.age} anos
                 </span>
               ) : null}
+              {payload.answers.focusRegion && payload.answers.focusRegion !== "balanced" ? (
+                <span className="rounded-full border border-white/12 bg-white/5 px-2.5 py-0.5 text-[11px] text-white/65">
+                  Ênfase em: {formatFocusRegion(payload.answers.focusRegion)}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -808,7 +826,7 @@ export default function PerfilPage() {
           <SettingsRow
             icon={<UserRound className="h-5 w-5 text-primary" />}
             title="Dados Pessoais"
-            subtitle={`${payload.user.name || "—"} · ${truncate(payload.answers.profession, 20)}`}
+            subtitle={`${payload.user.name || "—"} · ${payload.user.email || "—"}`}
             onClick={() => openSection("personal")}
           />
           <SettingsRow
@@ -820,7 +838,7 @@ export default function PerfilPage() {
           <SettingsRow
             icon={<Target className="h-5 w-5 text-primary" />}
             title="Dados de Treino"
-            subtitle={`${formatGoal(payload.answers.goal)} · ${payload.answers.days ?? "—"}x/sem · ${payload.answers.time ?? "—"}min`}
+            subtitle={`${formatGoal(payload.answers.goal)} · ${payload.answers.days ?? "—"}x/sem · Intensificar: ${formatFocusRegion(payload.answers.focusRegion)}`}
             onClick={() => openSection("training")}
             isLast
           />
@@ -1111,7 +1129,8 @@ function buildFormState(payload: ProfilePayload): ProfileFormState {
       BODY_TYPE_OPTIONS[0].value,
     days: payload.answers.days ? String(payload.answers.days) : "3",
     time: payload.answers.time ? String(payload.answers.time) : "45",
-    equipment: normalizeEquipment(payload.answers.equipment)
+    equipment: normalizeEquipment(payload.answers.equipment),
+    focusRegion: payload.answers.focusRegion ?? "balanced"
   };
 }
 
@@ -1202,6 +1221,18 @@ function formatHeight(value?: number) {
 
 function formatEquipment(value: string) {
   return EQUIPMENT_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
+
+function formatFocusRegion(value?: string) {
+  const labels: Record<string, string> = {
+    chest: "Peito",
+    back: "Dorsais",
+    legs: "Pernas",
+    legs_glutes: "Pernas e Glúteo",
+    arms: "Braços",
+    balanced: "Equilibrado"
+  };
+  return value ? (labels[value] ?? value) : "—";
 }
 
 function getLevelBadge(goal?: string) {
