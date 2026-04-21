@@ -36,7 +36,8 @@ export const EXERCISE_LEVEL_OPTIONS = [
 
 export const EXERCISE_LOCATION_OPTIONS = [
   { value: "home", label: "Casa" },
-  { value: "gym", label: "Academia" }
+  { value: "gym", label: "Academia" },
+  { value: "condo_gym", label: "Academia de Condomínio" }
 ] as const;
 
 export const EXERCISE_EQUIPMENT_OPTIONS = [
@@ -147,7 +148,11 @@ const LOCATION_ALIASES: Record<string, string> = {
   home: "home",
   casa: "home",
   gym: "gym",
-  academia: "gym"
+  academia: "gym",
+  condo_gym: "condo_gym",
+  "academia de condominio": "condo_gym",
+  "academia condominio": "condo_gym",
+  condominio: "condo_gym"
 };
 
 const EQUIPMENT_ALIASES: Record<string, string> = {

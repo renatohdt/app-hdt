@@ -38,6 +38,7 @@ type ProfilePayload = {
   };
   excludedExercises?: Array<{ exerciseId: string; exerciseName: string }>;
   totalWorkoutsAllTime?: number;
+  lastWorkoutGeneratedAt?: string | null;
 };
 
 type ProfileFormState = {
@@ -150,6 +151,7 @@ export default function PerfilPage() {
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM_STATE);
   const [excludedExercises, setExcludedExercises] = useState<Array<{ exerciseId: string; exerciseName: string }>>([]);
   const [removingExerciseId, setRemovingExerciseId] = useState<string | null>(null);
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
 
   // Animação da barra de progresso durante geração do treino
   useEffect(() => {
@@ -339,19 +341,21 @@ export default function PerfilPage() {
     }
   }
 
+  function handleGenerateWorkoutClick() {
+    if (!payload || isGenerating) return;
+    if (isEditing) {
+      setFeedback({ tone: "info", text: "Salve suas alterações antes de gerar um novo programa." });
+      return;
+    }
+    setShowGenerateConfirm(true);
+  }
+
   async function handleGenerateWorkout() {
     if (!payload || isGenerating) {
       return;
     }
 
-    if (isEditing) {
-      setFeedback({
-        tone: "info",
-        text: "Salve suas alterações antes de gerar um novo treino."
-      });
-      return;
-    }
-
+    setShowGenerateConfirm(false);
     setIsGenerating(true);
     setFeedback(null);
 
@@ -949,28 +953,70 @@ export default function PerfilPage() {
         <Card className="space-y-4 p-4">
           <div className="space-y-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Seu plano</p>
-            <p className="font-semibold text-white">Gerar novo treino</p>
+            <p className="font-semibold text-white">Gerar Novo Programa de Treino</p>
             <p className="text-[13px] leading-5 text-white/54">
               Use este botão sempre que mudar algo no seu perfil — objetivo, dias de treino, equipamentos ou tempo disponível. A IA usará seus dados atuais para montar um plano novo.
             </p>
           </div>
           {subscription?.isPremium ? (
-            // Usuário premium — botão funcional
-            <Button onClick={handleGenerateWorkout} disabled={isEditing || isSaving}>
-              Gerar novo treino
+            // Usuário premium — botão sempre funcional
+            <Button onClick={handleGenerateWorkoutClick} disabled={isEditing || isSaving}>
+              Gerar Novo Programa de Treino
             </Button>
-          ) : (
-            // Usuário free — botão abre upsell
-            <button
-              type="button"
-              onClick={() => setShowWorkoutUpsell(true)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-primary/20 bg-primary/8 px-4 py-2.5 text-sm font-semibold text-primary/80 transition hover:bg-primary/12"
-            >
-              <Lock className="h-4 w-4" />
-              Gerar novo treino
-            </button>
-          )}
+          ) : (() => {
+            // Usuário free — 1x a cada 30 dias
+            const daysLeft = daysUntilNextFreeGeneration(payload?.lastWorkoutGeneratedAt);
+            if (daysLeft > 0) {
+              return (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowWorkoutUpsell(true)}
+                    className="inline-flex w-full items-center gap-2 rounded-2xl border border-primary/20 bg-primary/8 px-4 py-2.5 text-sm font-semibold text-primary/80 transition hover:bg-primary/12"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Gerar Novo Programa de Treino
+                  </button>
+                  <p className="text-center text-xs text-white/40">
+                    Disponível novamente em {daysLeft} dia{daysLeft === 1 ? "" : "s"} · <button type="button" className="text-primary/70 underline" onClick={() => setShowWorkoutUpsell(true)}>Assine o Premium</button>
+                  </p>
+                </div>
+              );
+            }
+            return (
+              <Button onClick={handleGenerateWorkoutClick} disabled={isEditing || isSaving}>
+                Gerar Novo Programa de Treino
+              </Button>
+            );
+          })()}
         </Card>
+      )}
+
+      {/* Modal de confirmação — gerar novo programa */}
+      {showGenerateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/12">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <p className="mb-1 text-base font-semibold text-white">Gerar novo programa?</p>
+            <p className="mb-5 text-sm leading-5 text-white/56">
+              Seu programa atual será substituído e <strong className="text-white/80">todas as sessões registradas serão reiniciadas</strong>. Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={handleGenerateWorkout}>
+                Sim, gerar novo programa
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowGenerateConfirm(false)}
+                className="rounded-2xl px-4 py-2.5 text-sm font-medium text-white/54 transition hover:text-white/80"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Fale Conosco */}
@@ -1276,4 +1322,13 @@ function getWorkoutLoadingStageIndex(progress: number) {
   if (progress >= 50) return 2;
   if (progress >= 25) return 1;
   return 0;
+}
+
+// Retorna quantos dias faltam para o free poder gerar de novo (0 = já pode)
+function daysUntilNextFreeGeneration(lastGeneratedAt: string | null | undefined): number {
+  if (!lastGeneratedAt) return 0;
+  const last = new Date(lastGeneratedAt).getTime();
+  const now = Date.now();
+  const diffDays = Math.ceil((last + 30 * 24 * 60 * 60 * 1000 - now) / (24 * 60 * 60 * 1000));
+  return diffDays > 0 ? diffDays : 0;
 }

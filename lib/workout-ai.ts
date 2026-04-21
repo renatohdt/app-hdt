@@ -2805,6 +2805,10 @@ function pushExercise(target: ExerciseRecord[], added: Set<string>, exercise: Ex
 function matchesLocation(exercise: ExerciseRecord, location: QuizAnswers["location"]) {
   const locations = normalizeStringArray(exercise.location ?? exercise.metadata?.location).map(normalizeLocation);
   if (!locations.length) return true;
+
+  // Academia completa pode usar exercícios de academia de condomínio (subconjunto)
+  if (location === "gym" && locations.includes("condo_gym")) return true;
+
   return locations.includes(location);
 }
 
@@ -2833,9 +2837,10 @@ function normalizeText(value?: string | null) {
 }
 
 function normalizeLocation(value: string) {
-  const normalized = normalizeText(value);
+  const normalized = normalizeText(value).replaceAll(" ", "_");
   if (normalized === "academia") return "gym";
   if (normalized === "casa") return "home";
+  if (normalized === "academia_de_condominio" || normalized === "academia_condominio" || normalized === "condominio") return "condo_gym";
   return normalized;
 }
 
