@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AdminExerciseForm } from "@/components/admin-exercise-form";
 import { AdminTable } from "@/components/admin-table";
 import { Button, Card } from "@/components/ui";
@@ -59,6 +59,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const formRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedSearch = useMemo(() => search.trim(), [search]);
   const hasActiveFilters = Boolean(
@@ -264,14 +265,23 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
     setFilters(emptyFilters);
   }
 
+  function handleEditExercise(id: string) {
+    setEditingExerciseId(id);
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
   return (
     <div className="space-y-6">
-      <AdminExerciseForm
-        initialValues={editingExercise}
-        existingExercises={catalogExercises}
-        onSaved={handleSaved}
-        onCancel={() => setEditingExerciseId(null)}
-      />
+      <div ref={formRef}>
+        <AdminExerciseForm
+          initialValues={editingExercise}
+          existingExercises={catalogExercises}
+          onSaved={handleSaved}
+          onCancel={() => setEditingExerciseId(null)}
+        />
+      </div>
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -383,7 +393,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
                     type="button"
                     variant="ghost"
                     className="px-0 py-0"
-                    onClick={() => setEditingExerciseId(exercise.id)}
+                    onClick={() => handleEditExercise(exercise.id)}
                   >
                     Editar
                   </Button>
