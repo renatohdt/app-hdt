@@ -89,6 +89,11 @@ export const quizSteps = [
         icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-kettlebell.webp"
       },
       {
+        label: "Rolo Abdominal",
+        value: "rolo_abdominal",
+        icon: "https://horadotreino.com.br/wp-content/uploads/2026/04/icon-abs-carrinho.webp"
+      },
+      {
         label: "Nenhum",
         value: "nenhum",
         icon: null

@@ -109,6 +109,7 @@ const EQUIPMENT_OPTIONS = [
   { value: "fita_suspensa", label: "Fita suspensa" },
   { value: "caneleira", label: "Caneleira" },
   { value: "kettlebell", label: "Kettlebell" },
+  { value: "rolo_abdominal", label: "Rolo Abdominal" },
   { value: "nenhum", label: "Nenhum" }
 ];
 

@@ -2896,6 +2896,10 @@ function normalizeEquipment(value: string) {
     fitball: "fitball",
     caneleira: "caneleira",
     kettlebell: "kettlebell",
+    rolo_abdominal: "rolo_abdominal",
+    rolo: "rolo_abdominal",
+    rolinho: "rolo_abdominal",
+    ab_wheel: "rolo_abdominal",
     nenhum: "nenhum"
   };
 

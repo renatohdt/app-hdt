@@ -19,6 +19,7 @@ export type HomeEquipment =
   | "fita_suspensa"
   | "caneleira"
   | "kettlebell"
+  | "rolo_abdominal"
   | "nenhum";
 
 export type UserProfile = "beginner_lost" | "false_intermediate" | "inconsistent" | "stagnated";
