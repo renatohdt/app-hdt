@@ -15,6 +15,7 @@ import {
   getExerciseLocations,
   getExerciseMuscleGroups,
   normalizeExerciseEquipmentList,
+  normalizeExerciseMuscleGroup,
   normalizeExerciseName
 } from "@/lib/exercise-library";
 import { ExerciseRecord } from "@/lib/types";
@@ -22,7 +23,8 @@ import { ExerciseRecord } from "@/lib/types";
 type ExerciseFormValues = {
   id?: string;
   name: string;
-  muscle_groups: string[];
+  muscle: string;
+  secondary_muscles: string[];
   type: string;
   level: string[];
   location: string[];
@@ -32,7 +34,8 @@ type ExerciseFormValues = {
 
 const emptyValues: ExerciseFormValues = {
   name: "",
-  muscle_groups: [],
+  muscle: "",
+  secondary_muscles: [],
   type: "",
   level: [],
   location: [],
@@ -65,10 +68,18 @@ export function AdminExerciseForm({
       return;
     }
 
+    const allGroups = getExerciseMuscleGroups(initialValues);
+    const primaryMuscle =
+      normalizeExerciseMuscleGroup(initialValues.muscle ?? initialValues.metadata?.muscle ?? null) ??
+      allGroups[0] ??
+      "";
+    const secondaryMuscles = allGroups.filter((m) => m !== primaryMuscle);
+
     setValues({
       id: initialValues.id,
       name: initialValues.name,
-      muscle_groups: getExerciseMuscleGroups(initialValues),
+      muscle: primaryMuscle,
+      secondary_muscles: secondaryMuscles,
       type: initialValues.type ?? initialValues.metadata?.type ?? "",
       level: getExerciseLevels(initialValues),
       location: getExerciseLocations(initialValues),
@@ -104,8 +115,8 @@ export function AdminExerciseForm({
       return;
     }
 
-    if (!values.muscle_groups.length) {
-      setStatus("Selecione pelo menos um grupo muscular.");
+    if (!values.muscle) {
+      setStatus("Selecione o músculo principal.");
       setStatusTone("error");
       return;
     }
@@ -118,10 +129,13 @@ export function AdminExerciseForm({
 
     setLoading(true);
 
+    // Combina primário + secundários em muscle_groups (primário sempre primeiro)
+    const muscleGroups = [values.muscle, ...values.secondary_muscles].filter(Boolean);
+
     const formattedData = {
       id: values.id,
       name: values.name,
-      muscle_groups: ensureArray(values.muscle_groups),
+      muscle_groups: muscleGroups,
       type: values.type,
       level: ensureArray(values.level),
       location: ensureArray(values.location),
@@ -156,17 +170,34 @@ export function AdminExerciseForm({
     }
   }
 
-  function toggleArrayValue(field: "muscle_groups" | "level" | "location" | "equipment", value: string) {
+  function handlePrimaryMuscleChange(value: string) {
+    setValues((current) => ({
+      ...current,
+      muscle: value,
+      // Remove o novo primário dos secundários se já estava lá
+      secondary_muscles: current.secondary_muscles.filter((m) => m !== value)
+    }));
+  }
+
+  function toggleSecondaryMuscle(value: string) {
+    setValues((current) => {
+      const currentValues = current.secondary_muscles;
+      const nextValues = currentValues.includes(value)
+        ? currentValues.filter((item) => item !== value)
+        : [...currentValues, value];
+
+      return { ...current, secondary_muscles: nextValues };
+    });
+  }
+
+  function toggleArrayValue(field: "level" | "location" | "equipment", value: string) {
     setValues((current) => {
       const currentValues = current[field];
       const nextValues = currentValues.includes(value)
         ? currentValues.filter((item) => item !== value)
         : [...currentValues, value];
 
-      return {
-        ...current,
-        [field]: nextValues
-      };
+      return { ...current, [field]: nextValues };
     });
   }
 
@@ -176,6 +207,9 @@ export function AdminExerciseForm({
     setStatusTone("neutral");
     onCancel?.();
   }
+
+  // Opções de secundários excluem o músculo principal selecionado
+  const secondaryMuscleOptions = EXERCISE_MUSCLE_OPTIONS.filter((o) => o.value !== values.muscle);
 
   return (
     <Card>
@@ -231,12 +265,12 @@ export function AdminExerciseForm({
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(15rem,0.75fr)] xl:items-start">
-          <CheckboxGroup
-            title="Grupos musculares"
-            description="Selecione todos os grupamentos relevantes para o exercício."
+          <RadioGroup
+            title="Músculo principal"
+            description="O grupamento muscular primário treinado pelo exercício."
             options={EXERCISE_MUSCLE_OPTIONS}
-            selected={values.muscle_groups}
-            onToggle={(value) => toggleArrayValue("muscle_groups", value)}
+            selected={values.muscle}
+            onChange={handlePrimaryMuscleChange}
           />
 
           <SelectField
@@ -247,6 +281,14 @@ export function AdminExerciseForm({
             onChange={(value) => setValues((current) => ({ ...current, type: value }))}
           />
         </div>
+
+        <CheckboxGroup
+          title="Músculos secundários"
+          description="Grupamentos adicionalmente recrutados. O músculo principal não aparece aqui."
+          options={secondaryMuscleOptions}
+          selected={values.secondary_muscles}
+          onToggle={toggleSecondaryMuscle}
+        />
 
         <CheckboxGroup
           title="Nível"
@@ -328,6 +370,50 @@ function SelectField({
         ))}
       </select>
     </label>
+  );
+}
+
+function RadioGroup({
+  title,
+  description,
+  options,
+  selected,
+  onChange
+}: {
+  title: string;
+  description?: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  selected: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
+      <div className="space-y-1">
+        <p className="text-sm text-white/72">{title}</p>
+        {description ? <p className="text-xs leading-5 text-white/48">{description}</p> : null}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
+              selected === option.value
+                ? "border-primary/40 bg-primary/12 text-white"
+                : "border-white/10 text-white/78 hover:border-white/20 hover:bg-white/[0.03]"
+            }`}
+          >
+            <input
+              type="radio"
+              name="muscle_primary"
+              checked={selected === option.value}
+              onChange={() => onChange(option.value)}
+              className="h-4 w-4 accent-[#22c55e]"
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }
 

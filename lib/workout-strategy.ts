@@ -2,6 +2,7 @@ import { resolveBodyType } from "@/lib/body-type";
 import {
   formatExerciseMuscleLabel,
   getExerciseMuscleGroups,
+  normalizeExerciseMuscleGroup,
   resolveExerciseMovementType
 } from "@/lib/exercise-library";
 import {
@@ -136,7 +137,7 @@ export function buildExerciseProfile(exercise: ExerciseRecord): ExerciseProfile 
 
   return {
     primaryMuscles: primary,
-    secondaryMuscles: inferSecondaryMuscles(primary, movementType),
+    secondaryMuscles: inferSecondaryMuscles(exercise, primary, movementType),
     movementPattern,
     movementType,
     recommendedBlockTypes: inferRecommendedBlockTypes(movementType, movementPattern)
@@ -166,6 +167,7 @@ export function normalizeBlockType(value?: string | null): WorkoutBlockType {
     return "pos-exaustao";
   }
   if (normalized === "circuit" || normalized === "circuito") return "circuit";
+  if (normalized === "warmup" || normalized === "aquecimento") return "warmup";
 
   return "normal";
 }
@@ -197,6 +199,7 @@ export function formatBlockTypeLabel(value?: string | null) {
   const labels: Record<WorkoutBlockType, string> = {
     normal: "Normal",
     mobility: "Mobilidade",
+    warmup: "Aquecimento",
     superset: "Supersérie",
     "bi-set": "Bi-set",
     "tri-set": "Tri-set",
@@ -233,12 +236,8 @@ export function buildCoachBrief(strategy: WorkoutStrategy) {
     maxAdvancedBlocksPerSession: strategy.maxAdvancedBlocksPerSession,
     sessions: strategy.sessions.map((session) => ({
       day: session.day,
-      title: session.title,
-      sessionFocus: session.sessionFocus,
-      rationale: session.rationale,
       primaryMuscles: session.primaryMuscles,
-      secondaryMuscles: session.secondaryMuscles,
-      preferredBlockTypes: session.preferredBlockTypes
+      secondaryMuscles: session.secondaryMuscles
     }))
   };
 }
@@ -451,22 +450,30 @@ function buildSplitRationale(
 }
 
 function inferPrimaryMuscles(exercise: ExerciseRecord) {
-  const muscles = getExerciseMuscleGroups(exercise);
-  return muscles.length ? muscles : ["full_body"];
+  // Usa o campo `muscle` (músculo principal único) como primário.
+  // Fallback: primeiro elemento de muscle_groups, ou "full_body".
+  const primary = normalizeExerciseMuscleGroup(exercise.muscle ?? exercise.metadata?.muscle ?? null);
+  if (primary) return [primary];
+  const groups = getExerciseMuscleGroups(exercise);
+  return groups.length ? [groups[0]] : ["full_body"];
 }
 
-function inferSecondaryMuscles(primaryMuscles: string[], movementType: string) {
+function inferSecondaryMuscles(exercise: ExerciseRecord, primaryMuscles: string[], movementType: string) {
+  // Deriva secundários de muscle_groups: tudo além do músculo primário.
+  // Se o personal trainer cadastrou muscle_groups com mais de um músculo,
+  // esses extras são os secundários reais do exercício.
+  const allGroups = getExerciseMuscleGroups(exercise);
+  const fromDb = allGroups.filter((m) => !primaryMuscles.includes(m));
+  if (fromDb.length > 0) return fromDb;
+
+  // Fallback: regras hardcoded baseadas no tipo de movimento.
   const compound = movementType === "compound";
   const secondary = new Set<string>();
-
   primaryMuscles.forEach((primary) => {
     resolveSecondaryCandidates(primary, compound).forEach((muscle) => {
-      if (!primaryMuscles.includes(muscle)) {
-        secondary.add(muscle);
-      }
+      if (!primaryMuscles.includes(muscle)) secondary.add(muscle);
     });
   });
-
   return [...secondary];
 }
 

@@ -157,6 +157,22 @@ export function filterExercisesForAI(
   });
 }
 
+/**
+ * Tier de cada grupo muscular para montagem do catálogo da IA.
+ *   Tier 1 (quota base 8) — grandes grupos primários
+ *   Tier 2 (quota base 4) — grupos secundários relevantes
+ *   Tier 3 (quota base 3) — grupos acessórios
+ *   "abs" tratado separadamente com quota base 5
+ */
+const MUSCLE_TIER_MAP: Record<string, number> = {
+  chest: 1, back: 1, quadriceps: 1,
+  shoulders: 2, glutes: 2, hamstrings: 2, biceps: 2, triceps: 2,
+  calves: 3, lower_back: 3, forearms: 3, adductors: 3, abductors: 3, tibialis: 3, hip_flexors: 3
+};
+
+const TIER_BASE_QUOTAS: Record<number, number> = { 1: 8, 2: 4, 3: 3 };
+const ABS_QUOTA_BASE = 5;
+
 function selectExercisesForAiCatalog(
   answers: QuizAnswers,
   exerciseLibrary: ExerciseRecord[],
@@ -172,6 +188,8 @@ function selectExercisesForAiCatalog(
     .filter((exercise) => !excludedIds.has(exercise.id))
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment))
+    .filter((exercise) => matchesExerciseLevel(exercise, strategy.level))
+    .filter((exercise) => matchesGoalExerciseType(exercise, strategy.goalStyle))
     .map((exercise) => ({
       exercise,
       profile: buildExerciseProfile(exercise),
@@ -182,26 +200,33 @@ function selectExercisesForAiCatalog(
 
   const results: ExerciseRecord[] = [];
   const added = new Set<string>();
-  const priorityMuscles = Array.from(
-    new Set(strategy.sessions.flatMap((session) => [...session.primaryMuscles, ...session.secondaryMuscles]))
-  );
 
+  // 1. Mobilidade: mantém lógica atual (seleção local, não via IA)
   if (!options.excludeMobility) {
-    for (const item of scored.filter((entry) => entry.profile.movementType === "mobility").slice(0, Math.max(2, strategy.sessions.length))) {
+    for (const item of scored
+      .filter((entry) => entry.profile.movementType === "mobility")
+      .slice(0, Math.max(2, strategy.sessions.length))) {
       pushExercise(results, added, item.exercise);
     }
   }
 
-  for (const muscle of priorityMuscles) {
-    for (const item of scored.filter((entry) => entry.profile.primaryMuscles.includes(muscle)).slice(0, 3)) {
-      pushExercise(results, added, item.exercise);
-    }
-  }
+  // 2. Catálogo por tier muscular com quota dinâmica
+  // Tier 1 primeiro (chest, back, quadriceps), depois tier 2, tier 3 e abs
+  // A ordem garante que exercícios compostos relevantes são priorizados
+  const nonMobility = scored.filter((entry) => entry.profile.movementType !== "mobility");
+  const allMuscles = [...Object.keys(MUSCLE_TIER_MAP), "abs"];
 
-  const limit = Math.min(48, Math.max(24, strategy.dayCount * 10));
-  for (const item of scored) {
-    if (results.length >= limit) break;
-    pushExercise(results, added, item.exercise);
+  for (const muscle of allMuscles) {
+    const quota = calcMuscleQuota(muscle, strategy);
+    const candidates = nonMobility.filter((entry) => entry.profile.primaryMuscles.includes(muscle));
+    let addedForMuscle = 0;
+    for (const item of candidates) {
+      if (addedForMuscle >= quota) break;
+      if (!added.has(item.exercise.id)) {
+        pushExercise(results, added, item.exercise);
+        addedForMuscle++;
+      }
+    }
   }
 
   return results;
@@ -227,7 +252,20 @@ export async function generateWorkoutWithAI(
   }
 
   const availableExercisesBeforeMobilityFilter = catalogBeforeMobilityFilter.map(buildAiCatalogExercise);
-  const availableExercises = filteredLibrary.map(buildAiCatalogExercise);
+
+  // Aquecimentos: separados do catálogo principal, enviados como lista opcional ao prompt
+  const allowedEquipmentForWarmup = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+  const warmupExercises = exerciseLibrary
+    .filter((ex) => normalizeStoredExerciseType(ex.type ?? ex.metadata?.type) === "warmup")
+    .filter((ex) => matchesLocation(ex, answers.location))
+    .filter((ex) => matchesEquipment(ex, allowedEquipmentForWarmup))
+    .filter((ex) => matchesExerciseLevel(ex, strategy.level))
+    .map(buildAiCatalogExercise);
+
+  const mainExercises = filteredLibrary.filter(
+    (ex) => normalizeStoredExerciseType(ex.type ?? ex.metadata?.type) !== "warmup"
+  );
+  const availableExercises = mainExercises.map(buildAiCatalogExercise);
   const mobilityExercisesExcludedFromCatalog = Math.max(0, catalogBeforeMobilityFilter.length - filteredLibrary.length);
   const promptCatalogCharsBeforeMobilityFilter = JSON.stringify(availableExercisesBeforeMobilityFilter).length;
   const promptCatalogCharsAfterMobilityFilter = JSON.stringify(availableExercises).length;
@@ -241,7 +279,9 @@ export async function generateWorkoutWithAI(
   });
   logInfo("AI", "AI exercise catalog size after mobility filter", {
     catalog_size: filteredLibrary.length,
-    mobility_candidates_sent_to_ai: availableExercises.filter((exercise) => exercise.movementType === "mobility").length
+    mobility_candidates_sent_to_ai: availableExercises.filter((exercise) => exercise.movementType === "mobility").length,
+    user_level: strategy.level,
+    exercises_without_level: filteredLibrary.filter((ex) => !getExerciseLevels(ex).length).length
   });
 
   // Valores numericos derivados do timeBudget para serem exibidos de forma
@@ -266,90 +306,49 @@ export async function generateWorkoutWithAI(
     .join(", ");
 
   const promptMontagemTreino = [
-    "O tempo disponível para treinar é uma restrição operacional dura e obrigatória.",
-    "Você é um personal trainer experiente.",
+    "Você é um personal trainer experiente. Monte um plano de treino com lógica real de prescrição.",
+    "Responda em português do Brasil (UTF-8). Retorne APENAS o JSON definido ao final.",
     "",
-    "Monte um plano de treino com lógica real de prescrição, não uma lista aleatória de exercícios.",
-    "O treino precisa parecer prescrito por um personal trainer experiente: com início, bloco principal, acessórios e finalização coerente.",
-    "Responda sempre em português do Brasil, com acentuação, pontuação e caracteres UTF-8 corretos.",
+    "RESTRIÇÕES OBRIGATÓRIAS:",
+    `- Sessoes: exatamente ${sessionCountTarget} (${expectedSessionLabels}), focos distintos conforme sessions abaixo`,
+    `- Exercicios/sessao: ${exerciseRangeLabel} (alvo ${exerciseTarget}); mobilidade NAO conta`,
+    `- Blocos combinados/sessao: ${combinedRangeLabel} (alvo ${combinedTarget})`,
+    `- Tempo-alvo: ${targetDurationMinutes} min (janela ${durationWindowLabel} min, disponivel: ${availableMinutes} min)`,
     "",
-    "REGRAS:",
+    "CALIBRACAO DE TEMPO:",
+    "- Composto normal: ~6 min | Isolador normal: ~4 min",
+    "- Exercicio em bloco combinado: ~5 min | Tecnica avancada: +1 min",
     "",
-    "QUANTIDADE DE SESSOES (obrigatorio, valor calculado pelo backend):",
-    `- o array "plan" DEVE conter EXATAMENTE ${sessionCountTarget} sessoes, uma para cada dia de treino da semana`,
-    `- as sessoes esperadas sao: ${expectedSessionLabels} (de Treino A ate Treino ${lastSessionLetter})`,
-    `- se voce entregar menos do que ${sessionCountTarget} sessoes, o usuario fica sem treino para os dias faltantes e o plano e considerado invalido`,
-    "- cada sessao deve ter foco distinto, seguindo os musculos primarios/secundarios ja definidos em ESTRATEGIA BASE OBRIGATORIA > sessions",
-    "- nao repita o mesmo conjunto de musculos primarios em sessoes diferentes",
+    "ORDEM DENTRO DA SESSAO:",
+    "1. Aquecimento (opcional, 1 no maximo) -> 2. Compostos dos musculos primarios -> 3. Compostos dos secundarios -> 4. Isoladores dos primarios -> 5. Isoladores dos secundarios -> 6. Abs/calves/core (sempre por ultimo)",
+    "Mobilidade e ativacao NAO aparecem aqui; o app adiciona antes do aquecimento automaticamente.",
+    "Agrupe exercicios do mesmo musculo lado a lado; nao intercale grupamentos.",
     "",
-    "QUANTIDADE DE EXERCICIOS POR SESSAO (obrigatorio, valores calculados pelo backend):",
-    `- cada sessao deve ter entre ${exerciseRangeLabel} exercicios principais (alvo ideal: ${exerciseTarget})`,
-    "- mobilidade e aquecimento NAO contam nesse total (sao adicionados pelo app depois)",
-    `- se voce entregar menos do que ${budget.exerciseCountRange.min} exercicios, o app vai preencher automaticamente com exercicios de fallback (qualidade pior); prefira entregar a quantidade certa`,
-    `- se voce entregar mais do que ${budget.exerciseCountRange.max} exercicios, os excedentes serao descartados pelo backend`,
-    `- blocos combinados na sessao: entre ${combinedRangeLabel} (alvo: ${combinedTarget})`,
+    "SELECAO DE EXERCICIOS:",
+    "- Use EXCLUSIVAMENTE os nomes exatos de EXERCICIOS DISPONIVEIS abaixo; nao invente, traduza ou adapte",
+    "- Nao repita o mesmo exercicio na mesma sessao; sets/reps/rest = inteiros",
+    "- Nao inclua exercicios de mobilidade ou ativacao (o app adiciona depois)",
     "",
-    "TEMPO MEDIO POR EXERCICIO (use para calibrar a quantidade):",
-    "- exercicio composto normal: ~6 min (incluindo series, descansos e transicoes)",
-    "- exercicio isolador normal: ~4 min",
-    "- exercicio dentro de bloco combinado (superset, bi-set, tri-set, circuito): ~5 min por exercicio",
-    "- tecnicas avancadas (drop-set, rest-pause, cluster): adicione ~1 min ao tempo do exercicio",
-    `- preencha aproximadamente ${targetDurationMinutes} min de treino real, dentro da janela de ${durationWindowLabel} min (tempo total disponivel: ${availableMinutes} min)`,
+    "BLOCOS COMBINADOS (tipos permitidos: ver allowedBlockTypes na estrategia):",
+    "- Une exercicios muscularmente compativeis; descanso so ao final da volta",
+    "- Iniciante: superset simples ou circuit leve | Intermediario: bi-set moderado | Avancado: bi-set/tri-set/drop-set com parcimonia",
     "",
-    "ORDEM DOS EXERCICIOS DENTRO DA SESSAO (obrigatorio, na ordem abaixo):",
-    "1) compostos dos musculos PRIMARIOS da sessao (use o campo primaryMuscles do blueprint)",
-    "2) compostos dos musculos SECUNDARIOS da sessao (use o campo secondaryMuscles do blueprint)",
-    "3) isoladores dos musculos PRIMARIOS",
-    "4) isoladores dos musculos SECUNDARIOS",
-    "5) abdomen (abs), panturrilha (calves) e exercicios de core/estabilidade ficam SEMPRE por ultimo",
-    "- DENTRO de cada categoria acima, agrupe os exercicios do MESMO musculo lado a lado (ex: se ha 2 exercicios de peito, eles ficam um seguido do outro antes de entrar em ombro)",
-    "- nao alterne musculos diferentes (ex: NAO faca peito -> tricep -> peito; faca peito -> peito -> tricep)",
-    "",
-    "REGRAS GERAIS:",
-    "- decida a divisao com base na frequencia, nivel, tempo e equipamentos",
-    "- nao assuma full body para todos os perfis",
-    "- organize em Treino A, Treino B, Treino C e assim por diante",
-    "- respeite recuperacao entre grupamentos primarios e secundarios",
-    "- nao inclua exercicios de mobilidade ou ativacao; esse bloco sera adicionado localmente pelo app",
-    "- sempre pense a sessao em 4 momentos: preparacao, bloco principal, acessorios/blocos combinados e finalizacao",
-    "- escolha EXCLUSIVAMENTE exercicios pelo nome exato presente na lista EXERCICIOS DISPONIVEIS abaixo",
-    "- nao invente, traduza, abrevie, modifique ou adapte nomes de exercicios",
-    "- se um exercicio desejado nao estiver na lista, escolha outro da propria lista",
-    "- nao repita o mesmo exercicio na mesma sessao",
-    "- sets, reps e rest devem ser numeros inteiros fixos",
-    "- tecnicas avancadas devem ser pontuais e coerentes",
-    "- iniciantes podem receber supersérie simples, tempo controlado ou circuito leve apenas quando isso melhorar a aderencia e continuar seguro",
-    "- intermediarios devem usar blocos combinados com frequencia moderada quando houver ganho de densidade ou melhor organizacao muscular",
-    "- avancados podem usar bi-set, tri-set, drop-set e rest-pause, mas sem transformar a sessao em caos metabolico",
-    "- blocos combinados devem ser reais e coerentes, nao apenas exercicios aleatorios com o mesmo rotulo",
-    "- evite redundancia e respeite a relacao estimulo/fadiga",
-    "",
-    "TIPOS DE BLOCO POSSIVEIS:",
-    "- normal",
-    "- superset",
-    "- bi-set",
-    "- tri-set",
-    "- drop-set",
-    "- rest-pause",
-    "- cluster",
-    "- isometria",
-    "- tempo_controlado",
-    "- parciais",
-    "- pre-exaustao",
-    "- pos-exaustao",
-    "- circuit",
-    "",
-    "SE USAR BLOCO COMBINADO:",
-    "- una exercícios compatíveis entre si",
-    "- organize a ordem corretamente",
-    "- deixe claro quando o descanso acontece apenas ao final da volta",
-    "- reserve técnicas mais agressivas para exercícios mais seguros e para alunos mais experientes",
-    "",
+    ...(warmupExercises.length > 0
+      ? [
+          "AQUECIMENTO (OPCIONAL):",
+          "- Voce PODE incluir 0 ou 1 exercicio de aquecimento por sessao, nunca mais de 1",
+          "- Se incluir, deve vir DEPOIS da mobilidade (adicionada pelo app) e ANTES de qualquer composto ou isolador",
+          "- Nao conta no total de exercicios da sessao",
+          "- Use blockType 'warmup' e sets/reps adequados para ativacao (ex: 2 series, 12-15 reps, sem descanso)",
+          "- Escolha apenas da lista AQUECIMENTOS DISPONIVEIS abaixo",
+          "",
+          "AQUECIMENTOS DISPONIVEIS:",
+          JSON.stringify(warmupExercises, null, 2),
+          ""
+        ]
+      : []),
     "ESTRATEGIA BASE OBRIGATORIA:",
     JSON.stringify(buildCoachBrief(strategy), null, 2),
-    "",
-    "DIAGNÓSTICO DO USUÁRIO:",
-    JSON.stringify(diagnosis, null, 2),
     "",
     "DADOS DO USUÁRIO:",
     JSON.stringify(
@@ -384,8 +383,6 @@ export async function generateWorkoutWithAI(
             day: "A",
             title: "Treino A",
             splitType: strategy.splitType,
-            sessionFocus: "foco da sessão",
-            rationale: "por que essa sessão existe",
             exercises: [
               {
                 name: "nome do exercício",
@@ -617,14 +614,10 @@ function buildAiCatalogExercise(exercise: ExerciseRecord) {
   const profile = buildExerciseProfile(exercise);
 
   return {
-    id: exercise.id,
     name: exercise.name,
     primaryMuscles: profile.primaryMuscles,
     secondaryMuscles: profile.secondaryMuscles,
-    movementPattern: profile.movementPattern,
     movementType: profile.movementType,
-    equipment: normalizeStringArray(exercise.equipment ?? exercise.metadata?.equipment).map(normalizeEquipment),
-    location: normalizeStringArray(exercise.location ?? exercise.metadata?.location).map(normalizeLocation),
     recommendedBlockTypes: profile.recommendedBlockTypes
   };
 }
@@ -1045,6 +1038,64 @@ function getMobilityFallbackLevels(userLevel: WorkoutStrategy["level"]) {
   }
 
   return ["beginner"];
+}
+
+/**
+ * Verifica se um exercício é compatível com o nível do usuário.
+ * - Exercícios sem nível definido são sempre aceitos.
+ * - Usa o mesmo fallback da mobilidade: advanced→todos, intermediate→intermediate+beginner, beginner→beginner.
+ */
+function matchesExerciseLevel(exercise: ExerciseRecord, userLevel: WorkoutStrategy["level"]): boolean {
+  const levels = getExerciseLevels(exercise);
+  if (!levels.length) return true;
+  const allowedLevels = getMobilityFallbackLevels(userLevel);
+  return levels.some((level) => allowedLevels.includes(level));
+}
+
+/**
+ * Exercícios do tipo cardio são excluídos do catálogo apenas para hypertrophy,
+ * onde o foco é força e volume muscular. Para fat_loss, conditioning e
+ * recomposition o cardio é mantido pois contribui para a estratégia de treino.
+ */
+function matchesGoalExerciseType(exercise: ExerciseRecord, goalStyle: WorkoutStrategy["goalStyle"]): boolean {
+  const rawType = normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type);
+  if (rawType === "cardio" && goalStyle === "hypertrophy") {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Calcula a quota de exercícios a enviar para a IA para um dado grupo muscular.
+ *
+ * Regras de ajuste dinâmico:
+ * - Músculo como primário em 2+ sessões do plano → +2 (músculo muito treinado)
+ * - Músculo só como secundário, nunca primário → -1
+ * - Músculo ausente do plano por completo → quota / 2 (economia de tokens)
+ * - Plano com 4+ dias → +1 em todos (mais variedade necessária)
+ */
+function calcMuscleQuota(muscle: string, strategy: WorkoutStrategy): number {
+  const isAbs = muscle === "abs";
+  const base = isAbs ? ABS_QUOTA_BASE : (TIER_BASE_QUOTAS[MUSCLE_TIER_MAP[muscle] ?? 3] ?? 3);
+
+  const sessionsAsPrimary = strategy.sessions.filter((s) => s.primaryMuscles.includes(muscle)).length;
+  const sessionsAsSecondary = strategy.sessions.filter(
+    (s) => !s.primaryMuscles.includes(muscle) && s.secondaryMuscles.includes(muscle)
+  ).length;
+
+  let quota = base;
+
+  if (sessionsAsPrimary === 0 && sessionsAsSecondary === 0) {
+    quota = Math.floor(base / 2); // músculo fora do plano
+  } else if (sessionsAsPrimary === 0 && sessionsAsSecondary > 0) {
+    quota -= 1; // apenas secundário
+  } else if (sessionsAsPrimary >= 2) {
+    quota += 2; // músculo muito trabalhado na semana
+  }
+
+  if (strategy.dayCount >= 4) quota += 1; // planos densos precisam de mais variedade
+
+  return Math.max(1, quota);
 }
 
 function compareMobilityCandidates(

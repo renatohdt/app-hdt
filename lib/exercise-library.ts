@@ -24,7 +24,8 @@ export const EXERCISE_TYPE_OPTIONS = [
   { value: "isolation", label: "Isolado" },
   { value: "functional", label: "Funcional" },
   { value: "mobility", label: "Mobilidade" },
-  { value: "cardio", label: "Cardio" }
+  { value: "cardio", label: "Cardio" },
+  { value: "warmup", label: "Aquecimento" }
 ] as const;
 
 export const EXERCISE_LEVEL_OPTIONS = [
@@ -127,7 +128,10 @@ const TYPE_ALIASES: Record<string, string> = {
   mobilidade: "mobility",
   cardio: "cardio",
   cardiovascular: "cardio",
-  aerobico: "cardio"
+  aerobico: "cardio",
+  warmup: "warmup",
+  aquecimento: "warmup",
+  warm_up: "warmup"
 };
 
 const LEVEL_ALIASES: Record<string, string> = {
@@ -271,6 +275,9 @@ export function resolveExerciseMovementType(value?: string | null) {
   const normalized = normalizeStoredExerciseType(value);
   if (normalized === "cardio") {
     return "functional";
+  }
+  if (normalized === "warmup") {
+    return "warmup";
   }
 
   return normalized || "compound";

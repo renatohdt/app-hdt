@@ -213,13 +213,7 @@ export function buildTimeBudgetBrief(budget: SessionTimeBudget) {
     targetExerciseCount: `${budget.exerciseCountRange.min}-${budget.exerciseCountRange.max}`,
     preferredExerciseCount: budget.targetExerciseCount,
     combinedBlockRange: `${budget.combinedBlockRange.min}-${budget.combinedBlockRange.max}`,
-    preferredCombinedBlocks: budget.targetCombinedBlocks,
-    restProfile: budget.restProfile,
-    densityStrategy: budget.densityStrategy,
-    allowAdvancedTechniques: budget.allowAdvancedTechniques,
-    maxIsolationExercises: budget.maxIsolationExercises,
-    allowExtendedMobility: budget.allowExtendedMobility,
-    timeFitRationale: budget.timeFitRationale
+    preferredCombinedBlocks: budget.targetCombinedBlocks
   };
 }
 

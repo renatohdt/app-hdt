@@ -68,6 +68,7 @@ export type ExerciseRecord = {
 export type WorkoutBlockType =
   | "normal"
   | "mobility"
+  | "warmup"
   | "superset"
   | "bi-set"
   | "tri-set"
