@@ -10,40 +10,6 @@ import { Card, Container, PageShell } from "@/components/ui";
 import { clientLogError } from "@/lib/client-logger";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-// ─── Cookie Banner ────────────────────────────────────────────────────────────
-function CookieBanner() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const accepted = localStorage.getItem("cookie_accepted");
-    if (!accepted) setVisible(true);
-  }, []);
-
-  function accept() {
-    localStorage.setItem("cookie_accepted", "1");
-    setVisible(false);
-  }
-
-  if (!visible) return null;
-
-  return (
-    <div className="fixed bottom-4 left-1/2 z-[200] flex w-[calc(100%-32px)] max-w-xl -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#111]/95 px-4 py-3 shadow-2xl backdrop-blur-md sm:gap-4 sm:px-5 sm:py-3.5">
-      <p className="text-xs leading-5 text-white/70 sm:text-sm">
-        Usamos cookies para melhorar sua experiência.{" "}
-        <Link href="/politica-de-privacidade" className="font-semibold text-primary underline-offset-2 hover:underline">
-          Saiba mais
-        </Link>
-      </p>
-      <button
-        onClick={accept}
-        className="shrink-0 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-black transition hover:bg-primaryStrong"
-      >
-        Aceitar
-      </button>
-    </div>
-  );
-}
-
 // ─── FAQ item ────────────────────────────────────────────────────────────────
 function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
@@ -142,9 +108,6 @@ export default function HomePage() {
   // ── Landing page ──
   return (
     <div className="min-h-screen bg-[#080808] text-white">
-
-      {/* ── COOKIE BANNER ── */}
-      <CookieBanner />
 
       {/* ── NAV ── */}
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#080808]/90 backdrop-blur-xl">
