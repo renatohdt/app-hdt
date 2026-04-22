@@ -2,9 +2,11 @@
 
 import clsx from "clsx";
 import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target } from "lucide-react";
+import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
+import { useSubscription } from "@/components/use-subscription";
 import {
   buildWeeklySchedule,
   formatWorkoutDisplayTitle,
@@ -43,6 +45,8 @@ const MONTH_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 });
 export function CalendarScreen({ data }: { data: AppWorkoutData }) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
+  const { subscription } = useSubscription();
+  const isFreePlan = !subscription?.isPremium;
 
   const plannedWorkoutsByWeekday = useMemo(() => {
     const schedule = buildWeeklySchedule(data);
@@ -121,11 +125,6 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
     return [...selectedSessions, ...remainingSessions];
   }, [selectedDateKey, visibleMonthSessions]);
 
-  const plannedSessionsInMonth = useMemo(() => {
-    return monthCells.filter((cell) => cell.isCurrentMonth && cell.plannedWorkout).length;
-  }, [monthCells]);
-
-  const completedSessionsInMonth = visibleMonthSessions.length;
   const monthTitle = capitalizeLabel(MONTH_FORMATTER.format(visibleMonth));
 
   return (
@@ -267,15 +266,25 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         )}
       </Card>
 
-      <Card className="space-y-3 p-5 sm:p-6">
-        <div>
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Progresso</p>
-        </div>
+      <Card className="space-y-3 p-[18px] shadow-none sm:p-[18px]">
+        <h2 className="text-[16px] font-bold text-white">Sua evolução</h2>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatPill label="Planejadas" value={`${plannedSessionsInMonth}`} tone="planned" />
-          <StatPill label="Concluídas" value={`${completedSessionsInMonth}`} tone="completed" />
-          <StatPill label="Ciclo atual" value={`${data.sessionProgress.currentSessionNumber}/${data.sessionProgress.totalSessions}`} />
+        <div className="grid grid-cols-3 gap-3">
+          <CalMetricCard
+            icon={BicepsFlexed}
+            label="Treinos"
+            value={`${data.sessionProgress.completedSessions}`}
+          />
+          <CalMetricCard
+            icon={CalendarRange}
+            label="Sessão"
+            value={`${data.sessionProgress.currentSessionNumber}/${data.sessionProgress.totalSessions}`}
+          />
+          <CalMetricCard
+            icon={Target}
+            label="Meta"
+            value={`${data.sessionProgress.progressPercentage}%`}
+          />
         </div>
       </Card>
 
@@ -311,41 +320,28 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           </div>
         )}
       </Card>
+
+      {isFreePlan ? <GoogleAd /> : null}
     </AppShell>
   );
 }
 
-function StatPill({
+function CalMetricCard({
+  icon: Icon,
   label,
-  value,
-  tone = "neutral"
+  value
 }: {
+  icon: typeof BicepsFlexed;
   label: string;
   value: string;
-  tone?: "neutral" | "planned" | "completed";
 }) {
   return (
-    <div
-      className={clsx(
-        "flex min-h-[5.4rem] flex-col items-center justify-center rounded-[18px] border px-2 py-3 text-center",
-        tone === "completed"
-          ? "border-primary/16 bg-primary/[0.08]"
-          : tone === "planned"
-            ? "border-primary/10 bg-primary/[0.05]"
-            : "border-white/10 bg-white/[0.03]"
-      )}
-    >
-      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/38 sm:text-[10px]">
-        {label}
-      </p>
-      <p
-        className={clsx(
-          "mt-1.5 text-base font-semibold sm:text-lg",
-          tone === "completed" || tone === "planned" ? "text-white" : "text-white/88"
-        )}
-      >
-        {value}
-      </p>
+    <div className="flex min-h-[88px] items-center gap-[10px] rounded-[15px] border border-white/[0.05] bg-black/18 p-[14px] text-left">
+      <Icon className="h-[18px] w-[18px] shrink-0 text-primary" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[17px] font-bold leading-[1.05] text-white">{value}</p>
+        <p className="mt-[5px] text-[11px] font-medium leading-[1.15] text-white/54">{label}</p>
+      </div>
     </div>
   );
 }

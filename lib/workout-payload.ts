@@ -399,7 +399,8 @@ function syncWorkoutExerciseWithCatalog(
 
   return {
     ...exercise,
-    muscleGroups: getExerciseMuscleGroups(catalogExercise)
+    muscleGroups: getExerciseMuscleGroups(catalogExercise),
+    videoUrl: catalogExercise.video_url ?? exercise.videoUrl
   };
 }
 

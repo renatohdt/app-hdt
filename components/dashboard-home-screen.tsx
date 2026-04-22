@@ -10,6 +10,7 @@ import {
   Target,
   Trophy
 } from "lucide-react";
+import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
@@ -284,6 +285,8 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           ))}
         </div>
       </Card>
+
+      {isFreePlan ? <GoogleAd /> : null}
 
       {showUpsellBanner ? (
         <UpsellModal reason="home_banner" onClose={() => setShowUpsellBanner(false)} />

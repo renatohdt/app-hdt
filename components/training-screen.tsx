@@ -9,6 +9,7 @@ import { AchievementPopup } from "@/components/achievement-popup";
 import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import { Badge, Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
+import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
 import { useSubscription } from "@/components/use-subscription";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
@@ -72,6 +73,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [totalWorkoutsAllTime, setTotalWorkoutsAllTime] = useState(data.totalWorkoutsAllTime);
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
   const [showProgramUpsell, setShowProgramUpsell] = useState(false);
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const { subscription } = useSubscription();
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
@@ -190,9 +192,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       }
 
       setConfirmCompletion(false);
+      setShowCompletionPopup(true);
       setFeedback({
         tone: "success",
-        text: `${formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} contou +1 sessão no plano. Próximo em destaque: ${nextWorkoutLabel}.`
+        text: `Próximo em destaque: ${nextWorkoutLabel}.`
       });
 
       const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
@@ -372,6 +375,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {showCompletionPopup ? (
+        <WorkoutCompletionPopup onClose={() => setShowCompletionPopup(false)} />
       ) : null}
 
       {showProgramUpsell ? (
