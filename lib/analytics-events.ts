@@ -18,7 +18,10 @@ export type AnalyticsEventName =
   // Eventos de assinatura premium
   | "premium_page_view"
   | "checkout_started"
-  | "purchase";
+  | "purchase"
+  // Eventos de escolha de plano
+  | "plan_selection_view"
+  | "plan_selected";
 
 export const HOME_VIEW_EVENTS: AnalyticsEventName[] = ["home_view", "page_view"];
 export const QUIZ_START_EVENTS: AnalyticsEventName[] = ["quiz_started", "quiz_start"];
