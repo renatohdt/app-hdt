@@ -19,7 +19,9 @@ export async function GET(request: Request) {
 
     const csv = await getMonthlyDashboardCsv();
 
-    return new Response(csv, {
+    // \uFEFF = UTF-8 BOM: faz o Excel reconhecer o encoding corretamente
+    // sem isso, acentos e o traço "—" aparecem como "â€"" (Latin-1 mal interpretado)
+    return new Response("\uFEFF" + csv, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
