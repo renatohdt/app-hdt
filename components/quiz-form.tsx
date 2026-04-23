@@ -348,7 +348,7 @@ export function QuizForm() {
 
           await completeLoadingProgress();
           setSuccessMessage("Conta criada com sucesso.");
-          router.push("/dashboard");
+          router.push("/escolher-plano");
           router.refresh();
         } catch (submissionError) {
           clientLogError("QUIZ SIGN UP FLOW ERROR", submissionError);

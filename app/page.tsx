@@ -127,7 +127,7 @@ export default function HomePage() {
           <ul className="hidden items-center gap-8 text-sm text-white/60 lg:flex">
             <li><a href="#como-funciona" className="transition hover:text-white">Como funciona</a></li>
             <li><a href="#funcionalidades" className="transition hover:text-white">Funcionalidades</a></li>
-            <li><a href="#premium" className="transition hover:text-white">Premium</a></li>
+            <li><Link href="/premium" className="transition hover:text-white">Premium</Link></li>
             <li><a href="#faq" className="transition hover:text-white">FAQ</a></li>
           </ul>
 
@@ -352,79 +352,6 @@ export default function HomePage() {
                 </p>
               </article>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── PREMIUM ── */}
-      <section id="premium" className="px-4 py-[70px]" aria-labelledby="premium-title">
-        <div className="mx-auto max-w-6xl">
-          <div
-            className="rounded-3xl border border-primary/20 p-8 text-center sm:p-14"
-            style={{ background: "linear-gradient(135deg, #0f1f13 0%, #0d1a0f 100%)" }}
-          >
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-primary/15 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
-              ✨ Hora do Treino Premium
-            </div>
-
-            <h2 id="premium-title" className="mb-3 text-[clamp(22px,5vw,38px)] font-black tracking-tight">
-              Evolua sem limites
-            </h2>
-            <p className="mx-auto mb-10 max-w-sm text-white/60">
-              Treinos personalizados que crescem com você.
-            </p>
-
-            <div className="mx-auto mb-10 grid max-w-md gap-4 sm:grid-cols-2">
-              <div className="relative rounded-2xl border-2 border-primary bg-primary/6 p-6 text-center">
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-4 py-1 text-[11px] font-black text-black">
-                  Mais popular
-                </span>
-                <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.15em] text-white/60">Anual</p>
-                <p className="text-4xl font-black leading-none">
-                  <span className="align-super text-lg font-semibold">R$</span>9,90
-                </p>
-                <p className="mt-1.5 text-sm text-white/60">/mês · R$ 118,80/ano</p>
-                <p className="mt-2 text-sm font-bold text-primary">Economize 33%</p>
-                <p className="mt-3 text-2xl text-primary">✓</p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 p-6 text-center" style={{ background: "rgba(255,255,255,0.03)" }}>
-                <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.15em] text-white/60">Mensal</p>
-                <p className="text-4xl font-black leading-none">
-                  <span className="align-super text-lg font-semibold">R$</span>14,90
-                </p>
-                <p className="mt-1.5 text-sm text-white/60">/mês</p>
-                <p className="mt-1 text-xs text-white/30">Cartão de crédito</p>
-              </div>
-            </div>
-
-            <p className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em] text-white/50">
-              Incluído no Premium
-            </p>
-
-            <ul className="mx-auto mb-10 max-w-sm space-y-3 text-left">
-              {[
-                "Tudo do plano gratuito",
-                "Mais substituições de exercício por treino",
-                "Programas de treino ilimitados",
-                "Geração de novo treino a qualquer momento",
-                "Experiência sem anúncios",
-              ].map((item) => (
-                <li key={item} className="flex items-start gap-3 text-[15px]">
-                  <span className="mt-0.5 shrink-0 font-black text-primary">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-
-            <a
-              href="#criar-treino"
-              onClick={scrollToQuiz}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-[15px] font-bold text-black transition hover:bg-primaryStrong"
-            >
-              Começar grátis e desbloquear Premium depois
-            </a>
-            <p className="mt-4 text-xs text-white/30">Sem cartão de crédito. Comece grátis agora.</p>
           </div>
         </div>
       </section>

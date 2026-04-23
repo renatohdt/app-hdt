@@ -11,30 +11,28 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 
 type Plan = "annual" | "monthly";
 
-const FEATURES_FREE = [
-  "Treino personalizado com IA",
-  "Frequência de treino",
-  "Metas",
-  "Controle de carga",
-  "Cronômetro",
-  "2 substituições de exercício por programa",
-  "Até 2 programas de treino",
+// Tabela comparativa Free vs Premium
+const COMPARISON = [
+  { label: "Treino completo com IA",                 free: true,          premium: true          },
+  { label: "Substituições de exercício",             free: "2 por plano", premium: "Ilimitadas"  },
+  { label: "Gerador de treino",                      free: "1 programa",  premium: "Ilimitados"  },
+  { label: "Controle de carga",                      free: true,          premium: true          },
+  { label: "Controle de frequência de treino",       free: true,          premium: true          },
+  { label: "Conquistas",                             free: true,          premium: true          },
+  { label: "Cronômetro",                             free: true,          premium: true          },
+  { label: "Edição de perfil para ajuste de treino", free: true,          premium: true          },
+  { label: "Experiência sem anúncios",               free: false,         premium: true          },
 ];
 
-const FEATURES_PREMIUM = [
-  "Tudo do plano gratuito",
-  "Mais substituições de exercício por treino",
-  "Programas de treino ilimitados",
-  "Geração de novo treino a qualquer momento",
-  "Experiência sem anúncios",
-];
-
-const FEATURES_BLOCKED_FREE = [
-  "Mais substituições por treino",
-  "Programas ilimitados",
-  "Evolução com IA",
-  "Sem anúncios",
-];
+function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: boolean }) {
+  if (value === true)  return <Check size={16} className={clsx("mx-auto", isPremium ? "text-primary" : "text-white/50")} strokeWidth={3} />;
+  if (value === false) return <X     size={14} className="mx-auto text-white/20" strokeWidth={2} />;
+  return (
+    <span className={clsx("text-xs font-semibold", isPremium ? "text-primary" : "text-white/60")}>
+      {value}
+    </span>
+  );
+}
 
 function formatCPF(value: string) {
   return value
@@ -45,45 +43,27 @@ function formatCPF(value: string) {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
-// Valida CPF usando o algoritmo dos dígitos verificadores da Receita Federal
 function isValidCPF(cpf: string): boolean {
   const digits = cpf.replace(/\D/g, "");
-
   if (digits.length !== 11) return false;
-
-  // Rejeita CPFs com todos os dígitos iguais (ex: 111.111.111-11)
   if (/^(\d)\1{10}$/.test(digits)) return false;
-
-  // Valida primeiro dígito verificador
   let sum = 0;
-  for (let i = 0; i < 9; i++) {
-    sum += parseInt(digits[i]) * (10 - i);
-  }
+  for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
   let remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(digits[9])) return false;
-
-  // Valida segundo dígito verificador
   sum = 0;
-  for (let i = 0; i < 10; i++) {
-    sum += parseInt(digits[i]) * (11 - i);
-  }
+  for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i);
   remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(digits[10])) return false;
-
   return true;
 }
 
-// Valida nome completo: mínimo 2 palavras, só letras e espaços, sem números
 function isValidFullName(name: string): boolean {
   const trimmed = name.trim();
   if (trimmed.length < 5) return false;
-
-  // Permite letras (incluindo acentuadas), espaços e hífens
   if (!/^[A-Za-zÀ-ÖØ-öø-ÿ '-]+$/.test(trimmed)) return false;
-
-  // Exige pelo menos duas palavras com no mínimo 2 letras cada
   const parts = trimmed.split(/\s+/).filter((p) => p.length >= 2);
   return parts.length >= 2;
 }
@@ -123,7 +103,6 @@ function PremiumPageContent() {
 
     setLoading(true);
 
-    // Dispara eventos de analytics antes do redirect
     const value = selectedPlan === "annual" ? 118.9 : 14.9;
     trackEvent("checkout_started", null, { plan: selectedPlan, value });
     trackMetaInitiateCheckout({ value, currency: "BRL", content_name: `Premium ${selectedPlan}` });
@@ -135,7 +114,6 @@ function PremiumPageContent() {
         body: JSON.stringify({ plan: selectedPlan, customerName: name.trim(), customerCpf: cpfNumbers }),
       });
 
-      // Trata resposta não-JSON (ex: erro de servidor antes da rota processar)
       let data: { data?: { url?: string }; error?: string } | null = null;
       try {
         data = await response.json();
@@ -147,7 +125,6 @@ function PremiumPageContent() {
         throw new Error(data?.error ?? "Não foi possível iniciar o pagamento. Tente novamente.");
       }
 
-      // Redireciona para o Stripe Checkout
       window.location.href = data.data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro de conexão. Verifique sua internet e tente novamente.");
@@ -156,11 +133,14 @@ function PremiumPageContent() {
   }
 
   return (
-    <main className="min-h-screen min-h-[100dvh] bg-spotlight px-4 py-8 sm:px-6">
+    <main className="min-h-screen min-h-[100dvh] bg-[#080808] px-4 py-8 text-white sm:px-6">
       <div className="mx-auto w-full max-w-lg">
 
         {/* Voltar */}
-        <Link href="/perfil" className="mb-6 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white/80 transition-colors">
+        <Link
+          href="/perfil"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-white/40 transition-colors hover:text-white/70"
+        >
           ← Voltar
         </Link>
 
@@ -173,44 +153,84 @@ function PremiumPageContent() {
 
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
             <Sparkles size={12} />
             Hora do Treino Premium
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">
+          <h1 className="text-3xl font-black tracking-tight">
             Evolua sem limites
           </h1>
-          <p className="mt-2 text-sm text-white/60">
+          <p className="mt-2 text-sm text-white/50">
             Treinos personalizados que crescem com você.
           </p>
         </div>
 
-        {/* Seletor de plano */}
+        {/* ── Tabela comparativa ── */}
+        <div className="mb-8 overflow-hidden rounded-2xl border border-white/10">
+
+          {/* Cabeçalho */}
+          <div className="grid grid-cols-3 border-b border-white/10 bg-white/5">
+            <div className="px-3 py-3" />
+            <div className="flex flex-col items-center justify-center border-l border-white/10 px-2 py-3 text-center">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-white/70">Grátis</span>
+              <span className="mt-0.5 text-xs font-semibold text-white/50">R$ 0</span>
+            </div>
+            <div className="relative flex flex-col items-center justify-center border-l border-primary/30 bg-primary/5 px-2 pb-3 pt-7 text-center">
+              <span className="absolute top-1.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-black text-black whitespace-nowrap">
+                ✨ PREMIUM
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Premium</span>
+              <span className="mt-0.5 text-xs font-semibold text-primary/90">R$ 9,90<span className="text-[10px] font-normal text-white/60">/mês</span></span>
+            </div>
+          </div>
+
+          {/* Linhas */}
+          {COMPARISON.map((row, i) => (
+            <div
+              key={row.label}
+              className={`grid grid-cols-3 border-b border-white/5 last:border-0 ${i % 2 === 0 ? "" : "bg-white/[0.02]"}`}
+            >
+              <div className="flex items-center px-3 py-3 text-xs leading-snug text-white/80">
+                {row.label}
+              </div>
+              <div className="flex items-center justify-center border-l border-white/10 px-2 py-3">
+                <CellValue value={row.free} isPremium={false} />
+              </div>
+              <div className="flex items-center justify-center border-l border-primary/20 bg-primary/[0.03] px-2 py-3">
+                <CellValue value={row.premium} isPremium={true} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Seletor de plano ── */}
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">
+          Escolha seu plano
+        </p>
         <div className="mb-6 grid grid-cols-2 gap-3">
 
-          {/* Plano Anual — destaque */}
+          {/* Plano Anual */}
           <button
             onClick={() => setSelectedPlan("annual")}
             className={clsx(
-              "relative flex flex-col items-center rounded-3xl border-2 p-4 text-left transition-all",
+              "relative flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
               selectedPlan === "annual"
                 ? "border-primary bg-primary/10 shadow-glow"
                 : "border-white/10 bg-white/5 hover:border-white/20"
             )}
           >
-            {/* Badge "Mais popular" */}
-            <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-xs font-bold text-black">
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-[10px] font-black text-black whitespace-nowrap">
               Mais popular
             </span>
             <div className="mt-1 w-full text-center">
-              <p className="text-xs font-semibold uppercase tracking-widest text-white/50">Anual</p>
-              <p className="mt-1 text-2xl font-bold text-white">R$&nbsp;9,90</p>
-              <p className="text-xs text-white/40">/mês · R$&nbsp;118,80/ano</p>
-              <p className="mt-2 text-xs font-medium text-primary">Economize 33%</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Anual</p>
+              <p className="mt-1 text-2xl font-black text-white">R$&nbsp;9,90</p>
+              <p className="text-[11px] text-white/40">/mês · R$&nbsp;118,80/ano</p>
+              <p className="mt-1.5 text-[11px] font-semibold text-primary">Economize 33%</p>
             </div>
             {selectedPlan === "annual" && (
               <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-                <Check size={12} className="text-black" strokeWidth={3} />
+                <Check size={11} className="text-black" strokeWidth={3} />
               </div>
             )}
           </button>
@@ -219,61 +239,30 @@ function PremiumPageContent() {
           <button
             onClick={() => setSelectedPlan("monthly")}
             className={clsx(
-              "flex flex-col items-center rounded-3xl border-2 p-4 text-left transition-all",
+              "flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
               selectedPlan === "monthly"
                 ? "border-primary bg-primary/10 shadow-glow"
                 : "border-white/10 bg-white/5 hover:border-white/20"
             )}
           >
             <div className="w-full text-center">
-              <p className="text-xs font-semibold uppercase tracking-widest text-white/50">Mensal</p>
-              <p className="mt-1 text-2xl font-bold text-white">R$&nbsp;14,90</p>
-              <p className="text-xs text-white/40">/mês</p>
-              <p className="mt-2 text-xs text-white/30">Cartão de crédito</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Mensal</p>
+              <p className="mt-1 text-2xl font-black text-white">R$&nbsp;14,90</p>
+              <p className="text-[11px] text-white/40">/mês</p>
+              <p className="mt-1.5 text-[11px] text-white/30">Cartão de crédito</p>
             </div>
             {selectedPlan === "monthly" && (
               <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-                <Check size={12} className="text-black" strokeWidth={3} />
+                <Check size={11} className="text-black" strokeWidth={3} />
               </div>
             )}
           </button>
         </div>
 
-        {/* O que está incluído */}
-        <div className="mb-6 rounded-3xl border border-white/10 bg-[#101010]/80 p-5">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">
-            Incluído no Premium
-          </p>
-          <ul className="space-y-2.5">
-            {FEATURES_PREMIUM.map((feature) => (
-              <li key={feature} className="flex items-start gap-3 text-sm text-white/90">
-                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                  <Check size={10} className="text-primary" strokeWidth={3} />
-                </span>
-                {feature}
-              </li>
-            ))}
-          </ul>
-
-          <div className="my-4 h-px bg-white/8" />
-
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/30">
-            Não disponível no gratuito
-          </p>
-          <ul className="space-y-2">
-            {FEATURES_BLOCKED_FREE.map((feature) => (
-              <li key={feature} className="flex items-center gap-3 text-sm text-white/40">
-                <X size={12} className="shrink-0 text-white/25" />
-                {feature}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Formulário de dados */}
-        <div className="mb-6 rounded-3xl border border-white/10 bg-[#101010]/80 p-5 space-y-4">
+        {/* ── Formulário de dados ── */}
+        <div className="mb-6 space-y-4 rounded-3xl border border-white/10 bg-[#101010]/80 p-5">
           <p className="text-xs font-semibold uppercase tracking-widest text-white/40">
-            Seus dados
+            Seus dados para emissão de NF
           </p>
 
           <div>
@@ -284,7 +273,7 @@ function PremiumPageContent() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Como está no seu CPF"
               autoComplete="name"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
             />
           </div>
 
@@ -297,7 +286,7 @@ function PremiumPageContent() {
               placeholder="000.000.000-00"
               inputMode="numeric"
               autoComplete="off"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition"
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
             />
           </div>
         </div>
@@ -309,7 +298,7 @@ function PremiumPageContent() {
           </div>
         )}
 
-        {/* Botão de checkout */}
+        {/* ── Botão de checkout ── */}
         <button
           onClick={handleCheckout}
           disabled={loading}
@@ -323,32 +312,32 @@ function PremiumPageContent() {
           ) : (
             <>
               <Zap size={16} strokeWidth={2.5} />
-              Assinar {selectedPlan === "annual" ? "por R$ 118,80/ano" : "por R$ 14,90/mês"}
+              {selectedPlan === "annual" ? "Assinar por R$ 118,80/ano" : "Assinar por R$ 14,90/mês"}
             </>
           )}
         </button>
 
         {/* Garantias */}
         <div className="mt-5 space-y-2.5">
-          <div className="flex items-center gap-2.5 text-xs text-white/40">
-            <Shield size={13} className="shrink-0 text-primary/60" />
-            <span>Pagamento seguro processado pelo Stripe</span>
+          <div className="flex items-center gap-2.5 text-xs text-white/60">
+            <Shield size={13} className="shrink-0 text-primary/70" />
+            Pagamento seguro processado pelo Stripe
           </div>
-          <div className="flex items-center gap-2.5 text-xs text-white/40">
-            <Lock size={13} className="shrink-0 text-primary/60" />
-            <span>Seus dados são protegidos com criptografia</span>
+          <div className="flex items-center gap-2.5 text-xs text-white/60">
+            <Lock size={13} className="shrink-0 text-primary/70" />
+            Seus dados são protegidos com criptografia
           </div>
-          <div className="flex items-center gap-2.5 text-xs text-white/40">
-            <Check size={13} className="shrink-0 text-primary/60" />
-            <span>Garantia de 7 dias — reembolso sem burocracia</span>
+          <div className="flex items-center gap-2.5 text-xs text-white/60">
+            <Check size={13} className="shrink-0 text-primary/70" />
+            Garantia de 7 dias — reembolso sem burocracia
           </div>
-          <div className="flex items-center gap-2.5 text-xs text-white/40">
-            <Check size={13} className="shrink-0 text-primary/60" />
-            <span>Cancele quando quiser, sem multas</span>
+          <div className="flex items-center gap-2.5 text-xs text-white/60">
+            <Check size={13} className="shrink-0 text-primary/70" />
+            Cancele quando quiser, sem multas
           </div>
         </div>
 
-        <p className="mt-6 text-center text-xs text-white/20">
+        <p className="mt-6 text-center text-xs text-white/50">
           Ao assinar, você concorda com os{" "}
           <Link href="/termos-de-uso" className="underline hover:text-white/40">
             Termos de Uso
