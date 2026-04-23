@@ -210,7 +210,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery] =
+    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery, retentionEventsQuery] =
       await Promise.all([
         supabase
           .from("users")
@@ -226,8 +226,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .select("id, event_name, user_id, visitor_id, metadata, created_at")
           .is("deleted_at", null)
           .in("event_name", DASHBOARD_EVENT_NAMES)
-          // Bug 2: limita a janela de 30 dias para evitar full-table scan.
-          // 30 dias é suficiente para funil semanal e retenção D30.
+          // Limita a 30 dias para o funil — suficiente para visão diária e semanal.
+          // Retenção usa query própria (retentionEventsQuery) com janela maior.
           .gte("created_at", startOfLastDays(30).toISOString())
           .order("created_at", { ascending: false }),
         supabase
@@ -240,6 +240,18 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         supabase
           .from("workouts")
           .select("id, user_id, created_at")
+          .order("created_at", { ascending: false }),
+        // Query dedicada para retenção com janela de 90 dias.
+        // O funil usa 30 dias, mas o cálculo de retenção precisa de janela maior:
+        // um usuário registrado há 45 dias tem janela D7 entre 44 e 38 dias atrás —
+        // completamente fora dos 30 dias do funil, o que causaria falso "não retornou".
+        // 90 dias cobre D30 de usuários com até ~60 dias de cadastro.
+        supabase
+          .from("analytics_events")
+          .select("event_name, user_id, created_at")
+          .is("deleted_at", null)
+          .in("event_name", RETURN_ACTIVITY_EVENTS)
+          .gte("created_at", startOfLastDays(90).toISOString())
           .order("created_at", { ascending: false })
       ]);
 
@@ -248,7 +260,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       buildQueryError("answers-error", dashboardAnswersQuery.error?.message, "user_answers"),
       buildQueryError("events-error", dashboardEventsQuery.error?.message, "analytics_events"),
       buildQueryError("error-events-error", dashboardErrorEventsQuery.error?.message, "analytics_events"),
-      buildQueryError("workouts-error", dashboardWorkoutsQuery.error?.message, "workouts")
+      buildQueryError("workouts-error", dashboardWorkoutsQuery.error?.message, "workouts"),
+      buildQueryError("retention-events-error", retentionEventsQuery.error?.message, "analytics_events")
     ].filter(Boolean) as AdminErrorLog[];
 
     if (dashboardQueryErrors.length) {
@@ -303,9 +316,17 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     // Métricas de engajamento com as ferramentas do app
     // Buscamos separadamente para não atrasar o dashboard caso as tabelas cresçam.
-    const [featureReplacementsQuery, featureSessionsQuery] = await Promise.all([
+    const [featureReplacementsQuery, featureSessionsQuery, featureNewWorkoutQuery] = await Promise.all([
       supabase.from("workout_exercise_replacements").select("user_id"),
-      supabase.from("workout_session_logs").select("user_id").eq("status", "completed")
+      supabase.from("workout_session_logs").select("user_id").eq("status", "completed"),
+      // "Gerar novo treino" é o botão na página de Perfil — rastreado como workout_generated
+      // com metadata.source = "profile_regenerate". Não confundir com o 2º programa
+      // auto-gerado ao concluir o 1º ciclo (que não passa por esse evento).
+      supabase
+        .from("analytics_events")
+        .select("user_id")
+        .eq("event_name", "workout_generated")
+        .eq("metadata->>source", "profile_regenerate")
     ]);
 
     const usersWithReplacement = new Set(
@@ -314,12 +335,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const usersWithCompletedSession = new Set(
       ((featureSessionsQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
     ).size;
-    // Usuários com mais de 1 programa de treino = usaram "gerar novo treino" (free auto ou premium)
-    const workoutCountPerUser = new Map<string, number>();
-    for (const row of dashboardWorkouts) {
-      workoutCountPerUser.set(row.user_id, (workoutCountPerUser.get(row.user_id) ?? 0) + 1);
-    }
-    const usersWithNewWorkout = [...workoutCountPerUser.values()].filter((count) => count > 1).length;
+    const usersWithNewWorkout = new Set(
+      ((featureNewWorkoutQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
+    ).size;
 
     // Total = usuários que completaram o cadastro (quiz finalizado, perfil salvo)
     const totalUsers = dashboardUsers.length;
@@ -340,7 +358,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ageDistribution: toDistribution(dashboardAnswerList.map(getAgeBucket)),
       genderDistribution: toDistribution(dashboardAnswerList.map((answers) => getGenderLabel(answers.gender))),
       goalDistribution: toDistribution(dashboardAnswerList.map((answers) => getGoalLabel(answers.goal))),
-      retention: buildRetentionMetrics(dashboardUsers, dashboardEvents),
+      retention: buildRetentionMetrics(dashboardUsers, (retentionEventsQuery.data ?? []) as AdminEvent[]),
       funnel: {
         daily: buildWindowedFunnelPeriod(dashboardUsers, dashboardAnswers, dashboardEvents, dashboardIdentityResolver, {
           from: startOfToday(),
