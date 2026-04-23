@@ -55,6 +55,11 @@ export type AdminDashboardData = {
   workoutsGenerated: number;
   workoutsLast7Days: number;
   completionRate: number | null;
+  featureUsage: {
+    usersWithReplacement: number;
+    usersWithNewWorkout: number;
+    usersWithCompletedSession: number;
+  };
 };
 
 export function getGoalLabel(goal?: QuizAnswers["goal"]) {

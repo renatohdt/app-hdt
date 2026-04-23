@@ -27,6 +27,13 @@ export const HOME_VIEW_EVENTS: AnalyticsEventName[] = ["home_view", "page_view"]
 export const QUIZ_START_EVENTS: AnalyticsEventName[] = ["quiz_started", "quiz_start"];
 export const SIGNUP_EVENTS: AnalyticsEventName[] = ["signup", "sign_up", "quiz_completed"];
 export const CTA_EVENTS: AnalyticsEventName[] = ["cta_click", "cta_clicked", "clicked_cta"];
+
+// Eventos que indicam intenção real de conversão para premium.
+// São a última etapa do funil de aquisição no admin.
+// Nota: esses eventos são disparados no app mas precisam estar no DASHBOARD_EVENT_NAMES
+// para serem aceitos pelo /api/track e persistidos no Supabase.
+export const PREMIUM_INTENT_EVENTS: AnalyticsEventName[] = ["premium_page_view", "checkout_started"];
+
 export const RETURN_ACTIVITY_EVENTS: AnalyticsEventName[] = [
   "app_session",
   "workout_generated",
@@ -44,7 +51,14 @@ export const ACTIVE_USER_EVENT_NAMES: AnalyticsEventName[] = Array.from(
 );
 
 export const DASHBOARD_EVENT_NAMES: AnalyticsEventName[] = Array.from(
-  new Set([...HOME_VIEW_EVENTS, ...QUIZ_START_EVENTS, ...SIGNUP_EVENTS, ...CTA_EVENTS, ...RETURN_ACTIVITY_EVENTS])
+  new Set([
+    ...HOME_VIEW_EVENTS,
+    ...QUIZ_START_EVENTS,
+    ...SIGNUP_EVENTS,
+    ...CTA_EVENTS,
+    ...PREMIUM_INTENT_EVENTS,
+    ...RETURN_ACTIVITY_EVENTS
+  ])
 );
 
 export const ANONYMOUS_TRACKABLE_EVENT_NAMES: AnalyticsEventName[] = [

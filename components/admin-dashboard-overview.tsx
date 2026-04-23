@@ -14,7 +14,7 @@ import {
 import { clientLogError } from "@/lib/client-logger";
 
 export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
-  const [period, setPeriod] = useState<DashboardWindowKey>("weekly");
+  const [period, setPeriod] = useState<DashboardWindowKey>("daily");
   const [exporting, setExporting] = useState(false);
   const activeUsers = data.activeUsers[period];
   const totalUsers = data.totalUsers;
@@ -101,6 +101,29 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           value={data.completionRate !== null ? `${data.completionRate}%` : "—"}
           description="Usuários que geraram treino."
         />
+      </section>
+
+      <section className="space-y-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+          Engajamento com as ferramentas
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <SummaryMetricCard
+            label="Substituíram exercício"
+            value={String(data.featureUsage.usersWithReplacement)}
+            description="Usuários únicos que usaram substituição de exercício pelo menos 1 vez."
+          />
+          <SummaryMetricCard
+            label="Geraram novo treino"
+            value={String(data.featureUsage.usersWithNewWorkout)}
+            description="Usuários únicos com 2 ou mais programas de treino gerados."
+          />
+          <SummaryMetricCard
+            label="Concluíram sessão"
+            value={String(data.featureUsage.usersWithCompletedSession)}
+            description="Usuários únicos que marcaram ao menos uma sessão de treino como concluída."
+          />
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.95fr)]">

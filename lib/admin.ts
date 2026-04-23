@@ -11,6 +11,7 @@ import {
   CTA_EVENTS,
   DASHBOARD_EVENT_NAMES,
   HOME_VIEW_EVENTS,
+  PREMIUM_INTENT_EVENTS,
   QUIZ_START_EVENTS,
   RETURN_ACTIVITY_EVENTS,
   SIGNUP_EVENTS
@@ -201,7 +202,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       newUsersLast30Days: 0,
       workoutsGenerated: 0,
       workoutsLast7Days: 0,
-      completionRate: null
+      completionRate: null,
+      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
     };
   }
 
@@ -270,7 +272,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         newUsersLast30Days: 0,
         workoutsGenerated: 0,
         workoutsLast7Days: 0,
-        completionRate: null
+        completionRate: null,
+        featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
       };
     }
 
@@ -297,6 +300,26 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const completionRate = dashboardUsers.length > 0
       ? Math.round((workoutsGenerated / dashboardUsers.length) * 100)
       : null;
+
+    // Métricas de engajamento com as ferramentas do app
+    // Buscamos separadamente para não atrasar o dashboard caso as tabelas cresçam.
+    const [featureReplacementsQuery, featureSessionsQuery] = await Promise.all([
+      supabase.from("workout_exercise_replacements").select("user_id"),
+      supabase.from("workout_session_logs").select("user_id").eq("status", "completed")
+    ]);
+
+    const usersWithReplacement = new Set(
+      ((featureReplacementsQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
+    ).size;
+    const usersWithCompletedSession = new Set(
+      ((featureSessionsQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
+    ).size;
+    // Usuários com mais de 1 programa de treino = usaram "gerar novo treino" (free auto ou premium)
+    const workoutCountPerUser = new Map<string, number>();
+    for (const row of dashboardWorkouts) {
+      workoutCountPerUser.set(row.user_id, (workoutCountPerUser.get(row.user_id) ?? 0) + 1);
+    }
+    const usersWithNewWorkout = [...workoutCountPerUser.values()].filter((count) => count > 1).length;
 
     // Total = usuários que completaram o cadastro (quiz finalizado, perfil salvo)
     const totalUsers = dashboardUsers.length;
@@ -333,7 +356,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       newUsersLast30Days,
       workoutsGenerated,
       workoutsLast7Days,
-      completionRate
+      completionRate,
+      featureUsage: {
+        usersWithReplacement,
+        usersWithNewWorkout,
+        usersWithCompletedSession
+      }
     };
   }
 
@@ -381,7 +409,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       newUsersLast30Days: 0,
       workoutsGenerated: 0,
       workoutsLast7Days: 0,
-      completionRate: null
+      completionRate: null,
+      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
     };
   }
 
@@ -418,21 +447,26 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     newUsersLast30Days: 0,
     workoutsGenerated: 0,
     workoutsLast7Days: 0,
-    completionRate: null
+    completionRate: null,
+    featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
   };
 }
 
 export async function getMonthlyDashboardCsv() {
   const supabase = createSupabaseAdminClient();
 
+  const EMPTY_CSV = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_premium\n";
+
   if (!supabase) {
-    return "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta\n";
+    return EMPTY_CSV;
   }
 
   {
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    // Início do mês corrente em horário de Brasília (UTC-3)
+    const nowInBrasilia = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    const [brtYear, brtMonth] = nowInBrasilia.split("-");
+    // Meia-noite do dia 1 do mês em BRT = 03:00 UTC
+    const monthStart = new Date(`${brtYear}-${brtMonth}-01T03:00:00.000Z`);
 
     const [csvUsersQuery, csvAnswersQuery, csvEventsQuery] = await Promise.all([
       supabase
@@ -458,50 +492,98 @@ export async function getMonthlyDashboardCsv() {
 
     if (csvUsersQuery.error || csvAnswersQuery.error || csvEventsQuery.error) {
       console.error("MONTHLY CSV ERROR:", csvUsersQuery.error ?? csvAnswersQuery.error ?? csvEventsQuery.error);
-      return "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta\n";
+      return EMPTY_CSV;
     }
 
     const csvUsers = ((csvUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
     const csvAnswers = (csvAnswersQuery.data ?? []) as UserAnswerRow[];
     const csvEvents = (csvEventsQuery.data ?? []) as AdminEvent[];
     const csvIdentityResolver = getEventIdentityResolver(csvEvents);
+
+    // Usa datas em BRT para agrupar por dia — evita contar eventos de 21h-00h
+    // no dia errado (problema do fuso UTC x BRT)
     const dayKeys = new Set<string>();
+    const toBrtDate = (iso: string) =>
+      new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
 
-    csvUsers.forEach((user) => {
-      if (user.created_at) {
-        dayKeys.add(new Date(user.created_at).toISOString().slice(0, 10));
-      }
+    csvUsers.forEach((u) => { if (u.created_at) dayKeys.add(toBrtDate(u.created_at)); });
+    csvAnswers.forEach((a) => { if (a.created_at) dayKeys.add(toBrtDate(a.created_at)); });
+    csvEvents.forEach((e) => { if (e.created_at) dayKeys.add(toBrtDate(e.created_at)); });
+
+    // Mês formatado para o cabeçalho, ex: "Abril/2026"
+    const monthLabel = new Date(monthStart).toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "America/Sao_Paulo"
+    });
+    const exportedAt = new Date().toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: "America/Sao_Paulo"
     });
 
-    csvAnswers.forEach((answer) => {
-      if (answer.created_at) {
-        dayKeys.add(new Date(answer.created_at).toISOString().slice(0, 10));
-      }
-    });
+    // Bloco de legenda — aparece como texto nas primeiras linhas do arquivo.
+    // Linhas com # são convenção de comentário em CSV; Excel mostra na coluna A.
+    const legend = [
+      `# Hora do Treino — Relatorio de Metricas`,
+      `# Exportado em: ${exportedAt} (horario de Brasilia)`,
+      `# Periodo: ${monthLabel}`,
+      `#`,
+      `# LEGENDA DAS COLUNAS:`,
+      `# data             — Dia no formato DD/MM/AAAA (horario de Brasilia)`,
+      `# dia_semana       — Dia da semana`,
+      `# pagina_inicial   — Visitantes unicos que acessaram a landing page`,
+      `# quiz_iniciado    — Usuarios unicos que iniciaram o questionario`,
+      `# conta_criada     — Usuarios unicos que criaram conta no app`,
+      `# visitou_premium  — Usuarios unicos que visitaram a pagina de planos ou iniciaram o checkout`,
+      `# conv_home_quiz   — Conversao de pagina inicial para quiz (%)`,
+      `# conv_quiz_conta  — Conversao de quiz para criacao de conta (%)`,
+      `# conv_conta_prem  — Conversao de conta criada para visita ao premium (%)`,
+      `# -----`
+    ].join("\n");
 
-    csvEvents.forEach((event) => {
-      if (event.created_at) {
-        dayKeys.add(new Date(event.created_at).toISOString().slice(0, 10));
-      }
-    });
+    const dataHeader = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_prem";
 
-    const header = "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta";
+    // Acumuladores para a linha TOTAL
+    let totalHome = 0, totalQuiz = 0, totalSignup = 0, totalPremium = 0;
+
+    const DAYS_PT = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
+
     const lines = [...dayKeys]
-      .sort((left, right) => left.localeCompare(right))
+      .sort((a, b) => a.localeCompare(b))
       .map((date) => {
-        const from = new Date(`${date}T00:00:00.000Z`);
+        // Janela do dia em BRT: meia-noite BRT = 03:00 UTC, fim = 03:00 UTC do dia seguinte
+        const from = new Date(`${date}T03:00:00.000Z`);
         const to = new Date(from);
         to.setUTCDate(to.getUTCDate() + 1);
-        const counts = buildFunnelCountsForWindow(csvUsers, csvAnswers, csvEvents, csvIdentityResolver, {
-          from,
-          to,
-          label: date
-        });
 
-        return `${date},${counts.home},${counts.quiz},${counts.signup},${counts.cta}`;
+        const counts = buildFunnelCountsForWindow(csvUsers, csvAnswers, csvEvents, csvIdentityResolver, { from, to, label: date });
+
+        totalHome    += counts.home;
+        totalQuiz    += counts.quiz;
+        totalSignup  += counts.signup;
+        totalPremium += counts.premiumIntent;
+
+        // Taxas de conversao de cada etapa
+        const convHomeQuiz  = counts.home    > 0 ? `${Math.round((counts.quiz    / counts.home)    * 100)}%` : "—";
+        const convQuizConta = counts.quiz    > 0 ? `${Math.round((counts.signup  / counts.quiz)    * 100)}%` : "—";
+        const convContaPrem = counts.signup  > 0 ? `${Math.round((counts.premiumIntent / counts.signup) * 100)}%` : "—";
+
+        // Data formatada em DD/MM/AAAA e dia da semana
+        const [year, month, day] = date.split("-");
+        const formattedDate = `${day}/${month}/${year}`;
+        const dayOfWeek = DAYS_PT[new Date(`${date}T12:00:00.000Z`).getUTCDay()];
+
+        return `${formattedDate},${dayOfWeek},${counts.home},${counts.quiz},${counts.signup},${counts.premiumIntent},${convHomeQuiz},${convQuizConta},${convContaPrem}`;
       });
 
-    return [header, ...lines].join("\n");
+    // Conversoes acumuladas do mes
+    const totalConvHomeQuiz  = totalHome    > 0 ? `${Math.round((totalQuiz    / totalHome)    * 100)}%` : "—";
+    const totalConvQuizConta = totalQuiz    > 0 ? `${Math.round((totalSignup  / totalQuiz)    * 100)}%` : "—";
+    const totalConvContaPrem = totalSignup  > 0 ? `${Math.round((totalPremium / totalSignup)  * 100)}%` : "—";
+    const totalRow = `TOTAL,,${totalHome},${totalQuiz},${totalSignup},${totalPremium},${totalConvHomeQuiz},${totalConvQuizConta},${totalConvContaPrem}`;
+
+    return [legend, dataHeader, ...lines, totalRow].join("\n");
   }
 
   const monthStart = new Date();
@@ -640,9 +722,9 @@ function buildWindowedFunnelPeriod(
       value: counts.signup
     },
     {
-      key: "cta_click",
-      label: "Clicaram na CTA",
-      value: counts.cta
+      key: "premium_intent",
+      label: "Visitaram o premium",
+      value: counts.premiumIntent
     }
   ];
 
@@ -674,7 +756,10 @@ function buildFunnelCountsForWindow(
   const createdUserIdentities = collectCreatedUserIdentities(users, window);
   const signupIdentities = signupEventIdentities.size ? signupEventIdentities : createdUserIdentities;
   const onboardingFallbackIdentities = collectOnboardingFallbackIdentities(users, userAnswers, window);
-  const ctaIdentities = collectEventIdentities(filteredEvents, CTA_EVENTS, resolveIdentity);
+  // Intenção de compra premium: visitou a página de planos ou iniciou o checkout.
+  // Esses eventos substituem o antigo "cta_click" que misturava ações de engajamento
+  // (abrir exercício, marcar série) com intenção real de conversão.
+  const premiumIntentIdentities = collectEventIdentities(filteredEvents, PREMIUM_INTENT_EVENTS, resolveIdentity);
 
   // Older production data can have missing top-of-funnel events because the original
   // tracker required authentication. Only fall back when the event source is empty.
@@ -689,7 +774,7 @@ function buildFunnelCountsForWindow(
     home: homeIdentities.size,
     quiz: quizIdentities.size,
     signup: signupIdentities.size,
-    cta: ctaIdentities.size
+    premiumIntent: premiumIntentIdentities.size
   };
 }
 
@@ -1069,15 +1154,19 @@ function daysToMs(days: number) {
 
 function startOfToday() {
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  return now;
+  // Usa o fuso horário de Brasília (America/Sao_Paulo = UTC-3, sem horário de verão desde 2019).
+  // O servidor roda em UTC, então sem essa correção a "virada do dia" acontece às 21h no Brasil.
+  // sv-SE locale retorna YYYY-MM-DD — meia-noite em Brasília equivale a 03:00 UTC.
+  const dateInBrasilia = now.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  return new Date(`${dateInBrasilia}T03:00:00.000Z`);
 }
 
 function startOfLastDays(days: number) {
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  now.setDate(now.getDate() - (days - 1));
-  return now;
+  const dateInBrasilia = now.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const todayMidnightBrasilia = new Date(`${dateInBrasilia}T03:00:00.000Z`);
+  todayMidnightBrasilia.setUTCDate(todayMidnightBrasilia.getUTCDate() - (days - 1));
+  return todayMidnightBrasilia;
 }
 
 export function getExerciseMetaSummary(exercise: AdminExercise) {
