@@ -229,7 +229,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           // Limita a 30 dias para o funil — suficiente para visão diária e semanal.
           // Retenção usa query própria (retentionEventsQuery) com janela maior.
           .gte("created_at", startOfLastDays(30).toISOString())
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(20000),
         supabase
           .from("analytics_events")
           .select("id, event_name, user_id, visitor_id, metadata, created_at")
@@ -253,6 +254,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .in("event_name", RETURN_ACTIVITY_EVENTS)
           .gte("created_at", startOfLastDays(90).toISOString())
           .order("created_at", { ascending: false })
+          .limit(50000)
       ]);
 
     const dashboardQueryErrors = [
@@ -506,6 +508,7 @@ export async function getMonthlyDashboardCsv() {
         .gte("created_at", monthStart.toISOString())
         .in("event_name", DASHBOARD_EVENT_NAMES)
         .order("created_at", { ascending: true })
+        .limit(50000)
     ]);
 
     if (csvUsersQuery.error || csvAnswersQuery.error || csvEventsQuery.error) {
