@@ -475,184 +475,114 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 export async function getMonthlyDashboardCsv() {
   const supabase = createSupabaseAdminClient();
 
-  const EMPTY_CSV = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_premium\n";
+  const EMPTY_CSV = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_prem\n";
 
   if (!supabase) {
     return EMPTY_CSV;
   }
 
-  {
-    // Início do mês corrente em horário de Brasília (UTC-3)
-    const nowInBrasilia = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-    const [brtYear, brtMonth] = nowInBrasilia.split("-");
-    // Meia-noite do dia 1 do mês em BRT = 03:00 UTC
-    const monthStart = new Date(`${brtYear}-${brtMonth}-01T03:00:00.000Z`);
+  // Início do mês corrente em horário de Brasília (UTC-3)
+  // Meia-noite do dia 1 em BRT = 03:00 UTC
+  const nowInBrasilia = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const [brtYear, brtMonth] = nowInBrasilia.split("-");
+  const monthStart = new Date(`${brtYear}-${brtMonth}-01T03:00:00.000Z`);
 
-    const [csvUsersQuery, csvAnswersQuery, csvEventsQuery] = await Promise.all([
-      supabase
-        .from("users")
-        .select("id, role, created_at")
-        .is("deleted_at", null)
-        .gte("created_at", monthStart.toISOString())
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("user_answers")
-        .select("user_id, created_at")
-        .is("deleted_at", null)
-        .gte("created_at", monthStart.toISOString())
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("analytics_events")
-        .select("event_name, user_id, visitor_id, created_at")
-        .is("deleted_at", null)
-        .gte("created_at", monthStart.toISOString())
-        .in("event_name", DASHBOARD_EVENT_NAMES)
-        .order("created_at", { ascending: true })
-        .limit(50000)
-    ]);
+  // Usa RPC (função SQL no banco) em vez de supabase.from().select().
+  // Motivo: o PostgREST tem um max_rows de 1000 linhas que não pode ser
+  // sobrescrito pelo .limit() do cliente JS. Com ~8000+ eventos/mês, a query
+  // retornava apenas os primeiros 1000 eventos (aprox. os 12 primeiros dias),
+  // deixando o restante do mês sem dados e ativando o fallback erroneamente.
+  // Chamadas via .rpc() rodam SQL direto no banco e não sofrem essa limitação.
+  const { data: funnelRows, error: funnelError } = await supabase
+    .rpc("get_monthly_funnel_data", { p_month_start: monthStart.toISOString() });
 
-    if (csvUsersQuery.error || csvAnswersQuery.error || csvEventsQuery.error) {
-      console.error("MONTHLY CSV ERROR:", csvUsersQuery.error ?? csvAnswersQuery.error ?? csvEventsQuery.error);
-      return EMPTY_CSV;
-    }
+  if (funnelError || !funnelRows) {
+    console.error("MONTHLY CSV RPC ERROR:", funnelError);
+    return EMPTY_CSV;
+  }
 
-    const csvUsers = ((csvUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
-    const csvAnswers = (csvAnswersQuery.data ?? []) as UserAnswerRow[];
-    const csvEvents = (csvEventsQuery.data ?? []) as AdminEvent[];
-    const csvIdentityResolver = getEventIdentityResolver(csvEvents);
+  type FunnelRow = {
+    day_brt: string;
+    home_count: number;
+    quiz_count: number;
+    signup_count: number;
+    premium_count: number;
+  };
 
-    // Usa datas em BRT para agrupar por dia — evita contar eventos de 21h-00h
-    // no dia errado (problema do fuso UTC x BRT)
-    const dayKeys = new Set<string>();
-    const toBrtDate = (iso: string) =>
-      new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const rows = funnelRows as FunnelRow[];
 
-    csvUsers.forEach((u) => { if (u.created_at) dayKeys.add(toBrtDate(u.created_at)); });
-    csvAnswers.forEach((a) => { if (a.created_at) dayKeys.add(toBrtDate(a.created_at)); });
-    csvEvents.forEach((e) => { if (e.created_at) dayKeys.add(toBrtDate(e.created_at)); });
+  // Mês formatado para o cabeçalho, ex: "abril de 2026"
+  const monthLabel = new Date(monthStart).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo"
+  });
+  const exportedAt = new Date().toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo"
+  });
 
-    // Mês formatado para o cabeçalho, ex: "Abril/2026"
-    const monthLabel = new Date(monthStart).toLocaleDateString("pt-BR", {
-      month: "long",
-      year: "numeric",
-      timeZone: "America/Sao_Paulo"
+  // Bloco de legenda — aparece como texto nas primeiras linhas do arquivo.
+  // Linhas com # são convenção de comentário em CSV; Excel mostra na coluna A.
+  const legend = [
+    `# Hora do Treino — Relatorio de Metricas`,
+    `# Exportado em: ${exportedAt} (horario de Brasilia)`,
+    `# Periodo: ${monthLabel}`,
+    `#`,
+    `# LEGENDA DAS COLUNAS:`,
+    `# data             — Dia no formato DD/MM/AAAA (horario de Brasilia)`,
+    `# dia_semana       — Dia da semana`,
+    `# pagina_inicial   — Visitantes unicos que acessaram a landing page`,
+    `# quiz_iniciado    — Usuarios unicos que iniciaram o questionario`,
+    `# conta_criada     — Usuarios unicos que criaram conta no app`,
+    `# visitou_premium  — Usuarios unicos que visitaram a pagina de planos ou iniciaram o checkout`,
+    `# conv_home_quiz   — Conversao de pagina inicial para quiz (%)`,
+    `# conv_quiz_conta  — Conversao de quiz para criacao de conta (%)`,
+    `# conv_conta_prem  — Conversao de conta criada para visita ao premium (%)`,
+    `# -----`
+  ].join("\n");
+
+  const dataHeader = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_prem";
+
+  let totalHome = 0, totalQuiz = 0, totalSignup = 0, totalPremium = 0;
+
+  const DAYS_PT = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
+
+  const lines = rows
+    .filter((row) => {
+      // Ignora dias onde todos os valores são 0 (normalmente dia 1 sem dados reais)
+      return row.home_count > 0 || row.quiz_count > 0 || row.signup_count > 0 || row.premium_count > 0;
+    })
+    .map((row) => {
+      const home    = Number(row.home_count);
+      const quiz    = Number(row.quiz_count);
+      const signup  = Number(row.signup_count);
+      const premium = Number(row.premium_count);
+
+      totalHome    += home;
+      totalQuiz    += quiz;
+      totalSignup  += signup;
+      totalPremium += premium;
+
+      const convHomeQuiz  = home   > 0 ? `${Math.round((quiz    / home)   * 100)}%` : "—";
+      const convQuizConta = quiz   > 0 ? `${Math.round((signup  / quiz)   * 100)}%` : "—";
+      const convContaPrem = signup > 0 ? `${Math.round((premium / signup) * 100)}%` : "—";
+
+      // row.day_brt vem como "YYYY-MM-DD"
+      const [year, month, day] = row.day_brt.split("-");
+      const formattedDate = `${day}/${month}/${year}`;
+      const dayOfWeek = DAYS_PT[new Date(`${row.day_brt}T12:00:00.000Z`).getUTCDay()];
+
+      return `${formattedDate},${dayOfWeek},${home},${quiz},${signup},${premium},${convHomeQuiz},${convQuizConta},${convContaPrem}`;
     });
-    const exportedAt = new Date().toLocaleString("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: "America/Sao_Paulo"
-    });
 
-    // Bloco de legenda — aparece como texto nas primeiras linhas do arquivo.
-    // Linhas com # são convenção de comentário em CSV; Excel mostra na coluna A.
-    const legend = [
-      `# Hora do Treino — Relatorio de Metricas`,
-      `# Exportado em: ${exportedAt} (horario de Brasilia)`,
-      `# Periodo: ${monthLabel}`,
-      `#`,
-      `# LEGENDA DAS COLUNAS:`,
-      `# data             — Dia no formato DD/MM/AAAA (horario de Brasilia)`,
-      `# dia_semana       — Dia da semana`,
-      `# pagina_inicial   — Visitantes unicos que acessaram a landing page`,
-      `# quiz_iniciado    — Usuarios unicos que iniciaram o questionario`,
-      `# conta_criada     — Usuarios unicos que criaram conta no app`,
-      `# visitou_premium  — Usuarios unicos que visitaram a pagina de planos ou iniciaram o checkout`,
-      `# conv_home_quiz   — Conversao de pagina inicial para quiz (%)`,
-      `# conv_quiz_conta  — Conversao de quiz para criacao de conta (%)`,
-      `# conv_conta_prem  — Conversao de conta criada para visita ao premium (%)`,
-      `# -----`
-    ].join("\n");
+  const totalConvHomeQuiz  = totalHome    > 0 ? `${Math.round((totalQuiz    / totalHome)    * 100)}%` : "—";
+  const totalConvQuizConta = totalQuiz    > 0 ? `${Math.round((totalSignup  / totalQuiz)    * 100)}%` : "—";
+  const totalConvContaPrem = totalSignup  > 0 ? `${Math.round((totalPremium / totalSignup)  * 100)}%` : "—";
+  const totalRow = `TOTAL,,${totalHome},${totalQuiz},${totalSignup},${totalPremium},${totalConvHomeQuiz},${totalConvQuizConta},${totalConvContaPrem}`;
 
-    const dataHeader = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_prem";
-
-    // Acumuladores para a linha TOTAL
-    let totalHome = 0, totalQuiz = 0, totalSignup = 0, totalPremium = 0;
-
-    const DAYS_PT = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
-
-    const lines = [...dayKeys]
-      .sort((a, b) => a.localeCompare(b))
-      .map((date) => {
-        // Janela do dia em BRT: meia-noite BRT = 03:00 UTC, fim = 03:00 UTC do dia seguinte
-        const from = new Date(`${date}T03:00:00.000Z`);
-        const to = new Date(from);
-        to.setUTCDate(to.getUTCDate() + 1);
-
-        const counts = buildFunnelCountsForWindow(csvUsers, csvAnswers, csvEvents, csvIdentityResolver, { from, to, label: date });
-
-        totalHome    += counts.home;
-        totalQuiz    += counts.quiz;
-        totalSignup  += counts.signup;
-        totalPremium += counts.premiumIntent;
-
-        // Taxas de conversao de cada etapa
-        const convHomeQuiz  = counts.home    > 0 ? `${Math.round((counts.quiz    / counts.home)    * 100)}%` : "—";
-        const convQuizConta = counts.quiz    > 0 ? `${Math.round((counts.signup  / counts.quiz)    * 100)}%` : "—";
-        const convContaPrem = counts.signup  > 0 ? `${Math.round((counts.premiumIntent / counts.signup) * 100)}%` : "—";
-
-        // Data formatada em DD/MM/AAAA e dia da semana
-        const [year, month, day] = date.split("-");
-        const formattedDate = `${day}/${month}/${year}`;
-        const dayOfWeek = DAYS_PT[new Date(`${date}T12:00:00.000Z`).getUTCDay()];
-
-        return `${formattedDate},${dayOfWeek},${counts.home},${counts.quiz},${counts.signup},${counts.premiumIntent},${convHomeQuiz},${convQuizConta},${convContaPrem}`;
-      });
-
-    // Conversoes acumuladas do mes
-    const totalConvHomeQuiz  = totalHome    > 0 ? `${Math.round((totalQuiz    / totalHome)    * 100)}%` : "—";
-    const totalConvQuizConta = totalQuiz    > 0 ? `${Math.round((totalSignup  / totalQuiz)    * 100)}%` : "—";
-    const totalConvContaPrem = totalSignup  > 0 ? `${Math.round((totalPremium / totalSignup)  * 100)}%` : "—";
-    const totalRow = `TOTAL,,${totalHome},${totalQuiz},${totalSignup},${totalPremium},${totalConvHomeQuiz},${totalConvQuizConta},${totalConvContaPrem}`;
-
-    return [legend, dataHeader, ...lines, totalRow].join("\n");
-  }
-
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
-
-  const { data, error } = await supabase!
-    .from("analytics_events")
-    .select("event_name, user_id, created_at")
-    .gte("created_at", monthStart.toISOString())
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    console.error("MONTHLY CSV ERROR:", error);
-    return "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta\n";
-  }
-
-  const rowsByDay = new Map<string, { home: Set<string>; quiz: Set<string>; signup: Set<string>; cta: Set<string> }>();
-
-  for (const event of (data ?? []) as Array<{ event_name: string; user_id: string; created_at: string }>) {
-    const dayKey = new Date(event.created_at).toISOString().slice(0, 10);
-    if (!rowsByDay.has(dayKey)) {
-      rowsByDay.set(dayKey, {
-        home: new Set<string>(),
-        quiz: new Set<string>(),
-        signup: new Set<string>(),
-        cta: new Set<string>()
-      });
-    }
-
-    const row = rowsByDay.get(dayKey);
-    if (!row) continue;
-
-    if (hasEventName(HOME_VIEW_EVENTS, event.event_name)) row!.home.add(event.user_id);
-    if (hasEventName(QUIZ_START_EVENTS, event.event_name)) row!.quiz.add(event.user_id);
-    if (hasEventName(SIGNUP_EVENTS, event.event_name)) row!.signup.add(event.user_id);
-    if (hasEventName(CTA_EVENTS, event.event_name)) row!.cta.add(event.user_id);
-  }
-
-  const header = "data,pagina_inicial,iniciaram_questionario,criaram_conta,clicaram_cta";
-  const lines = [...rowsByDay.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(
-      ([date, row]) =>
-        `${date},${row.home.size},${row.quiz.size},${row.signup.size},${row.cta.size}`
-    );
-
-  return [header, ...lines].join("\n");
+  return [legend, dataHeader, ...lines, totalRow].join("\n");
 }
 
 async function attachUserData(users: AdminUser[], supabase: ReturnType<typeof createSupabaseAdminClient>) {
