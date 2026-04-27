@@ -42,6 +42,144 @@ import type {
   WorkoutSection
 } from "@/lib/types";
 
+// ---------------------------------------------------------------------------
+// Serialização YAML mínima para o prompt da IA
+// Reduz ~30% dos tokens em relação ao JSON formatado (sem dependência externa)
+// ---------------------------------------------------------------------------
+function toWorkoutYaml(value: unknown, indent = 0): string {
+  const pad = "  ".repeat(indent);
+
+  if (value === null || value === undefined) return "~";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+
+  if (typeof value === "string") {
+    // Quoted se contiver caracteres especiais YAML ou dois-pontos
+    const needsQuote =
+      value === "" ||
+      /^[\s]|[\s]$/.test(value) ||
+      /[:{}\[\],#&*?|<>=!%@`"']/.test(value) ||
+      /^\d/.test(value);
+    if (needsQuote) return `'${value.replace(/'/g, "''")}'`;
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const allSimple = value.every((item) => typeof item !== "object" || item === null);
+    if (allSimple) {
+      const inline = `[${value.map((item) => toWorkoutYaml(item, 0)).join(", ")}]`;
+      if (inline.length <= 100) return inline;
+    }
+    return value
+      .map((item) => {
+        if (typeof item === "object" && item !== null && !Array.isArray(item)) {
+          const entries = Object.entries(item as Record<string, unknown>).filter(
+            ([, v]) => v !== undefined && v !== null
+          );
+          if (entries.length === 0) return `${pad}-`;
+          const [firstKey, firstVal] = entries[0];
+          const firstRendered = toWorkoutYaml(firstVal, indent + 1);
+          const firstLine =
+            typeof firstVal === "object" && !Array.isArray(firstVal)
+              ? `${pad}- ${firstKey}:\n${firstRendered}`
+              : `${pad}- ${firstKey}: ${firstRendered}`;
+          const rest = entries.slice(1).map(([k, v]) => {
+            const rendered = toWorkoutYaml(v, indent + 1);
+            if (typeof v === "object" && !Array.isArray(v) && v !== null) {
+              return `${pad}  ${k}:\n${rendered}`;
+            }
+            if (Array.isArray(v) && !rendered.startsWith("[")) {
+              return `${pad}  ${k}:\n${rendered}`;
+            }
+            return `${pad}  ${k}: ${rendered}`;
+          });
+          return [firstLine, ...rest].join("\n");
+        }
+        return `${pad}- ${toWorkoutYaml(item, indent)}`;
+      })
+      .join("\n");
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([, v]) => v !== undefined && v !== null
+    );
+    if (entries.length === 0) return "{}";
+    return entries
+      .map(([k, v]) => {
+        const rendered = toWorkoutYaml(v, indent + 1);
+        if (typeof v === "object" && !Array.isArray(v) && v !== null) {
+          return `${pad}${k}:\n${rendered}`;
+        }
+        if (Array.isArray(v) && !rendered.startsWith("[")) {
+          return `${pad}${k}:\n${rendered}`;
+        }
+        return `${pad}${k}: ${rendered}`;
+      })
+      .join("\n");
+  }
+
+  return String(value);
+}
+
+// ---------------------------------------------------------------------------
+// System message estática (cacheável pela OpenAI)
+// Contém todas as regras fixas + schema de saída sem campos não utilizados
+// ---------------------------------------------------------------------------
+const WORKOUT_SYSTEM_PROMPT = `Você é um personal trainer experiente especializado em prescrição de treino personalizado.
+Responda em português do Brasil (UTF-8). Retorne APENAS o JSON especificado abaixo — sem texto extra, sem markdown.
+
+CALIBRACAO DE TEMPO:
+- Composto normal: ~6 min | Isolador normal: ~4 min
+- Exercicio em bloco combinado: ~5 min | Tecnica avancada: +1 min
+
+ORDEM DENTRO DA SESSAO:
+1. Aquecimento (opcional, 1 no maximo) -> 2. Compostos dos musculos primarios -> 3. Compostos dos secundarios -> 4. Isoladores dos primarios -> 5. Isoladores dos secundarios -> 6. Abs/calves/core (sempre por ultimo)
+Mobilidade e ativacao NAO aparecem aqui; o app adiciona antes do aquecimento automaticamente.
+Agrupe exercicios do mesmo musculo lado a lado; nao intercale grupamentos.
+
+SELECAO DE EXERCICIOS:
+- Use EXCLUSIVAMENTE os nomes exatos de EXERCICIOS DISPONIVEIS fornecidos na mensagem; nao invente, traduza ou adapte
+- UNICIDADE ABSOLUTA: cada exercicio deve aparecer NO MAXIMO 1 VEZ em todo o plano — nunca repita o mesmo nome em sessoes diferentes
+- Nao repita o mesmo exercicio dentro da mesma sessao; sets/reps/rest = inteiros
+- Nao inclua exercicios de mobilidade ou ativacao (o app adiciona depois)
+- Abs/core (abdominais, prancha, etc.): inclua SOMENTE nas sessoes onde 'abs' estiver listado como musculo PRIMARIO da sessao; em sessoes onde abs e apenas secundario (ex: push, pull) NAO adicione exercicios isolados de abs
+
+BLOCOS COMBINADOS (tipos permitidos: ver allowedBlockTypes na estrategia):
+- Une exercicios muscularmente compativeis; descanso so ao final da volta
+- Iniciante: superset simples ou circuit leve | Intermediario: bi-set moderado | Avancado: bi-set/tri-set/drop-set com parcimonia
+
+AQUECIMENTO (OPCIONAL):
+- Voce PODE incluir 0 ou 1 exercicio de aquecimento por sessao, nunca mais de 1
+- Se incluir, deve vir DEPOIS da mobilidade (adicionada pelo app) e ANTES de qualquer composto ou isolador
+- Nao conta no total de exercicios da sessao
+- Use blockType 'warmup' e sets/reps adequados para ativacao (ex: 2 series, 12-15 reps, sem descanso)
+- Escolha apenas da lista AQUECIMENTOS DISPONIVEIS quando fornecida; se nao houver lista, nao inclua aquecimento
+
+RETORNE APENAS ESTE JSON (preencha splitType e sessionCount conforme a estrategia recebida):
+{
+  "splitType": "<splitType da estrategia>",
+  "sessionCount": 3,
+  "plan": [
+    {
+      "day": "A",
+      "title": "Treino A",
+      "splitType": "<splitType da estrategia>",
+      "exercises": [
+        {
+          "name": "nome exato do exercicio",
+          "blockType": "normal",
+          "trainingTechnique": "tradicional",
+          "sets": 3,
+          "reps": 10,
+          "rest": 60
+        }
+      ]
+    }
+  ]
+}`;
+
 type AiWorkoutExercise = {
   name?: string;
   blockType?: string;
@@ -311,116 +449,53 @@ export async function generateWorkoutWithAI(
   // Quantidade de sessoes esperada no array "plan". Sem isso explicito a IA
   // tende a entregar apenas Treino A, copiando o exemplo do formato JSON.
   const sessionCountTarget = strategy.dayCount;
-  const lastSessionLetter = String.fromCharCode(64 + sessionCountTarget); // 1->A, 2->B, 3->C...
   const expectedSessionLabels = strategy.sessions
     .slice(0, sessionCountTarget)
     .map((session) => `Treino ${session.day}`)
     .join(", ");
 
+  // User message: exercícios primeiro (semi-estático, maximiza prefixo cacheável),
+  // depois os dados dinâmicos (restrições, estratégia, usuário).
+  // Formato YAML reduz ~30% dos tokens vs JSON formatado.
   const promptMontagemTreino = [
-    "Você é um personal trainer experiente. Monte um plano de treino com lógica real de prescrição.",
-    "Responda em português do Brasil (UTF-8). Retorne APENAS o JSON definido ao final.",
+    "EXERCÍCIOS DISPONÍVEIS:",
+    toWorkoutYaml(availableExercises),
     "",
+    ...(warmupExercises.length > 0
+      ? [
+          "AQUECIMENTOS DISPONÍVEIS:",
+          toWorkoutYaml(warmupExercises),
+          ""
+        ]
+      : []),
     "RESTRIÇÕES OBRIGATÓRIAS:",
     `- Sessoes: exatamente ${sessionCountTarget} (${expectedSessionLabels}), focos distintos conforme sessions abaixo`,
     `- Exercicios/sessao: ${exerciseRangeLabel} (alvo ${exerciseTarget}); mobilidade NAO conta`,
     `- Blocos combinados/sessao: ${combinedRangeLabel} (alvo ${combinedTarget})`,
     `- Tempo-alvo: ${targetDurationMinutes} min (janela ${durationWindowLabel} min, disponivel: ${availableMinutes} min)`,
     "",
-    "CALIBRACAO DE TEMPO:",
-    "- Composto normal: ~6 min | Isolador normal: ~4 min",
-    "- Exercicio em bloco combinado: ~5 min | Tecnica avancada: +1 min",
-    "",
-    "ORDEM DENTRO DA SESSAO:",
-    "1. Aquecimento (opcional, 1 no maximo) -> 2. Compostos dos musculos primarios -> 3. Compostos dos secundarios -> 4. Isoladores dos primarios -> 5. Isoladores dos secundarios -> 6. Abs/calves/core (sempre por ultimo)",
-    "Mobilidade e ativacao NAO aparecem aqui; o app adiciona antes do aquecimento automaticamente.",
-    "Agrupe exercicios do mesmo musculo lado a lado; nao intercale grupamentos.",
-    "",
-    "SELECAO DE EXERCICIOS:",
-    "- Use EXCLUSIVAMENTE os nomes exatos de EXERCICIOS DISPONIVEIS abaixo; nao invente, traduza ou adapte",
-    "- UNICIDADE ABSOLUTA: cada exercicio deve aparecer NO MAXIMO 1 VEZ em todo o plano — nunca repita o mesmo nome em sessoes diferentes",
-    "- Nao repita o mesmo exercicio dentro da mesma sessao; sets/reps/rest = inteiros",
-    "- Nao inclua exercicios de mobilidade ou ativacao (o app adiciona depois)",
-    "- Abs/core (abdominais, prancha, etc.): inclua SOMENTE nas sessoes onde 'abs' estiver listado como musculo PRIMARIO da sessao; em sessoes onde abs e apenas secundario (ex: push, pull) NAO adicione exercicios isolados de abs",
-    "",
-    "BLOCOS COMBINADOS (tipos permitidos: ver allowedBlockTypes na estrategia):",
-    "- Une exercicios muscularmente compativeis; descanso so ao final da volta",
-    "- Iniciante: superset simples ou circuit leve | Intermediario: bi-set moderado | Avancado: bi-set/tri-set/drop-set com parcimonia",
-    "",
-    ...(warmupExercises.length > 0
-      ? [
-          "AQUECIMENTO (OPCIONAL):",
-          "- Voce PODE incluir 0 ou 1 exercicio de aquecimento por sessao, nunca mais de 1",
-          "- Se incluir, deve vir DEPOIS da mobilidade (adicionada pelo app) e ANTES de qualquer composto ou isolador",
-          "- Nao conta no total de exercicios da sessao",
-          "- Use blockType 'warmup' e sets/reps adequados para ativacao (ex: 2 series, 12-15 reps, sem descanso)",
-          "- Escolha apenas da lista AQUECIMENTOS DISPONIVEIS abaixo",
-          "",
-          "AQUECIMENTOS DISPONIVEIS:",
-          JSON.stringify(warmupExercises, null, 2),
-          ""
-        ]
-      : []),
     "ESTRATEGIA BASE OBRIGATORIA:",
-    JSON.stringify(buildCoachBrief(strategy), null, 2),
+    toWorkoutYaml(buildCoachBrief(strategy)),
     "",
     "DADOS DO USUÁRIO:",
-    JSON.stringify(
-      {
-        age: answers.age,
-        weight: answers.weight,
-        height: answers.height,
-        goal: answers.goal,
-        days: strategy.dayCount,
-        time: strategy.timeAvailable,
-        equipment: strategy.equipment,
-        gender: answers.gender,
-        experience: answers.experience,
-        body_type: resolveBodyType(answers)
-      },
-      null,
-      2
-    ),
-    "",
-    "EXERCÍCIOS DISPONÍVEIS:",
-    JSON.stringify(availableExercises, null, 2),
-    "",
-    "RETORNE APENAS JSON NESTE FORMATO:",
-    JSON.stringify(
-      {
-        splitType: strategy.splitType,
-        rationale: "justificativa curta da divisão",
-        sessionCount: strategy.dayCount,
-        progressionNotes: "observação final de progressão",
-        plan: [
-          {
-            day: "A",
-            title: "Treino A",
-            splitType: strategy.splitType,
-            exercises: [
-              {
-                name: "nome do exercício",
-                blockType: "normal",
-                trainingTechnique: "tradicional",
-                primaryMuscles: ["quadriceps"],
-                secondaryMuscles: ["glutes", "abs"],
-                sets: 3,
-                reps: 10,
-                rest: 60,
-                notes: "observação curta",
-                rationale: "função do exercício na sessão"
-              }
-            ]
-          }
-        ]
-      },
-      null,
-      2
-    )
+    toWorkoutYaml({
+      age: answers.age,
+      weight: answers.weight,
+      height: answers.height,
+      goal: answers.goal,
+      days: strategy.dayCount,
+      time: strategy.timeAvailable,
+      equipment: strategy.equipment,
+      gender: answers.gender,
+      experience: answers.experience,
+      body_type: resolveBodyType(answers)
+    })
   ].join("\n");
 
   logInfo("AI", "AI prompt payload diagnostics", {
-    prompt_chars: promptMontagemTreino.length,
+    system_prompt_chars: WORKOUT_SYSTEM_PROMPT.length,
+    user_prompt_chars: promptMontagemTreino.length,
+    total_prompt_chars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
     prompt_catalog_chars_before_mobility_filter: promptCatalogCharsBeforeMobilityFilter,
     prompt_catalog_chars_after_mobility_filter: promptCatalogCharsAfterMobilityFilter
   });
@@ -444,7 +519,7 @@ export async function generateWorkoutWithAI(
       messages: [
         {
           role: "system",
-          content: "Você é um personal trainer especialista em treino personalizado e sempre responde em português do Brasil com acentuação correta."
+          content: WORKOUT_SYSTEM_PROMPT
         },
         {
           role: "user",
@@ -473,7 +548,7 @@ export async function generateWorkoutWithAI(
         promptTokens: telemetryUsage?.prompt_tokens ?? null,
         completionTokens: telemetryUsage?.completion_tokens ?? null,
         totalTokens: telemetryUsage?.total_tokens ?? null,
-        promptChars: promptMontagemTreino.length,
+        promptChars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
         responseChars: 0,
         catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
         catalogSizeAfterFilter: filteredLibrary.length,
@@ -506,7 +581,7 @@ export async function generateWorkoutWithAI(
         promptTokens: telemetryUsage?.prompt_tokens ?? null,
         completionTokens: telemetryUsage?.completion_tokens ?? null,
         totalTokens: telemetryUsage?.total_tokens ?? null,
-        promptChars: promptMontagemTreino.length,
+        promptChars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
         responseChars: telemetryResponseBody.length,
         catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
         catalogSizeAfterFilter: filteredLibrary.length,
@@ -562,7 +637,7 @@ export async function generateWorkoutWithAI(
         promptTokens: null,
         completionTokens: null,
         totalTokens: null,
-        promptChars: promptMontagemTreino.length,
+        promptChars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
         responseChars: 0,
         catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
         catalogSizeAfterFilter: filteredLibrary.length,
