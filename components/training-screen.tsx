@@ -304,35 +304,30 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           <Badge className="border-white/10 bg-white/[0.04] text-white/58">{exerciseRows.length} itens</Badge>
         </div>
 
-        {exerciseRows.map((exercise, index) => {
-          // Anúncios só são exibidos para usuários do plano free
-          const shouldRenderAd = !subscription?.isPremium && (index + 1) % 3 === 0 && index < exerciseRows.length - 1;
+        {exerciseRows.map((exercise, index) => (
+          <ExpandableExerciseCard
+            key={exercise.id}
+            data={data}
+            workoutKey={activeWorkoutKey}
+            exercise={exercise}
+            index={index}
+            expanded={openExerciseId === exercise.id}
+            onToggle={handleToggleExercise}
+            workoutId={data.workoutId}
+            workoutDayId={workoutDayId}
+            exerciseIndex={index}
+            exerciseName={exercise.name}
+            replacementLimitReached={replacementLimitReached}
+            replacementCount={replacementCount}
+            replacementsRemaining={replacementsRemaining}
+            isPremiumUser={isPremiumUser}
+            isReplaced={replacedExerciseNames.has(exercise.name)}
+            onExerciseReplaced={handleExerciseReplaced}
+          />
+        ))}
 
-          return (
-            <div key={exercise.id} className="space-y-3">
-              <ExpandableExerciseCard
-                data={data}
-                workoutKey={activeWorkoutKey}
-                exercise={exercise}
-                index={index}
-                expanded={openExerciseId === exercise.id}
-                onToggle={handleToggleExercise}
-                workoutId={data.workoutId}
-                workoutDayId={workoutDayId}
-                exerciseIndex={index}
-                exerciseName={exercise.name}
-                replacementLimitReached={replacementLimitReached}
-                replacementCount={replacementCount}
-                replacementsRemaining={replacementsRemaining}
-                isPremiumUser={isPremiumUser}
-                isReplaced={replacedExerciseNames.has(exercise.name)}
-                onExerciseReplaced={handleExerciseReplaced}
-              />
-
-              {shouldRenderAd ? <GoogleAd /> : null}
-            </div>
-          );
-        })}
+        {/* Anúncio no final da lista — apenas para usuários free */}
+        {!subscription?.isPremium ? <GoogleAd /> : null}
 
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 

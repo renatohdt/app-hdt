@@ -278,7 +278,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           <CalMetricCard
             icon={CalendarRange}
             label="Sessão"
-            value={`${data.sessionProgress.currentSessionNumber}/${data.sessionProgress.totalSessions}`}
+            value={`${data.sessionProgress.completedSessions}/${data.sessionProgress.totalSessions}`}
           />
           <CalMetricCard
             icon={Target}

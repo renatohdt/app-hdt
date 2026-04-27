@@ -369,6 +369,55 @@ export function ExpandableExerciseCard({
           </div>
         </button>
 
+        {/* Ações rápidas — sempre visíveis, fora do botão de toggle */}
+        <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowWeightChart(true);
+            }}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
+            aria-label="Ver evolução de carga"
+          >
+            <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+            Evolução de carga
+          </button>
+
+          {!isMobilityExercise ? (
+            replacementLimitReached ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isPremiumUser) setShowUpsell(true);
+                }}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/10 bg-white/[0.03] py-2 text-[12px] font-semibold text-white/28 transition hover:border-primary/20 hover:text-white/50"
+                aria-label="Limite de substituições atingido"
+              >
+                <Lock className="h-3.5 w-3.5 shrink-0" />
+                Substituir
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowReplaceModal(true);
+                  setReplaceReason(null);
+                  setReplaceError(null);
+                  setReplaceLimitError(false);
+                }}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
+                aria-label="Substituir exercício"
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+                Substituir
+              </button>
+            )
+          ) : null}
+        </div>
+
         {expanded ? (
           <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
             {hasTechniqueTag && techniqueDescription ? (
@@ -382,51 +431,6 @@ export function ExpandableExerciseCard({
                   {muscle}
                 </span>
               ))}
-              <div className="ml-auto flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowWeightChart(true);
-                  }}
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/50 transition hover:border-primary/30 hover:text-primary"
-                  aria-label="Ver evolução de carga"
-                >
-                  <TrendingUp className="h-3.5 w-3.5" />
-                </button>
-
-                {!isMobilityExercise ? (
-                  replacementLimitReached ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!isPremiumUser) setShowUpsell(true);
-                      }}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/24 transition hover:border-primary/30 hover:text-primary/60"
-                      title="Limite de substituições atingido"
-                      aria-label="Limite de substituições atingido"
-                    >
-                      <Lock className="h-3.5 w-3.5" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowReplaceModal(true);
-                        setReplaceReason(null);
-                        setReplaceError(null);
-                        setReplaceLimitError(false);
-                      }}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/50 transition hover:border-primary/30 hover:text-primary"
-                      aria-label="Substituir exercício"
-                    >
-                      <ArrowLeftRight className="h-3.5 w-3.5" />
-                    </button>
-                  )
-                ) : null}
-              </div>
             </section>
 
             <div className="overflow-hidden rounded-none bg-black/20">

@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   BicepsFlexed,
   CalendarRange,
   Dumbbell,
+  Lock,
+  RefreshCw,
+  Settings,
   Target,
   Trophy
 } from "lucide-react";
@@ -30,6 +34,7 @@ import {
 import { getLastUnlockedAchievement } from "@/lib/achievements";
 import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 
 const BLOG_URL = "https://horadotreino.com.br/";
 const CONSULTORIA_URL =
@@ -39,7 +44,16 @@ const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/lo
 export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const [articles, setArticles] = useState<ArticleRecommendation[]>([]);
   const [showUpsellBanner, setShowUpsellBanner] = useState(false);
+  const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [lastWorkoutGeneratedAt, setLastWorkoutGeneratedAt] = useState<string | null | undefined>(undefined);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const generatingAnimFrameRef = useRef(0);
+  const generatingCardRef = useRef<HTMLDivElement | null>(null);
   const { subscription } = useSubscription();
+  const router = useRouter();
   const metrics = useMemo(() => buildHomeMetrics(data), [data]);
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
   const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
@@ -47,6 +61,49 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
   const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
   const isFreePlan = !subscription?.isPremium;
+
+  // Animação da barra de progresso durante geração do treino
+  useEffect(() => {
+    if (!isGenerating) {
+      setLoadingProgress(0);
+      window.cancelAnimationFrame(generatingAnimFrameRef.current);
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      generatingCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    const startTime = window.performance.now();
+    setLoadingProgress(WORKOUT_LOADING_INITIAL);
+
+    const animate = () => {
+      const elapsed = window.performance.now() - startTime;
+      const next = getWorkoutLoadingProgress(elapsed);
+      setLoadingProgress((current) => (next > current ? next : current));
+      generatingAnimFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    generatingAnimFrameRef.current = window.requestAnimationFrame(animate);
+
+    return () => {
+      window.cancelAnimationFrame(generatingAnimFrameRef.current);
+    };
+  }, [isGenerating]);
+
+  // Busca lastWorkoutGeneratedAt para verificar cooldown do plano free
+  useEffect(() => {
+    fetchWithAuth("/api/profile")
+      .then((res) => res.json())
+      .then((payload: { success?: boolean; data?: { lastWorkoutGeneratedAt?: string | null } }) => {
+        if (payload?.data?.lastWorkoutGeneratedAt !== undefined) {
+          setLastWorkoutGeneratedAt(payload.data.lastWorkoutGeneratedAt);
+        } else {
+          setLastWorkoutGeneratedAt(null);
+        }
+      })
+      .catch(() => setLastWorkoutGeneratedAt(null));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,6 +135,49 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const articleItems = (articles.length ? articles : fallbackArticles).slice(0, 2);
   const remainingSessions = Math.max(coverage.totalSessions - coverage.coveredSessions, 0);
   const progressBarWidth = Math.max(Math.min(coverage.percentage, 100), 0);
+
+  function handleGenerateWorkoutClick() {
+    if (isGenerating) return;
+    const daysLeft = daysUntilNextFreeGeneration(lastWorkoutGeneratedAt);
+    if (!subscription?.isPremium && daysLeft > 0) {
+      setShowWorkoutUpsell(true);
+      return;
+    }
+    setShowGenerateConfirm(true);
+  }
+
+  async function handleGenerateWorkout() {
+    setShowGenerateConfirm(false);
+    setIsGenerating(true);
+    setGenerateError(null);
+
+    try {
+      const response = await fetchWithAuth("/api/workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: data.user.id, force: true })
+      });
+
+      const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Não foi possível gerar seu treino agora.");
+      }
+
+      trackEvent("workout_generated", data.user.id, {
+        goal: data.user.goal ?? null,
+        source: "dashboard_regenerate"
+      });
+
+      setLoadingProgress(100);
+      await new Promise((resolve) => window.setTimeout(resolve, 300));
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setIsGenerating(false);
+      setGenerateError(getRequestErrorMessage(err, "Não foi possível gerar seu treino agora."));
+    }
+  }
 
   return (
     <AppShell className="space-y-4 sm:space-y-4">
@@ -153,6 +253,127 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           <span>{coverage.percentage}% do ciclo</span>
         </div>
       </Card>
+
+      {/* Card de progresso ou ações rápidas */}
+      {isGenerating ? (
+        <div ref={generatingCardRef} className="overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/14 via-[#0f0f0f] to-[#151515] p-5">
+          <div className="flex flex-col gap-5">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/90">Montagem do treino</p>
+              <p className="text-xl font-semibold text-white">Montando seu novo treino...</p>
+              <p className="text-sm leading-6 text-white/66">
+                Estamos usando seus dados atualizados para criar um plano mais alinhado ao seu objetivo e rotina.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-4xl font-semibold text-white">{Math.round(loadingProgress)}%</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.24em] text-white/38">Progresso estimado</p>
+              </div>
+              <div className="rounded-full border border-white/8 bg-white/[0.06] p-1">
+                <div
+                  className="h-2.5 rounded-full bg-gradient-to-r from-primary via-primaryStrong to-[#7BF1A8] transition-[width] duration-500 ease-out"
+                  style={{ width: `${Math.round(loadingProgress)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {WORKOUT_LOADING_STAGES.map((stage, index) => {
+                const stageIndex = getWorkoutLoadingStageIndex(Math.round(loadingProgress));
+                const isDone = index < stageIndex;
+                const isCurrent = index === stageIndex;
+                return (
+                  <div
+                    key={stage}
+                    className={`flex items-center gap-3 rounded-[20px] border px-4 py-3 transition ${
+                      isCurrent
+                        ? "border-primary/30 bg-primary/12 text-white"
+                        : isDone
+                          ? "border-primary/18 bg-white/[0.03] text-white/78"
+                          : "border-white/8 bg-white/[0.02] text-white/52"
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
+                        isCurrent
+                          ? "border-primary bg-primary/18 text-primary"
+                          : isDone
+                            ? "border-primary/40 bg-primary text-[#052b12]"
+                            : "border-white/12 text-white/38"
+                      }`}
+                    >
+                      {isDone ? "✓" : index + 1}
+                    </span>
+                    <p className={`min-w-0 flex-1 text-sm font-medium ${isCurrent ? "text-white" : ""}`}>{stage}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <Card className="space-y-4 p-4 shadow-none">
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Seu plano</p>
+              <p className="font-semibold text-white">Gerar Novo Programa de Treino</p>
+              <p className="text-[13px] leading-5 text-white/54">
+                Use este botão sempre que mudar algo no seu perfil — objetivo, dias de treino, equipamentos ou tempo disponível. A IA usará seus dados atuais para montar um plano novo.
+              </p>
+            </div>
+
+            {(() => {
+              const daysLeft = daysUntilNextFreeGeneration(lastWorkoutGeneratedAt);
+              if (!subscription?.isPremium && daysLeft > 0) {
+                return (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowWorkoutUpsell(true)}
+                      className="inline-flex w-full items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.08] px-4 py-2.5 text-sm font-semibold text-primary/80 transition hover:bg-primary/12"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Gerar Novo Programa de Treino
+                    </button>
+                    <p className="text-center text-xs text-white/40">
+                      Disponível novamente em {daysLeft} dia{daysLeft === 1 ? "" : "s"} ·{" "}
+                      <button type="button" className="text-primary/70 underline" onClick={() => setShowWorkoutUpsell(true)}>
+                        Assine o Premium
+                      </button>
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <button
+                  type="button"
+                  onClick={handleGenerateWorkoutClick}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
+                >
+                  <RefreshCw className="h-4 w-4 shrink-0" />
+                  Gerar Novo Programa de Treino
+                </button>
+              );
+            })()}
+
+            {generateError ? (
+              <div className="rounded-[18px] border border-red-500/20 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
+                {generateError}
+              </div>
+            ) : null}
+          </Card>
+
+          <Link
+            href="/perfil"
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-3 text-[13px] font-semibold text-white/70 transition hover:border-white/18 hover:text-white"
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            Dados para Treino
+          </Link>
+        </>
+      )}
 
       {/* Banner Premium — exibido apenas para usuários do plano free */}
       {isFreePlan && (
@@ -291,6 +512,41 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
       {showUpsellBanner ? (
         <UpsellModal reason="home_banner" onClose={() => setShowUpsellBanner(false)} />
       ) : null}
+
+      {showWorkoutUpsell ? (
+        <UpsellModal reason="generate_workout" onClose={() => setShowWorkoutUpsell(false)} />
+      ) : null}
+
+      {/* Modal de confirmação — gerar novo programa (idêntico ao perfil) */}
+      {showGenerateConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-500/12">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <p className="mb-1 text-base font-semibold text-white">Gerar novo programa?</p>
+            <p className="mb-5 text-sm leading-5 text-white/56">
+              Seu programa atual será substituído e <strong className="text-white/80">todas as sessões registradas serão reiniciadas</strong>. Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => void handleGenerateWorkout()}
+                className="flex h-12 w-full items-center justify-center rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
+              >
+                Sim, gerar novo programa
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowGenerateConfirm(false)}
+                className="rounded-2xl px-4 py-2.5 text-sm font-medium text-white/54 transition hover:text-white/80"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }
@@ -304,7 +560,7 @@ function buildHomeMetrics(data: AppWorkoutData) {
     },
     {
       label: "Sessão",
-      value: `${data.sessionProgress.currentSessionNumber}/${data.sessionProgress.totalSessions}`,
+      value: `${data.sessionProgress.completedSessions}/${data.sessionProgress.totalSessions}`,
       icon: CalendarRange
     },
     {
@@ -359,4 +615,40 @@ function normalizeDisplayName(...values: unknown[]) {
   }
 
   return "Aluno";
+}
+
+// ─── Geração de treino — barra de progresso ───────────────────────────────────
+
+const WORKOUT_LOADING_STAGES = [
+  "Analisando seu perfil atualizado",
+  "Selecionando os melhores exercícios",
+  "Criando a estratégia de treino",
+  "Montando seu plano personalizado",
+  "Treino pronto!"
+];
+
+const WORKOUT_LOADING_INITIAL = 4;
+const WORKOUT_LOADING_MAX = 97;
+const WORKOUT_LOADING_DECAY_MS = 8000;
+
+function getWorkoutLoadingProgress(elapsed: number) {
+  if (elapsed <= 0) return WORKOUT_LOADING_INITIAL;
+  return WORKOUT_LOADING_INITIAL + (WORKOUT_LOADING_MAX - WORKOUT_LOADING_INITIAL) * (1 - Math.exp(-elapsed / WORKOUT_LOADING_DECAY_MS));
+}
+
+function getWorkoutLoadingStageIndex(progress: number) {
+  if (progress >= 100) return 4;
+  if (progress >= 75) return 3;
+  if (progress >= 50) return 2;
+  if (progress >= 25) return 1;
+  return 0;
+}
+
+// Retorna quantos dias faltam para o free poder gerar de novo (0 = já pode)
+function daysUntilNextFreeGeneration(lastGeneratedAt: string | null | undefined): number {
+  if (!lastGeneratedAt) return 0;
+  const last = new Date(lastGeneratedAt).getTime();
+  const now = Date.now();
+  const diffDays = Math.ceil((last + 30 * 24 * 60 * 60 * 1000 - now) / (24 * 60 * 60 * 1000));
+  return diffDays > 0 ? diffDays : 0;
 }
