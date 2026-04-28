@@ -52,6 +52,53 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// ── Web Push ──────────────────────────────────────────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: "Hora do Treino", body: event.data.text() };
+  }
+
+  const title = payload.title ?? "Hora do Treino";
+  const options = {
+    body: payload.body ?? "",
+    icon: "/pwa/icon-192x192.png",
+    badge: "/pwa/icon-96x96.png",
+    data: { url: payload.url ?? "/dashboard" },
+    vibrate: [100, 50, 100]
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url ?? "/dashboard";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Se o app já está aberto, foca nele e navega
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.focus();
+          client.navigate(targetUrl);
+          return;
+        }
+      }
+      // Senão, abre uma nova janela
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
