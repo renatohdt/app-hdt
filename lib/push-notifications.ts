@@ -1,4 +1,5 @@
 import "server-only";
+import webpush from "web-push";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export type SendPushPayload = {
   url?: string;
 };
 
-// ── VAPID helpers ─────────────────────────────────────────────────────────────
+// ── VAPID config ──────────────────────────────────────────────────────────────
 
 function getVapidConfig() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -32,94 +33,44 @@ function getVapidConfig() {
   return { publicKey, privateKey, subject };
 }
 
-// ── Envio de notificação push (implementação nativa, sem web-push) ────────────
-// Usa a Web Push Protocol via fetch + JWT assinado com ECDSA P-256
-
-async function importPrivateKey(privateKeyB64url: string): Promise<CryptoKey> {
-  const raw = base64urlToUint8Array(privateKeyB64url);
-  return crypto.subtle.importKey(
-    "raw",
-    raw,
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"]
-  );
-}
-
-function base64urlToUint8Array(base64url: string): Uint8Array<ArrayBuffer> {
-  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-  const binary = atob(padded);
-  const buffer = new ArrayBuffer(binary.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < binary.length; i++) {
-    view[i] = binary.charCodeAt(i);
-  }
-  return view;
-}
-
-function uint8ArrayToBase64url(arr: Uint8Array): string {
-  return btoa(String.fromCharCode(...arr))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-}
-
-async function createVapidJwt(endpoint: string, subject: string, privateKey: CryptoKey, publicKeyB64url: string): Promise<string> {
-  const url = new URL(endpoint);
-  const audience = `${url.protocol}//${url.host}`;
-  const expiry = Math.floor(Date.now() / 1000) + 12 * 3600; // 12h
-
-  const header = uint8ArrayToBase64url(
-    new TextEncoder().encode(JSON.stringify({ typ: "JWT", alg: "ES256" }))
-  );
-  const payload = uint8ArrayToBase64url(
-    new TextEncoder().encode(JSON.stringify({ aud: audience, exp: expiry, sub: subject }))
-  );
-
-  const signingInput = `${header}.${payload}`;
-  const signature = await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    privateKey,
-    new TextEncoder().encode(signingInput)
-  );
-
-  return `${signingInput}.${uint8ArrayToBase64url(new Uint8Array(signature))}`;
-}
+// ── Envio individual ──────────────────────────────────────────────────────────
 
 export async function sendPushNotification(
   subscription: PushSubscriptionRecord,
   payload: SendPushPayload
 ): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
-    const { publicKey, privateKey: privateKeyB64, subject } = getVapidConfig();
+    const { publicKey, privateKey, subject } = getVapidConfig();
 
-    const cryptoKey = await importPrivateKey(privateKeyB64);
-    const jwt = await createVapidJwt(subscription.endpoint, subject, cryptoKey, publicKey);
+    webpush.setVapidDetails(subject, publicKey, privateKey);
 
-    const body = JSON.stringify(payload);
-    const encoder = new TextEncoder();
-    const encodedBody = encoder.encode(body);
-
-    const response = await fetch(subscription.endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": String(encodedBody.byteLength),
-        Authorization: `vapid t=${jwt},k=${publicKey}`,
-        TTL: "86400"
+    const result = await webpush.sendNotification(
+      {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth
+        }
       },
-      body: encodedBody
-    });
+      JSON.stringify(payload)
+    );
 
-    return { ok: response.ok, status: response.status };
-  } catch (error) {
+    return { ok: true, status: result.statusCode };
+  } catch (error: unknown) {
+    const status =
+      error != null && typeof error === "object" && "statusCode" in error
+        ? (error as { statusCode: number }).statusCode
+        : undefined;
+
     return {
       ok: false,
+      status,
       error: error instanceof Error ? error.message : "Erro desconhecido ao enviar push"
     };
   }
 }
+
+// ── Envio em massa ────────────────────────────────────────────────────────────
 
 export async function sendPushToMany(
   subscriptions: PushSubscriptionRecord[],
