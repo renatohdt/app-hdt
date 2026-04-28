@@ -139,7 +139,18 @@ export default function PerfilPage() {
   const { subscription } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
   const [editingSection, setEditingSection] = useState<EditingSection | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [pushSubscription, setPushSubscription] = useState<PushSubscription | null>(null);
+
+  // Detecta estado real da permissão/subscription ao montar
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then((sub) => {
+      setPushSubscription(sub);
+      setNotificationsEnabled(Boolean(sub));
+    }).catch(() => {});
+  }, []);
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -339,6 +350,58 @@ export default function PerfilPage() {
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleToggleNotifications() {
+    if (notificationsLoading || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    setNotificationsLoading(true);
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+
+      if (notificationsEnabled && pushSubscription) {
+        // Desativar
+        await pushSubscription.unsubscribe();
+        await fetchWithAuth("/api/push/unsubscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: pushSubscription.endpoint })
+        });
+        setPushSubscription(null);
+        setNotificationsEnabled(false);
+        return;
+      }
+
+      // Ativar — pede permissão se necessário
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setFeedback({ tone: "info", text: "Permissão de notificação negada. Habilite nas configurações do navegador." });
+        return;
+      }
+
+      const vapidKeyStr = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+      // Converte base64url → Uint8Array (obrigatório em Firefox e Safari)
+      const vapidKey = urlBase64ToUint8Array(vapidKeyStr);
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKey
+      });
+
+      const subJson = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+      await fetchWithAuth("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subJson)
+      });
+
+      setPushSubscription(sub);
+      setNotificationsEnabled(true);
+      setFeedback({ tone: "success", text: "Notificações ativadas com sucesso!" });
+    } catch (err) {
+      setFeedback({ tone: "error", text: "Não foi possível configurar notificações. Tente novamente." });
+    } finally {
+      setNotificationsLoading(false);
     }
   }
 
@@ -859,14 +922,14 @@ export default function PerfilPage() {
               <Bell className="h-5 w-5 text-primary" />
             </div>
             <span className="flex-1 text-sm font-medium text-white">Notificações</span>
-            {/* TODO: integrar com web push */}
             <button
               type="button"
               role="switch"
               aria-checked={notificationsEnabled}
-              onClick={() => setNotificationsEnabled((prev) => !prev)}
+              onClick={() => void handleToggleNotifications()}
+              disabled={notificationsLoading}
               className={clsx(
-                "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                "relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60",
                 notificationsEnabled ? "bg-primary" : "bg-white/20"
               )}
             >
@@ -1323,6 +1386,19 @@ function getWorkoutLoadingStageIndex(progress: number) {
   if (progress >= 50) return 2;
   if (progress >= 25) return 1;
   return 0;
+}
+
+// Converte chave VAPID base64url para Uint8Array (necessário para pushManager.subscribe)
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const buffer = new ArrayBuffer(rawData.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < rawData.length; i++) {
+    view[i] = rawData.charCodeAt(i);
+  }
+  return view;
 }
 
 // Retorna quantos dias faltam para o free poder gerar de novo (0 = já pode)

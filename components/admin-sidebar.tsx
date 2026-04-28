@@ -10,7 +10,8 @@ const links = [
   { href: "/admin/users", label: "Usuários" },
   { href: "/admin/exercises", label: "Exercícios" },
   { href: "/admin/ai-logs", label: "IA" },
-  { href: "/admin/errors", label: "Erros" }
+  { href: "/admin/errors", label: "Erros" },
+  { href: "/admin/notificacoes", label: "Notificações" }
 ];
 
 export function AdminSidebar() {
