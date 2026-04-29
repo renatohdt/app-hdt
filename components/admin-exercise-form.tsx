@@ -374,11 +374,11 @@ function SelectField({
         onChange={(event) => onChange(event.target.value)}
         className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-white"
       >
-        <option value="" disabled>
+        <option value="" disabled className="text-black">
           Selecione
         </option>
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} className="text-black">
             {option.label}
           </option>
         ))}

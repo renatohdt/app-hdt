@@ -143,6 +143,7 @@ SELECAO DE EXERCICIOS:
 - Use EXCLUSIVAMENTE os nomes exatos de EXERCICIOS DISPONIVEIS fornecidos na mensagem; nao invente, traduza ou adapte
 - UNICIDADE ABSOLUTA: cada exercicio deve aparecer NO MAXIMO 1 VEZ em todo o plano — nunca repita o mesmo nome em sessoes diferentes
 - Nao repita o mesmo exercicio dentro da mesma sessao; sets/reps/rest = inteiros
+- EXERCICIOS ISOMETRICOS (blockType: 'isometria'): o campo 'reps' DEVE ser tempo em segundos no formato string — ex: '30s', '45s', '60s'. NUNCA use numero inteiro de repeticoes para isometria
 - Nao inclua exercicios de mobilidade ou ativacao (o app adiciona depois)
 - Abs/core (abdominais, prancha, etc.): inclua SOMENTE nas sessoes onde 'abs' estiver listado como musculo PRIMARIO da sessao; em sessoes onde abs e apenas secundario (ex: push, pull) NAO adicione exercicios isolados de abs
 
@@ -1575,7 +1576,7 @@ function buildFallbackExercise(
     {
       name: lookup.source.name,
       sets: String(getDefaultSets(strategy, lookup.profile.movementType)),
-      reps: String(getDefaultReps(strategy, lookup.profile.movementType)),
+      reps: String(getDefaultReps(strategy, lookup.profile.movementType, blockType)),
       rest: `${getDefaultRest(strategy, blockType, lookup.profile.movementType)}s`,
       type: "normal",
       method: trainingTechnique,
@@ -2805,7 +2806,9 @@ function getDefaultSets(strategy: WorkoutStrategy, movementType: string) {
   return resolveSetBounds(strategy, movementType, "normal").target;
 }
 
-function getDefaultReps(strategy: WorkoutStrategy, movementType: string) {
+function getDefaultReps(strategy: WorkoutStrategy, movementType: string, blockType?: WorkoutBlockType): number | string {
+  // Exercícios isométricos são sempre por tempo, nunca por repetições
+  if (blockType === "isometria") return "30s";
   if (movementType === "mobility") return 30;
   if (strategy.goalStyle === "hypertrophy") return movementType === "compound" ? 8 : 12;
   if (strategy.goalStyle === "conditioning") return movementType === "compound" ? 12 : 15;

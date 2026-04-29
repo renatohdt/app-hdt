@@ -23,6 +23,7 @@ export const EXERCISE_TYPE_OPTIONS = [
   { value: "compound", label: "Composto" },
   { value: "isolation", label: "Isolado" },
   { value: "functional", label: "Funcional" },
+  { value: "isometric", label: "Isométrico" },
   { value: "mobility", label: "Mobilidade" },
   { value: "cardio", label: "Cardio" },
   { value: "warmup", label: "Aquecimento" }
@@ -133,7 +134,12 @@ const TYPE_ALIASES: Record<string, string> = {
   aerobico: "cardio",
   warmup: "warmup",
   aquecimento: "warmup",
-  warm_up: "warmup"
+  warm_up: "warmup",
+  isometric: "isometric",
+  isometrico: "isometric",
+  isometria: "isometric",
+  "isométrico": "isometric",
+  "isométrica": "isometric"
 };
 
 const LEVEL_ALIASES: Record<string, string> = {

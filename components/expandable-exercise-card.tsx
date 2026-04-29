@@ -181,6 +181,7 @@ export function ExpandableExerciseCard({
     : null;
   const plannedRepsLabel = exercise.plannedRepsLabel?.trim() || "-";
   const restLabel = formatRestLabel(draftState.preferredRestSeconds ?? exercise.plannedRestSeconds);
+  const isIsometric = exercise.blockType === "isometria";
 
   function updateDraft(next: Partial<ExerciseExecutionDraft>) {
     setDraft((current) => {
@@ -355,7 +356,7 @@ export function ExpandableExerciseCard({
                 <div className="overflow-x-auto no-scrollbar">
                   <p className="whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] text-white/62 min-[380px]:text-[12px]">
                     <span>Séries: {exercise.sets}</span>
-                    <span className="mx-2.5 min-[380px]:mx-3">Repetições: {exercise.reps}</span>
+                    <span className="mx-2.5 min-[380px]:mx-3">{isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}</span>
                     <span>Descanso: {exercise.rest}</span>
                   </p>
                 </div>
@@ -490,7 +491,7 @@ export function ExpandableExerciseCard({
 
               <div className="grid grid-cols-[2rem_2.45rem_.25rem_3.35rem_3.35rem_2.35rem] items-center gap-x-1.5 gap-y-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">
                 <span className="text-center">Série</span>
-                <span className="text-center">Reps</span>
+                <span className="text-center">{isIsometric ? "Seg." : "Reps"}</span>
                 <span className="mx-auto h-4 w-px rounded-full bg-white/8" aria-hidden />
                 <span className="text-center">Kg</span>
                 <span className="text-center">Feitas</span>
@@ -533,14 +534,16 @@ export function ExpandableExerciseCard({
 
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode={isIsometric ? "decimal" : "numeric"}
                       value={entry.reps}
                       onChange={(event) =>
                         updateSetEntry(setIndex, {
-                          reps: normalizeIntegerInput(event.target.value)
+                          reps: isIsometric
+                            ? normalizeDecimalInput(event.target.value)
+                            : normalizeIntegerInput(event.target.value)
                         })
                       }
-                      placeholder="-"
+                      placeholder={isIsometric ? "s" : "-"}
                       className="h-10 w-full rounded-[12px] border border-white/10 bg-white/[0.04] px-2 text-center text-sm font-semibold text-white outline-none transition placeholder:text-white/20 focus:border-primary/28"
                     />
 
