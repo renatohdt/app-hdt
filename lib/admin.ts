@@ -4,6 +4,7 @@ import type {
   AdminDashboardData,
   AdminErrorLog,
   DashboardPeriod,
+  DistributionDatum,
   RetentionMetric
 } from "@/lib/admin-shared";
 import {
@@ -203,7 +204,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       workoutsGenerated: 0,
       workoutsLast7Days: 0,
       completionRate: null,
-      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
+      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+      daysDistribution: [],
+      levelDistribution: [],
+      equipmentDistribution: [],
+      durationDistribution: []
     };
   }
 
@@ -288,7 +293,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         workoutsGenerated: 0,
         workoutsLast7Days: 0,
         completionRate: null,
-        featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
+        featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+        daysDistribution: [],
+        levelDistribution: [],
+        equipmentDistribution: [],
+        durationDistribution: []
       };
     }
 
@@ -381,7 +390,25 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         usersWithReplacement,
         usersWithNewWorkout,
         usersWithCompletedSession
-      }
+      },
+      daysDistribution: toDistribution(
+        dashboardAnswerList.map((a) => {
+          const days = typeof a.days === "number" ? a.days : null;
+          return days !== null ? getDaysLabel(days) : "";
+        })
+      ),
+      levelDistribution: toDistribution(
+        dashboardAnswerList.map((a) =>
+          a.experience ? getLevelLabel(a.experience as QuizAnswers["experience"]) : ""
+        )
+      ),
+      equipmentDistribution: toEquipmentDistribution(dashboardAnswerList),
+      durationDistribution: toDistribution(
+        dashboardAnswerList.map((a) => {
+          const time = typeof a.time === "number" ? a.time : null;
+          return time !== null ? getDurationLabel(time) : "";
+        })
+      )
     };
   }
 
@@ -430,7 +457,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       workoutsGenerated: 0,
       workoutsLast7Days: 0,
       completionRate: null,
-      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
+      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+      daysDistribution: [],
+      levelDistribution: [],
+      equipmentDistribution: [],
+      durationDistribution: []
     };
   }
 
@@ -468,7 +499,25 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     workoutsGenerated: 0,
     workoutsLast7Days: 0,
     completionRate: null,
-    featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 }
+    featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+    daysDistribution: toDistribution(
+      answersList.map((a) => {
+        const days = typeof a.days === "number" ? a.days : null;
+        return days !== null ? getDaysLabel(days) : "";
+      })
+    ),
+    levelDistribution: toDistribution(
+      answersList.map((a) =>
+        a.experience ? getLevelLabel(a.experience as QuizAnswers["experience"]) : ""
+      )
+    ),
+    equipmentDistribution: toEquipmentDistribution(answersList),
+    durationDistribution: toDistribution(
+      answersList.map((a) => {
+        const time = typeof a.time === "number" ? a.time : null;
+        return time !== null ? getDurationLabel(time) : "";
+      })
+    )
   };
 }
 
@@ -1254,4 +1303,52 @@ export function formatDate(value?: string) {
   }).format(new Date(value));
 }
 
+function getEquipmentLabel(value: string): string {
+  const labels: Record<string, string> = {
+    halteres: "Halteres",
+    elasticos: "Elásticos",
+    fitball: "Fitball",
+    fita_suspensa: "Fita Suspensa",
+    caneleira: "Caneleira",
+    kettlebell: "Kettlebell",
+    rolo_abdominal: "Rolo Abdominal",
+    nenhum: "Sem equipamento"
+  };
+  return labels[value] ?? value;
+}
 
+function getDaysLabel(days: number): string {
+  return days === 1 ? "1 dia/sem" : `${days} dias/sem`;
+}
+
+function getDurationLabel(time: number): string {
+  return `${time} min`;
+}
+
+function toEquipmentDistribution(
+  answersList: Array<Partial<QuizAnswers> & Record<string, unknown>>
+): DistributionDatum[] {
+  const total = answersList.length;
+  if (!total) return [];
+
+  const counts = new Map<string, number>();
+  for (const answers of answersList) {
+    const equipment = answers.equipment as string[] | undefined;
+    if (!Array.isArray(equipment)) continue;
+    const seen = new Set<string>();
+    for (const item of equipment) {
+      if (typeof item === "string" && item && !seen.has(item)) {
+        seen.add(item);
+        counts.set(item, (counts.get(item) ?? 0) + 1);
+      }
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, value]) => ({
+      label: getEquipmentLabel(key),
+      value,
+      percentage: Math.round((value / total) * 100)
+    }));
+}

@@ -184,6 +184,38 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         </div>
       </section>
 
+      <section className="space-y-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+          Perfil dos usuários
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <DistributionBarCard
+            title="Dias por semana"
+            data={data.daysDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de dias registrados."
+          />
+          <DistributionBarCard
+            title="Nível"
+            data={data.levelDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de nível registrados."
+          />
+          <DistributionBarCard
+            title="Materiais"
+            data={data.equipmentDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de materiais registrados."
+          />
+          <DistributionBarCard
+            title="Tempo de treino"
+            data={data.durationDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de duração registrados."
+          />
+        </div>
+      </section>
+
       <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
         <div className="space-y-2">
           <h2 className="text-[1.2rem] font-semibold text-white">Log de erros</h2>

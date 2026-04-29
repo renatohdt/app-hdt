@@ -60,6 +60,10 @@ export type AdminDashboardData = {
     usersWithNewWorkout: number;
     usersWithCompletedSession: number;
   };
+  daysDistribution: DistributionDatum[];
+  levelDistribution: DistributionDatum[];
+  equipmentDistribution: DistributionDatum[];
+  durationDistribution: DistributionDatum[];
 };
 
 export function getGoalLabel(goal?: QuizAnswers["goal"]) {
