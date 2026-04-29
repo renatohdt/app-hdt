@@ -2010,7 +2010,9 @@ function sanitizeAiDayExercises(
       return {
         name: lookup.source.name,
         sets: String(normalizeSetsForBudget(exercise.sets, strategy, movementType, blockType)),
-        reps: String(sanitizeFixedNumber(exercise.reps, getDefaultReps(strategy, movementType))),
+        reps: blockType === "isometria"
+          ? (typeof exercise.reps === "string" && exercise.reps.trim() ? exercise.reps.trim() : "30s")
+          : String(sanitizeFixedNumber(exercise.reps, getDefaultReps(strategy, movementType) as number)),
         rest: `${normalizeRestForBudget(exercise.rest, strategy, blockType, movementType)}s`,
         type: legacyType,
         method: trainingTechnique,
