@@ -2,7 +2,7 @@
 
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { TrainingScreen } from "@/components/training-screen";
-import { AppLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-workout-states";
+import { TreinoLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-workout-states";
 import { useWorkoutAppState } from "@/components/use-workout-app-state";
 import { PushPromptModal } from "@/components/push-prompt-modal";
 
@@ -11,7 +11,7 @@ export default function TreinoPage() {
     useWorkoutAppState();
 
   if (loading) {
-    return <AppLoadingScreen title="Carregando seu treino" />;
+    return <TreinoLoadingScreen />;
   }
 
   if (error || noWorkout || !data) {

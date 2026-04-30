@@ -4,12 +4,12 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { DashboardHomeScreen } from "@/components/dashboard-home-screen";
-import { AppLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-workout-states";
+import { DashboardLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-workout-states";
 import { useWorkoutAppState } from "@/components/use-workout-app-state";
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<AppLoadingScreen title="Carregando sua home" />}>
+    <Suspense fallback={<DashboardLoadingScreen />}>
       <DashboardContent />
     </Suspense>
   );
@@ -23,7 +23,7 @@ function DashboardContent() {
     });
 
   if (loading) {
-    return <AppLoadingScreen title="Carregando sua home" />;
+    return <DashboardLoadingScreen />;
   }
 
   if (error || noWorkout || !data) {

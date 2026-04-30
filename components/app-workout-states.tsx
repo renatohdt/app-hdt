@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Sparkles } from "lucide-react";
+import clsx from "clsx";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card } from "@/components/ui";
 
@@ -139,6 +140,112 @@ export function AppWorkoutUnavailableScreen({
           </div>
         </div>
       </Card>
+    </AppShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Componente auxiliar de bloco skeleton
+// ---------------------------------------------------------------------------
+
+function Sk({ className }: { className?: string }) {
+  return <div className={clsx("animate-pulse rounded-xl bg-white/[0.08]", className)} />;
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton da Home (Dashboard)
+// ---------------------------------------------------------------------------
+
+export function DashboardLoadingScreen() {
+  return (
+    <AppShell className="space-y-4">
+      {/* Hero card */}
+      <Card className="space-y-5 rounded-[24px] border-white/[0.06] p-5">
+        <Sk className="mx-auto h-6 w-36" />
+        <div className="space-y-3 text-center">
+          <Sk className="mx-auto h-6 w-40" />
+          <Sk className="mx-auto h-4 w-64" />
+          <Sk className="mx-auto h-4 w-52" />
+        </div>
+        <Sk className="h-12 w-full rounded-[16px]" />
+      </Card>
+
+      {/* Evolucao */}
+      <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px]">
+        <Sk className="h-4 w-28" />
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex min-h-[88px] flex-col justify-between rounded-[15px] border border-white/[0.05] bg-black/18 p-[14px]">
+              <Sk className="h-4 w-4" />
+              <div className="space-y-1.5">
+                <Sk className="h-5 w-10" />
+                <Sk className="h-3 w-14" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Ciclo do plano */}
+      <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px]">
+        <Sk className="h-3 w-24" />
+        <Sk className="h-6 w-32" />
+        <Sk className="h-4 w-full" />
+        <Sk className="h-4 w-4/5" />
+        <Sk className="h-2 w-full rounded-full" />
+      </Card>
+
+      {/* Acoes */}
+      <Card className="space-y-4 rounded-[24px] border-white/[0.06] p-[18px]">
+        <div className="space-y-2">
+          <Sk className="h-3 w-16" />
+          <Sk className="h-5 w-56" />
+          <Sk className="h-4 w-full" />
+          <Sk className="h-4 w-3/4" />
+        </div>
+        <Sk className="h-11 w-full rounded-[14px]" />
+      </Card>
+    </AppShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton da tela de Treino
+// ---------------------------------------------------------------------------
+
+export function TreinoLoadingScreen() {
+  return (
+    <AppShell className="space-y-4">
+      {/* Header do treino */}
+      <Card className="space-y-4 rounded-[24px] border-white/[0.06] p-5">
+        <div className="space-y-2">
+          <Sk className="h-3 w-20" />
+          <Sk className="h-7 w-48" />
+          <Sk className="h-4 w-36" />
+        </div>
+        <div className="flex gap-2">
+          <Sk className="h-8 w-24 rounded-full" />
+          <Sk className="h-8 w-24 rounded-full" />
+        </div>
+      </Card>
+
+      {/* Cards de exercicios */}
+      {[0, 1, 2, 3].map((i) => (
+        <Card key={i} className="space-y-3 rounded-[24px] border-white/[0.06] p-5">
+          <div className="flex items-center gap-3">
+            <Sk className="h-10 w-10 rounded-xl" />
+            <div className="flex-1 space-y-2">
+              <Sk className="h-4 w-40" />
+              <Sk className="h-3 w-28" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Sk className="h-14 rounded-xl" />
+            <Sk className="h-14 rounded-xl" />
+            <Sk className="h-14 rounded-xl" />
+          </div>
+        </Card>
+      ))}
     </AppShell>
   );
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { unstable_cache } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { diagnoseUser } from "@/lib/diagnosis";
@@ -8,6 +9,7 @@ import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
@@ -51,30 +53,35 @@ export async function GET(request: NextRequest) {
       return jsonError("Acesso negado.", 403);
     }
 
-    const { data: user, error: userError } = await supabase.from("users").select("id, name").eq("id", userId).maybeSingle();
+    // Todas as queries iniciais rodam em paralelo — nenhuma depende do resultado da outra,
+    // pois o userId já está disponível desde o passo de autenticação acima.
+    const [
+      { data: user, error: userError },
+      { data: workoutRecord, error: workoutError },
+      savedAnswers,
+      exerciseLibrary
+    ] = await Promise.all([
+      supabase.from("users").select("id, name").eq("id", userId).maybeSingle(),
+      fetchLatestWorkoutRecord(supabase, { userId, includeCreatedAt: true, scope: "WORKOUT" }),
+      getUserAnswersByUserId(supabase, userId),
+      getCachedExerciseCatalog()
+    ]);
 
     if (userError || !user) {
       return jsonError(SESSION_EXPIRED_MESSAGE, 404);
     }
 
-    const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
-      userId: user.id,
-      includeCreatedAt: true,
-      scope: "WORKOUT"
-    });
-
     if (workoutError) {
       logError("WORKOUT", "Workout query failed", {
-        user_id: user.id,
+        user_id: userId,
         error_code: getSupabaseErrorCode(workoutError)
       });
       return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    const savedAnswers = await getUserAnswersByUserId(supabase, user.id);
     if (!savedAnswers) {
       logWarn("WORKOUT", "Workout runtime answers fallback", {
-        user_id: user.id,
+        user_id: userId,
         reason: "user_answers_missing"
       });
     }
@@ -101,7 +108,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const exerciseLibrary = await loadExerciseCatalog(supabase, user.id);
     const normalizedWorkout = normalizeWorkoutSafely(workoutRecord.exercises, {
       diagnosis,
       answers,
@@ -580,3 +586,27 @@ async function loadExerciseCatalog(
 
   return ((data ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
 }
+
+// Catálogo de exercícios cacheado por 10 minutos no servidor.
+// A tabela "exercises" é gerenciada por admins e raramente muda,
+// portanto não faz sentido buscá-la do banco a cada request de usuário.
+// Apenas o GET usa este cache — o POST (geração de treino) busca direto do banco.
+const getCachedExerciseCatalog = unstable_cache(
+  async (): Promise<ExerciseRecord[]> => {
+    const adminClient = createSupabaseAdminClient();
+
+    if (!adminClient) {
+      return [];
+    }
+
+    const { data, error } = await adminClient.from("exercises").select("*");
+
+    if (error) {
+      return [];
+    }
+
+    return ((data ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
+  },
+  ["exercises-catalog"],
+  { revalidate: 600 } // 10 minutos
+);
