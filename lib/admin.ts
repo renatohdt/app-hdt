@@ -179,6 +179,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     return {
       totalUsers: 0,
       deletedUsers: 0,
+      premiumUsers: 0,
       activeUsers: {
         daily: 0,
         weekly: 0
@@ -275,6 +276,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       return {
         totalUsers: 0,
         deletedUsers: 0,
+        premiumUsers: 0,
         activeUsers: {
           daily: 0,
           weekly: 0
@@ -327,7 +329,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     // Métricas de engajamento com as ferramentas do app
     // Buscamos separadamente para não atrasar o dashboard caso as tabelas cresçam.
-    const [featureReplacementsQuery, featureSessionsQuery, featureNewWorkoutQuery] = await Promise.all([
+    const [featureReplacementsQuery, featureSessionsQuery, featureNewWorkoutQuery, premiumSubscriptionsQuery] = await Promise.all([
       supabase.from("workout_exercise_replacements").select("user_id"),
       supabase.from("workout_session_logs").select("user_id").eq("status", "completed"),
       // "Gerar novo treino" é o botão na página de Perfil — rastreado como workout_generated
@@ -337,7 +339,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         .from("analytics_events")
         .select("user_id")
         .eq("event_name", "workout_generated")
-        .eq("metadata->>source", "profile_regenerate")
+        .eq("metadata->>source", "profile_regenerate"),
+      // Usuários com assinatura ativa (active) ou dentro do período de graça (past_due)
+      supabase
+        .from("subscriptions")
+        .select("user_id")
+        .in("status", ["active", "past_due"])
     ]);
 
     const usersWithReplacement = new Set(
@@ -350,12 +357,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ((featureNewWorkoutQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
     ).size;
 
+    // Usuários premium: assinaturas ativas ou em período de graça
+    const premiumUsers = (premiumSubscriptionsQuery.data ?? []).length;
+
     // Total = usuários que completaram o cadastro (quiz finalizado, perfil salvo)
     const totalUsers = dashboardUsers.length;
 
     return {
       totalUsers,
       deletedUsers,
+      premiumUsers,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
           from: startOfToday(),
@@ -439,6 +450,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     return {
       totalUsers: 0,
       deletedUsers: 0,
+      premiumUsers: 0,
       activeUsers: {
         daily: 0,
         weekly: 0
@@ -481,6 +493,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   return {
     totalUsers: users.length,
     deletedUsers,
+    premiumUsers: 0,
     activeUsers: {
       daily: activeUsers,
       weekly: activeUsers

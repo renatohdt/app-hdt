@@ -19,6 +19,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
   const activeUsers = data.activeUsers[period];
   const totalUsers = data.totalUsers;
   const deletedUsers = data.deletedUsers;
+  const premiumUsers = data.premiumUsers;
   const funnel = data.funnel[period];
   const totalForPie = useMemo(
     () => ({
@@ -63,7 +64,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           Atualizar dados
         </button>
       </div>
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-3">
         <SummaryMetricCard
           label="Usuários totais"
           value={String(totalUsers)}
@@ -74,7 +75,14 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           value={String(deletedUsers)}
           description="Usuários que deletaram a conta."
         />
+        <SummaryMetricCard
+          label="Usuários premium"
+          value={String(premiumUsers)}
+          description="Assinaturas ativas (ou em período de graça)."
+        />
+      </section>
 
+      <section className="grid gap-4 sm:grid-cols-3">
         {data.retention.map((metric) => (
           <RetentionMetricCard key={metric.key} metric={metric} />
         ))}
