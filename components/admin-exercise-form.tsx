@@ -9,6 +9,7 @@ import {
   EXERCISE_LEVEL_OPTIONS,
   EXERCISE_LOCATION_OPTIONS,
   EXERCISE_MUSCLE_OPTIONS,
+  EXERCISE_TRAINING_STYLE_OPTIONS,
   EXERCISE_TYPE_OPTIONS,
   getExerciseEquipment,
   getExerciseRequiredEquipment,
@@ -31,6 +32,7 @@ type ExerciseFormValues = {
   location: string[];
   equipment: string[];
   required_equipment: string[];
+  training_styles: string[];
   video_url: string;
 };
 
@@ -43,6 +45,7 @@ const emptyValues: ExerciseFormValues = {
   location: [],
   equipment: [],
   required_equipment: [],
+  training_styles: [],
   video_url: ""
 };
 
@@ -88,6 +91,7 @@ export function AdminExerciseForm({
       location: getExerciseLocations(initialValues),
       equipment: getExerciseEquipment(initialValues),
       required_equipment: getExerciseRequiredEquipment(initialValues),
+      training_styles: initialValues.training_styles ?? [],
       video_url: initialValues.video_url ?? ""
     });
   }, [initialValues]);
@@ -145,6 +149,7 @@ export function AdminExerciseForm({
       location: ensureArray(values.location),
       equipment: normalizeExerciseEquipmentList(values.equipment),
       required_equipment: normalizeExerciseEquipmentList(values.required_equipment),
+      training_styles: values.training_styles,
       video_url: values.video_url || null
     };
 
@@ -195,7 +200,7 @@ export function AdminExerciseForm({
     });
   }
 
-  function toggleArrayValue(field: "level" | "location" | "equipment" | "required_equipment", value: string) {
+  function toggleArrayValue(field: "level" | "location" | "equipment" | "required_equipment" | "training_styles", value: string) {
     setValues((current) => {
       const currentValues = current[field];
       const nextValues = currentValues.includes(value)
@@ -323,6 +328,14 @@ export function AdminExerciseForm({
           options={EXERCISE_EQUIPMENT_OPTIONS}
           selected={values.required_equipment}
           onToggle={(value) => toggleArrayValue("required_equipment", value)}
+        />
+
+        <CheckboxGroup
+          title="Estilo de treino"
+          description="Selecione todos os estilos de treino compatíveis com este exercício. Um exercício pode pertencer a mais de um estilo."
+          options={EXERCISE_TRAINING_STYLE_OPTIONS}
+          selected={values.training_styles}
+          onToggle={(value) => toggleArrayValue("training_styles", value)}
         />
 
         <div className="flex flex-wrap gap-3">

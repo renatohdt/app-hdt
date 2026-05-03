@@ -29,6 +29,13 @@ export const EXERCISE_TYPE_OPTIONS = [
   { value: "warmup", label: "Aquecimento" }
 ] as const;
 
+export const EXERCISE_TRAINING_STYLE_OPTIONS = [
+  { value: "musculacao", label: "Musculação" },
+  { value: "funcional", label: "Funcional" },
+  { value: "hiit", label: "HIIT" },
+  { value: "calistenia", label: "Calistenia" }
+] as const;
+
 export const EXERCISE_LEVEL_OPTIONS = [
   { value: "beginner", label: "Iniciante" },
   { value: "intermediate", label: "Intermediário" },

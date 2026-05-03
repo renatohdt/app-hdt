@@ -35,6 +35,7 @@ type ExerciseRequestBody = {
   equipment?: string[] | string;
   required_equipment?: string[] | string;
   level?: string[] | string;
+  training_styles?: string[];
   video_url?: string | null;
   videoUrl?: string | null;
 };
@@ -169,6 +170,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     const equipment = normalizeExerciseEquipmentList(body.equipment);
     const required_equipment = normalizeExerciseEquipmentList(body.required_equipment);
     const level = normalizeExerciseLevelList(body.level);
+    const training_styles = Array.isArray(body.training_styles) ? body.training_styles : [];
 
     if (method === "PATCH" && !body.id) {
       return jsonError("Exercício inválido.", 400);
@@ -206,6 +208,7 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       equipment,
       required_equipment,
       level,
+      training_styles,
       metadata: {
         muscle: primaryMuscle ?? "",
         muscle_groups: muscleGroups,

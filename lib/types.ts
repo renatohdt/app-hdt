@@ -57,6 +57,7 @@ export type ExerciseRecord = {
   level?: string | string[];
   equipment?: string[];
   required_equipment?: string[];
+  training_styles?: string[];
   metadata?: {
     muscle?: string;
     muscle_groups?: string[];
