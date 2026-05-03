@@ -42,6 +42,7 @@ export type WorkoutStrategy = {
   level: TrainingLevel;
   goalStyle: TrainingGoalStyle;
   dayCount: number;
+  uniqueSessionCount: number;
   timeAvailable: number;
   timeBudget: SessionTimeBudget;
   equipment: string[];
@@ -86,12 +87,57 @@ const ADVANCED_BLOCKS = new Set<WorkoutBlockType>([
   "bi-set",
   "tri-set",
   "drop-set",
-  "rest-pause",
   "cluster",
   "pre-exaustao",
   "pos-exaustao",
   "circuit"
 ]);
+
+/**
+ * Resolve quantos treinos DISTINTOS devem ser gerados para o usuário.
+ *
+ * O número de treinos únicos é menor ou igual ao número de dias por semana.
+ * Quando menor, o app rotaciona os treinos automaticamente na semana
+ * (ex: A→B→A→B para 4 dias com 2 treinos únicos).
+ *
+ * Critério de decisão: dias × tempo disponível por sessão.
+ * Pouco tempo → menos sessões únicas (full body rota melhor).
+ * Mais tempo  → mais sessões únicas (split específico vale a pena).
+ *
+ * Tabela:
+ * days | ≤30min | 31–45min | ≥46min
+ *   1  |   1    |    1     |   1
+ *   2  |   1    |    2     |   2
+ *   3  |   2    |    2     |   3
+ *   4  |   2    |    3     |   3
+ *   5  |   3    |    3     |   4
+ *   6  |   3    |    3     |   6
+ *   7  |   3    |    3     |   6
+ */
+function resolveUniqueSessionCount(dayCount: number, timeAvailable: number): number {
+  const isShort  = timeAvailable <= 30;
+  const isMedium = timeAvailable >= 31 && timeAvailable <= 45;
+  const isLong   = timeAvailable >= 46;
+
+  const table: Record<number, [number, number, number]> = {
+    // day: [short, medium, long]
+    1: [1, 1, 1],
+    2: [1, 2, 2],
+    3: [2, 2, 3],
+    4: [2, 3, 3],
+    5: [3, 3, 4],
+    6: [3, 3, 6],
+    7: [3, 3, 6]
+  };
+
+  const row = table[clamp(dayCount, 1, 7)];
+  if (!row) return dayCount;
+
+  if (isShort)  return row[0];
+  if (isMedium) return row[1];
+  if (isLong)   return row[2];
+  return row[1];
+}
 
 export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
   const level = resolveTrainingLevel(answers.experience);
@@ -114,7 +160,8 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     equipment,
     focusRegion
   });
-  const sessions = buildSessionBlueprints(splitType, dayCount, goalStyle, focusRegion);
+  const uniqueSessionCount = resolveUniqueSessionCount(dayCount, timeAvailable);
+  const sessions = buildSessionBlueprints(splitType, uniqueSessionCount, goalStyle, focusRegion);
 
   return {
     splitType,
@@ -123,6 +170,7 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     level,
     goalStyle,
     dayCount,
+    uniqueSessionCount,
     timeAvailable,
     timeBudget,
     equipment,
@@ -348,10 +396,10 @@ function buildSessionBlueprints(
     ],
     body_part_split: [
       session("A", "Treino A", "Peito e tríceps com presses pesados e complementares", "Permite maior especificidade para hipertrofia sem misturar demandas conflitantes.", ["chest", "triceps"], ["shoulders"], ["mobility", "normal", "superset", "drop-set"]),
-      session("B", "Treino B", "Costas e bíceps com foco em largura e espessura", "Agrupa puxadas e remadas com espaço para acessórios de bíceps.", ["back", "biceps"], ["shoulders"], ["mobility", "normal", "superset", "rest-pause"]),
+      session("B", "Treino B", "Costas e bíceps com foco em largura e espessura", "Agrupa puxadas e remadas com espaço para acessórios de bíceps.", ["back", "biceps"], ["shoulders"], ["mobility", "normal", "superset", "drop-set"]),
       session("C", "Treino C", "Pernas com dominante de quadríceps", "Cria uma sessão forte para quadríceps e glúteos sem comprometer a recuperação posterior.", ["quadriceps", "glutes"], ["calves", "abs"], ["mobility", "normal", "drop-set"]),
       session("D", "Treino D", "Ombros e parte superior complementar", "Aumenta a frequência dos deltoides e estabilizadores do tronco.", ["shoulders", "chest", "back"], ["triceps", "biceps"], ["mobility", "normal", "bi-set"]),
-      session("E", "Treino E", "Posterior, glúteos e braços complementares", "Fecha a semana com posterior e técnicas de intensificação em exercícios mais seguros.", ["hamstrings", "glutes", "biceps"], ["triceps", "abs"], ["mobility", "normal", "rest-pause", "drop-set"])
+      session("E", "Treino E", "Posterior, glúteos e braços complementares", "Fecha a semana com posterior e técnicas de intensificação em exercícios mais seguros.", ["hamstrings", "glutes", "biceps"], ["triceps", "abs"], ["mobility", "normal", "drop-set", "bi-set"])
     ],
     // Nunca acessado diretamente — focus_split usa buildFocusSplitBlueprints
     focus_split: []
@@ -541,7 +589,6 @@ function buildAllowedBlockTypes(
 
   if (goalStyle === "hypertrophy" && level !== "beginner" && timeBudget.allowAdvancedTechniques) {
     allowed.add("drop-set");
-    allowed.add("rest-pause");
     allowed.add("pre-exaustao");
     allowed.add("pos-exaustao");
   }
@@ -653,10 +700,13 @@ function inferMovementPattern(exercise: ExerciseRecord, primaryMuscle: string, m
 
 function inferRecommendedBlockTypes(movementType: string, movementPattern: string): WorkoutBlockType[] {
   if (movementType === "mobility") return ["mobility"];
-  if (movementType === "isolation") return ["normal", "bi-set", "drop-set", "tempo_controlado", "isometria"];
+  // Isometria só é recomendada para exercícios cadastrados como isométricos.
+  // Isolation executa em movimento — pode ter tempo controlado e drop-set, mas nunca isometria.
+  if (movementType === "isometric") return ["normal", "isometria", "tempo_controlado"];
+  if (movementType === "isolation") return ["normal", "bi-set", "drop-set", "tempo_controlado"];
   if (movementType === "functional") return ["normal", "superset", "circuit", "tri-set"];
-  if (movementPattern === "hinge" || movementPattern === "squat") return ["normal", "rest-pause"];
-  return ["normal", "superset", "bi-set", "rest-pause"];
+  if (movementPattern === "hinge" || movementPattern === "squat") return ["normal", "drop-set"];
+  return ["normal", "superset", "bi-set"];
 }
 
 function normalizeEquipmentList(values?: string[] | null) {

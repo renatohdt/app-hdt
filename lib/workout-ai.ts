@@ -147,6 +147,28 @@ SELECAO DE EXERCICIOS:
 - Nao inclua exercicios de mobilidade ou ativacao (o app adiciona depois)
 - Abs/core (abdominais, prancha, etc.): inclua SOMENTE nas sessoes onde 'abs' estiver listado como musculo PRIMARIO da sessao; em sessoes onde abs e apenas secundario (ex: push, pull) NAO adicione exercicios isolados de abs
 
+SERIES, REPETICOES E DESCANSO:
+Use os DADOS DO USUARIO (experience, goal) para calibrar conforme a tabela abaixo. NUNCA use o mesmo valor de reps para todos os exercicios da sessao.
+
+Repeticoes por objetivo e nivel:
+| Objetivo       | Nivel         | Composto    | Isolador    |
+| hipertrofia    | iniciante     | 12-15 reps  | 15-20 reps  |
+| hipertrofia    | intermediario | 8-12 reps   | 10-15 reps  |
+| hipertrofia    | avancado      | 6-10 reps   | 8-12 reps   |
+| condicionamento| todos         | 12-20 reps  | 15-25 reps  |
+| outros         | todos         | 10-15 reps  | 12-15 reps  |
+
+Regras obrigatorias de reps:
+- NUNCA ultrapasse 20 reps em exercicios de forca ou hipertrofia
+- Compostos pesados (primeiro da sessao): use o LIMITE INFERIOR da faixa (mais carga, menos reps)
+- Isoladores e finalizadores: use o LIMITE SUPERIOR da faixa (menos carga, mais reps)
+- Varie as reps entre exercicios dentro da sessao — nao repita o mesmo numero em todos
+
+Descanso entre series:
+- Composto (hipertrofia): 90s | Composto (outros): 60s
+- Isolador: 45s | Bloco combinado (entre exercicios): 0-15s | Bloco combinado (entre rounds): 60-90s
+- Drop-set / rest-pause: 20-30s
+
 BLOCOS COMBINADOS (tipos permitidos: ver allowedBlockTypes na estrategia):
 - Une exercicios muscularmente compativeis; descanso so ao final da volta
 - Iniciante: superset simples ou circuit leve | Intermediario: bi-set moderado | Avancado: bi-set/tri-set/drop-set com parcimonia
@@ -169,12 +191,20 @@ RETORNE APENAS ESTE JSON (preencha splitType e sessionCount conforme a estrategi
       "splitType": "<splitType da estrategia>",
       "exercises": [
         {
-          "name": "nome exato do exercicio",
+          "name": "nome exato do exercicio composto principal",
+          "blockType": "normal",
+          "trainingTechnique": "tradicional",
+          "sets": 4,
+          "reps": 8,
+          "rest": 90
+        },
+        {
+          "name": "nome exato do exercicio isolador finalizador",
           "blockType": "normal",
           "trainingTechnique": "tradicional",
           "sets": 3,
-          "reps": 10,
-          "rest": 60
+          "reps": 15,
+          "rest": 45
         }
       ]
     }
@@ -447,13 +477,15 @@ export async function generateWorkoutWithAI(
   const targetDurationMinutes = budget.targetDurationMinutes;
   const availableMinutes = budget.availableTimeMinutes;
 
-  // Quantidade de sessoes esperada no array "plan". Sem isso explicito a IA
-  // tende a entregar apenas Treino A, copiando o exemplo do formato JSON.
-  const sessionCountTarget = strategy.dayCount;
+  // Quantidade de sessoes ÚNICAS esperada no array "plan".
+  // uniqueSessionCount <= dayCount: quando menor, os treinos se repetem na semana.
+  // Ex: 2 treinos únicos para 4 dias → rotação A-B-A-B no app automaticamente.
+  const sessionCountTarget = strategy.uniqueSessionCount;
   const expectedSessionLabels = strategy.sessions
     .slice(0, sessionCountTarget)
     .map((session) => `Treino ${session.day}`)
     .join(", ");
+  const isRotating = strategy.uniqueSessionCount < strategy.dayCount;
 
   // User message: exercícios primeiro (semi-estático, maximiza prefixo cacheável),
   // depois os dados dinâmicos (restrições, estratégia, usuário).
@@ -471,9 +503,15 @@ export async function generateWorkoutWithAI(
       : []),
     "RESTRIÇÕES OBRIGATÓRIAS:",
     `- Sessoes: exatamente ${sessionCountTarget} (${expectedSessionLabels}), focos distintos conforme sessions abaixo`,
+    ...(isRotating
+      ? [`- ROTACAO: o usuario treina ${strategy.dayCount}x/semana mas recebe apenas ${sessionCountTarget} treinos distintos; o app repete automaticamente na ordem (ex: ${expectedSessionLabels.split(", ").concat(expectedSessionLabels.split(", ")).slice(0, strategy.dayCount).join("→")}); por isso cada treino deve ser COMPLETO e SEM repetir exercicios dos outros treinos`]
+      : []),
     `- Exercicios/sessao: ${exerciseRangeLabel} (alvo ${exerciseTarget}); mobilidade NAO conta`,
     `- Blocos combinados/sessao: ${combinedRangeLabel} (alvo ${combinedTarget})`,
     `- Tempo-alvo: ${targetDurationMinutes} min (janela ${durationWindowLabel} min, disponivel: ${availableMinutes} min)`,
+    ...(strategy.focusRegion && strategy.focusRegion !== "balanced"
+      ? [`- Treino A OBRIGATORIAMENTE deve ser o primeiro treino da semana e DEVE priorizar os músculos de muscle_focus (${strategy.focusRegion}); os exercícios desse grupo muscular devem ocupar a maior parte do volume do Treino A`]
+      : []),
     "",
     "ESTRATEGIA BASE OBRIGATORIA:",
     toWorkoutYaml(buildCoachBrief(strategy)),
@@ -489,7 +527,10 @@ export async function generateWorkoutWithAI(
       equipment: strategy.equipment,
       gender: answers.gender,
       experience: answers.experience,
-      body_type: resolveBodyType(answers)
+      body_type: resolveBodyType(answers),
+      ...(strategy.focusRegion && strategy.focusRegion !== "balanced"
+        ? { muscle_focus: strategy.focusRegion }
+        : {})
     })
   ].join("\n");
 
@@ -795,7 +836,7 @@ function validateAndBuildWorkoutPlan(
   // Cada nome que passar pela sanitização entra aqui e é bloqueado nas próximas sessões.
   const usedAcrossSessions = new Set<string>();
 
-  for (const [index, day] of normalizedPlan.slice(0, strategy.dayCount).entries()) {
+  for (const [index, day] of normalizedPlan.slice(0, strategy.uniqueSessionCount).entries()) {
     const blueprint = strategy.sessions[index] ?? strategy.sessions[strategy.sessions.length - 1];
     const rawExercises = Array.isArray(day.exercises) ? day.exercises : [];
     const sanitized = sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
@@ -1864,14 +1905,97 @@ function resolveRestBounds(
   }
 
   if (strategy.timeBudget.bucket === "standard") {
-    return movementType === "compound" ? { min: 45, max: 90, target: 60 } : { min: 30, max: 60, target: 45 };
+    if (movementType === "compound") {
+      return strategy.goalStyle === "hypertrophy"
+        ? { min: 60, max: 120, target: 90 }
+        : { min: 45, max: 90,  target: 60 };
+    }
+    return { min: 30, max: 60, target: 45 };
   }
 
   if (strategy.timeBudget.bucket === "extended") {
-    return movementType === "compound" ? { min: 60, max: 105, target: 75 } : { min: 35, max: 75, target: 50 };
+    if (movementType === "compound") {
+      return strategy.goalStyle === "hypertrophy"
+        ? { min: 75, max: 120, target: 105 }
+        : { min: 60, max: 105, target: 75  };
+    }
+    return { min: 35, max: 75, target: 50 };
   }
 
   return movementType === "compound" ? { min: 75, max: 120, target: 90 } : { min: 45, max: 75, target: 60 };
+}
+
+/**
+ * Limites de repetições por objetivo, nível e tipo de movimento.
+ *
+ * Garante que a IA nunca gere valores absurdos (ex: 30 reps num composto
+ * avançado de força) e define o target que o backend usa como fallback
+ * quando o valor da IA está fora da faixa.
+ *
+ * Tabela de referência:
+ *
+ * Hipertrofia   | Composto          | Isolado
+ * Iniciante     | 10-15  (alvo 12)  | 12-20 (alvo 15)
+ * Intermediário | 8-12   (alvo 10)  | 10-15 (alvo 12)
+ * Avançado      | 6-10   (alvo 8)   | 8-12  (alvo 10)
+ *
+ * Condicionamento (todos os níveis)
+ * Composto: 12-20 (alvo 15) | Isolado: 15-25 (alvo 20)
+ *
+ * Outros objetivos (fat_loss / recomposition)
+ * Composto: 10-15 (alvo 12) | Isolado: 12-15 (alvo 12)
+ */
+function resolveRepBounds(
+  strategy: WorkoutStrategy,
+  movementType: string,
+  blockType?: WorkoutBlockType
+): { min: number; max: number; target: number } {
+  if (movementType === "mobility") return { min: 20, max: 40, target: 30 };
+
+  const isCompound = movementType === "compound";
+  const { goalStyle, level } = strategy;
+
+  if (goalStyle === "hypertrophy") {
+    if (isCompound) {
+      if (level === "beginner")     return { min: 10, max: 15, target: 12 };
+      if (level === "intermediate") return { min: 8,  max: 12, target: 10 };
+      return                               { min: 6,  max: 10, target: 8  }; // advanced
+    }
+    // isolation / functional
+    if (level === "beginner")     return { min: 12, max: 20, target: 15 };
+    if (level === "intermediate") return { min: 10, max: 15, target: 12 };
+    return                               { min: 8,  max: 12, target: 10 }; // advanced
+  }
+
+  if (goalStyle === "conditioning") {
+    return isCompound
+      ? { min: 12, max: 20, target: 15 }
+      : { min: 15, max: 25, target: 20 };
+  }
+
+  // fat_loss / recomposition
+  return isCompound
+    ? { min: 10, max: 15, target: 12 }
+    : { min: 10, max: 15, target: 12 };
+}
+
+function normalizeRepsForBudget(
+  value: unknown,
+  strategy: WorkoutStrategy,
+  movementType: string,
+  blockType?: WorkoutBlockType
+): number {
+  const bounds = resolveRepBounds(strategy, movementType, blockType);
+
+  // Se a IA mandou um valor no formato tempo ("45s", "30s") mas o blockType
+  // não é isometria, é um erro de prescrição da IA (confundiu o tipo do exercício).
+  // Descarta o valor e usa o target dos bounds para não gerar reps absurdas.
+  if (typeof value === "string" && /^\d+s$/i.test(value.trim()) && blockType !== "isometria") {
+    logWarn("AI", "Reps in time format rejected for non-isometric blockType", { value, blockType, movementType });
+    return bounds.target;
+  }
+
+  return clamp(sanitizeFixedNumber(value, bounds.target), bounds.min, bounds.max);
 }
 
 function parsePrescriptionNumber(value: string, fallback: number) {
@@ -2012,7 +2136,7 @@ function sanitizeAiDayExercises(
         sets: String(normalizeSetsForBudget(exercise.sets, strategy, movementType, blockType)),
         reps: blockType === "isometria"
           ? (typeof exercise.reps === "string" && exercise.reps.trim() ? exercise.reps.trim() : "30s")
-          : String(sanitizeFixedNumber(exercise.reps, getDefaultReps(strategy, movementType) as number)),
+          : String(normalizeRepsForBudget(exercise.reps, strategy, movementType, blockType)),
         rest: `${normalizeRestForBudget(exercise.rest, strategy, blockType, movementType)}s`,
         type: legacyType,
         method: trainingTechnique,
@@ -2165,13 +2289,11 @@ function applyStandaloneIntensityTechniques(
         ? "isometria"
         : null;
   } else if (strategy.goalStyle === "hypertrophy") {
-    blockType = strategy.level === "advanced" && strategy.allowedBlockTypes.includes("rest-pause")
-      ? "rest-pause"
-      : strategy.allowedBlockTypes.includes("drop-set")
-        ? "drop-set"
-        : strategy.allowedBlockTypes.includes("tempo_controlado")
-          ? "tempo_controlado"
-          : null;
+    blockType = strategy.allowedBlockTypes.includes("drop-set")
+      ? "drop-set"
+      : strategy.allowedBlockTypes.includes("tempo_controlado")
+        ? "tempo_controlado"
+        : null;
   } else if (strategy.goalStyle === "conditioning") {
     blockType = strategy.allowedBlockTypes.includes("tempo_controlado") ? "tempo_controlado" : null;
   }
@@ -2809,12 +2931,8 @@ function getDefaultSets(strategy: WorkoutStrategy, movementType: string) {
 }
 
 function getDefaultReps(strategy: WorkoutStrategy, movementType: string, blockType?: WorkoutBlockType): number | string {
-  // Exercícios isométricos são sempre por tempo, nunca por repetições
   if (blockType === "isometria") return "30s";
-  if (movementType === "mobility") return 30;
-  if (strategy.goalStyle === "hypertrophy") return movementType === "compound" ? 8 : 12;
-  if (strategy.goalStyle === "conditioning") return movementType === "compound" ? 12 : 15;
-  return movementType === "compound" ? 10 : 12;
+  return resolveRepBounds(strategy, movementType, blockType).target;
 }
 
 function getDefaultRest(strategy: WorkoutStrategy, blockType: WorkoutBlockType, movementType: string) {

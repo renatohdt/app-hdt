@@ -430,7 +430,7 @@ function getTechnique(
   const muscles = getNormalizedExerciseMuscles(exercise);
 
   if (profile.level === "beginner") return "adaptacao";
-  if (profile.style === "hypertrophy" && type === "compound") return index % 2 === 0 ? "piramide" : "rest-pause";
+  if (profile.style === "hypertrophy" && type === "compound") return index % 2 === 0 ? "piramide" : "tradicional";
   if (profile.includeFunctional && type === "functional") return "circuito";
   if (muscles.some((muscle) => dayPlan.secondaryMuscles.includes(muscle))) return "controle";
 

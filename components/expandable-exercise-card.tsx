@@ -180,7 +180,6 @@ export function ExpandableExerciseCard({
     ? [exercise.blockOrder, exercise.technique].filter(Boolean).join(" · ") || "Bloco combinado"
     : null;
   const plannedRepsLabel = exercise.plannedRepsLabel?.trim() || "-";
-  const restLabel = formatRestLabel(draftState.preferredRestSeconds ?? exercise.plannedRestSeconds);
   const isIsometric = exercise.blockType === "isometria";
 
   function updateDraft(next: Partial<ExerciseExecutionDraft>) {
@@ -486,7 +485,6 @@ export function ExpandableExerciseCard({
             <section className="space-y-3 rounded-[20px] border border-white/10 bg-white/[0.02] p-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/42">Execução</p>
-                <span className="text-[11px] font-medium text-white/48">{restLabel}</span>
               </div>
 
               <div className="grid grid-cols-[2rem_2.45rem_.25rem_3.35rem_3.35rem_2.35rem] items-center gap-x-1.5 gap-y-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">
