@@ -36,6 +36,9 @@ import {
   type ExerciseWeightInput,
   type WeightSetEntry
 } from "@/lib/exercise-weight-store";
+import { applySessionXp, type XpUpdateResult } from "@/lib/user-level-store";
+import { getRecentSessionDates } from "@/lib/workout-session-store";
+import type { WorkoutDifficulty } from "@/lib/user-level";
 
 type ExerciseWeightPayload = {
   exerciseName: string;
@@ -45,6 +48,7 @@ type ExerciseWeightPayload = {
 type CompleteWorkoutBody = {
   workoutKey?: unknown;
   exerciseWeights?: unknown;
+  workoutDifficulty?: unknown; // "muito_facil" | "adequado" | "muito_dificil"
 };
 
 export const dynamic = "force-dynamic";
@@ -84,6 +88,11 @@ export async function POST(request: NextRequest) {
     const exerciseWeightsPayload = Array.isArray(body.exerciseWeights)
       ? (body.exerciseWeights as ExerciseWeightPayload[])
       : [];
+    const VALID_DIFFICULTIES = ["muito_facil", "adequado", "muito_dificil"] as const;
+    const workoutDifficulty: WorkoutDifficulty | null =
+      VALID_DIFFICULTIES.includes(body.workoutDifficulty as WorkoutDifficulty)
+        ? (body.workoutDifficulty as WorkoutDifficulty)
+        : null;
     const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: auth.user.id,
       includeCreatedAt: true,
@@ -376,6 +385,18 @@ export async function POST(request: NextRequest) {
       newWeightIncreases = await countWeightIncreases(supabase, auth.user.id);
     }
 
+    // ── Calcula e aplica XP de evolução de nível ─────────────────────────
+    // Busca as datas recentes de sessão para checar streak/semana/mês
+    const recentSessionDates = await getRecentSessionDates(supabase, auth.user.id, 60);
+
+    const xpResult = await applySessionXp(supabase, auth.user.id, {
+      completedAt,
+      newWeightIncreases:  newWeightIncreases - prevWeightIncreases,
+      workoutDifficulty,
+      recentSessionDates,
+      weeklyTarget:        answers.days ?? 3,
+    }).catch(() => null); // não deixa o XP derrubar o fluxo principal
+
     // Detecta se o programa foi concluído nesta sessão
     const programCompleted = updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
 
@@ -392,7 +413,8 @@ export async function POST(request: NextRequest) {
       prevWeightIncreases,
       newWeightIncreases,
       programCompleted,
-      userPlan
+      userPlan,
+      xpResult,
     });
   } catch {
     logError("WORKOUT", "Workout completion unexpected failure", {});
@@ -515,6 +537,7 @@ function buildWorkoutCompletionSuccessResponse(input: {
   newWeightIncreases?: number;
   programCompleted?: boolean;
   userPlan?: string | null;
+  xpResult?: XpUpdateResult | null;
 }) {
   return NextResponse.json({
     success: true,
@@ -538,7 +561,20 @@ function buildWorkoutCompletionSuccessResponse(input: {
       // Sinaliza ao frontend se o programa foi concluído e qual o plano do usuário
       // O frontend usa isso para exibir parabéns + upsell (free) ou novo treino (premium)
       program_completed: input.programCompleted ?? false,
-      user_plan: input.userPlan ?? null
+      user_plan: input.userPlan ?? null,
+      // Resultado do sistema de XP — usado pelo frontend para exibir popup de evolução de fase
+      xp_result: input.xpResult
+        ? {
+            prevXp:          input.xpResult.prevXp,
+            newXp:           input.xpResult.newXp,
+            prevPhase:       input.xpResult.prevPhase,
+            newPhase:        input.xpResult.newPhase,
+            phasedUp:        input.xpResult.phasedUp,
+            dotProgress:     input.xpResult.dotProgress,
+            isReadyButWaiting: input.xpResult.isReadyButWaiting,
+            phaseUpMessage:  input.xpResult.phaseUpMessage ?? null,
+          }
+        : null,
     }
   });
 }
@@ -568,7 +604,7 @@ function buildWeightLogEntries(input: {
       setNumber: s.setNumber,
       weightKg: parseFloat(s.weightKg) || 0,
       reps: s.reps,
-      completed: s.completed
+      completed: s.completed ?? false,
     }));
 
     entries.push({
@@ -579,7 +615,7 @@ function buildWeightLogEntries(input: {
       maxWeightKg,
       setsData,
       workoutKey: input.workoutKey,
-      completedAt: input.completedAt
+      completedAt: input.completedAt,
     });
   }
 

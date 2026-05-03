@@ -11,12 +11,15 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
+import type { Experience, ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
+import { countWeightIncreases } from "@/lib/exercise-weight-store";
+import { getUserLevelSummary } from "@/lib/user-level-store";
+import { experienceToInitialPhase, phaseToExperience, type UserPhase } from "@/lib/user-level";
 import {
   applyWorkoutPlanSessionConfig,
   buildWorkoutSessionProgress,
@@ -144,7 +147,8 @@ export async function GET(request: NextRequest) {
       workout: normalizedWorkout,
       answers
     });
-    const [sessionStats, sessionLogs, replacementCountResult, totalWorkoutsAllTime] = await Promise.all([
+    const now = new Date().toISOString();
+    const [sessionStats, sessionLogs, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
       listWorkoutSessionLogs(supabase, {
         workoutId: workoutRecord.id,
@@ -156,7 +160,25 @@ export async function GET(request: NextRequest) {
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("workout_id", workoutRecord.id),
-      getAllTimeWorkoutCount(supabase, user.id)
+      getAllTimeWorkoutCount(supabase, user.id),
+      countWeightIncreases(supabase, user.id),
+      supabase
+        .from("user_goals")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("completed_at", null)
+        .gte("ends_at", now)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("user_goals")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .not("completed_at", "is", null),
+      // Aplica decaimento por inatividade e retorna resumo do nível.
+      // Passa a experiência do quiz para inicializar a fase corretamente na 1ª vez.
+      getUserLevelSummary(supabase, user.id, savedAnswers?.experience ?? null).catch(() => null),
     ]);
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions: workoutState.sessionConfig.totalSessions,
@@ -166,6 +188,27 @@ export async function GET(request: NextRequest) {
       lastCompletedSessionNumber: sessionStats.lastLog?.sessionNumber ?? null
     });
 
+    // Processar meta ativa
+    let activeGoalData = null;
+    if (activeGoalResult.data) {
+      const g = activeGoalResult.data;
+      const { count: workoutsDone } = await supabase
+        .from("workout_session_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("completed_at", g.starts_at)
+        .lte("completed_at", g.ends_at);
+      activeGoalData = {
+        id: g.id,
+        targetCount: g.target_count,
+        periodDays: g.period_days,
+        startsAt: g.starts_at,
+        endsAt: g.ends_at,
+        completedAt: g.completed_at,
+        workoutsDone: workoutsDone ?? 0
+      };
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -173,6 +216,9 @@ export async function GET(request: NextRequest) {
         workoutId: workoutRecord.id,
         replacementCount: replacementCountResult.count ?? 0,
         totalWorkoutsAllTime,
+        totalWeightIncreasesAllTime,
+        totalGoalsCompleted: completedGoalsResult.count ?? 0,
+        activeGoal: activeGoalData,
         user: {
           id: user.id,
           name: user.name
@@ -181,7 +227,20 @@ export async function GET(request: NextRequest) {
         diagnosis,
         workout: workoutState.workout,
         sessionProgress,
-        sessionLogs
+        sessionLogs,
+        // Dados de nível/XP — inclui decay aplicado se havia inatividade
+        levelData: userLevelSummary
+          ? {
+              xpPoints:            userLevelSummary.xpPoints,
+              currentPhase:        userLevelSummary.currentPhase,
+              phaseStartedAt:      userLevelSummary.phaseStartedAt,
+              dotProgress:         userLevelSummary.dotProgress,
+              isReadyButWaiting:   userLevelSummary.isReadyButWaiting,
+              decayRegressed:      userLevelSummary.decayResult?.regressed ?? false,
+              decayRegressedPhase: userLevelSummary.decayResult?.regressedPhase ?? false,
+              regressionMessage:   userLevelSummary.decayResult?.regressionMessage ?? null,
+            }
+          : null,
       }
     });
   } catch {
@@ -231,8 +290,16 @@ export async function POST(request: Request) {
     }
 
     const answers = buildRuntimeQuizAnswers(savedAnswers);
-    const diagnosis = diagnoseUser(answers);
-    const workoutHash = buildWorkoutHash(answers);
+
+    // ── Nível para geração do treino ────────────────────────────────────────
+    // O quiz é a fonte primária. O XP só sobrescreve se a fase evoluiu além
+    // do que o quiz indicaria — preservando o filtro de exercícios por nível.
+    const levelRow = await getUserLevelSummary(supabase, user.id, savedAnswers.experience ?? null).catch(() => null);
+    const effectiveAnswers = levelRow
+      ? overrideExperienceFromPhase(answers, levelRow.currentPhase)
+      : answers;
+    const diagnosis = diagnoseUser(effectiveAnswers);
+    const workoutHash = buildWorkoutHash(effectiveAnswers);
     const { data: exercises, error: exercisesError } = await supabase.from("exercises").select("*");
 
     if (exercisesError) {
@@ -343,7 +410,7 @@ export async function POST(request: Request) {
     try {
       logInfo("AI", "Workout generation started", { user_id: userId });
       workout = normalizeWorkoutPayload(
-        await generateWorkoutWithAI(answers, diagnosis, normalizedExercises, {
+        await generateWorkoutWithAI(effectiveAnswers, diagnosis, normalizedExercises, {
           previousWorkout: existingWorkoutState?.workout ?? null,
           lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
           excludedExerciseIds,
@@ -351,7 +418,7 @@ export async function POST(request: Request) {
         }),
         {
           diagnosis,
-          answers
+          answers: effectiveAnswers
         }
       );
       if (workout) {
@@ -492,6 +559,29 @@ function resolveWorkoutPlanState(input: {
       planCycleId: sessionConfig.planCycleId,
       cycleStartedAt: input.workoutRecord.created_at ?? null
     }
+  };
+}
+
+/**
+ * Sobrescreve o campo `experience` dos answers com o nível derivado da fase XP,
+ * MAS SOMENTE se a fase XP for maior que o que o quiz indicaria.
+ * Isso preserva o filtro de exercícios por nível do quiz para novos usuários.
+ */
+function overrideExperienceFromPhase(
+  answers: QuizAnswers,
+  currentPhase: UserPhase
+): QuizAnswers {
+  const quizPhase = experienceToInitialPhase(answers.experience);
+  const phaseOrder = ["iniciante", "pre_intermediario", "intermediario", "pre_avancado", "avancado"];
+  const quizIdx   = phaseOrder.indexOf(quizPhase);
+  const xpIdx     = phaseOrder.indexOf(currentPhase);
+
+  // Só sobrescreve se XP evoluiu ALÉM do quiz
+  if (xpIdx <= quizIdx) return answers;
+
+  return {
+    ...answers,
+    experience: phaseToExperience(currentPhase) as Experience,
   };
 }
 

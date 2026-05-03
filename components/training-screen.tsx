@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
+import { LevelPopup } from "@/components/level-badge";
 import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import { Badge, Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
@@ -25,6 +26,14 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 
+type XpResult = {
+  phasedUp: boolean;
+  phaseUpMessage: { title: string; phrase: string } | null;
+  newPhase: string;
+  xpGained: number;
+  newXp: number;
+};
+
 type CompletionResponse = {
   success: boolean;
   already_completed_today?: boolean;
@@ -43,6 +52,7 @@ type CompletionResponse = {
     newWeightIncreases?: number;
     program_completed?: boolean;
     user_plan?: string | null;
+    xp_result?: XpResult | null;
   };
   error?: string;
 };
@@ -72,6 +82,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [replacedExerciseNames, setReplacedExerciseNames] = useState<Set<string>>(new Set());
   const [totalWorkoutsAllTime, setTotalWorkoutsAllTime] = useState(data.totalWorkoutsAllTime);
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
+  const [phaseUpPopup, setPhaseUpPopup] = useState<{ title: string; phrase: string } | null>(null);
   const [showProgramUpsell, setShowProgramUpsell] = useState(false);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const { subscription } = useSubscription();
@@ -209,6 +220,11 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         );
       if (unlocked) {
         setNewAchievement(unlocked);
+      }
+
+      // Popup de conquista de fase (evolução de nível)
+      if (result.data.xp_result?.phasedUp && result.data.xp_result.phaseUpMessage) {
+        setPhaseUpPopup(result.data.xp_result.phaseUpMessage);
       }
 
       trackEvent("cta_click", data.user.id, {
@@ -351,6 +367,16 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         />
       ) : null}
 
+      {/* ── Popup de conquista de fase ──────────────────────────────────── */}
+      {phaseUpPopup ? (
+        <LevelPopup
+          emoji="🏆"
+          title={phaseUpPopup.title}
+          message={phaseUpPopup.phrase}
+          onClose={() => setPhaseUpPopup(null)}
+        />
+      ) : null}
+
       {confirmCompletion ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-8 sm:items-center sm:pb-0">
           <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111] p-6 shadow-2xl">
@@ -400,26 +426,22 @@ function collectExerciseWeights(
         setEntries?: { weightKg?: string; reps?: string; completed?: boolean }[];
       };
       const sets = Array.isArray(parsed.setEntries) ? parsed.setEntries : [];
-      const hasCarga = sets.some((s) => s.completed && s.weightKg && parseFloat(s.weightKg) > 0);
-      if (!hasCarga) return [];
+      if (!sets.length) return [];
 
-      return [
-        {
-          exerciseName: exercise.name,
-          sets: sets.map((s, i) => ({
-            setNumber: i + 1,
-            weightKg: s.weightKg ?? "",
-            reps: s.reps ?? "",
-            completed: Boolean(s.completed)
-          }))
-        }
-      ];
+      return [{
+        exerciseName: exercise.name,
+        sets: sets.map((s, i) => ({
+          setNumber: i + 1,
+          weightKg: s.weightKg ?? "",
+          reps: s.reps ?? "",
+          completed: s.completed ?? false,
+        })),
+      }];
     } catch {
       return [];
     }
   });
 }
-
 function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
   return (
     <div

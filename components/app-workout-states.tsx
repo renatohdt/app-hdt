@@ -35,8 +35,13 @@ function pickRandom<T>(arr: T[]): T {
 export function AppLoadingScreen({ title: _title }: { title?: string } = {}) {
   const [emojiIndex, setEmojiIndex] = useState(0);
   const [visible, setVisible] = useState(true);
-  const [title] = useState(() => pickRandom(LOADING_TITLES));
-  const [subtext] = useState(() => pickRandom(LOADING_SUBTEXTS));
+  const [title, setTitle] = useState(LOADING_TITLES[0]);
+  const [subtext, setSubtext] = useState(LOADING_SUBTEXTS[0]);
+
+  useEffect(() => {
+    setTitle(pickRandom(LOADING_TITLES));
+    setSubtext(pickRandom(LOADING_SUBTEXTS));
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {

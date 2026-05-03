@@ -8,6 +8,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { BodyType, FocusRegion, Gender, Goal, HomeEquipment, QuizAnswers } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
+import { getUserLevelSummary } from "@/lib/user-level-store";
+import { PHASE_LABELS } from "@/lib/user-level";
 import { getAllTimeWorkoutCount } from "@/lib/workout-session-store";
 
 export const dynamic = "force-dynamic";
@@ -100,7 +102,7 @@ export async function GET(request: Request) {
       return jsonError("Não foi possível carregar seu perfil.", 404);
     }
 
-    const [savedAnswers, { data: currentAuthUser }, { data: excludedExercises }, totalWorkoutsAllTime] =
+    const [savedAnswers, { data: currentAuthUser }, { data: excludedExercises }, totalWorkoutsAllTime, levelSummary] =
       await Promise.all([
         getUserAnswersByUserId(supabase, userId),
         supabase.auth.getUser(),
@@ -109,7 +111,8 @@ export async function GET(request: Request) {
           .select("exercise_id, exercise_name")
           .eq("user_id", userId)
           .order("created_at", { ascending: false }),
-        getAllTimeWorkoutCount(supabase, userId)
+        getAllTimeWorkoutCount(supabase, userId),
+        getUserLevelSummary(supabase, userId, null).catch(() => null),
       ]);
 
     // lastRegeneratedAt é salvo nos answers somente quando o usuário
@@ -130,7 +133,10 @@ export async function GET(request: Request) {
         }))
       ),
       totalWorkoutsAllTime,
-      lastWorkoutGeneratedAt: typeof lastRegeneratedAt === "string" ? lastRegeneratedAt : null
+      lastWorkoutGeneratedAt: typeof lastRegeneratedAt === "string" ? lastRegeneratedAt : null,
+      // Nível XP do usuário — substitui o badge derivado do objetivo
+      currentPhase: levelSummary?.currentPhase ?? null,
+      phaseLabel: levelSummary ? PHASE_LABELS[levelSummary.currentPhase] : null,
     });
   } catch {
     return jsonError("Não foi possível carregar seu perfil.", 500);

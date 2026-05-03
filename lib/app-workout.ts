@@ -1,3 +1,4 @@
+import { calcConsistencyStats, type ConsistencyStats } from "@/lib/achievements";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { formatExerciseMuscleLabel } from "@/lib/exercise-library";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
@@ -29,16 +30,39 @@ type AppWorkoutAnswers = {
   experience?: QuizAnswers["experience"];
 };
 
+export type AppLevelData = {
+  xpPoints: number;
+  currentPhase: import("@/lib/user-level").UserPhase;
+  phaseStartedAt: string;
+  dotProgress: 0 | 1 | 2 | 3;
+  isReadyButWaiting: boolean;
+  decayRegressed: boolean;
+  decayRegressedPhase: boolean;
+  regressionMessage: string | null;
+};
+
 export type AppWorkoutPayload = {
   hasWorkout?: boolean;
   workoutId?: string | null;
   replacementCount?: number | null;
   totalWorkoutsAllTime?: number | null;
+  totalWeightIncreasesAllTime?: number | null;
+  totalGoalsCompleted?: number | null;
+  activeGoal?: {
+    id: string;
+    targetCount: number;
+    periodDays: number;
+    startsAt: string;
+    endsAt: string;
+    completedAt: string | null;
+    workoutsDone: number;
+  } | null;
   user: { id: string; name: string };
   answers: AppWorkoutAnswers;
   workout: WorkoutPlan | null;
   sessionProgress?: WorkoutSessionProgress | null;
   sessionLogs?: WorkoutSessionLogEntry[] | null;
+  levelData?: AppLevelData | null;
 };
 
 export type AppWorkoutData = {
@@ -76,6 +100,19 @@ export type AppWorkoutData = {
   estimatedWeeklyMinutes: number;
   totalExercises: number;
   totalWorkoutsAllTime: number;
+  totalWeightIncreasesAllTime: number;
+  consistencyStats: ConsistencyStats;
+  totalGoalsCompleted: number;
+  activeGoal: {
+    id: string;
+    targetCount: number;
+    periodDays: number;
+    startsAt: string;
+    endsAt: string;
+    completedAt: string | null;
+    workoutsDone: number;
+  } | null;
+  levelData: AppLevelData | null;
 };
 
 export type TrainingExerciseRow = {
@@ -207,7 +244,17 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     averageDurationMinutes,
     estimatedWeeklyMinutes: averageDurationMinutes * sessionCount,
     totalExercises,
-    totalWorkoutsAllTime: typeof payload.totalWorkoutsAllTime === "number" ? payload.totalWorkoutsAllTime : 0
+    totalWorkoutsAllTime: typeof payload.totalWorkoutsAllTime === "number" ? payload.totalWorkoutsAllTime : 0,
+    totalWeightIncreasesAllTime: typeof payload.totalWeightIncreasesAllTime === "number" ? payload.totalWeightIncreasesAllTime : 0,
+    consistencyStats: calcConsistencyStats(
+      sessionLogs,
+      weeklyTarget,
+      sessionProgress.completedSessions,
+      sessionProgress.totalSessions
+    ),
+    totalGoalsCompleted: typeof payload.totalGoalsCompleted === "number" ? payload.totalGoalsCompleted : 0,
+    activeGoal: payload.activeGoal ?? null,
+    levelData: payload.levelData ?? null,
   } satisfies AppWorkoutData;
 }
 
@@ -642,13 +689,12 @@ function normalizeWorkoutSessionLogs(value?: WorkoutSessionLogEntry[] | null) {
 
       return {
         id: entry.id,
-        workoutId: entry.workoutId,
-        workoutKey: normalizeWorkoutKey(entry.workoutKey),
-        sessionNumber: getSafeInteger(entry.sessionNumber, 0),
+        workoutId: typeof entry.workoutId === "string" ? entry.workoutId : "",
+        workoutKey: typeof entry.workoutKey === "string" ? entry.workoutKey : null,
+        sessionNumber: typeof entry.sessionNumber === "number" ? entry.sessionNumber : 0,
         status,
         completedAt: entry.completedAt,
-        createdAt: entry.createdAt ?? null
+        createdAt: entry.createdAt ?? null,
       } satisfies WorkoutSessionLogEntry;
-    })
-    .sort((left, right) => new Date(right.completedAt).getTime() - new Date(left.completedAt).getTime());
+    });
 }

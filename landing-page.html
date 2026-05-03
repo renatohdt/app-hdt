@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080808" />
+
+  <!-- SEO -->
+  <title>Hora do Treino | Treino em Casa Personalizado com IA</title>
+  <meta name="description" content="Crie seu treino em casa grátis em minutos. App de treino personalizado com IA adaptado ao seu objetivo, nível e equipamentos disponíveis. Sem academia, sem enrolação." />
+  <meta name="keywords" content="treino em casa, app de treino, exercícios em casa, treino personalizado, treino sem academia, treino para iniciantes, app de exercícios" />
+  <link rel="canonical" href="https://horadotreino.com.br/" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Hora do Treino | Treino em Casa Personalizado com IA" />
+  <meta property="og:description" content="Crie seu treino em casa grátis em minutos. Personalizado para você, do jeito que funciona." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://horadotreino.com.br/" />
+  <meta property="og:image" content="/og-image.jpg" />
+
+  <!-- Schema.org -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Hora do Treino",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Web, iOS, Android",
+    "description": "App de treino em casa personalizado com inteligência artificial",
+    "offers": [
+      { "@type": "Offer", "price": "0", "priceCurrency": "BRL", "name": "Gratuito" },
+      { "@type": "Offer", "price": "9.90", "priceCurrency": "BRL", "name": "Premium Anual" }
+    ]
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --bg-card: #111111;
+      --bg-card2: #161616;
+      --green: #22c55e;
+      --green-dark: #16a34a;
+      --green-soft: rgba(34,197,94,0.12);
+      --white: #ffffff;
+      --white-60: rgba(255,255,255,0.6);
+      --white-30: rgba(255,255,255,0.3);
+      --white-10: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.1);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { background-color: var(--bg); color: var(--white); font-family: var(--font); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: inherit; text-decoration: none; }
+    button, input, select, textarea { font-family: inherit; }
+
+    .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+    .tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--green-soft); color: var(--green);
+      border: 1px solid rgba(34,197,94,0.25); border-radius: 100px;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
+      text-transform: uppercase; padding: 5px 14px; margin-bottom: 20px;
+    }
+    .tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 28px; border-radius: 100px; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s ease; border: none; white-space: nowrap;
+    }
+    .btn--primary { background: var(--green); color: #000; }
+    .btn--primary:hover { background: var(--green-dark); transform: translateY(-1px); }
+    .btn--outline { background: transparent; color: var(--white); border: 1px solid var(--border); }
+    .btn--outline:hover { border-color: var(--green); color: var(--green); }
+    .btn--ghost { background: transparent; color: var(--white-60); border: 1px solid var(--border); padding: 12px 20px; }
+    .btn--ghost:hover { color: var(--white); }
+    .btn--ghost:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn--full { width: 100%; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .text-green { color: var(--green); }
+    .text-muted { color: var(--white-60); }
+
+    /* NAV */
+    .nav { position: sticky; top: 0; z-index: 100; background: rgba(8,8,8,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+    .nav__inner { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+    .nav__logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; flex-shrink: 0; }
+    .nav__logo-icon { width: 36px; height: 36px; background: var(--green); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .nav__links { display: none; gap: 32px; list-style: none; font-size: 14px; color: var(--white-60); }
+    .nav__links a:hover { color: var(--white); }
+    .nav__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .nav__login { font-size: 14px; padding: 8px 18px; color: var(--white-60); border: 1px solid var(--border); border-radius: 100px; background: transparent; cursor: pointer; transition: all 0.2s; }
+    .nav__login:hover { color: var(--white); border-color: var(--white-30); }
+    .nav__cta { font-size: 14px; padding: 10px 20px; }
+
+    /* HERO */
+    .hero { padding: 64px 0 48px; text-align: center; background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34,197,94,0.15), transparent); }
+    .hero h1 { font-size: clamp(32px, 7vw, 64px); font-weight: 900; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 20px; }
+    .hero h1 em { font-style: normal; color: var(--green); }
+    .hero__sub { font-size: clamp(15px, 2.5vw, 18px); color: var(--white-60); max-width: 540px; margin: 0 auto 36px; }
+    .hero__actions { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-bottom: 48px; }
+    .hero__actions .btn { width: 100%; max-width: 320px; }
+    .hero__mockup { margin: 0 auto 0; max-width: 320px; position: relative; }
+    .hero__mockup img { width: 100%; border-radius: 24px; box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px var(--border); }
+    .hero__badge { position: absolute; bottom: -16px; right: -8px; background: var(--green); color: #000; font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 100px; box-shadow: 0 8px 24px rgba(34,197,94,0.4); }
+
+    /* PAIN POINTS */
+    .pain { padding: 80px 0; }
+    .pain__header { text-align: center; margin-bottom: 48px; }
+    .pain__header h2 { font-size: clamp(26px, 5vw, 42px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .pain__header p { color: var(--white-60); font-size: 16px; max-width: 480px; margin: 0 auto; }
+    .pain__grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    .pain__card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; transition: border-color 0.2s; }
+    .pain__card:hover { border-color: rgba(34,197,94,0.3); }
+    .pain__card-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--green-soft); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 16px; }
+    .pain__card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
+    .pain__card p { font-size: 14px; color: var(--white-60); line-height: 1.6; }
+
+    /* HOW IT WORKS */
+    .how { padding: 80px 0; background: var(--bg-card); }
+    .how__header { text-align: center; margin-bottom: 56px; }
+    .how__header h2 { font-size: clamp(24px, 5vw, 40px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .how__header p { color: var(--white-60); max-width: 440px; margin: 0 auto; }
+    .how__steps { display: flex; flex-direction: column; gap: 24px; max-width: 560px; margin: 0 auto; }
+    .how__step { display: flex; gap: 20px; align-items: flex-start; }
+    .how__step-num { width: 48px; height: 48px; min-width: 48px; border-radius: 50%; background: var(--green); color: #000; font-weight: 900; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+    .how__step h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .how__step p { font-size: 14px; color: var(--white-60); }
+
+    /* QUIZ SECTION */
+    .quiz-section { padding: 80px 0; background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(34,197,94,0.1), transparent); }
+    .quiz-section__header { text-align: center; margin-bottom: 40px; }
+    .quiz-section__header h2 { font-size: clamp(26px, 5vw, 40px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .quiz-section__header p { color: var(--white-60); font-size: 16px; }
+
+    /* QUIZ CARD */
+    .quiz-card {
+      background: rgba(16,16,16,0.92); border: 1px solid var(--border);
+      border-radius: 32px; padding: 28px 24px;
+      max-width: 720px; margin: 0 auto;
+    }
+
+    .quiz-progress-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .quiz-progress-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--green); }
+    .quiz-progress-step { font-size: 13px; color: var(--white-60); }
+    .quiz-progress-pct { font-size: 13px; font-weight: 700; color: var(--green); }
+    .quiz-progress-track { background: var(--white-10); border-radius: 100px; padding: 4px; margin-bottom: 32px; }
+    .quiz-progress-bar { height: 8px; border-radius: 100px; background: linear-gradient(90deg, var(--green), var(--green-dark)); transition: width 0.4s ease; }
+
+    .quiz-step { display: none; }
+    .quiz-step.active { display: block; }
+
+    .quiz-step__title { font-size: clamp(20px, 4vw, 28px); font-weight: 700; margin-bottom: 8px; line-height: 1.2; }
+    .quiz-step__desc { font-size: 14px; color: var(--white-60); margin-bottom: 28px; line-height: 1.6; }
+
+    /* Choice options */
+    .quiz-choices { display: flex; flex-direction: column; gap: 12px; }
+    .quiz-choice {
+      min-height: 56px; border-radius: 24px; border: 1px solid var(--border);
+      background: var(--white-10); color: rgba(255,255,255,0.78);
+      padding: 16px 20px; text-align: left; font-size: 15px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; width: 100%;
+    }
+    .quiz-choice:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); }
+    .quiz-choice.selected { border-color: var(--green); background: rgba(34,197,94,0.15); color: var(--white); box-shadow: 0 0 0 1px rgba(34,197,94,0.2), 0 8px 24px rgba(34,197,94,0.12); }
+
+    /* Multi options */
+    .quiz-multi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .quiz-multi-btn {
+      position: relative; min-height: 140px; border-radius: 24px;
+      border: 1px solid var(--border); background: var(--white-10);
+      padding: 16px 12px 12px; cursor: pointer; transition: all 0.2s;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    }
+    .quiz-multi-btn:hover { border-color: rgba(255,255,255,0.2); }
+    .quiz-multi-btn.selected { border-color: var(--green); background: rgba(34,197,94,0.15); box-shadow: 0 0 0 1px rgba(34,197,94,0.2), 0 8px 24px rgba(34,197,94,0.12); }
+    .quiz-multi-check {
+      position: absolute; top: 10px; right: 10px;
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.4);
+      font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .quiz-multi-btn.selected .quiz-multi-check { background: var(--green); border-color: var(--green); color: #000; }
+    .quiz-multi-icon { width: 80px; height: 80px; object-fit: contain; }
+    .quiz-multi-icon-placeholder { width: 80px; height: 80px; border-radius: 12px; background: var(--green-soft); display: flex; align-items: center; justify-content: center; font-size: 28px; }
+    .quiz-multi-label { font-size: 13px; font-weight: 600; color: var(--white); text-align: center; margin-top: 8px; }
+
+    /* Physical / Slider */
+    .quiz-slider-box { background: var(--white-10); border: 1px solid var(--border); border-radius: 24px; padding: 16px 20px; margin-bottom: 12px; }
+    .quiz-slider-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .quiz-slider-label { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.78); }
+    .quiz-slider-value { font-size: 18px; font-weight: 700; color: var(--white); }
+    .quiz-slider-input { width: 100%; accent-color: var(--green); cursor: pointer; }
+    .quiz-slider-minmax { display: flex; justify-content: space-between; font-size: 12px; color: var(--white-30); margin-top: 6px; }
+
+    .quiz-single-value { background: var(--white-10); border: 1px solid var(--border); border-radius: 24px; padding: 24px; text-align: center; margin-bottom: 16px; }
+    .quiz-single-value span { font-size: 36px; font-weight: 700; }
+
+    /* Wrist image */
+    .quiz-wrist-img { width: 100%; max-width: 540px; margin: 0 auto 24px; border-radius: 24px; border: 1px solid var(--border); overflow: hidden; }
+    .quiz-wrist-img img { width: 100%; }
+
+    /* Account step */
+    .quiz-account { display: flex; flex-direction: column; gap: 12px; }
+    .quiz-input {
+      width: 100%; min-height: 56px; border-radius: 24px;
+      border: 1px solid var(--border); background: var(--white-10);
+      padding: 0 20px; font-size: 15px; color: var(--white);
+      outline: none; transition: border-color 0.2s;
+    }
+    .quiz-input::placeholder { color: var(--white-30); }
+    .quiz-input:focus { border-color: var(--green); }
+    .quiz-terms {
+      border-radius: 24px; border: 1px solid var(--border);
+      background: var(--white-10); padding: 16px 20px;
+      font-size: 14px; color: rgba(255,255,255,0.76); line-height: 1.6;
+    }
+    .quiz-terms label { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+    .quiz-terms input[type="checkbox"] { margin-top: 3px; accent-color: var(--green); width: 16px; height: 16px; flex-shrink: 0; }
+    .quiz-privacy { font-size: 13px; color: var(--white-60); line-height: 1.6; }
+    .quiz-privacy a { color: var(--green); font-weight: 600; }
+
+    /* Nav buttons */
+    .quiz-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; gap: 12px; flex-wrap: wrap; }
+    .quiz-error { font-size: 14px; color: #fca5a5; min-height: 20px; flex: 1; }
+
+    /* Loading */
+    .quiz-loading { display: none; margin-top: 24px; border-radius: 28px; border: 1px solid rgba(34,197,94,0.2); background: linear-gradient(135deg, rgba(34,197,94,0.14), #0f0f0f, #151515); padding: 24px; }
+    .quiz-loading.visible { display: block; }
+    .quiz-loading__tag { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(34,197,94,0.9); margin-bottom: 8px; }
+    .quiz-loading__title { font-size: clamp(18px, 4vw, 24px); font-weight: 700; margin-bottom: 6px; }
+    .quiz-loading__sub { font-size: 14px; color: var(--white-60); margin-bottom: 20px; }
+    .quiz-loading__pct { font-size: 42px; font-weight: 700; margin-bottom: 4px; }
+    .quiz-loading__pct-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: rgba(255,255,255,0.35); margin-bottom: 12px; }
+    .quiz-loading__bar-track { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 100px; padding: 4px; margin-bottom: 20px; }
+    .quiz-loading__bar { height: 10px; border-radius: 100px; background: linear-gradient(90deg, var(--green), var(--green-dark), #7BF1A8); transition: width 0.5s ease; }
+    .quiz-loading__stages { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    .quiz-stage { display: flex; align-items: center; gap: 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); padding: 10px 16px; font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.5); transition: all 0.3s; }
+    .quiz-stage.current { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.12); color: var(--white); }
+    .quiz-stage.done { border-color: rgba(34,197,94,0.18); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.78); }
+    .quiz-stage__num { width: 32px; height: 32px; min-width: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.38); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .quiz-stage.current .quiz-stage__num { border-color: var(--green); background: rgba(34,197,94,0.18); color: var(--green); }
+    .quiz-stage.done .quiz-stage__num { border-color: rgba(34,197,94,0.4); background: var(--green); color: #052b12; }
+    .quiz-loading__quote { font-size: 14px; font-style: italic; color: var(--white-60); text-align: center; margin-bottom: 6px; line-height: 1.6; }
+    .quiz-loading__author { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; color: rgba(255,255,255,0.34); text-align: center; }
+
+    /* FEATURES */
+    .features { padding: 80px 0; }
+    .features__header { text-align: center; margin-bottom: 48px; }
+    .features__header h2 { font-size: clamp(24px, 5vw, 40px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .features__header p { color: var(--white-60); max-width: 480px; margin: 0 auto; }
+    .features__grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .feature-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: border-color 0.2s; }
+    .feature-card:hover { border-color: rgba(34,197,94,0.3); }
+    .feature-card--highlight { background: var(--green); border-color: var(--green); color: #000; }
+    .feature-card--highlight p { color: rgba(0,0,0,0.7); }
+    .feature-card__icon { font-size: 24px; margin-bottom: 12px; }
+    .feature-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .feature-card p { font-size: 13px; color: var(--white-60); line-height: 1.5; }
+
+    /* PREMIUM */
+    .premium { padding: 80px 0; }
+    .premium__box { background: linear-gradient(135deg, #0f1f13 0%, #0d1a0f 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 24px; padding: 40px 24px; text-align: center; }
+    .premium__label { display: inline-flex; align-items: center; gap: 6px; background: rgba(34,197,94,0.15); color: var(--green); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 14px; border-radius: 100px; margin-bottom: 20px; }
+    .premium h2 { font-size: clamp(24px, 5vw, 38px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .premium__sub { color: var(--white-60); font-size: 15px; margin-bottom: 36px; }
+
+    /* Pricing cards */
+    .premium__plans { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 480px; margin: 0 auto 36px; }
+    .plan-card { border-radius: 20px; border: 1px solid var(--border); padding: 24px; text-align: center; position: relative; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.03); }
+    .plan-card--popular { border-color: var(--green); background: rgba(34,197,94,0.06); }
+    .plan-badge { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--green); color: #000; font-size: 11px; font-weight: 700; padding: 3px 14px; border-radius: 100px; white-space: nowrap; }
+    .plan-period { font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-60); margin-bottom: 12px; }
+    .plan-price { font-size: 42px; font-weight: 900; color: var(--white); line-height: 1; }
+    .plan-price span { font-size: 18px; font-weight: 600; vertical-align: super; }
+    .plan-suffix { font-size: 13px; color: var(--white-60); margin-top: 4px; }
+    .plan-economy { color: var(--green); font-size: 14px; font-weight: 700; margin-top: 8px; }
+    .plan-check { color: var(--green); font-size: 24px; margin-top: 12px; }
+
+    .premium__list { list-style: none; text-align: left; max-width: 400px; margin: 0 auto 36px; display: flex; flex-direction: column; gap: 14px; }
+    .premium__list li { display: flex; align-items: flex-start; gap: 12px; font-size: 15px; }
+    .premium__check { color: var(--green); font-weight: 900; font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .premium__note { font-size: 13px; color: var(--white-30); margin-top: 14px; }
+
+    /* FAQ */
+    .faq { padding: 80px 0; background: var(--bg-card); }
+    .faq__header { text-align: center; margin-bottom: 48px; }
+    .faq__header h2 { font-size: clamp(24px, 5vw, 38px); font-weight: 900; letter-spacing: -0.02em; }
+    .faq__list { max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .faq__item { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .faq__question { width: 100%; background: none; border: none; color: var(--white); padding: 20px 24px; text-align: left; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .faq__arrow { color: var(--green); font-size: 20px; transition: transform 0.2s; flex-shrink: 0; }
+    .faq__item.open .faq__arrow { transform: rotate(45deg); }
+    .faq__answer { display: none; padding: 0 24px 20px; font-size: 14px; color: var(--white-60); line-height: 1.7; }
+    .faq__item.open .faq__answer { display: block; }
+
+    /* FINAL CTA */
+    .final-cta { padding: 80px 0; text-align: center; background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(34,197,94,0.12), transparent); }
+    .final-cta h2 { font-size: clamp(28px, 6vw, 48px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 16px; }
+    .final-cta p { color: var(--white-60); font-size: 16px; margin-bottom: 32px; }
+
+    /* FOOTER */
+    .footer { padding: 40px 0; border-top: 1px solid var(--border); text-align: center; }
+    .footer__logo { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; font-size: 16px; margin-bottom: 16px; }
+    .footer__logo-icon { width: 28px; height: 28px; background: var(--green); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .footer__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; font-size: 13px; color: var(--white-60); margin-bottom: 20px; }
+    .footer__links a:hover { color: var(--white); }
+    .footer__copy { font-size: 12px; color: var(--white-30); }
+
+    /* RESPONSIVE */
+    @media (min-width: 640px) {
+      .quiz-multi { grid-template-columns: repeat(3, 1fr); }
+      .premium__plans { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (min-width: 768px) {
+      .nav__links { display: flex; }
+      .hero { padding: 96px 0 80px; }
+      .hero__actions { flex-direction: row; justify-content: center; }
+      .hero__actions .btn { width: auto; }
+      .hero__mockup { max-width: 420px; }
+      .pain__grid { grid-template-columns: 1fr 1fr; }
+      .quiz-card { padding: 40px; }
+      .features__grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (min-width: 1024px) {
+      .pain__grid { grid-template-columns: repeat(4, 1fr); }
+      .features__grid { grid-template-columns: repeat(4, 1fr); }
+      .how__inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+      .how__header { text-align: left; margin-bottom: 0; }
+      .how__header p { margin: 0; }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.6s ease both; }
+    .fade-up--d1 { animation-delay: 0.1s; }
+    .fade-up--d2 { animation-delay: 0.2s; }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav" role="navigation" aria-label="Menu principal">
+    <div class="container nav__inner">
+      <a href="/" class="nav__logo" aria-label="Hora do Treino">
+        <img src="https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png" alt="Hora do Treino" style="height:32px;width:auto;" />
+      </a>
+
+      <ul class="nav__links" role="list">
+        <li><a href="#como-funciona">Como funciona</a></li>
+        <li><a href="#funcionalidades">Funcionalidades</a></li>
+        <li><a href="#premium">Premium</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ul>
+
+      <div class="nav__actions">
+        <a href="/login" class="nav__login">Entrar</a>
+        <a href="#criar-treino" class="btn btn--primary nav__cta">Criar treino grátis</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container">
+        <div class="tag">Treino personalizado com IA</div>
+
+        <h1 id="hero-title" class="fade-up">
+          Seu <em>treino em casa</em><br />
+          personalizado em<br />
+          poucos minutos
+        </h1>
+
+        <p class="hero__sub fade-up fade-up--d1">
+          Responda algumas perguntas e receba um plano de
+          <strong>exercícios em casa</strong> adaptado ao seu objetivo,
+          nível, tempo disponível e equipamentos.
+        </p>
+
+        <div class="hero__actions fade-up fade-up--d2">
+          <a href="#criar-treino" class="btn btn--primary">
+            💪 Criar meu treino grátis
+          </a>
+        </div>
+
+        <div class="hero__mockup fade-up fade-up--d2">
+          <img
+            src="https://horadotreino.com.br/wp-content/uploads/2026/04/app-treino-em-casa.webp"
+            alt="App de treino em casa Hora do Treino — tela do treino personalizado"
+            width="320" height="580"
+          />
+          <div class="hero__badge">✓ Treino gerado!</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAIN POINTS -->
+    <section class="pain" aria-labelledby="pain-title">
+      <div class="container">
+        <div class="pain__header">
+          <div class="tag">Você se identifica?</div>
+          <h2 id="pain-title">Treinando no improviso?</h2>
+          <p>Muita gente treina com esforço, mas sem direção. Isso muda agora.</p>
+        </div>
+
+        <div class="pain__grid" role="list">
+          <article class="pain__card" role="listitem">
+            <div class="pain__card-icon">❓</div>
+            <h3>Você treina, mas não sabe se está fazendo o certo?</h3>
+            <p>Sem orientação clara, o esforço pode não gerar os resultados que você espera.</p>
+          </article>
+
+          <article class="pain__card" role="listitem">
+            <div class="pain__card-icon">🤖</div>
+            <h3>Monta seus treinos com IA?</h3>
+            <p>Recebe treinos sem direção, exercícios que não são para o seu nível e ainda precisa ficar pesquisando para saber como faz.</p>
+          </article>
+
+          <article class="pain__card" role="listitem">
+            <div class="pain__card-icon">🎯</div>
+            <h3>Não sabe quais exercícios combinam com seu objetivo?</h3>
+            <p>Cada meta exige uma abordagem diferente. Sem isso, você pode estar treinando ao contrário.</p>
+          </article>
+
+          <article class="pain__card" role="listitem">
+            <div class="pain__card-icon">📊</div>
+            <h3>Falta organização para evoluir?</h3>
+            <p>Sem estrutura, fica difícil medir progresso e manter a consistência ao longo do tempo.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMO FUNCIONA -->
+    <section class="how" id="como-funciona" aria-labelledby="how-title">
+      <div class="container">
+        <div class="how__inner">
+          <div class="how__header">
+            <div class="tag">Como funciona</div>
+            <h2 id="how-title">O app de treino que monta tudo por você</h2>
+            <p>Chega de pegar treino aleatório. Em poucos minutos, você tem um plano de <strong>exercícios em casa</strong> alinhado ao seu objetivo, nível e realidade.</p>
+          </div>
+
+          <div class="how__steps" role="list">
+            <div class="how__step" role="listitem">
+              <div class="how__step-num">1</div>
+              <div>
+                <h3>Responda seu perfil</h3>
+                <p>Informe seu objetivo, nível de condicionamento, equipamentos disponíveis e tempo que você tem.</p>
+              </div>
+            </div>
+            <div class="how__step" role="listitem">
+              <div class="how__step-num">2</div>
+              <div>
+                <h3>Receba seu treino personalizado</h3>
+                <p>O app monta um treino completo por dia, com exercícios, séries, repetições e descanso.</p>
+              </div>
+            </div>
+            <div class="how__step" role="listitem">
+              <div class="how__step-num">3</div>
+              <div>
+                <h3>Treine com clareza e veja resultado</h3>
+                <p>Siga com confiança, acompanhe sua evolução e ajuste conforme avança. Sem improviso.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUIZ / FORMULÁRIO -->
+    <section class="quiz-section" id="criar-treino" aria-labelledby="quiz-title">
+      <div class="container">
+        <div class="quiz-section__header">
+          <div class="tag">Gratuito · Sem cartão</div>
+          <h2 id="quiz-title">Crie seu <span class="text-green">treino em casa</span> grátis agora</h2>
+          <p>Leva menos de 2 minutos. Seu treino personalizado fica pronto na hora.</p>
+        </div>
+
+        <div class="quiz-card" role="form" aria-label="Formulário de criação de treino personalizado">
+
+          <!-- Progress -->
+          <div class="quiz-progress-label">
+            <div>
+              <div class="quiz-progress-tag">Formulário</div>
+              <div class="quiz-progress-step" id="quiz-step-label">Etapa 1 de 10</div>
+            </div>
+            <div class="quiz-progress-pct" id="quiz-pct">10%</div>
+          </div>
+          <div class="quiz-progress-track">
+            <div class="quiz-progress-bar" id="quiz-bar" style="width:10%"></div>
+          </div>
+
+          <!-- STEP 1: Objetivo -->
+          <div class="quiz-step active" id="step-0">
+            <h2 class="quiz-step__title">Qual é o seu principal objetivo com o treino?</h2>
+            <p class="quiz-step__desc">Usamos isso para definir a linha geral da sua sugestão.</p>
+            <div class="quiz-choices">
+              <button class="quiz-choice" data-key="goal" data-value="lose_weight">Emagrecer</button>
+              <button class="quiz-choice" data-key="goal" data-value="gain_muscle">Ganhar massa muscular</button>
+              <button class="quiz-choice" data-key="goal" data-value="body_recomposition">Definição</button>
+              <button class="quiz-choice" data-key="goal" data-value="improve_conditioning">Melhorar o condicionamento</button>
+            </div>
+          </div>
+
+          <!-- STEP 2: Experiência -->
+          <div class="quiz-step" id="step-1">
+            <h2 class="quiz-step__title">Há quanto tempo você treina?</h2>
+            <div class="quiz-choices">
+              <button class="quiz-choice" data-key="experience" data-value="no_training">Ainda não treino</button>
+              <button class="quiz-choice" data-key="experience" data-value="lt_6_months">Menos de 6 meses</button>
+              <button class="quiz-choice" data-key="experience" data-value="6_to_12_months">De 6 meses a 1 ano</button>
+              <button class="quiz-choice" data-key="experience" data-value="gt_1_year">Mais de 1 ano</button>
+            </div>
+          </div>
+
+          <!-- STEP 3: Gênero -->
+          <div class="quiz-step" id="step-2">
+            <h2 class="quiz-step__title">Gênero</h2>
+            <p class="quiz-step__desc">Usamos isso para ajustar a comunicação e a distribuição inicial do plano.</p>
+            <div class="quiz-choices">
+              <button class="quiz-choice" data-key="gender" data-value="male">Masculino</button>
+              <button class="quiz-choice" data-key="gender" data-value="female">Feminino</button>
+            </div>
+          </div>
+
+          <!-- STEP 4: Dados físicos -->
+          <div class="quiz-step" id="step-3">
+            <h2 class="quiz-step__title">Seus dados físicos</h2>
+            <p class="quiz-step__desc">Essas informações ajudam a montar uma sugestão mais coerente com seu perfil.</p>
+            <div class="quiz-slider-box">
+              <div class="quiz-slider-row">
+                <span class="quiz-slider-label">Idade</span>
+                <span class="quiz-slider-value" id="age-val">25 anos</span>
+              </div>
+              <input type="range" class="quiz-slider-input" id="slider-age" min="12" max="80" step="1" value="25" data-key="age" />
+              <div class="quiz-slider-minmax"><span>12 anos</span><span>80 anos</span></div>
+            </div>
+            <div class="quiz-slider-box">
+              <div class="quiz-slider-row">
+                <span class="quiz-slider-label">Peso</span>
+                <span class="quiz-slider-value" id="weight-val">70 kg</span>
+              </div>
+              <input type="range" class="quiz-slider-input" id="slider-weight" min="40" max="150" step="1" value="70" data-key="weight" />
+              <div class="quiz-slider-minmax"><span>40 kg</span><span>150 kg</span></div>
+            </div>
+            <div class="quiz-slider-box">
+              <div class="quiz-slider-row">
+                <span class="quiz-slider-label">Altura</span>
+                <span class="quiz-slider-value" id="height-val">170 cm</span>
+              </div>
+              <input type="range" class="quiz-slider-input" id="slider-height" min="140" max="210" step="1" value="170" data-key="height" />
+              <div class="quiz-slider-minmax"><span>140 cm</span><span>210 cm</span></div>
+            </div>
+          </div>
+
+          <!-- STEP 5: Teste do punho -->
+          <div class="quiz-step" id="step-4">
+            <h2 class="quiz-step__title">Com base na imagem, como os dedos se encontram no seu punho?</h2>
+            <p class="quiz-step__desc">Envolva o punho com o polegar e o dedo médio.</p>
+            <div class="quiz-wrist-img">
+              <img src="https://horadotreino.com.br/wp-content/uploads/2026/03/treino-em-casa-gratis2.webp" alt="Referência do teste de punho" />
+            </div>
+            <div class="quiz-choices">
+              <button class="quiz-choice" data-key="wrist" data-value="dont_touch">Os dedos não encostam</button>
+              <button class="quiz-choice" data-key="wrist" data-value="just_touch">Os dedos apenas encostam</button>
+              <button class="quiz-choice" data-key="wrist" data-value="overlap">Os dedos se sobrepõem</button>
+            </div>
+          </div>
+
+          <!-- STEP 6: Equipamentos -->
+          <div class="quiz-step" id="step-5">
+            <h2 class="quiz-step__title">Quais desses materiais você possui na sua casa?</h2>
+            <p class="quiz-step__desc">Você pode marcar mais de uma opção.</p>
+            <div class="quiz-multi" id="equipment-grid">
+              <button class="quiz-multi-btn" data-value="halteres">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/03/icon-halteres.webp" alt="Halteres" />
+                <span class="quiz-multi-label">Halteres</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="elasticos">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/03/icon-elasticos.webp" alt="Elásticos" />
+                <span class="quiz-multi-label">Elásticos</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="fitball">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/03/icon-fitball.webp" alt="Fitball" />
+                <span class="quiz-multi-label">Fitball</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="fita_suspensa">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/03/icon-fita-suspensa.webp" alt="Fita Suspensa" />
+                <span class="quiz-multi-label">Fita Suspensa</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="caneleira">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/03/icon-caneleira.webp" alt="Caneleira" />
+                <span class="quiz-multi-label">Caneleira</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="kettlebell">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/03/icon-kettlebell.webp" alt="Kettlebell" />
+                <span class="quiz-multi-label">Kettlebell</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="rolo_abdominal">
+                <span class="quiz-multi-check">+</span>
+                <img class="quiz-multi-icon" src="https://horadotreino.com.br/wp-content/uploads/2026/04/icon-abs-carrinho.webp" alt="Rolo Abdominal" />
+                <span class="quiz-multi-label">Rolo Abdominal</span>
+              </button>
+              <button class="quiz-multi-btn" data-value="nenhum">
+                <span class="quiz-multi-check">+</span>
+                <span class="quiz-multi-icon-placeholder">🚫</span>
+                <span class="quiz-multi-label">Nenhum</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- STEP 7: Dias por semana -->
+          <div class="quiz-step" id="step-6">
+            <h2 class="quiz-step__title">Quantos dias por semana você consegue treinar?</h2>
+            <div class="quiz-single-value">
+              <span id="days-val">3 dias por semana</span>
+            </div>
+            <input type="range" class="quiz-slider-input" id="slider-days" min="1" max="7" step="1" value="3" data-key="days" />
+            <div class="quiz-slider-minmax"><span>1 dia</span><span>7 dias</span></div>
+          </div>
+
+          <!-- STEP 8: Tempo disponível -->
+          <div class="quiz-step" id="step-7">
+            <h2 class="quiz-step__title">Quanto tempo você tem para treinar?</h2>
+            <div class="quiz-single-value">
+              <span id="time-val">45 min</span>
+            </div>
+            <input type="range" class="quiz-slider-input" id="slider-time" min="15" max="90" step="15" value="45" data-key="time" />
+            <div class="quiz-slider-minmax"><span>15 min</span><span>90 min</span></div>
+          </div>
+
+          <!-- STEP 9: Região de foco -->
+          <div class="quiz-step" id="step-8">
+            <h2 class="quiz-step__title">Qual região você quer intensificar nos treinos?</h2>
+            <p class="quiz-step__desc">Usamos isso para priorizar exercícios e volume nessa área.</p>
+            <div class="quiz-choices">
+              <button class="quiz-choice" data-key="focusRegion" data-value="chest">Peito</button>
+              <button class="quiz-choice" data-key="focusRegion" data-value="back">Dorsais</button>
+              <button class="quiz-choice" data-key="focusRegion" data-value="legs">Pernas</button>
+              <button class="quiz-choice" data-key="focusRegion" data-value="legs_glutes">Pernas e Glúteo</button>
+              <button class="quiz-choice" data-key="focusRegion" data-value="arms">Braços</button>
+              <button class="quiz-choice" data-key="focusRegion" data-value="balanced">Todos / Equilibrado</button>
+            </div>
+          </div>
+
+          <!-- STEP 10: Conta -->
+          <div class="quiz-step" id="step-9">
+            <h2 class="quiz-step__title">Crie sua conta para ver sua sugestão de treino</h2>
+            <p class="quiz-step__desc">Preencha seus dados para salvar o acesso e ver sua sugestão completa agora mesmo.</p>
+            <div class="quiz-account">
+              <input type="text" class="quiz-input" id="acc-name" placeholder="Seu nome" autocomplete="given-name" />
+              <input type="email" class="quiz-input" id="acc-email" placeholder="Seu melhor e-mail" autocomplete="email" />
+              <input type="password" class="quiz-input" id="acc-password" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password" />
+              <div class="quiz-terms">
+                <label>
+                  <input type="checkbox" id="acc-terms" />
+                  <span>Li e concordo com os <a href="/termos-de-uso" style="color:var(--green);font-weight:700;">Termos de Uso</a>.</span>
+                </label>
+              </div>
+              <p class="quiz-privacy">
+                Ao continuar, você pode consultar nossa
+                <a href="/politica-de-privacidade">política de privacidade</a> e
+                <a href="/privacidade">central de privacidade</a>.
+              </p>
+            </div>
+          </div>
+
+          <!-- Nav buttons -->
+          <div class="quiz-nav">
+            <span class="quiz-error" id="quiz-error" role="alert"></span>
+            <div style="display:flex;gap:10px;margin-left:auto;">
+              <button class="btn btn--ghost" id="btn-back" onclick="quizBack()" disabled>Voltar</button>
+              <button class="btn btn--primary" id="btn-next" onclick="quizNext()">Continuar</button>
+            </div>
+          </div>
+
+          <!-- Loading state -->
+          <div class="quiz-loading" id="quiz-loading">
+            <div class="quiz-loading__tag">Montagem do treino</div>
+            <div class="quiz-loading__title">Montando seu treino personalizado...</div>
+            <div class="quiz-loading__sub">Estamos analisando suas respostas para criar um treino mais alinhado ao seu objetivo, rotina e nível.</div>
+            <div class="quiz-loading__pct" id="loading-pct">4%</div>
+            <div class="quiz-loading__pct-label">Progresso estimado</div>
+            <div class="quiz-loading__bar-track">
+              <div class="quiz-loading__bar" id="loading-bar" style="width:4%"></div>
+            </div>
+            <div class="quiz-loading__stages" id="loading-stages">
+              <div class="quiz-stage current" id="ls-0"><span class="quiz-stage__num">1</span> Analisando seu perfil</div>
+              <div class="quiz-stage" id="ls-1"><span class="quiz-stage__num">2</span> Selecionando os melhores exercícios</div>
+              <div class="quiz-stage" id="ls-2"><span class="quiz-stage__num">3</span> Criando a estratégia para o melhor resultado</div>
+              <div class="quiz-stage" id="ls-3"><span class="quiz-stage__num">4</span> Montando seu treino personalizado</div>
+              <div class="quiz-stage" id="ls-4"><span class="quiz-stage__num">5</span> Bom treino!</div>
+            </div>
+            <div class="quiz-loading__quote">"Método, experiência e inteligência artificial ajudam a criar o plano. A consistência é o que transforma isso em resultado."</div>
+            <div class="quiz-loading__author">— Renato Santiago, Personal Trainer</div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- FUNCIONALIDADES -->
+    <section class="features" id="funcionalidades" aria-labelledby="features-title">
+      <div class="container">
+        <div class="features__header">
+          <div class="tag">O que você encontra</div>
+          <h2 id="features-title">Tudo que você precisa para <span class="text-green">exercícios em casa</span> de verdade</h2>
+          <p>Módulos projetados para hipertrofia, emagrecimento ou condicionamento — com clareza do primeiro ao último exercício.</p>
+        </div>
+
+        <div class="features__grid" role="list">
+          <article class="feature-card feature-card--highlight" role="listitem">
+            <div class="feature-card__icon">🤖</div>
+            <h3>Treino com apoio de IA</h3>
+            <p>Tecnologia que adapta o treino ao seu perfil, objetivo e disponibilidade.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">📅</div>
+            <h3>Exercícios por dia</h3>
+            <p>Treino organizado por dia da semana, com estrutura clara e fácil de seguir.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">⏱️</div>
+            <h3>Cronômetro para o seu treino</h3>
+            <p>Controle o tempo de descanso e o volume de carga para evoluir a cada sessão.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">🔄</div>
+            <h3>Substituição de exercício</h3>
+            <p>Não tem o aparelho, achou fácil ou difícil demais? Faça a substituição inteligente na hora.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">🎯</div>
+            <h3>Todos os objetivos</h3>
+            <p>Hipertrofia, emagrecimento, definição e condicionamento físico.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">📈</div>
+            <h3>Evolução e conquistas</h3>
+            <p>Acompanhe seu progresso, bata metas e celebre cada conquista.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">🎓</div>
+            <h3>Conteúdo educativo</h3>
+            <p>Aprenda sobre treino, nutrição e hábitos com conteúdos da Hora do Treino.</p>
+          </article>
+          <article class="feature-card" role="listitem">
+            <div class="feature-card__icon">🆓</div>
+            <h3>Gratuito e Premium</h3>
+            <p>Comece grátis e desbloqueie recursos avançados quando quiser evoluir mais.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREMIUM -->
+    <section class="premium" id="premium" aria-labelledby="premium-title">
+      <div class="container">
+        <div class="premium__box">
+          <div class="premium__label">✨ Hora do Treino Premium</div>
+          <h2 id="premium-title">Evolua sem limites</h2>
+          <p class="premium__sub">Treinos personalizados que crescem com você.</p>
+
+          <div class="premium__plans">
+            <div class="plan-card plan-card--popular">
+              <span class="plan-badge">Mais popular</span>
+              <div class="plan-period">Anual</div>
+              <div class="plan-price"><span>R$</span>9,90</div>
+              <div class="plan-suffix">/mês · R$ 118,80/ano</div>
+              <div class="plan-economy">Economize 33%</div>
+              <div class="plan-check">✓</div>
+            </div>
+            <div class="plan-card">
+              <div class="plan-period">Mensal</div>
+              <div class="plan-price"><span>R$</span>14,90</div>
+              <div class="plan-suffix">/mês</div>
+              <div class="plan-suffix" style="margin-top:4px;font-size:12px;color:var(--white-30);">Cartão de crédito</div>
+            </div>
+          </div>
+
+          <p style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--white-60);margin-bottom:20px;">Incluído no Premium</p>
+
+          <ul class="premium__list" role="list">
+            <li><span class="premium__check">✓</span> Tudo do plano gratuito</li>
+            <li><span class="premium__check">✓</span> Mais substituições de exercício por treino</li>
+            <li><span class="premium__check">✓</span> Programas de treino ilimitados</li>
+            <li><span class="premium__check">✓</span> Geração de novo treino a qualquer momento</li>
+            <li><span class="premium__check">✓</span> Experiência sem anúncios</li>
+          </ul>
+
+          <a href="#criar-treino" class="btn btn--primary">
+            Começar grátis e desbloquear Premium depois
+          </a>
+          <p class="premium__note">Sem cartão de crédito. Comece grátis agora.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <div class="faq__header">
+          <div class="tag">Dúvidas frequentes</div>
+          <h2 id="faq-title">Perguntas sobre treino em casa</h2>
+        </div>
+
+        <div class="faq__list" role="list">
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              <h3 style="font-size:15px;font-weight:700;">Preciso de equipamentos para treinar em casa?</h3>
+              <span class="faq__arrow">+</span>
+            </button>
+            <div class="faq__answer">Não! O app cria treinos 100% adaptados ao que você tem disponível. Pode ser sem nenhum equipamento, apenas com seu corpo, ou utilizando o que você já tem em casa.</div>
+          </div>
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              <h3 style="font-size:15px;font-weight:700;">O app de treino é realmente gratuito?</h3>
+              <span class="faq__arrow">+</span>
+            </button>
+            <div class="faq__answer">Sim! Você pode criar seu treino personalizado e começar a treinar em casa completamente grátis. O plano Premium oferece funcionalidades avançadas para quem quer ir mais fundo na evolução.</div>
+          </div>
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              <h3 style="font-size:15px;font-weight:700;">Funciona para iniciantes em exercícios em casa?</h3>
+              <span class="faq__arrow">+</span>
+            </button>
+            <div class="faq__answer">Com certeza. O app pergunta seu nível de condicionamento e monta um treino adequado para você. Iniciantes recebem planos progressivos, seguros e eficazes.</div>
+          </div>
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              <h3 style="font-size:15px;font-weight:700;">Consigo resultado treinando em casa sem academia?</h3>
+              <span class="faq__arrow">+</span>
+            </button>
+            <div class="faq__answer">Sim! Com um treino bem estruturado e consistência, o treino em casa pode ser tão eficaz quanto a academia. O segredo está em seguir um plano pensado para você — e é exatamente isso que o Hora do Treino faz.</div>
+          </div>
+          <div class="faq__item">
+            <button class="faq__question" aria-expanded="false">
+              <h3 style="font-size:15px;font-weight:700;">Quanto tempo por dia preciso treinar?</h3>
+              <span class="faq__arrow">+</span>
+            </button>
+            <div class="faq__answer">Você informa quanto tempo tem disponível e o app adapta o treino a isso. Você pode treinar de 20 a 60 minutos — o que couber na sua rotina.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="final-cta" aria-labelledby="final-cta-title">
+      <div class="container">
+        <h2 id="final-cta-title">Chega de improvisar.<br /><span class="text-green">Comece hoje.</span></h2>
+        <p>Seu treino em casa personalizado está a 2 minutos de distância.</p>
+        <a href="#criar-treino" class="btn btn--primary">💪 Criar meu treino grátis agora</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer style="border-top:1px solid rgba(255,255,255,0.1);background:rgba(4,4,4,0.7);" role="contentinfo">
+
+    <!-- Cards superiores -->
+    <div style="padding:12px 20px;">
+      <div style="max-width:1120px;margin:0 auto;">
+        <div style="display:grid;gap:10px;grid-template-columns:1fr;" id="footer-grid">
+
+          <!-- Acompanhe nas redes -->
+          <div style="min-height:168px;display:flex;flex-direction:column;border-radius:22px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);padding:14px;transition:border-color 0.2s;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <span style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#22c55e;font-size:16px;">
+                📷
+              </span>
+              <span style="font-size:15px;font-weight:600;">Acompanhe nas redes</span>
+            </div>
+            <p style="font-size:14px;color:rgba(255,255,255,0.58);margin-bottom:12px;">Conteúdos, dicas e bastidores.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <a href="https://instagram.com/horadotreino_oficial" target="_blank" rel="noreferrer" aria-label="Instagram"
+                style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:rgba(255,255,255,0.74);font-size:18px;transition:all 0.2s;"
+                title="Instagram">📷</a>
+              <a href="https://www.tiktok.com/@horadotreinooficial" target="_blank" rel="noreferrer" aria-label="TikTok"
+                style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:rgba(255,255,255,0.74);font-size:18px;transition:all 0.2s;"
+                title="TikTok">🎵</a>
+              <a href="https://www.youtube.com/@HoradoTreino" target="_blank" rel="noreferrer" aria-label="YouTube"
+                style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:rgba(255,255,255,0.74);font-size:18px;transition:all 0.2s;"
+                title="YouTube">▶️</a>
+            </div>
+          </div>
+
+          <!-- Compartilhe o app -->
+          <div style="min-height:168px;display:flex;flex-direction:column;border-radius:22px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);padding:14px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <span style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#22c55e;font-size:16px;">
+                🔗
+              </span>
+              <span style="font-size:15px;font-weight:600;">Compartilhe o app</span>
+            </div>
+            <p style="font-size:14px;color:rgba(255,255,255,0.58);margin-bottom:12px;">Envie para quem quer treinar em casa com método.</p>
+            <div style="display:flex;gap:6px;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);padding:6px;align-items:center;flex-wrap:wrap;">
+              <div style="flex:1;min-width:0;border-radius:14px;background:rgba(255,255,255,0.03);padding:8px 12px;">
+                <p style="font-size:11px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.32);margin-bottom:4px;">Link do app</p>
+                <p style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.84);">app.horadotreino.com.br</p>
+              </div>
+              <button onclick="copyAppLink(this)" style="display:flex;align-items:center;gap:6px;border-radius:14px;border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.12);padding:10px 14px;font-size:13px;font-weight:700;color:#22c55e;cursor:pointer;white-space:nowrap;transition:all 0.2s;">
+                📋 Copiar link
+              </button>
+            </div>
+          </div>
+
+          <!-- Envie seu feedback -->
+          <div style="min-height:168px;display:flex;flex-direction:column;border-radius:22px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);padding:14px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <span style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#22c55e;font-size:16px;">
+                💬
+              </span>
+              <span style="font-size:15px;font-weight:600;">Envie seu feedback</span>
+            </div>
+            <p style="font-size:14px;color:rgba(255,255,255,0.58);margin-bottom:12px;">Sugestões, elogios e críticas ajudam a melhorar o projeto.</p>
+            <a href="https://horadotreino.com.br/fale-conosco/" target="_blank" rel="noreferrer"
+              style="display:inline-flex;align-items:center;gap:8px;border-radius:16px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);padding:10px 16px;font-size:14px;font-weight:700;color:var(--white);transition:all 0.2s;align-self:flex-start;">
+              Enviar feedback ↗
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra inferior -->
+    <div style="padding:10px 20px 14px;">
+      <div style="max-width:1120px;margin:0 auto;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:14px;color:rgba(255,255,255,0.48);">
+          <div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;">
+            <span style="font-size:14px;font-weight:700;color:rgba(255,255,255,0.82);">Hora do Treino®</span>
+            <span style="color:rgba(255,255,255,0.16);">•</span>
+            <span>CNPJ: 34.229.533/0001-61</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+            <a href="/politica-de-privacidade" style="font-size:14px;font-weight:500;color:rgba(255,255,255,0.62);transition:color 0.2s;">Política de Privacidade</a>
+            <span style="color:rgba(255,255,255,0.16);">|</span>
+            <a href="/termos-de-uso" style="font-size:14px;font-weight:500;color:rgba(255,255,255,0.62);transition:color 0.2s;">Termos de Uso</a>
+          </div>
+          <p style="font-size:12px;color:rgba(255,255,255,0.36);">Todos os direitos reservados</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <style>
+    @media (min-width: 1024px) {
+      #footer-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    }
+  </style>
+  <script>
+    function copyAppLink(btn) {
+      navigator.clipboard.writeText('https://app.horadotreino.com.br/').then(function() {
+        btn.textContent = '✓ Link copiado';
+        setTimeout(function() { btn.textContent = '📋 Copiar link'; }, 2200);
+      }).catch(function() {
+        btn.textContent = '❌ Erro ao copiar';
+        setTimeout(function() { btn.textContent = '📋 Copiar link'; }, 2500);
+      });
+    }
+  </script>
+
+  <script>
+    // ===== QUIZ STATE =====
+    var currentStep = 0;
+    var totalSteps = 10;
+    var answers = { location: 'home', equipment: [], age: 25, weight: 70, height: 170, days: 3, time: 45 };
+
+    // ===== PROGRESS =====
+    function updateProgress() {
+      var pct = Math.round(((currentStep + 1) / totalSteps) * 100);
+      document.getElementById('quiz-bar').style.width = pct + '%';
+      document.getElementById('quiz-pct').textContent = pct + '%';
+      document.getElementById('quiz-step-label').textContent = 'Etapa ' + (currentStep + 1) + ' de ' + totalSteps;
+      document.getElementById('btn-back').disabled = currentStep === 0;
+      document.getElementById('btn-next').textContent = currentStep === totalSteps - 1 ? 'Criar conta e ver meu treino' : 'Continuar';
+    }
+
+    function showStep(index) {
+      document.querySelectorAll('.quiz-step').forEach(function(el) { el.classList.remove('active'); });
+      document.getElementById('step-' + index).classList.add('active');
+      updateProgress();
+      clearError();
+    }
+
+    function clearError() { document.getElementById('quiz-error').textContent = ''; }
+    function showError(msg) { document.getElementById('quiz-error').textContent = msg; }
+
+    // ===== CHOICE =====
+    document.querySelectorAll('.quiz-choice').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var key = this.dataset.key;
+        var val = this.dataset.value;
+        answers[key] = val;
+        document.querySelectorAll('.quiz-choice[data-key="' + key + '"]').forEach(function(b) { b.classList.remove('selected'); });
+        this.classList.add('selected');
+        clearError();
+      });
+    });
+
+    // ===== MULTI (Equipment) =====
+    document.querySelectorAll('.quiz-multi-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var val = this.dataset.value;
+        if (val === 'nenhum') {
+          document.querySelectorAll('.quiz-multi-btn').forEach(function(b) {
+            b.classList.remove('selected');
+            b.querySelector('.quiz-multi-check').textContent = '+';
+          });
+          if (!answers.equipment.includes('nenhum')) {
+            answers.equipment = ['nenhum'];
+            this.classList.add('selected');
+            this.querySelector('.quiz-multi-check').textContent = '✓';
+          } else {
+            answers.equipment = [];
+          }
+        } else {
+          answers.equipment = answers.equipment.filter(function(v) { return v !== 'nenhum'; });
+          document.querySelector('.quiz-multi-btn[data-value="nenhum"]').classList.remove('selected');
+          document.querySelector('.quiz-multi-btn[data-value="nenhum"] .quiz-multi-check').textContent = '+';
+          if (answers.equipment.includes(val)) {
+            answers.equipment = answers.equipment.filter(function(v) { return v !== val; });
+            this.classList.remove('selected');
+            this.querySelector('.quiz-multi-check').textContent = '+';
+          } else {
+            answers.equipment.push(val);
+            this.classList.add('selected');
+            this.querySelector('.quiz-multi-check').textContent = '✓';
+          }
+        }
+        clearError();
+      });
+    });
+
+    // ===== SLIDERS =====
+    document.getElementById('slider-age').addEventListener('input', function() {
+      answers.age = parseInt(this.value);
+      document.getElementById('age-val').textContent = this.value + ' anos';
+    });
+    document.getElementById('slider-weight').addEventListener('input', function() {
+      answers.weight = parseInt(this.value);
+      document.getElementById('weight-val').textContent = this.value + ' kg';
+    });
+    document.getElementById('slider-height').addEventListener('input', function() {
+      answers.height = parseInt(this.value);
+      document.getElementById('height-val').textContent = this.value + ' cm';
+    });
+    document.getElementById('slider-days').addEventListener('input', function() {
+      answers.days = parseInt(this.value);
+      var d = parseInt(this.value);
+      document.getElementById('days-val').textContent = d + (d === 1 ? ' dia por semana' : ' dias por semana');
+    });
+    document.getElementById('slider-time').addEventListener('input', function() {
+      answers.time = parseInt(this.value);
+      document.getElementById('time-val').textContent = this.value + ' min';
+    });
+
+    // ===== VALIDATE =====
+    function canProceed() {
+      if (currentStep === 0) return !!answers.goal;
+      if (currentStep === 1) return !!answers.experience;
+      if (currentStep === 2) return !!answers.gender;
+      if (currentStep === 3) return answers.age >= 12 && answers.weight >= 40 && answers.height >= 140;
+      if (currentStep === 4) return !!answers.wrist;
+      if (currentStep === 5) return true; // equipment is optional
+      if (currentStep === 6) return answers.days >= 1;
+      if (currentStep === 7) return answers.time >= 15;
+      if (currentStep === 8) return !!answers.focusRegion;
+      if (currentStep === 9) {
+        var name = document.getElementById('acc-name').value.trim();
+        var email = document.getElementById('acc-email').value.trim();
+        var pass = document.getElementById('acc-password').value.trim();
+        var terms = document.getElementById('acc-terms').checked;
+        return name.length > 1 && email.includes('@') && pass.length >= 6 && terms;
+      }
+      return true;
+    }
+
+    function quizNext() {
+      if (!canProceed()) {
+        showError('Preencha esta etapa antes de continuar.');
+        return;
+      }
+      if (currentStep === totalSteps - 1) {
+        submitQuiz();
+        return;
+      }
+      currentStep++;
+      showStep(currentStep);
+      document.getElementById('quiz-card') && document.getElementById('quiz-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function quizBack() {
+      if (currentStep > 0) { currentStep--; showStep(currentStep); }
+    }
+
+    // ===== SUBMIT =====
+    function submitQuiz() {
+      var name = document.getElementById('acc-name').value.trim();
+      var email = document.getElementById('acc-email').value.trim();
+      var pass = document.getElementById('acc-password').value.trim();
+
+      if (!name || name.length < 2) { showError('Digite seu nome para criar a conta.'); return; }
+      if (!email.includes('@')) { showError('Digite um e-mail válido.'); return; }
+      if (pass.length < 6) { showError('Sua senha precisa ter pelo menos 6 caracteres.'); return; }
+      if (!document.getElementById('acc-terms').checked) { showError('Você precisa aceitar os Termos de Uso para continuar.'); return; }
+
+      document.getElementById('btn-next').disabled = true;
+      document.getElementById('btn-next').textContent = 'Montando seu treino...';
+      document.getElementById('quiz-loading').classList.add('visible');
+
+      // Simulação de progresso (no app real, a lógica é feita via API)
+      var progress = 4;
+      var startTime = Date.now();
+      var stages = [document.getElementById('ls-0'), document.getElementById('ls-1'), document.getElementById('ls-2'), document.getElementById('ls-3'), document.getElementById('ls-4')];
+
+      function updateStages(pct) {
+        var idx = pct >= 100 ? 4 : pct >= 75 ? 3 : pct >= 50 ? 2 : pct >= 25 ? 1 : 0;
+        stages.forEach(function(s, i) {
+          s.classList.remove('current', 'done');
+          if (i < idx) { s.classList.add('done'); s.querySelector('.quiz-stage__num').textContent = '✓'; }
+          else if (i === idx) { s.classList.add('current'); }
+        });
+      }
+
+      function tick() {
+        var elapsed = Date.now() - startTime;
+        progress = 4 + 93 * (1 - Math.exp(-elapsed / 8000));
+        var pct = Math.round(progress);
+        document.getElementById('loading-pct').textContent = pct + '%';
+        document.getElementById('loading-bar').style.width = pct + '%';
+        updateStages(pct);
+        if (pct < 97) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+
+      // No contexto real, aqui seria feito o fetch para a API do Next.js
+      // fetch('/api/quiz', { method: 'POST', body: JSON.stringify(answers) })
+      //   .then(res => res.json())
+      //   .then(() => { window.location.href = '/dashboard'; });
+    }
+
+    // ===== FAQ =====
+    document.querySelectorAll('.faq__question').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var item = this.closest('.faq__item');
+        var isOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq__item').forEach(function(el) { el.classList.remove('open'); el.querySelector('.faq__question').setAttribute('aria-expanded', 'false'); });
+        if (!isOpen) { item.classList.add('open'); this.setAttribute('aria-expanded', 'true'); }
+      });
+    });
+
+    // ===== SMOOTH SCROLL =====
+    document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
+      anchor.addEventListener('click', function(e) {
+        var target = document.querySelector(this.getAttribute('href'));
+        if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      });
+    });
+
+    // Init
+    showStep(0);
+  </script>
+</body>
+</html>

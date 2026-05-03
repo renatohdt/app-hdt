@@ -39,6 +39,8 @@ type ProfilePayload = {
   excludedExercises?: Array<{ exerciseId: string; exerciseName: string }>;
   totalWorkoutsAllTime?: number;
   lastWorkoutGeneratedAt?: string | null;
+  currentPhase?: string | null;
+  phaseLabel?: string | null;
 };
 
 type ProfileFormState = {
@@ -784,7 +786,7 @@ export default function PerfilPage() {
             <p className="text-[13px] text-white/60">{payload.user.email || "Sem e-mail"}</p>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               <span className="rounded-full bg-primary/25 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                {getLevelBadge(payload.answers.goal)}
+                {payload.phaseLabel ?? getLevelBadge(payload.answers.goal)}
               </span>
               <span className="rounded-full border border-white/12 bg-white/5 px-2.5 py-0.5 text-[11px] text-white/65">
                 {formatGoal(payload.answers.goal)}

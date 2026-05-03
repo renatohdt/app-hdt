@@ -2,8 +2,10 @@
 
 import clsx from "clsx";
 import { useMemo, useState } from "react";
-import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target } from "lucide-react";
+import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target, Trophy } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
+import { AchievementsModal } from "@/components/achievements-modal";
+import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { useSubscription } from "@/components/use-subscription";
@@ -12,7 +14,7 @@ import {
   formatWorkoutDisplayTitle,
   type AppWorkoutData
 } from "@/lib/app-workout";
-import { getAllAchievementsWithStatus } from "@/lib/achievements";
+import { getAllAchievementsUnified } from "@/lib/achievements";
 
 type PlannedWorkoutDay = {
   workoutKey: string | null;
@@ -45,6 +47,12 @@ const MONTH_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 });
 export function CalendarScreen({ data }: { data: AppWorkoutData }) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [goalTarget, setGoalTarget] = useState("12");
+  const [goalDays, setGoalDays] = useState("30");
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [activeGoal, setActiveGoal] = useState(data.activeGoal);
   const { subscription } = useSubscription();
   const isFreePlan = !subscription?.isPremium;
 
@@ -288,41 +296,246 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         </div>
       </Card>
 
-      <Card className="space-y-3 p-5 sm:p-6">
-        <div>
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Conquistas</p>
-        </div>
+      {/* Card de meta pessoal */}
+      <GoalCard
+        activeGoal={activeGoal}
+        showForm={showGoalForm}
+        goalTarget={goalTarget}
+        goalDays={goalDays}
+        saving={savingGoal}
+        onShowForm={() => setShowGoalForm(true)}
+        onCancelForm={() => setShowGoalForm(false)}
+        onChangeTarget={setGoalTarget}
+        onChangeDays={setGoalDays}
+        onSubmit={async () => {
+          const target = Number(goalTarget);
+          const days = Number(goalDays);
+          if (!target || !days) return;
+          setSavingGoal(true);
+          try {
+            const res = await fetchWithAuth("/api/goals", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ targetCount: target, periodDays: days })
+            });
+            const json = await res.json();
+            if (json.success) {
+              setActiveGoal(json.data);
+              setShowGoalForm(false);
+            }
+          } finally {
+            setSavingGoal(false);
+          }
+        }}
+      />
 
-        {getAllAchievementsWithStatus(data.totalWorkoutsAllTime).filter((a) => a.unlocked).length > 0 ? (
-          <div>
-            <div className="flex flex-col gap-3">
-              {getAllAchievementsWithStatus(data.totalWorkoutsAllTime)
-                .filter((a) => a.unlocked)
-                .map((achievement) => (
-                  <div
-                    key={achievement.id}
-                    className="flex w-full flex-row items-center gap-3 rounded-[20px] border border-primary/20 bg-primary/[0.07] p-3.5"
-                  >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">
-                      🏆
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold leading-snug text-white">{achievement.title}</p>
-                      <p className="mt-1 text-[11px] leading-[1.4] text-white/50">{achievement.description}</p>
-                    </div>
-                  </div>
-                ))}
+      <button
+        type="button"
+        onClick={() => setShowAchievements(true)}
+        className="w-full text-left"
+      >
+        <Card className="space-y-3 p-5 transition hover:border-primary/20 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-[14px] border border-primary/15 bg-primary/10 text-primary">
+                <Trophy className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Conquistas</p>
+                <p className="mt-0.5 text-base font-semibold text-white">
+                  {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0)} de {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.length, 0)} desbloqueadas
+                </p>
+              </div>
             </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
           </div>
-        ) : (
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-sm leading-6 text-white/62">
-            Nenhuma conquista ainda. Complete treinos para desbloquear!
+
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+            {(() => {
+              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted);
+              const total = groups.reduce((sum, g) => sum + g.achievements.length, 0);
+              const unlocked = groups.reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0);
+              const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
+              return <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />;
+            })()}
           </div>
-        )}
-      </Card>
+
+          <p className="text-xs text-white/40">
+            {(() => {
+              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted);
+              const total = groups.reduce((sum, g) => sum + g.achievements.length, 0);
+              const unlocked = groups.reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0);
+              const remaining = total - unlocked;
+              if (unlocked === 0) return "Complete treinos para desbloquear suas primeiras conquistas.";
+              if (unlocked === total) return "Voce desbloqueou todas as conquistas disponiveis!";
+              return `${remaining === 1 ? "1 conquista" : `${remaining} conquistas`} para desbloquear. Toque para ver todas.`;
+            })()}
+          </p>
+        </Card>
+      </button>
 
       {isFreePlan ? <GoogleAd /> : null}
+
+      {showAchievements && (
+        <AchievementsModal data={data} onClose={() => setShowAchievements(false)} />
+      )}
     </AppShell>
+  );
+}
+
+type ActiveGoalShape = {
+  id: string;
+  targetCount: number;
+  periodDays: number;
+  startsAt: string;
+  endsAt: string;
+  completedAt: string | null;
+  workoutsDone: number;
+} | null;
+
+function GoalCard({
+  activeGoal,
+  showForm,
+  goalTarget,
+  goalDays,
+  saving,
+  onShowForm,
+  onCancelForm,
+  onChangeTarget,
+  onChangeDays,
+  onSubmit
+}: {
+  activeGoal: ActiveGoalShape;
+  showForm: boolean;
+  goalTarget: string;
+  goalDays: string;
+  saving: boolean;
+  onShowForm: () => void;
+  onCancelForm: () => void;
+  onChangeTarget: (v: string) => void;
+  onChangeDays: (v: string) => void;
+  onSubmit: () => void;
+}) {
+  if (activeGoal) {
+    const done = activeGoal.workoutsDone;
+    const total = activeGoal.targetCount;
+    const pct = total > 0 ? Math.min(Math.round((done / total) * 100), 100) : 0;
+    const endsAt = new Date(activeGoal.endsAt);
+    const daysLeft = Math.max(0, Math.ceil((endsAt.getTime() - Date.now()) / 86_400_000));
+    const isComplete = activeGoal.completedAt !== null || done >= total;
+
+    return (
+      <Card className="space-y-3 p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Meta pessoal</p>
+            <p className="mt-0.5 text-base font-semibold text-white">
+              {done} de {total} treinos
+            </p>
+          </div>
+          {isComplete ? (
+            <span className="shrink-0 rounded-full bg-primary/20 px-3 py-1 text-[11px] font-semibold text-primary">
+              Concluida!
+            </span>
+          ) : (
+            <span className="shrink-0 text-xs text-white/40">
+              {daysLeft === 0 ? "Ultimo dia!" : `${daysLeft} dias restantes`}
+            </span>
+          )}
+        </div>
+
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        <p className="text-xs text-white/40">
+          {isComplete
+            ? "Meta batida! Crie uma nova meta quando quiser."
+            : `${pct}% concluido. Em ${activeGoal.periodDays} dias, ${total} treinos.`}
+        </p>
+      </Card>
+    );
+  }
+
+  if (showForm) {
+    return (
+      <Card className="space-y-4 p-5 sm:p-6">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Nova meta</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">
+              Treinos
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={200}
+              value={goalTarget}
+              onChange={(e) => onChangeTarget(e.target.value)}
+              className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white outline-none focus:border-primary/40"
+              placeholder="Ex: 12"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">
+              Dias
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={goalDays}
+              onChange={(e) => onChangeDays(e.target.value)}
+              className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white outline-none focus:border-primary/40"
+              placeholder="Ex: 30"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-white/40">
+          {goalTarget && goalDays
+            ? `Objetivo: ${goalTarget} treinos em ${goalDays} dias.`
+            : "Preencha os campos acima."}
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={saving || !goalTarget || !goalDays}
+            className="flex-1 rounded-[16px] bg-primary px-4 py-2.5 text-sm font-semibold text-[#041a0b] transition disabled:opacity-50"
+          >
+            {saving ? "Salvando..." : "Criar meta"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancelForm}
+            className="rounded-[16px] border border-white/10 px-4 py-2.5 text-sm font-semibold text-white/60 transition hover:text-white"
+          >
+            Cancelar
+          </button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="space-y-3 p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Meta pessoal</p>
+          <p className="mt-0.5 text-sm text-white/48">Nenhuma meta ativa no momento.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onShowForm}
+        className="inline-flex min-h-10 items-center gap-2 rounded-[16px] border border-primary/18 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary transition hover:text-white"
+      >
+        Criar meta
+      </button>
+    </Card>
   );
 }
 

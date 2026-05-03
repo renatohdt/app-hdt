@@ -25,6 +25,8 @@ import {
   sanitizeArticleRecommendations,
   type ArticleRecommendation
 } from "@/lib/articles";
+import { LevelBadge, LevelPopup } from "@/components/level-badge";
+import { REGRESSION_MESSAGE } from "@/lib/user-level";
 import {
   formatSessionCounter,
   getMotivationLine,
@@ -58,6 +60,12 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
   const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
   const fallbackArticles = useMemo(() => sanitizeArticleRecommendations(getEvergreenFallbackArticles()), []);
+
+  // ── Sistema de nível/XP ──────────────────────────────────────────────────
+  const [phasePopupDismissed, setPhasePopupDismissed] = useState(false);
+  const levelData = data.levelData ?? null;
+  // Mostra popup se houve regressão de nível ao carregar o dashboard
+  const showRegressionPopup = !phasePopupDismissed && (levelData?.decayRegressed ?? false);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
   const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
   const isFreePlan = !subscription?.isPremium;
@@ -194,6 +202,11 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           <h1 className="mb-[10px] text-[20px] font-bold leading-[1.15] tracking-tight text-white">
             Olá, {firstName}
           </h1>
+          {levelData && (
+            <div className="mb-2 flex justify-center">
+              <LevelBadge data={levelData} />
+            </div>
+          )}
           <p className="mx-auto mb-[22px] max-w-[24rem] text-[13px] font-normal leading-[1.45] text-white/56">
             {getMotivationLine(data.user.goal)}
           </p>
@@ -547,6 +560,15 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           </div>
         </div>
       ) : null}
+      {/* ── Popup de regressão de nível (inatividade) ────────────────── */}
+      {showRegressionPopup && (
+        <LevelPopup
+          emoji="😤"
+          title="Nível caiu!"
+          message={REGRESSION_MESSAGE}
+          onClose={() => setPhasePopupDismissed(true)}
+        />
+      )}
     </AppShell>
   );
 }

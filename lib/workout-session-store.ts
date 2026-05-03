@@ -292,6 +292,26 @@ export async function getAllTimeWorkoutCount(
   return count ?? 0;
 }
 
+/**
+ * Retorna as datas ISO das sessões mais recentes do usuário (todos os treinos).
+ * Usado pelo sistema de XP para verificar streak, semana perfeita e consistência mensal.
+ */
+export async function getRecentSessionDates(
+  supabase: SupabaseLike,
+  userId: string,
+  limit = 60
+): Promise<string[]> {
+  const { data } = await supabase
+    .from("workout_session_logs")
+    .select("completed_at")
+    .eq("user_id", userId)
+    .order("completed_at", { ascending: false })
+    .limit(limit);
+  return (data ?? [])
+    .map((row: { completed_at?: string | null }) => row.completed_at ?? "")
+    .filter(Boolean);
+}
+
 export async function createWorkoutSessionLog(
   supabase: SupabaseLike,
   input: {
@@ -902,8 +922,8 @@ function getLocalDayRange(referenceDate: Date | string | number | null | undefin
   return {
     dayKey: `${localNow.year}-${padNumber(localNow.month)}-${padNumber(localNow.day)}`,
     timeZone,
-    startUtcIso: startUtc.toISOString(),
-    endUtcIso: endUtc.toISOString()
+    startUtcIso: new Date(startUtc).toISOString(),
+    endUtcIso: new Date(endUtc).toISOString()
   };
 }
 
@@ -967,18 +987,12 @@ function zonedDateTimeToUtc(parts: ZonedDateTimeParts, timeZone: string) {
       resolved.minute,
       resolved.second
     );
-    const diff = targetUtc - resolvedUtc;
-
-    if (diff === 0) {
-      break;
-    }
-
-    guessUtc += diff;
+    const offsetMs = resolvedUtc - targetUtc;
+    guessUtc = targetUtc - offsetMs;
   }
 
-  return new Date(guessUtc);
+  return guessUtc;
 }
-
 function addUtcCalendarDays(year: number, month: number, day: number, daysToAdd: number) {
   const next = new Date(Date.UTC(year, month - 1, day + daysToAdd, 0, 0, 0));
 
