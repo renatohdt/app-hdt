@@ -190,12 +190,19 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   return (
     <AppShell className="space-y-4 sm:space-y-4">
       <Card className="overflow-hidden rounded-[24px] border-white/[0.06] bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.13),transparent_62%),linear-gradient(180deg,rgba(255,255,255,0.038),rgba(255,255,255,0.016))] px-5 pb-[22px] pt-[22px] shadow-[0_12px_28px_rgba(0,0,0,0.2)] sm:px-5 sm:pb-[22px] sm:pt-[22px]">
-        <div className="flex flex-col items-center text-center">
+        <div className="relative flex items-center justify-center">
           <img
             src={HOME_LOGO_URL}
             alt="Hora do Treino"
             className="mt-1 mb-4 h-auto w-full max-w-[140px]"
           />
+          <Link
+            href="/perfil"
+            className="absolute right-0 top-1 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
+            title="Dados para Treino"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
         </div>
 
         <div className="text-center">
@@ -232,6 +239,40 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           </div>
         </Link>
       </Card>
+
+      {data.activeGoal && (
+        <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 shrink-0 text-primary" />
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/88">Meta ativa</p>
+          </div>
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[20px] font-bold leading-none text-white">
+                {data.activeGoal.workoutsDone}
+                <span className="text-[14px] font-semibold text-white/50">/{data.activeGoal.targetCount}</span>
+              </p>
+              <p className="mt-1 text-[12px] text-white/52">treinos concluídos</p>
+            </div>
+            <p className="text-[13px] font-bold text-white/52">
+              {data.activeGoal.targetCount > 0
+                ? Math.round((data.activeGoal.workoutsDone / data.activeGoal.targetCount) * 100)
+                : 0}%
+            </p>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-primary to-primaryStrong transition-[width] duration-300"
+              style={{
+                width: `${data.activeGoal.targetCount > 0
+                  ? Math.min(Math.round((data.activeGoal.workoutsDone / data.activeGoal.targetCount) * 100), 100)
+                  : 0}%`
+              }}
+            />
+          </div>
+          <p className="text-[12px] text-white/40">{data.activeGoal.periodDays} dias de meta</p>
+        </Card>
+      )}
 
       <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
         <SectionHeader title="Sua evolução" />
@@ -377,14 +418,6 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
               </div>
             ) : null}
           </Card>
-
-          <Link
-            href="/perfil"
-            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.04] px-3 py-3 text-[13px] font-semibold text-white/70 transition hover:border-white/18 hover:text-white"
-          >
-            <Settings className="h-4 w-4 shrink-0" />
-            Dados para Treino
-          </Link>
         </>
       )}
 
