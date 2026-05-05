@@ -163,7 +163,7 @@ const LOCATION_ALIASES: Record<string, string> = {
   casa: "home",
   gym: "gym",
   academia: "gym",
-  condo_gym: "condo_gym",
+  "condo gym": "condo_gym",
   "academia de condominio": "condo_gym",
   "academia condominio": "condo_gym",
   condominio: "condo_gym"
