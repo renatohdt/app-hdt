@@ -78,7 +78,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         <SummaryMetricCard
           label="Usuários premium"
           value={String(premiumUsers)}
-          description="Assinaturas ativas (ou em período de graça)."
+          description="Assinaturas ativas."
         />
       </section>
 
@@ -134,7 +134,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.95fr)]">
+      <section className="grid gap-4 xl:grid-cols-2">
         <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 space-y-2">
@@ -165,31 +165,29 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           <FunnelView funnel={funnel} />
         </Card>
 
-        <div className="grid min-w-0 gap-4">
-          <DistributionBarCard
-            title="Distribuição por idade"
-            data={data.ageDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem faixa etaria registrada."
-          />
+        <DistributionBarCard
+          title="Distribuição por idade"
+          data={data.ageDistribution}
+          baseCount={totalUsers}
+          emptyLabel="Sem faixa etaria registrada."
+        />
+      </section>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-            <DistributionPieCard
-              title="Distribuição por gênero"
-              data={data.genderDistribution}
-              total={totalForPie.gender}
-              baseCount={totalUsers}
-              emptyLabel="Sem gênero registrado."
-            />
-            <DistributionPieCard
-              title="Distribuição por objetivo"
-              data={data.goalDistribution}
-              total={totalForPie.goal}
-              baseCount={totalUsers}
-              emptyLabel="Sem objetivo registrado."
-            />
-          </div>
-        </div>
+      <section className="grid gap-4 sm:grid-cols-2">
+        <DistributionPieCard
+          title="Distribuição por gênero"
+          data={data.genderDistribution}
+          total={totalForPie.gender}
+          baseCount={totalUsers}
+          emptyLabel="Sem gênero registrado."
+        />
+        <DistributionPieCard
+          title="Distribuição por objetivo"
+          data={data.goalDistribution}
+          total={totalForPie.goal}
+          baseCount={totalUsers}
+          emptyLabel="Sem objetivo registrado."
+        />
       </section>
 
       <section className="space-y-3">
@@ -343,7 +341,9 @@ function DistributionBarCard({
             <div key={item.label} className="space-y-2">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[12px]">
                 <span className="break-words leading-5 text-white/70">{item.label}</span>
-                <span className="text-[11px] text-white">{item.value}</span>
+                <span className="text-[11px] text-white">
+                  {item.value} <span className="text-white/56">({item.percentage}%)</span>
+                </span>
               </div>
               <div className="h-2 rounded-full bg-white/8">
                 <div
@@ -385,22 +385,22 @@ function DistributionPieCard({
         )}
       </div>
       {data.length ? (
-        <div className="grid gap-3 min-[440px]:grid-cols-[76px_minmax(0,1fr)] min-[440px]:items-center">
+        <div className="grid gap-5 min-[440px]:grid-cols-[auto_minmax(0,1fr)] min-[440px]:items-center">
           <div
-            className="mx-auto h-[72px] w-[72px] rounded-full border border-white/8 sm:h-[84px] sm:w-[84px]"
+            className="mx-auto h-[96px] w-[96px] rounded-full border border-white/8 sm:h-[120px] sm:w-[120px] lg:h-[144px] lg:w-[144px]"
             style={{ backgroundImage: gradient }}
           />
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {data.map((item, index) => (
               <div key={item.label} className="min-w-0 space-y-0.5">
                 <div className="flex min-w-0 items-start gap-2">
                   <span
-                    className="mt-1 h-2 w-2 shrink-0 rounded-full"
+                    className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
                   />
-                  <span className="break-words text-[11px] leading-4 text-white/70">{item.label}</span>
+                  <span className="break-words text-[12px] leading-5 text-white/72">{item.label}</span>
                 </div>
-                <p className="pl-4 text-[10px] leading-4 text-white/56">
+                <p className="pl-[18px] text-[11px] leading-4 text-white/58">
                   {item.value} {total ? `(${item.percentage}%)` : ""}
                 </p>
               </div>
