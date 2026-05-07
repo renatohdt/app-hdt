@@ -67,16 +67,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // Busca nome e CPF do banco — nunca trafegam pelo Stripe
-  const supabaseForBilling = getServiceRoleClient();
-  const { data: userData } = await supabaseForBilling
-    .from("users")
-    .select("billing_name, billing_cpf")
-    .eq("id", userId)
-    .maybeSingle();
-
-  const customerName = userData?.billing_name ?? null;
-  const customerCpf = userData?.billing_cpf ?? null;
+  // Lê nome e CPF dos custom_fields coletados diretamente na página do Stripe
+  const customFields = session.custom_fields ?? [];
+  const customerName = customFields.find((f) => f.key === "full_name")?.text?.value ?? null;
+  const customerCpf = customFields.find((f) => f.key === "cpf")?.text?.value ?? null;
 
   const subscriptionId =
     typeof session.subscription === "string"
@@ -117,7 +111,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     customer_name: customerName,
     customer_cpf: customerCpf,
     customer_email: session.customer_email ?? null,
-    payment_method: session.payment_method_types?.includes("boleto") ? "pix" : "card",
+    payment_method: "card",
   };
 
   // Verifica se já existe registro para este stripe_subscription_id (idempotência)
@@ -411,3 +405,4 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ received: true }, { status: 200 });
 }
+                                                           

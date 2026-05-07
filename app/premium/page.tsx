@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { Check, Lock, Shield, Sparkles, X, Zap } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackMetaInitiateCheckout } from "@/lib/facebook-pixel";
@@ -34,48 +34,12 @@ function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: 
   );
 }
 
-function formatCPF(value: string) {
-  return value
-    .replace(/\D/g, "")
-    .slice(0, 11)
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-}
-
-function isValidCPF(cpf: string): boolean {
-  const digits = cpf.replace(/\D/g, "");
-  if (digits.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(digits)) return false;
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += parseInt(digits[i]) * (10 - i);
-  let remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(digits[9])) return false;
-  sum = 0;
-  for (let i = 0; i < 10; i++) sum += parseInt(digits[i]) * (11 - i);
-  remainder = (sum * 10) % 11;
-  if (remainder === 10 || remainder === 11) remainder = 0;
-  if (remainder !== parseInt(digits[10])) return false;
-  return true;
-}
-
-function isValidFullName(name: string): boolean {
-  const trimmed = name.trim();
-  if (trimmed.length < 5) return false;
-  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ '-]+$/.test(trimmed)) return false;
-  const parts = trimmed.split(/\s+/).filter((p) => p.length >= 2);
-  return parts.length >= 2;
-}
 
 function PremiumPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled") === "true";
 
   const [selectedPlan, setSelectedPlan] = useState<Plan>("annual");
-  const [name, setName] = useState("");
-  const [cpf, setCpf] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trackedRef = useRef(false);
@@ -89,18 +53,6 @@ function PremiumPageContent() {
 
   async function handleCheckout() {
     setError(null);
-
-    if (!isValidFullName(name)) {
-      setError("Informe seu nome completo (nome e sobrenome, sem números).");
-      return;
-    }
-
-    const cpfNumbers = cpf.replace(/\D/g, "");
-    if (!isValidCPF(cpfNumbers)) {
-      setError("CPF inválido. Verifique e tente novamente.");
-      return;
-    }
-
     setLoading(true);
 
     const value = selectedPlan === "annual" ? 118.9 : 14.9;
@@ -111,7 +63,7 @@ function PremiumPageContent() {
       const response = await fetchWithAuth("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: selectedPlan, customerName: name.trim(), customerCpf: cpfNumbers }),
+        body: JSON.stringify({ plan: selectedPlan }),
       });
 
       let data: { data?: { url?: string }; error?: string } | null = null;
@@ -259,38 +211,6 @@ function PremiumPageContent() {
           </button>
         </div>
 
-        {/* ── Formulário de dados ── */}
-        <div className="mb-6 space-y-4 rounded-3xl border border-white/10 bg-[#101010]/80 p-5">
-          <p className="text-xs font-semibold uppercase tracking-widest text-white/40">
-            Seus dados para emissão de NF
-          </p>
-
-          <div>
-            <label className="mb-1.5 block text-xs text-white/60">Nome completo</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Como está no seu CPF"
-              autoComplete="name"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs text-white/60">CPF</label>
-            <input
-              type="text"
-              value={cpf}
-              onChange={(e) => setCpf(formatCPF(e.target.value))}
-              placeholder="000.000.000-00"
-              inputMode="numeric"
-              autoComplete="off"
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
-            />
-          </div>
-        </div>
-
         {/* Erro */}
         {error && (
           <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
@@ -360,3 +280,4 @@ export default function PremiumPage() {
     </Suspense>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          

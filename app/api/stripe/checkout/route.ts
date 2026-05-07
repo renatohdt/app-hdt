@@ -10,8 +10,6 @@ export const dynamic = "force-dynamic";
 
 type CheckoutBody = {
   plan?: unknown;
-  customerName?: unknown;
-  customerCpf?: unknown;
 };
 
 export async function POST(request: NextRequest) {
@@ -25,19 +23,9 @@ export async function POST(request: NextRequest) {
     // 2. Validação do body
     const body: CheckoutBody = await request.json().catch(() => ({}));
     const plan = body.plan;
-    const customerName = typeof body.customerName === "string" ? body.customerName.trim() : "";
-    const customerCpf = typeof body.customerCpf === "string" ? body.customerCpf.trim() : "";
 
     if (plan !== "monthly" && plan !== "annual") {
       return jsonError("Plano inválido. Use 'monthly' ou 'annual'.", 400);
-    }
-
-    if (!customerName) {
-      return jsonError("Nome completo é obrigatório.", 400);
-    }
-
-    if (!customerCpf) {
-      return jsonError("CPF é obrigatório.", 400);
     }
 
     const priceId = STRIPE_PRICE_IDS[plan];
@@ -63,14 +51,6 @@ export async function POST(request: NextRequest) {
         });
         return jsonError("Você já possui uma assinatura ativa.", 409);
       }
-
-      // Salva nome e CPF no banco ANTES de redirecionar ao Stripe
-      // Esses dados nunca trafegam pelo Stripe — ficam apenas no Supabase
-      // O webhook os recupera daqui pelo user_id quando o pagamento é confirmado
-      await supabase
-        .from("users")
-        .update({ billing_name: customerName, billing_cpf: customerCpf })
-        .eq("id", auth.user.id);
     }
 
     const siteUrl = getSiteUrl();
@@ -78,18 +58,29 @@ export async function POST(request: NextRequest) {
     // 4. Cria a sessão de checkout no Stripe
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: plan === "annual" ? ["card", "boleto"] : ["card"],
+      payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
 
-      // Dados do cliente para rastreamento
-      // CPF e nome nao sao enviados ao Stripe - ficam apenas no banco (Supabase)
-      // para evitar exposicao de dados sensiveis no painel e nos logs do Stripe
+      // Campos personalizados coletados diretamente na página do Stripe
+      custom_fields: [
+        {
+          key: "full_name",
+          label: { type: "custom", custom: "Nome completo" },
+          type: "text",
+          text: { minimum_length: 3 },
+        },
+        {
+          key: "cpf",
+          label: { type: "custom", custom: "CPF" },
+          type: "text",
+          text: { minimum_length: 11, maximum_length: 14 },
+        },
+      ],
+
       customer_email: auth.user.email ?? undefined,
       metadata: {
         user_id: auth.user.id,
         plan,
-        // customer_name e customer_cpf são guardados no banco via webhook,
-        // usando os valores coletados localmente antes do redirect
       },
       subscription_data: {
         metadata: {
