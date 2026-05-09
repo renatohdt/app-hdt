@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowUpRight,
   BicepsFlexed,
   CalendarRange,
   Dumbbell,
@@ -39,8 +38,6 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 
 const BLOG_URL = "https://horadotreino.com.br/";
-const CONSULTORIA_URL =
-  "https://horadotreino.com.br/consultoria-de-treino-personalizado/?utm_source=hora-do-treino-app&utm_medium=cta-home&utm_campaign=consultoria";
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
 export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
@@ -460,48 +457,6 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           </Card>
         ) : null}
 
-        <a
-          href={CONSULTORIA_URL}
-          target="_blank"
-          rel="noreferrer"
-          onClick={() =>
-            trackEvent("cta_click", data.user.id, {
-              source: "home_consultoria",
-              goal: data.user.goal ?? null
-            })
-          }
-        >
-          <Card className="overflow-hidden rounded-[24px] border-0 bg-transparent p-0 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-            <div
-              className="min-h-[12.75rem] bg-cover bg-center"
-              style={{
-                backgroundImage:
-                  'linear-gradient(180deg,rgba(3,8,5,0.12),rgba(3,8,5,0.88)), url("https://horadotreino.com.br/wp-content/uploads/2026/03/cta-consultoria.png")'
-              }}
-            >
-              <div className="flex h-full min-h-[12.75rem] flex-col justify-end p-[18px]">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary/90">
-                  Consultoria de treino
-                </p>
-                <h2
-                  className="mt-2 max-w-[15.5rem] text-[16px] font-bold leading-[1.2] text-white"
-                  style={{
-                    display: "-webkit-box",
-                    WebkitBoxOrient: "vertical",
-                    WebkitLineClamp: 3,
-                    overflow: "hidden"
-                  }}
-                >
-                  Plano premium com acompanhamento real para evoluir com mais consistência.
-                </h2>
-                <div className="mt-3 inline-flex items-center gap-2 text-[14px] font-semibold text-primary">
-                  Saiba mais
-                  <ArrowUpRight className="h-4 w-4" />
-                </div>
-              </div>
-            </div>
-          </Card>
-        </a>
       </div>
 
       <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
