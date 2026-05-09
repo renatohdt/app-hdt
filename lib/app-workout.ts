@@ -695,6 +695,8 @@ function normalizeWorkoutSessionLogs(value?: WorkoutSessionLogEntry[] | null) {
         status,
         completedAt: entry.completedAt,
         createdAt: entry.createdAt ?? null,
+        liked: entry.liked ?? null,
+        intensityLevel: entry.intensityLevel ?? null,
       } satisfies WorkoutSessionLogEntry;
     });
 }

@@ -28,6 +28,8 @@ type RecordedSessionItem = {
   workoutKey: string | null;
   workoutLabel: string;
   sessionNumber: number | null;
+  liked: boolean | null;
+  intensityLevel: number | null;
 };
 
 type CalendarDayCell = {
@@ -93,7 +95,9 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           dateKey: toDateKey(completedAt),
           workoutKey: entry.workoutKey ?? null,
           workoutLabel,
-          sessionNumber: entry.sessionNumber > 0 ? entry.sessionNumber : null
+          sessionNumber: entry.sessionNumber > 0 ? entry.sessionNumber : null,
+          liked: entry.liked ?? null,
+          intensityLevel: entry.intensityLevel ?? null,
         } satisfies RecordedSessionItem;
       })
       .filter((entry): entry is RecordedSessionItem => Boolean(entry))
@@ -256,6 +260,17 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
                     <p className="truncate text-sm font-semibold text-white">{session.workoutLabel}</p>
                     {session.sessionNumber ? (
                       <span className="shrink-0 text-sm font-semibold text-white">Sessão {session.sessionNumber}</span>
+                    ) : null}
+                    {session.intensityLevel ? (
+                      <span className="shrink-0 text-sm leading-none">
+                        {(["😴", "😊", "😄", "😤", "😵"] as const)[session.intensityLevel - 1]}
+                      </span>
+                    ) : null}
+                    {session.liked != null ? (
+                      <span
+                        className="shrink-0 inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: session.liked ? "#22c55e" : "#f97316" }}
+                      />
                     ) : null}
                   </div>
 

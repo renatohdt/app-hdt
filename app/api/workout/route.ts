@@ -209,6 +209,20 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    const _logIds = sessionLogs.map((l) => l.id);
+    const { data: _fbRows } = _logIds.length
+      ? await supabase
+          .from("workout_session_feedbacks")
+          .select("session_log_id, liked, intensity_level")
+          .in("session_log_id", _logIds)
+      : { data: [] };
+    const _fbMap = new Map((_fbRows ?? []).map((f) => [f.session_log_id, f]));
+    const sessionLogsWithFeedback = sessionLogs.map((log) => ({
+      ...log,
+      liked: _fbMap.get(log.id)?.liked ?? null,
+      intensityLevel: _fbMap.get(log.id)?.intensity_level ?? null,
+    }));
+
     return NextResponse.json({
       success: true,
       data: {
@@ -227,7 +241,7 @@ export async function GET(request: NextRequest) {
         diagnosis,
         workout: workoutState.workout,
         sessionProgress,
-        sessionLogs,
+        sessionLogs: sessionLogsWithFeedback,
         // Dados de nível/XP — inclui decay aplicado se havia inatividade
         levelData: userLevelSummary
           ? {
@@ -409,13 +423,32 @@ export async function POST(request: Request) {
 
     try {
       logInfo("AI", "Workout generation started", { user_id: userId });
+
+      const { data: feedbackRows } = await supabase
+        .from("workout_session_feedbacks")
+        .select("liked, intensity_level")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const _fbRows = feedbackRows ?? [];
+      const fbCount = _fbRows.length;
+      const avgLiked = fbCount > 0 ? _fbRows.filter((r) => r.liked).length / fbCount : null;
+      const avgIntensity = fbCount > 0 ? _fbRows.reduce((s, r) => s + r.intensity_level, 0) / fbCount : null;
+      const previousWorkoutSummary = existingWorkoutState?.workout
+        ? existingWorkoutState.workout.sections
+            .map((s) => `${s.title}:\n${s.exercises.slice(0, 3).map((e) => `  - ${e.name}`).join("\n")}`)
+            .join("\n")
+        : null;
+      const feedbackContext = { avgLiked, avgIntensity, sessionCount: fbCount, previousWorkoutSummary };
+
       workout = normalizeWorkoutPayload(
         await generateWorkoutWithAI(effectiveAnswers, diagnosis, normalizedExercises, {
           previousWorkout: existingWorkoutState?.workout ?? null,
           lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
           excludedExerciseIds,
           userId
-        }),
+        }, feedbackContext),
         {
           diagnosis,
           answers: effectiveAnswers

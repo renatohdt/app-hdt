@@ -76,6 +76,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [sessionProgress, setSessionProgress] = useState(data.sessionProgress);
   const [confirmCompletion, setConfirmCompletion] = useState(false);
   const [completingWorkout, setCompletingWorkout] = useState(false);
+  const [sessionLiked, setSessionLiked] = useState<boolean | null>(null);
+  const [sessionIntensity, setSessionIntensity] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [replacementCount, setReplacementCount] = useState(data.replacementCount);
   // Contador de substituições por sessão (Treino A, B, C...) — usado para o limite do premium
@@ -85,6 +87,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
   const [phaseUpPopup, setPhaseUpPopup] = useState<{ title: string; phrase: string } | null>(null);
   const [showProgramUpsell, setShowProgramUpsell] = useState(false);
+  const [showProgramContinuation, setShowProgramContinuation] = useState(false);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const { subscription } = useSubscription();
   const featuredWorkoutKey = useMemo(
@@ -109,6 +112,13 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       workout_count: data.workoutOrder.length
     });
   }, [data.user.goal, data.user.id, data.workoutOrder.length]);
+
+  useEffect(() => {
+    if (!confirmCompletion) {
+      setSessionLiked(null);
+      setSessionIntensity(null);
+    }
+  }, [confirmCompletion]);
 
   const workout = data.workouts[activeWorkoutKey] ?? data.workouts[data.workoutOrder[0] ?? ""];
   const exerciseRows = useMemo(() => buildTrainingExerciseRows(workout), [workout]);
@@ -170,7 +180,9 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         },
         body: JSON.stringify({
           workoutKey: activeWorkoutKey,
-          exerciseWeights
+          exerciseWeights,
+          liked: sessionLiked,
+          intensityLevel: sessionIntensity
         })
       });
 
@@ -237,6 +249,13 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       // Exibe upsell se o programa foi concluído e o usuário é free
       if (result.data.program_completed && result.data.user_plan === "free") {
         setShowProgramUpsell(true);
+      }
+
+      if (result.data.program_completed && result.data.user_plan === "premium") {
+        setShowProgramContinuation(true);
+        setTimeout(() => {
+          void reloadWorkout().finally(() => setShowProgramContinuation(false));
+        }, 1500);
       }
     } catch (requestError) {
       setFeedback({
@@ -400,6 +419,63 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       {confirmCompletion ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-8 sm:items-center sm:pb-0">
           <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111] p-6 shadow-2xl">
+            <p className="mb-3 text-sm text-white">
+              Gostou do treino? Sua resposta ajuda a personalizar o próximo.
+            </p>
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSessionLiked(true)}
+                className={clsx(
+                  "flex-1 rounded-xl border py-2 text-sm font-medium transition",
+                  sessionLiked === true
+                    ? "border-primary bg-primary/15 text-white"
+                    : "border-white/10 bg-white/[0.04] text-white/62 hover:text-white"
+                )}
+              >
+                👍 Curti
+              </button>
+              <button
+                type="button"
+                onClick={() => setSessionLiked(false)}
+                className={clsx(
+                  "flex-1 rounded-xl border py-2 text-sm font-medium transition",
+                  sessionLiked === false
+                    ? "border-primary bg-primary/15 text-white"
+                    : "border-white/10 bg-white/[0.04] text-white/62 hover:text-white"
+                )}
+              >
+                👎 Não muito
+              </button>
+            </div>
+            <p className="mb-2 text-xs text-white/62">
+              Qual foi a intensidade desse treino para você?
+            </p>
+            <div className="mb-3 flex gap-1.5">
+              {[
+                { level: 1, emoji: "😴", label: "muito fácil" },
+                { level: 2, emoji: "😊", label: "fácil" },
+                { level: 3, emoji: "😄", label: "ótimo" },
+                { level: 4, emoji: "😤", label: "difícil" },
+                { level: 5, emoji: "😵", label: "muito difícil" },
+              ].map(({ level, emoji, label }) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setSessionIntensity(level)}
+                  className={clsx(
+                    "flex flex-col items-center gap-0.5 flex-1 rounded-xl border py-2 text-base transition",
+                    sessionIntensity === level
+                      ? "border-primary bg-primary/15"
+                      : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                  )}
+                >
+                  <span>{emoji}</span>
+                  <span className="text-[9px] font-medium leading-none text-white/50">{label}</span>
+                </button>
+              ))}
+            </div>
+            <hr className="mb-4 border-white/10" />
             <p className="text-sm text-white/62">
               Confirmar que você concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
             </p>
@@ -424,6 +500,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       {showProgramUpsell ? (
         <UpsellModal reason="program_completed" onClose={() => setShowProgramUpsell(false)} />
+      ) : null}
+
+      {showProgramContinuation ? (
+        <PremiumContinuationCard sessionCount={sessionProgress.completedSessions} />
       ) : null}
     </AppShell>
   );
@@ -462,6 +542,24 @@ function collectExerciseWeights(
     }
   });
 }
+function PremiumContinuationCard({ sessionCount }: { sessionCount: number }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-6">
+      <div className="w-full max-w-sm rounded-[24px] border border-primary/20 bg-[#111] p-6 text-center shadow-2xl">
+        <p className="text-3xl">🎉</p>
+        <p className="mt-3 text-lg font-bold text-white">Programa concluído!</p>
+        <p className="mt-1 text-sm text-white/60">{sessionCount} sessões realizadas</p>
+        <p className="mt-4 text-sm leading-relaxed text-white/72">
+          Estamos gerando seu próximo plano personalizado com base na sua evolução...
+        </p>
+        <div className="mt-5 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
   return (
     <div

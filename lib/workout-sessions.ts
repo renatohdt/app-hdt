@@ -10,6 +10,8 @@ export type WorkoutSessionLogEntry = {
   status: WorkoutSessionStatus;
   completedAt: string;
   createdAt?: string | null;
+  liked?: boolean | null;
+  intensityLevel?: number | null;
 };
 
 export type WorkoutSessionProgress = {

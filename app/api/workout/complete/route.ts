@@ -49,6 +49,8 @@ type CompleteWorkoutBody = {
   workoutKey?: unknown;
   exerciseWeights?: unknown;
   workoutDifficulty?: unknown; // "muito_facil" | "adequado" | "muito_dificil"
+  liked?: unknown;
+  intensityLevel?: unknown;
 };
 
 export const dynamic = "force-dynamic";
@@ -92,6 +94,14 @@ export async function POST(request: NextRequest) {
     const workoutDifficulty: WorkoutDifficulty | null =
       VALID_DIFFICULTIES.includes(body.workoutDifficulty as WorkoutDifficulty)
         ? (body.workoutDifficulty as WorkoutDifficulty)
+        : null;
+    const liked: boolean | null = typeof body.liked === "boolean" ? body.liked : null;
+    const intensityLevel: number | null =
+      typeof body.intensityLevel === "number" &&
+      Number.isInteger(body.intensityLevel) &&
+      body.intensityLevel >= 1 &&
+      body.intensityLevel <= 5
+        ? body.intensityLevel
         : null;
     const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: auth.user.id,
@@ -351,6 +361,21 @@ export async function POST(request: NextRequest) {
       return jsonError(COMPLETE_MARK_ERROR_MESSAGE, 500);
     }
 
+    if (liked !== null && intensityLevel !== null) {
+      try {
+        await supabase
+          .from("workout_session_feedbacks")
+          .insert({
+            user_id: auth.user.id,
+            session_log_id: completionResult.data.id,
+            liked,
+            intensity_level: intensityLevel,
+          });
+      } catch {
+        // feedback é secundário, não quebra o fluxo
+      }
+    }
+
     const updatedStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
 
     logInfo("WORKOUT", "Workout completion saved", {
@@ -401,7 +426,7 @@ export async function POST(request: NextRequest) {
     const programCompleted = updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
 
     // Busca o plano apenas quando o programa for concluído (evita chamada desnecessária no fluxo normal)
-    const userPlan = programCompleted ? await getPlanType(auth.user.id, userToken) : null;
+    const userPlan = programCompleted ? await getPlanType(auth.user.id, userToken).catch(() => null) : null;
 
     return buildWorkoutCompletionSuccessResponse({
       totalSessions: workoutState.sessionConfig.totalSessions,
@@ -416,8 +441,10 @@ export async function POST(request: NextRequest) {
       userPlan,
       xpResult,
     });
-  } catch {
-    logError("WORKOUT", "Workout completion unexpected failure", {});
+  } catch (err) {
+    logError("WORKOUT", "Workout completion unexpected failure", {
+      error: err instanceof Error ? err.message : String(err)
+    });
     return jsonError(COMPLETE_WORKOUT_ERROR_MESSAGE, 500);
   }
 }

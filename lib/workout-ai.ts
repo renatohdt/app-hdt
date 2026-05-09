@@ -413,11 +413,45 @@ function selectExercisesForAiCatalog(
   return results;
 }
 
+type FeedbackContext = {
+  avgLiked: number | null;
+  avgIntensity: number | null;
+  sessionCount: number;
+  previousWorkoutSummary?: string | null;
+};
+
+function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
+  const lines: string[] = [];
+  const { avgLiked: liked, avgIntensity: intensity } = ctx;
+
+  if (ctx.sessionCount > 0 && liked !== null && intensity !== null) {
+    lines.push("", "HISTÓRICO E PREFERÊNCIAS DO USUÁRIO:");
+    if (liked >= 0.7 && intensity >= 3.5) {
+      lines.push("Usuário gosta de treinos desafiadores. Manter ou aumentar levemente intensidade e volume.");
+    } else if (liked < 0.4 && intensity <= 2) {
+      lines.push("Usuário não está engajado e acha o treino fácil demais. Aumentar intensidade, volume e variedade.");
+    } else if (liked < 0.4 && intensity >= 4) {
+      lines.push("Usuário não está gostando e acha muito difícil. Reduzir dificuldade, priorizar exercícios acessíveis.");
+    } else if (liked >= 0.6 && intensity >= 2.5 && intensity <= 3.5) {
+      lines.push("Usuário satisfeito com intensidade atual. Manter abordagem, variando exercícios.");
+    } else {
+      lines.push(`Orientação geral (${ctx.sessionCount} sessões): aprovação ${(liked * 100).toFixed(0)}%, intensidade média ${intensity.toFixed(1)}/5.`);
+    }
+  }
+
+  if (ctx.previousWorkoutSummary) {
+    lines.push("", "TREINO ANTERIOR (não repetir os mesmos exercícios principais):", ctx.previousWorkoutSummary);
+  }
+
+  return lines;
+}
+
 export async function generateWorkoutWithAI(
   answers: QuizAnswers,
   diagnosis: DiagnosisResult,
   exerciseLibrary: ExerciseRecord[],
-  mobilityContext: MobilitySelectionContext = {}
+  mobilityContext: MobilitySelectionContext = {},
+  feedbackContext?: FeedbackContext
 ): Promise<WorkoutPlan> {
   const openai = getOpenAIClient();
   const strategy = buildWorkoutStrategy(answers);
@@ -531,7 +565,8 @@ export async function generateWorkoutWithAI(
       ...(strategy.focusRegion && strategy.focusRegion !== "balanced"
         ? { muscle_focus: strategy.focusRegion }
         : {})
-    })
+    }),
+    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext) : [])
   ].join("\n");
 
   logInfo("AI", "AI prompt payload diagnostics", {
