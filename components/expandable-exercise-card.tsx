@@ -355,8 +355,10 @@ export function ExpandableExerciseCard({
                 <div className="overflow-x-auto no-scrollbar">
                   <p className="whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] text-white/62 min-[380px]:text-[12px]">
                     <span>Séries: {exercise.sets}</span>
-                    <span className="mx-2.5 min-[380px]:mx-3">{isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}</span>
-                    <span>Descanso: {exercise.rest}</span>
+                    <span className={isMobilityExercise ? "ml-2.5 min-[380px]:ml-3" : "mx-2.5 min-[380px]:mx-3"}>
+                      {isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}
+                    </span>
+                    {!isMobilityExercise ? <span>Descanso: {exercise.rest}</span> : null}
                   </p>
                 </div>
                 {hasTechniqueTag ? (
@@ -369,23 +371,23 @@ export function ExpandableExerciseCard({
           </div>
         </button>
 
-        {/* Ações rápidas — sempre visíveis, fora do botão de toggle */}
-        <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowWeightChart(true);
-            }}
-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
-            aria-label="Ver evolução de carga"
-          >
-            <TrendingUp className="h-3.5 w-3.5 shrink-0" />
-            Evolução de carga
-          </button>
+        {/* Ações rápidas — escondidas em exercícios de mobilidade (não há carga nem substituição) */}
+        {!isMobilityExercise ? (
+          <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowWeightChart(true);
+              }}
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
+              aria-label="Ver evolução de carga"
+            >
+              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              Evolução de carga
+            </button>
 
-          {!isMobilityExercise ? (
-            replacementLimitReached ? (
+            {replacementLimitReached ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -414,9 +416,9 @@ export function ExpandableExerciseCard({
                 <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
                 Substituir
               </button>
-            )
-          ) : null}
-        </div>
+            )}
+          </div>
+        ) : null}
 
         {expanded ? (
           <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
