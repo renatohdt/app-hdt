@@ -1,8 +1,9 @@
 "use client";
 
 import clsx from "clsx";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
@@ -348,12 +349,31 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
         {isCycleComplete ? (
-          <div className="rounded-[24px] border border-primary/18 bg-primary/10 p-4">
-            <p className="text-sm font-semibold text-white">Ciclo concluído</p>
-            <p className="mt-1 text-sm text-white/62">
-              Você já registrou todas as sessões do plano atual. Quando renovar, todos os treinos do plano serão trocados juntos.
-            </p>
-          </div>
+          isPremiumUser ? (
+            <div className="rounded-[24px] border border-primary/18 bg-primary/10 p-4">
+              <p className="text-sm font-semibold text-white">🏁 Ciclo concluído!</p>
+              <p className="mt-1 text-sm text-white/62">
+                Você completou todas as sessões do ciclo atual. Quando renovar o programa, os treinos serão atualizados e o ciclo recomeça.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-[24px] border border-primary/30 bg-primary/10 p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-primary shrink-0" />
+                <p className="text-sm font-bold text-white">Ciclo concluído!</p>
+              </div>
+              <p className="text-sm text-white/70 leading-relaxed">
+                Você completou todas as sessões. Que tal um programa que evolui junto com você — gerado pela IA, adaptado ao seu ritmo?
+              </p>
+              <Link
+                href="/premium"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-3 text-sm font-bold text-black transition hover:opacity-90 active:scale-[0.99]"
+              >
+                <Sparkles size={14} />
+                Conheça o Premium
+              </Link>
+            </div>
+          )
         ) : (
           <Button onClick={() => setConfirmCompletion(true)} className="min-h-14 w-full !text-[20px]">
             Treino Concluído!
@@ -418,43 +438,4 @@ function collectExerciseWeights(
 
   return exercises.flatMap((exercise) => {
     const key = `hdt-exercise-draft:${userId}:${workoutKey}:${exercise.id}`;
-    const raw = window.sessionStorage.getItem(key);
-    if (!raw) return [];
-
-    try {
-      const parsed = JSON.parse(raw) as {
-        setEntries?: { weightKg?: string; reps?: string; completed?: boolean }[];
-      };
-      const sets = Array.isArray(parsed.setEntries) ? parsed.setEntries : [];
-      if (!sets.length) return [];
-
-      return [{
-        exerciseName: exercise.name,
-        sets: sets.map((s, i) => ({
-          setNumber: i + 1,
-          weightKg: s.weightKg ?? "",
-          reps: s.reps ?? "",
-          completed: s.completed ?? false,
-        })),
-      }];
-    } catch {
-      return [];
-    }
-  });
-}
-function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
-  return (
-    <div
-      className={clsx(
-        "rounded-[22px] border px-4 py-3 text-sm",
-        feedback.tone === "success"
-          ? "border-primary/20 bg-primary/10 text-white"
-          : feedback.tone === "info"
-            ? "border-white/10 bg-white/[0.04] text-white/72"
-            : "border-red-400/25 bg-red-500/10 text-red-100"
-      )}
-    >
-      {feedback.text}
-    </div>
-  );
-}
+    const raw = win
