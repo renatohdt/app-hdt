@@ -438,4 +438,43 @@ function collectExerciseWeights(
 
   return exercises.flatMap((exercise) => {
     const key = `hdt-exercise-draft:${userId}:${workoutKey}:${exercise.id}`;
-    const raw = win
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        setEntries?: { weightKg?: string; reps?: string; completed?: boolean }[];
+      };
+      const sets = Array.isArray(parsed.setEntries) ? parsed.setEntries : [];
+      if (!sets.length) return [];
+
+      return [{
+        exerciseName: exercise.name,
+        sets: sets.map((s, i) => ({
+          setNumber: i + 1,
+          weightKg: s.weightKg ?? "",
+          reps: s.reps ?? "",
+          completed: s.completed ?? false,
+        })),
+      }];
+    } catch {
+      return [];
+    }
+  });
+}
+function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
+  return (
+    <div
+      className={clsx(
+        "rounded-[22px] border px-4 py-3 text-sm",
+        feedback.tone === "success"
+          ? "border-primary/20 bg-primary/10 text-white"
+          : feedback.tone === "info"
+            ? "border-white/10 bg-white/[0.04] text-white/72"
+            : "border-red-400/25 bg-red-500/10 text-red-100"
+      )}
+    >
+      {feedback.text}
+    </div>
+  );
+}
