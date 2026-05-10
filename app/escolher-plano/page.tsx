@@ -6,21 +6,20 @@ import { useEffect, useRef } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 
 const FEATURES = [
-  { label: "Treino completo com IA",                free: true,        premium: true        },
-  { label: "Substituições de exercício",            free: "2 por plano", premium: "Ilimitadas" },
-  { label: "Gerador de treino",                     free: "1 programa",  premium: "Ilimitados" },
-  { label: "Controle de carga",                     free: true,        premium: true        },
-  { label: "Controle de frequência de treino",      free: true,        premium: true        },
-  { label: "Conquistas",                            free: true,        premium: true        },
-  { label: "Cronômetro",                            free: true,        premium: true        },
-  { label: "Edição de perfil para ajuste de treino",free: true,        premium: true        },
-  { label: "Experiência sem anúncios",              free: false,       premium: true        },
+  { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
+  { label: "Substituições de exercício",                     free: "2 por plano", premium: "2 por treino" },
+  { label: "Gerador de treino",                              free: "1 programa",  premium: "Ilimitados"  },
+  { label: "Experiência sem anúncios",                       free: false,         premium: true          },
+  { label: "Treino completo com IA",                         free: true,          premium: true          },
+  { label: "Controle de carga e frequência de treino",       free: true,          premium: true          },
+  { label: "Conquistas e Cronômetro",                        free: true,          premium: true          },
+  { label: "Edição de perfil para ajuste de treino",         free: true,          premium: true          },
 ];
 
-function CellValue({ value }: { value: boolean | string }) {
-  if (value === true)  return <Check size={16} className="mx-auto text-primary" strokeWidth={3} />;
+function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: boolean }) {
+  if (value === true)  return <Check size={isPremium ? 20 : 16} className={`mx-auto ${isPremium ? "text-primary" : "text-white/50"}`} strokeWidth={3} />;
   if (value === false) return <X     size={14} className="mx-auto text-white/25" strokeWidth={2} />;
-  return <span className="text-xs font-semibold text-white/80">{value}</span>;
+  return <span className={isPremium ? "text-sm font-bold text-primary" : "text-xs font-semibold text-white/80"}>{value}</span>;
 }
 
 export default function EscolherPlanoPage() {
@@ -92,7 +91,7 @@ export default function EscolherPlanoPage() {
                 <CellValue value={feature.free} />
               </div>
               <div className="flex items-center justify-center border-l border-primary/20 bg-primary/[0.03] px-2 py-3">
-                <CellValue value={feature.premium} />
+                <CellValue value={feature.premium} isPremium />
               </div>
             </div>
           ))}

@@ -13,22 +13,21 @@ type Plan = "annual" | "monthly";
 
 // Tabela comparativa Free vs Premium
 const COMPARISON = [
-  { label: "Treino completo com IA",                 free: true,          premium: true          },
-  { label: "Substituições de exercício",             free: "2 por plano", premium: "Ilimitadas"  },
-  { label: "Gerador de treino",                      free: "1 programa",  premium: "Ilimitados"  },
-  { label: "Controle de carga",                      free: true,          premium: true          },
-  { label: "Controle de frequência de treino",       free: true,          premium: true          },
-  { label: "Conquistas",                             free: true,          premium: true          },
-  { label: "Cronômetro",                             free: true,          premium: true          },
-  { label: "Edição de perfil para ajuste de treino", free: true,          premium: true          },
-  { label: "Experiência sem anúncios",               free: false,         premium: true          },
+  { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
+  { label: "Substituições de exercício",                    free: "2 por plano", premium: "2 por treino" },
+  { label: "Gerador de treino",                             free: "1 programa",  premium: "Ilimitados"  },
+  { label: "Experiência sem anúncios",                      free: false,         premium: true          },
+  { label: "Treino completo com IA",                        free: true,          premium: true          },
+  { label: "Controle de carga e frequência de treino",      free: true,          premium: true          },
+  { label: "Conquistas e Cronômetro",                       free: true,          premium: true          },
+  { label: "Edição de perfil para ajuste de treino",        free: true,          premium: true          },
 ];
 
 function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: boolean }) {
-  if (value === true)  return <Check size={16} className={clsx("mx-auto", isPremium ? "text-primary" : "text-white/50")} strokeWidth={3} />;
+  if (value === true)  return <Check size={isPremium ? 20 : 16} className={clsx("mx-auto", isPremium ? "text-primary" : "text-white/50")} strokeWidth={3} />;
   if (value === false) return <X     size={14} className="mx-auto text-white/20" strokeWidth={2} />;
   return (
-    <span className={clsx("text-xs font-semibold", isPremium ? "text-primary" : "text-white/60")}>
+    <span className={clsx(isPremium ? "text-sm font-bold" : "text-xs font-semibold", isPremium ? "text-primary" : "text-white/60")}>
       {value}
     </span>
   );
@@ -280,3 +279,4 @@ export default function PremiumPage() {
     </Suspense>
   );
 }
+                                          
