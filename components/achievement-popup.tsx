@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import type { Achievement } from "@/lib/achievements";
+import { ShareButton } from "@/components/share-button";
 
 export function AchievementPopup({
   achievement,
@@ -49,11 +50,16 @@ export function AchievementPopup({
           </p>
         </div>
 
-        {/* Botão */}
+        {/* Botão compartilhar */}
+        <div className="mt-4">
+          <ShareButton context="achievement" achievementTitle={achievement.title} />
+        </div>
+
+        {/* Botão fechar principal */}
         <button
           type="button"
           onClick={onClose}
-          className="mt-6 w-full rounded-[16px] bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 active:scale-[0.98]"
+          className="mt-3 w-full rounded-[16px] bg-primary py-3 text-sm font-semibold text-white transition hover:bg-primary/90 active:scale-[0.98]"
         >
           Valeu! 💪
         </button>

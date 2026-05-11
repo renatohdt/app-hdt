@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ShareButton } from "@/components/share-button";
 
 const FUNNY_PHRASES = [
   "Tô até vendo o pump!",
@@ -192,6 +193,14 @@ export function WorkoutCompletionPopup({ onClose }: { onClose: () => void }) {
           >
             &ldquo;{phrase}&rdquo;
           </p>
+
+          {/* Botão de compartilhar */}
+          <div
+            className="mt-5"
+            style={{ animation: "wcp-fade-up 0.5s ease-out 0.5s both" }}
+          >
+            <ShareButton context="workout" />
+          </div>
 
         </div>
       </div>
