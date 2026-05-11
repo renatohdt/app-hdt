@@ -8,7 +8,7 @@ const WORKOUT_SHARE_PHRASES = [
   "Treino feito! Tá Pago! O treino, porque o app eu uso free mesmo! hahaha #horadotreino",
   "No app da Hora do Treino diz que se você treina e posta vale o dobro. Eu duvido, mas tá aí! #horadotreino",
   "Só tem duas coisas boas no treino, quando acaba e o resultado! #horadotreino",
-  "Treino feito! Na Hora do Treino tava dizendo que agora eu posso tomar duas cervejas... ahh não é cerejas ¬¬ #horadotreino",
+  "Treino feito! Na Hora do Treino tava dizendo que agora eu posso tomar duas cervejas... ahh não, é cerejas 😒 #horadotreino",
 ];
 
 // ─── Frases para conquistas ───────────────────────────────────────────────────
@@ -42,7 +42,10 @@ function shareToX(text: string, url: string) {
 
 function shareToWhatsApp(text: string, url: string) {
   const encoded = encodeURIComponent(`${text}\n${url}`);
-  window.open(`https://wa.me/?text=${encoded}`, "_blank", "noopener,noreferrer");
+  // Usa o esquema nativo whatsapp:// para abrir o app diretamente,
+  // evitando a página web que pede download no iOS e não distingue
+  // WhatsApp pessoal de Business no Android.
+  window.location.href = `whatsapp://send?text=${encoded}`;
 }
 
 function shareToBluesky(text: string, url: string) {
