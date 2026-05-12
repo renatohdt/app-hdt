@@ -15,3 +15,13 @@ coverage
 Thumbs.db
 tsconfig.tsbuildinfo
 .claude/
+
+# Documentos e arquivos de trabalho (não devem ir ao repositório)
+*.docx
+*.xlsx
+*.csv
+~$*
+PROMPT_*.md
+scripts/recover-leads.*
+scripts/test-leadlovers.*
+e-card/
