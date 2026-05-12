@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Tipos de plano disponíveis no app
 export type SubscriptionPlan = "free" | "monthly" | "annual";
@@ -63,6 +63,18 @@ function getServiceRoleClient() {
   });
 }
 
+// Verifica premium por indicação consultando a tabela users
+async function hasReferralPremium(userId: string, client: SupabaseClient): Promise<boolean> {
+  const { data, error } = await client
+    .from("users")
+    .select("referral_premium_until")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !data?.referral_premium_until) return false;
+  return new Date(data.referral_premium_until) > new Date();
+}
+
 /**
  * Busca a assinatura ativa de um usuário no banco.
  * Retorna null se o usuário for free ou não tiver assinatura.
@@ -98,8 +110,14 @@ export async function getUserSubscription(
  * Considera premium: status 'active' ou 'past_due' (ainda dentro do período de graça).
  */
 export async function isPremium(userId: string, userToken?: string | null): Promise<boolean> {
-  const subscription = await getUserSubscription(userId, userToken);
-  return subscription !== null;
+  const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
+
+  const [subscription, referralPremium] = await Promise.all([
+    getUserSubscription(userId, userToken),
+    hasReferralPremium(userId, client),
+  ]);
+
+  return subscription !== null || referralPremium;
 }
 
 /**
@@ -115,11 +133,17 @@ export async function getPlanType(userId: string, userToken?: string | null): Pr
 /**
  * Retorna informações resumidas do plano para exibição na UI.
  * Usado na página de perfil e nos componentes de upsell.
+ * Considera premium: assinatura Stripe ativa OU premium por indicação válido.
  */
 export async function getSubscriptionSummary(userId: string, userToken?: string | null) {
-  const subscription = await getUserSubscription(userId, userToken);
+  const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  if (!subscription) {
+  const [subscription, referralPremium] = await Promise.all([
+    getUserSubscription(userId, userToken),
+    hasReferralPremium(userId, client),
+  ]);
+
+  if (!subscription && !referralPremium) {
     return {
       plan: "free" as SubscriptionPlan,
       isPremium: false,
@@ -129,15 +153,26 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
     };
   }
 
+  if (!subscription && referralPremium) {
+    // Premium por indicação — sem assinatura Stripe
+    return {
+      plan: "monthly" as SubscriptionPlan,
+      isPremium: true,
+      renewsAt: null,
+      cancelsAt: null,
+      cancelAtPeriodEnd: false,
+    };
+  }
+
   return {
-    plan: subscription.plan as SubscriptionPlan,
+    plan: subscription!.plan as SubscriptionPlan,
     isPremium: true,
-    renewsAt: subscription.cancel_at_period_end
+    renewsAt: subscription!.cancel_at_period_end
       ? null
-      : subscription.current_period_end,
-    cancelsAt: subscription.cancel_at_period_end
-      ? subscription.current_period_end
+      : subscription!.current_period_end,
+    cancelsAt: subscription!.cancel_at_period_end
+      ? subscription!.current_period_end
       : null,
-    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    cancelAtPeriodEnd: subscription!.cancel_at_period_end,
   };
 }

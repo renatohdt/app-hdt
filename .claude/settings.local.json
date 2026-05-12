@@ -3,7 +3,12 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(npm run:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\Samsung\\\\Documents\\\\Codex\\\\app\\\\api\\\\referral\\\\code\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\Samsung\\\\Documents\\\\Codex\\\\app\\\\api\\\\referral\\\\register\" -Force)",
+      "PowerShell(New-Item -ItemType Directory -Path \"c:\\\\Users\\\\Samsung\\\\Documents\\\\Codex\\\\app\\\\api\\\\referral\\\\status\" -Force)",
+      "mcp__claude_ai_Supabase__list_projects"
     ]
   }
 }

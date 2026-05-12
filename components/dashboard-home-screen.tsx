@@ -17,6 +17,8 @@ import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
+import { ReferralRewardPopup } from "@/components/referral-reward-popup";
+import { ReferralExpiryPopup } from "@/components/referral-expiry-popup";
 import { useSubscription } from "@/components/use-subscription";
 import {
   ARTICLE_PLACEHOLDER_IMAGE,
@@ -32,7 +34,8 @@ import {
   getPlanCoverage,
   type AppWorkoutData
 } from "@/lib/app-workout";
-import { getLastUnlockedAchievement } from "@/lib/achievements";
+import { getLastUnlockedAchievement, REFERRAL_REWARD_ACHIEVEMENT } from "@/lib/achievements";
+import { AchievementPopup } from "@/components/achievement-popup";
 import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
@@ -60,6 +63,14 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
 
   // ── Sistema de nível/XP ──────────────────────────────────────────────────
   const [phasePopupDismissed, setPhasePopupDismissed] = useState(false);
+  const [showReferralRewardPopup, setShowReferralRewardPopup] = useState(false);
+  const [showReferralExpiryPopup, setShowReferralExpiryPopup] = useState(false);
+  const [showReferralAchievementPopup, setShowReferralAchievementPopup] = useState(false);
+  // Guarda o status da API para usar quando o popup de conquista fechar
+  const referralStatusRef = useRef<{
+    referralPremiumUntil: string | null;
+    isReferralPremiumActive: boolean;
+  } | null>(null);
   const levelData = data.levelData ?? null;
   // Mostra popup se houve regressão de nível ao carregar o dashboard
   const showRegressionPopup = !phasePopupDismissed && (levelData?.decayRegressed ?? false);
@@ -95,6 +106,47 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
       window.cancelAnimationFrame(generatingAnimFrameRef.current);
     };
   }, [isGenerating]);
+
+  // Verifica popups de indicação: conquista, recompensa ou expiração
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const achievementSeen = localStorage.getItem("referral_achievement_seen_v1") === "true";
+    const rewardSeen = localStorage.getItem("referral_reward_seen_v1") === "true";
+    const expirySeen = localStorage.getItem("referral_expiry_seen_v1") === "true";
+
+    // Todos já foram vistos — evita chamada desnecessária à API
+    if (achievementSeen && rewardSeen && expirySeen) return;
+
+    fetchWithAuth("/api/referral/status")
+      .then((res) =>
+        parseJsonResponse<{
+          success: boolean;
+          data?: {
+            referralPremiumUntil: string | null;
+            isReferralPremiumActive: boolean;
+            referralAchievementUnlocked: boolean;
+          };
+        }>(res)
+      )
+      .then((result) => {
+        if (!result.success || !result.data) return;
+        const { referralPremiumUntil, isReferralPremiumActive, referralAchievementUnlocked } = result.data;
+
+        // Salva o status para uso no onClose do popup de conquista
+        referralStatusRef.current = { referralPremiumUntil, isReferralPremiumActive };
+
+        if (!achievementSeen && referralAchievementUnlocked) {
+          // Conquista aparece primeiro; recompensa e expiração aparecem após ela fechar
+          setShowReferralAchievementPopup(true);
+        } else if (!rewardSeen && isReferralPremiumActive) {
+          setShowReferralRewardPopup(true);
+        } else if (!expirySeen && referralPremiumUntil && !isReferralPremiumActive) {
+          setShowReferralExpiryPopup(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Busca lastWorkoutGeneratedAt para verificar cooldown do plano free
   useEffect(() => {
@@ -555,6 +607,33 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           title="Nível caiu!"
           message={REGRESSION_MESSAGE}
           onClose={() => setPhasePopupDismissed(true)}
+        />
+      )}
+
+      {/* ── Popup de recompensa por indicação ────────────────────────── */}
+      {showReferralRewardPopup && (
+        <ReferralRewardPopup onClose={() => setShowReferralRewardPopup(false)} />
+      )}
+
+      {/* ── Popup de expiração do premium por indicação ───────────────── */}
+      {showReferralExpiryPopup && (
+        <ReferralExpiryPopup onClose={() => setShowReferralExpiryPopup(false)} />
+      )}
+
+      {/* ── Conquista "Fofoqueiro(a)" — desbloqueada ao atingir 5 referrals ── */}
+      {showReferralAchievementPopup && (
+        <AchievementPopup
+          achievement={REFERRAL_REWARD_ACHIEVEMENT}
+          onClose={() => {
+            localStorage.setItem("referral_achievement_seen_v1", "true");
+            setShowReferralAchievementPopup(false);
+            // Após fechar a conquista, mostra o popup de recompensa (se aplicável)
+            const status = referralStatusRef.current;
+            const rewardSeen = localStorage.getItem("referral_reward_seen_v1") === "true";
+            if (status && !rewardSeen && status.isReferralPremiumActive) {
+              setShowReferralRewardPopup(true);
+            }
+          }}
         />
       )}
     </AppShell>

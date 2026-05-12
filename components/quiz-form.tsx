@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useConsentPreferences } from "@/components/consent-provider";
-import { Disclaimer } from "@/components/disclaimer";
 import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
@@ -33,6 +32,7 @@ export function QuizForm() {
     password: ""
   });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
@@ -346,6 +346,18 @@ export function QuizForm() {
             source: "quiz_submit"
           });
 
+          if (referralCode.trim()) {
+            try {
+              await fetchWithAuth("/api/referral/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: referralCode.trim() }),
+              });
+            } catch {
+              // ignora silenciosamente — cupom é bônus, não deve travar o onboarding
+            }
+          }
+
           await completeLoadingProgress();
           setSuccessMessage("Conta criada com sucesso.");
           router.push("/escolher-plano");
@@ -526,35 +538,17 @@ export function QuizForm() {
               placeholder="Crie uma senha"
               className="min-h-16 w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 text-white outline-none transition focus:border-primary"
             />
-            <Disclaimer variant="compact" />
-            <label className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 text-sm leading-6 text-white/76">
-              <span className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(event) => updateAcceptedTerms(event.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-white/20 accent-[#22c55e]"
-                />
-                <span>
-                  Li e concordo com os{" "}
-                  <Link href="/termos-de-uso" className="font-semibold text-primary transition hover:text-primaryStrong">
-                    Termos de Uso
-                  </Link>
-                  .
-                </span>
-              </span>
-            </label>
-            <p className="text-sm text-white/60">
-              Ao continuar, você pode consultar nossa{" "}
-              <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
-                política de privacidade
-              </Link>{" "}
-              e acessar a{" "}
-              <Link href="/privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
-                central de privacidade
-              </Link>
-              .
-            </p>
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 space-y-2">
+              <p className="text-sm font-medium text-white/80">🎁 Tem um cupom de indicação? <span className="text-white/40 font-normal">(opcional)</span></p>
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="Ex: HDT-X7K2"
+                maxLength={8}
+                className="min-h-12 w-full rounded-[16px] border border-white/10 bg-white/[0.03] px-4 text-white outline-none transition focus:border-primary"
+              />
+            </div>
           </div>
         ) : step.type === "slider" ? (
           <div className="mt-8 space-y-5">
@@ -578,7 +572,25 @@ export function QuizForm() {
         ) : null}
       </div>
 
-      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {safeStepIndex === quizSteps.length - 1 && (
+        <label className="mt-6 flex cursor-pointer items-start gap-3 text-sm leading-6 text-white/76">
+          <input
+            type="checkbox"
+            checked={acceptedTerms}
+            onChange={(event) => updateAcceptedTerms(event.target.checked)}
+            className="mt-1 h-4 w-4 shrink-0 rounded border-white/20 accent-[#22c55e]"
+          />
+          <span>
+            Li e concordo com os{" "}
+            <Link href="/termos-de-uso" className="font-semibold text-primary transition hover:text-primaryStrong">
+              Termos de Uso
+            </Link>
+            .
+          </span>
+        </label>
+      )}
+
+      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-h-6 text-sm">
           {error ? <span className="text-red-300">{error}</span> : null}
           {!error && successMessage ? <span className="text-primary">{successMessage}</span> : null}
@@ -596,6 +608,20 @@ export function QuizForm() {
           </Button>
         </div>
       </div>
+
+      {safeStepIndex === quizSteps.length - 1 && (
+        <p className="mt-3 text-sm text-white/60">
+          Ao continuar, você pode consultar nossa{" "}
+          <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
+            política de privacidade
+          </Link>{" "}
+          e acessar a{" "}
+          <Link href="/privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">
+            central de privacidade
+          </Link>
+          .
+        </p>
+      )}
 
       {isPending ? (
         <div

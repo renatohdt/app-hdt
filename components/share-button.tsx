@@ -66,10 +66,12 @@ interface ShareButtonProps {
   context: ShareContext;
   /** Texto personalizado da conquista (opcional) */
   achievementTitle?: string;
+  /** Substitui todas as frases geradas pelo componente */
+  customText?: string;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export function ShareButton({ context, achievementTitle }: ShareButtonProps) {
+export function ShareButton({ context, achievementTitle, customText }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -77,9 +79,9 @@ export function ShareButton({ context, achievementTitle }: ShareButtonProps) {
 
   // Monta o texto base, incluindo o título da conquista se fornecido
   const basePhrase = randomPhrase(phrases);
-  const shareText = achievementTitle
+  const shareText = customText ?? (achievementTitle
     ? `🏆 ${achievementTitle}! ${basePhrase}`
-    : basePhrase;
+    : basePhrase);
 
   function handleShare(platform: "threads" | "twitter" | "whatsapp" | "bluesky") {
     const medium = context === "workout" ? "treino" : "conquista";

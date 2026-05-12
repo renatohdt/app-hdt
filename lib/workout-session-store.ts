@@ -252,14 +252,10 @@ export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, i
       };
     }
 
-    if (legacyResult.data) {
-      return {
-        ...dayRange,
-        log: mapSessionLogRow(legacyResult.data as SessionLogRow)
-      };
-    }
-
-    return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
+    return {
+      ...dayRange,
+      log: legacyResult.data ? mapSessionLogRow(legacyResult.data as SessionLogRow) : null
+    };
   }
 
   if (completedDayResult.error) {
@@ -268,17 +264,16 @@ export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, i
       error_code: getSupabaseErrorCode(completedDayResult.error)
     });
 
-    return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
-  }
-
-  if (completedDayResult.data) {
     return {
       ...dayRange,
-      log: mapSessionLogRow(completedDayResult.data as SessionLogRow)
+      log: null
     };
   }
 
-  return lookupUserWorkoutSessionForLocalDayRange(supabase, input.userId, dayRange);
+  return {
+    ...dayRange,
+    log: completedDayResult.data ? mapSessionLogRow(completedDayResult.data as SessionLogRow) : null
+  };
 }
 
 export async function getAllTimeWorkoutCount(
@@ -975,23 +970,9 @@ function getTimeZoneParts(date: Date, timeZone: string): ZonedDateTimeParts {
 
 function zonedDateTimeToUtc(parts: ZonedDateTimeParts, timeZone: string) {
   const targetUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  let guessUtc = targetUtc;
-
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const resolved = getTimeZoneParts(new Date(guessUtc), timeZone);
-    const resolvedUtc = Date.UTC(
-      resolved.year,
-      resolved.month - 1,
-      resolved.day,
-      resolved.hour,
-      resolved.minute,
-      resolved.second
-    );
-    const offsetMs = resolvedUtc - targetUtc;
-    guessUtc = targetUtc - offsetMs;
-  }
-
-  return guessUtc;
+  const resolved = getTimeZoneParts(new Date(targetUtc), timeZone);
+  const resolvedUtc = Date.UTC(resolved.year, resolved.month - 1, resolved.day, resolved.hour, resolved.minute, resolved.second);
+  return targetUtc - (resolvedUtc - targetUtc);
 }
 function addUtcCalendarDays(year: number, month: number, day: number, daysToAdd: number) {
   const next = new Date(Date.UTC(year, month - 1, day + daysToAdd, 0, 0, 0));

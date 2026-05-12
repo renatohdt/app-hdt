@@ -1,0 +1,70 @@
+[1mdiff --git a/components/expandable-exercise-card.tsx b/components/expandable-exercise-card.tsx[m
+[1mindex b07e13a..9976c72 100644[m
+[1m--- a/components/expandable-exercise-card.tsx[m
+[1m+++ b/components/expandable-exercise-card.tsx[m
+[36m@@ -355,8 +355,10 @@[m [mexport function ExpandableExerciseCard({[m
+                 <div className="overflow-x-auto no-scrollbar">[m
+                   <p className="whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] text-white/62 min-[380px]:text-[12px]">[m
+                     <span>Séries: {exercise.sets}</span>[m
+[31m-                    <span className="mx-2.5 min-[380px]:mx-3">{isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}</span>[m
+[31m-                    <span>Descanso: {exercise.rest}</span>[m
+[32m+[m[32m                    <span className={isMobilityExercise ? "ml-2.5 min-[380px]:ml-3" : "mx-2.5 min-[380px]:mx-3"}>[m
+[32m+[m[32m                      {isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}[m
+[32m+[m[32m                    </span>[m
+[32m+[m[32m                    {!isMobilityExercise ? <span>Descanso: {exercise.rest}</span> : null}[m
+                   </p>[m
+                 </div>[m
+                 {hasTechniqueTag ? ([m
+[36m@@ -369,23 +371,23 @@[m [mexport function ExpandableExerciseCard({[m
+           </div>[m
+         </button>[m
+ [m
+[31m-        {/* Ações rápidas — sempre visíveis, fora do botão de toggle */}[m
+[31m-        <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">[m
+[31m-          <button[m
+[31m-            type="button"[m
+[31m-            onClick={(e) => {[m
+[31m-              e.stopPropagation();[m
+[31m-              setShowWeightChart(true);[m
+[31m-            }}[m
+[31m-            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"[m
+[31m-            aria-label="Ver evolução de carga"[m
+[31m-          >[m
+[31m-            <TrendingUp className="h-3.5 w-3.5 shrink-0" />[m
+[31m-            Evolução de carga[m
+[31m-          </button>[m
+[32m+[m[32m        {/* Ações rápidas — escondidas em exercícios de mobilidade (não há carga nem substituição) */}[m
+[32m+[m[32m        {!isMobilityExercise ? ([m
+[32m+[m[32m          <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">[m
+[32m+[m[32m            <button[m
+[32m+[m[32m              type="button"[m
+[32m+[m[32m              onClick={(e) => {[m
+[32m+[m[32m                e.stopPropagation();[m
+[32m+[m[32m                setShowWeightChart(true);[m
+[32m+[m[32m              }}[m
+[32m+[m[32m              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"[m
+[32m+[m[32m              aria-label="Ver evolução de carga"[m
+[32m+[m[32m            >[m
+[32m+[m[32m              <TrendingUp className="h-3.5 w-3.5 shrink-0" />[m
+[32m+[m[32m              Evolução de carga[m
+[32m+[m[32m            </button>[m
+ [m
+[31m-          {!isMobilityExercise ? ([m
+[31m-            replacementLimitReached ? ([m
+[32m+[m[32m            {replacementLimitReached ? ([m
+               <button[m
+                 type="button"[m
+                 onClick={(e) => {[m
+[36m@@ -414,9 +416,9 @@[m [mexport function ExpandableExerciseCard({[m
+                 <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />[m
+                 Substituir[m
+               </button>[m
+[31m-            )[m
+[31m-          ) : null}[m
+[31m-        </div>[m
+[32m+[m[32m            )}[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        ) : null}[m
+ [m
+         {expanded ? ([m
+           <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-4">[m

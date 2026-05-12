@@ -5,6 +5,7 @@ import { Bell, CalendarDays, ChevronRight, CreditCard, Dumbbell, Lock, Ruler, Sh
 import Link from "next/link";
 import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ShareButton } from "@/components/share-button";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
 import { UpsellModal } from "@/components/upsell-modal";
@@ -62,6 +63,12 @@ type ProfileFormState = {
 type FeedbackState = {
   tone: "success" | "error" | "info";
   text: string;
+};
+
+type ReferralData = {
+  code: string;
+  link: string;
+  count: number;
 };
 
 const GOAL_OPTIONS = [
@@ -166,6 +173,9 @@ export default function PerfilPage() {
   const [excludedExercises, setExcludedExercises] = useState<Array<{ exerciseId: string; exerciseName: string }>>([]);
   const [removingExerciseId, setRemovingExerciseId] = useState<string | null>(null);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [referralData, setReferralData] = useState<ReferralData | null>(null);
+  const [referralLoading, setReferralLoading] = useState(true);
+  const [referralCopied, setReferralCopied] = useState(false);
 
   // Animação da barra de progresso durante geração do treino
   useEffect(() => {
@@ -508,6 +518,17 @@ export default function PerfilPage() {
     }
   }
 
+  async function handleCopyReferralLink() {
+    if (!referralData) return;
+    try {
+      await navigator.clipboard.writeText(referralData.link);
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    } catch {
+      // silently ignore
+    }
+  }
+
   function openSection(section: EditingSection) {
     if (!payload) {
       return;
@@ -518,6 +539,16 @@ export default function PerfilPage() {
     setEditingSection(section);
     setIsEditing(true);
   }
+
+  useEffect(() => {
+    let active = true;
+    fetchWithAuth("/api/referral/code")
+      .then((res) => parseJsonResponse<{ success: true; data: ReferralData }>(res))
+      .then((result) => { if (active && result.success) setReferralData(result.data); })
+      .catch(() => {})
+      .finally(() => { if (active) setReferralLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   // ── Loading / signing out ───────────────────────────────────────────────────
 
@@ -915,6 +946,84 @@ export default function PerfilPage() {
         </Card>
       </div>
 
+      {/* Compartilhe e Ganhe — card separado */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Indique e Ganhe</p>
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">
+              🎁
+            </div>
+            <p className="text-sm font-semibold text-white">Compartilhe e Ganhe</p>
+          </div>
+
+          {referralLoading ? (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-2.5 w-2/3 rounded-full bg-white/10" />
+              <div className="h-2.5 w-1/2 rounded-full bg-white/10" />
+            </div>
+          ) : subscription?.isPremium ? (
+            <div className="space-y-3">
+              <p className="text-[13px] leading-5 text-white/60">
+                Você já é Premium! Mas sua indicação ajuda um amigo a descobrir o app 💪 Compartilhe assim mesmo — cada indicação conta!
+              </p>
+              {referralData && (
+                <ShareButton
+                  context="workout"
+                  customText={`Tô usando o Hora do Treino pra treinar e tô adorando! Usa meu cupom ${referralData.code} e comece grátis: ${referralData.link} #horadotreino`}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[13px] leading-5 text-white/60">
+                Indique 5 amigos e ganhe 30 dias de Premium grátis!
+              </p>
+              {referralData && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <span
+                          key={i}
+                          className={`h-2.5 w-2.5 rounded-full ${i < referralData.count ? "bg-primary" : "bg-white/20"}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-white/50">{referralData.count} de 5 indicações</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-white/40">Seu link:</p>
+                    <p className="rounded-[12px] border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-mono text-white/70 break-all">
+                      {referralData.link}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyReferralLink()}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-[16px] border border-white/10 bg-white/5 py-3 text-xs font-semibold text-white/70 transition hover:bg-white/10 active:scale-[0.98]"
+                    >
+                      📋 {referralCopied ? "Copiado! ✓" : "Copiar link"}
+                    </button>
+                    <div className="flex-1">
+                      <ShareButton
+                        context="workout"
+                        customText={`Tô usando o Hora do Treino pra treinar e tô adorando! Usa meu cupom ${referralData.code} e comece grátis: ${referralData.link} #horadotreino`}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-white/50">
+                    Ou compartilhe o cupom:{" "}
+                    <span className="font-mono font-semibold text-white/75">{referralData.code}</span>
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
+
       {/* Preferências */}
       <div className="space-y-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Preferências</p>
@@ -943,6 +1052,7 @@ export default function PerfilPage() {
               />
             </button>
           </div>
+
           <Link
             href="/privacidade"
             className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-white/[0.03]"
@@ -1390,7 +1500,6 @@ function getWorkoutLoadingStageIndex(progress: number) {
   return 0;
 }
 
-// Converte chave VAPID base64url para Uint8Array (necessário para pushManager.subscribe)
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -1403,11 +1512,16 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return view;
 }
 
-// Retorna quantos dias faltam para o free poder gerar de novo (0 = já pode)
 function daysUntilNextFreeGeneration(lastGeneratedAt: string | null | undefined): number {
   if (!lastGeneratedAt) return 0;
   const last = new Date(lastGeneratedAt).getTime();
   const now = Date.now();
   const diffDays = Math.ceil((last + 30 * 24 * 60 * 60 * 1000 - now) / (24 * 60 * 60 * 1000));
   return diffDays > 0 ? diffDays : 0;
+}
+
+function normalizeDisplayName(firstName?: string | null, fullName?: string | null): string {
+  if (firstName?.trim()) return firstName.trim();
+  if (fullName?.trim()) return fullName.trim().split(" ")[0] ?? fullName.trim();
+  return "Olá";
 }

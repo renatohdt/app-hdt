@@ -87,6 +87,15 @@ export const WEIGHT_MILESTONES: Achievement[] = [
   }
 ];
 
+export const REFERRAL_REWARD_ACHIEVEMENT: Achievement = {
+  id: "referral_reward",
+  milestone: 1,
+  title: "Fofoqueiro(a) na Hora do Treino",
+  description: "Falou tanto da gente ao invés de treinar que merece uma medalha! Espero que tenha falado só coisa boa...né?! Aproveite o Premium!",
+  phrase: "Falou tanto da gente ao invés de treinar que merece uma medalha! Espero que tenha falado só coisa boa...né?! Aproveite o Premium!",
+  category: "consistency"
+};
+
 export const CONSISTENCY_MILESTONES: Achievement[] = [
   {
     id: "perfect_week",
@@ -119,7 +128,8 @@ export const CONSISTENCY_MILESTONES: Achievement[] = [
     description: "Finalizou todas as sessões do programa.",
     phrase: "Ihá! Começa assim, em breve será um influencer fitness.",
     category: "consistency"
-  }
+  },
+  REFERRAL_REWARD_ACHIEVEMENT
 ];
 
 export const GOAL_MILESTONES: Achievement[] = [
