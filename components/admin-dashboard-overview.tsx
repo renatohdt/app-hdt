@@ -274,10 +274,6 @@ function SummaryMetricCard({
 
 function RetentionMetricCard({ metric }: { metric: RetentionMetric }) {
   const valueLabel = metric.percentage === null ? "Sem base" : `${metric.percentage}%`;
-  const detailLabel =
-    metric.eligibleUsers === 0
-      ? "Ainda não há usuários suficientes para fechar essa janela."
-      : `${metric.returnedUsers} de ${metric.eligibleUsers} usuários elegíveis retornaram.`;
 
   return (
     <Card className="min-w-0 space-y-2.5 overflow-hidden p-4 sm:p-[1.15rem]">
@@ -289,7 +285,7 @@ function RetentionMetricCard({ metric }: { metric: RetentionMetric }) {
       </div>
 
       <p className="text-[1.85rem] font-semibold leading-none text-white">{valueLabel}</p>
-      <p className="text-[12px] leading-5 text-white/58">{detailLabel}</p>
+      <p className="text-[12px] leading-5 text-white/58">{metric.detail}</p>
     </Card>
   );
 }

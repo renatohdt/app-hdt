@@ -90,39 +90,7 @@ type TimeWindow = {
   to?: Date;
   label: string;
 };
-const RETENTION_WINDOWS = [
-  {
-    key: "d1",
-    label: "Retorno D1",
-    windowLabel: "24h a 48h",
-    startHours: 24,
-    endDays: 2,
-    eligibleAfterDays: 2
-  },
-  {
-    key: "d7",
-    label: "Retorno D7",
-    windowLabel: "24h a 7 dias",
-    startHours: 24,
-    endDays: 7,
-    eligibleAfterDays: 7
-  },
-  {
-    key: "d30",
-    label: "Retorno D30",
-    windowLabel: "24h a 30 dias",
-    startHours: 24,
-    endDays: 30,
-    eligibleAfterDays: 30
-  }
-] as const satisfies ReadonlyArray<{
-  key: RetentionMetric["key"];
-  label: string;
-  windowLabel: string;
-  startHours: number;
-  endDays: number;
-  eligibleAfterDays: number;
-}>;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function getAdminData() {
   noStore();
@@ -389,7 +357,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       ageDistribution: toDistribution(dashboardAnswerList.map(getAgeBucket)),
       genderDistribution: toDistribution(dashboardAnswerList.map((answers) => getGenderLabel(answers.gender))),
       goalDistribution: toDistribution(dashboardAnswerList.map((answers) => getGoalLabel(answers.goal))),
-      retention: buildRetentionMetrics(dashboardUsers, (retentionEventsQuery.data ?? []) as AdminEvent[]),
+      retention: buildRetentionMetrics(dashboardUsers, (retentionEventsQuery.data ?? []) as AdminEvent[], totalUsers),
       funnel: {
         daily: buildWindowedFunnelPeriod(dashboardUsers, dashboardAnswers, dashboardEvents, dashboardIdentityResolver, {
           from: startOfToday(),
@@ -957,67 +925,89 @@ function buildFunnelPeriod(events: AdminEvent[], from: Date, label: string): Das
 
 function buildRetentionMetrics(
   users: Array<{ id: string; created_at: string }>,
-  events: AdminEvent[]
+  events: AdminEvent[],
+  totalUserCount?: number
 ): RetentionMetric[] {
   const now = Date.now();
-  const activityByUser = new Map<string, number[]>();
 
+  // Monta mapa de atividade: user_id → lista de timestamps de eventos de retorno
+  const activityByUser = new Map<string, number[]>();
   for (const event of events) {
     if (!hasEventName(RETURN_ACTIVITY_EVENTS, event.event_name) || !event.user_id || !event.created_at) {
       continue;
     }
-
     const timestamp = new Date(event.created_at).getTime();
-    if (!Number.isFinite(timestamp)) {
-      continue;
-    }
-
+    if (!Number.isFinite(timestamp)) continue;
     const current = activityByUser.get(event.user_id) ?? [];
     current.push(timestamp);
     activityByUser.set(event.user_id, current);
   }
 
-  for (const timestamps of activityByUser.values()) {
-    timestamps.sort((left, right) => left - right);
+  const totalUsers = totalUserCount ?? users.length;
+
+  // Métrica 1: "Já Retornaram" — usuários que acessaram o app > 24h após o cadastro
+  const usersOlderThan24h = users.filter((u) => {
+    const baseline = new Date(u.created_at).getTime();
+    return Number.isFinite(baseline) && baseline + DAY_MS <= now;
+  });
+  const returnedAfter24h = usersOlderThan24h.filter((u) => {
+    const baseline = new Date(u.created_at).getTime();
+    return (activityByUser.get(u.id) ?? []).some((ts) => ts > baseline + DAY_MS);
+  }).length;
+  const eligible24h = usersOlderThan24h.length;
+
+  // Métrica 2: "Ativos 7 dias" — usuários únicos com evento de retorno nos últimos 7 dias
+  const sevenDaysAgo = now - 7 * DAY_MS;
+  const activeUsersLast7 = new Set<string>();
+  for (const [userId, timestamps] of activityByUser) {
+    if (timestamps.some((ts) => ts >= sevenDaysAgo)) activeUsersLast7.add(userId);
   }
 
-  return RETENTION_WINDOWS.map((windowConfig) => {
-    let eligibleUsers = 0;
-    let returnedUsers = 0;
+  // Métrica 3: "Ativos 30 dias" — usuários únicos com evento de retorno nos últimos 30 dias
+  const thirtyDaysAgo = now - 30 * DAY_MS;
+  const activeUsersLast30 = new Set<string>();
+  for (const [userId, timestamps] of activityByUser) {
+    if (timestamps.some((ts) => ts >= thirtyDaysAgo)) activeUsersLast30.add(userId);
+  }
 
-    for (const user of users) {
-      const baseline = new Date(user.created_at).getTime();
-
-      if (!Number.isFinite(baseline)) {
-        continue;
-      }
-
-      const eligibilityCutoff = baseline + daysToMs(windowConfig.eligibleAfterDays);
-      if (eligibilityCutoff > now) {
-        continue;
-      }
-
-      eligibleUsers += 1;
-
-      const returnStart = baseline + hoursToMs(windowConfig.startHours);
-      const returnEnd = baseline + daysToMs(windowConfig.endDays);
-      const timestamps = activityByUser.get(user.id) ?? [];
-      const hasReturnInWindow = timestamps.some((timestamp) => timestamp >= returnStart && timestamp <= returnEnd);
-
-      if (hasReturnInWindow) {
-        returnedUsers += 1;
-      }
+  return [
+    {
+      key: "ever_returned",
+      label: "Já Retornaram",
+      windowLabel: "Após 24h do cadastro",
+      returnedUsers: returnedAfter24h,
+      eligibleUsers: eligible24h,
+      percentage: eligible24h > 0 ? Math.round((returnedAfter24h / eligible24h) * 100) : null,
+      detail:
+        eligible24h === 0
+          ? "Ainda não há usuários com mais de 24h de cadastro."
+          : `${returnedAfter24h} de ${eligible24h} usuários voltaram ao app após o cadastro.`
+    },
+    {
+      key: "active_7d",
+      label: "Ativos 7 dias",
+      windowLabel: "Últimos 7 dias",
+      returnedUsers: activeUsersLast7.size,
+      eligibleUsers: totalUsers,
+      percentage: totalUsers > 0 ? Math.round((activeUsersLast7.size / totalUsers) * 100) : null,
+      detail:
+        totalUsers === 0
+          ? "Ainda não há usuários cadastrados."
+          : `${activeUsersLast7.size} de ${totalUsers} usuários acessaram o app nos últimos 7 dias.`
+    },
+    {
+      key: "active_30d",
+      label: "Ativos 30 dias",
+      windowLabel: "Últimos 30 dias",
+      returnedUsers: activeUsersLast30.size,
+      eligibleUsers: totalUsers,
+      percentage: totalUsers > 0 ? Math.round((activeUsersLast30.size / totalUsers) * 100) : null,
+      detail:
+        totalUsers === 0
+          ? "Ainda não há usuários cadastrados."
+          : `${activeUsersLast30.size} de ${totalUsers} usuários acessaram o app nos últimos 30 dias.`
     }
-
-    return {
-      key: windowConfig.key,
-      label: windowConfig.label,
-      windowLabel: windowConfig.windowLabel,
-      returnedUsers,
-      eligibleUsers,
-      percentage: eligibleUsers ? Math.round((returnedUsers / eligibleUsers) * 100) : null
-    };
-  });
+  ];
 }
 
 function countUniqueUsers(events: AdminEvent[], names: string[]) {

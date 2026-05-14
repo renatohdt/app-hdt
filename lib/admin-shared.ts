@@ -22,12 +22,13 @@ export type DashboardPeriod = {
 export type DashboardWindowKey = "daily" | "weekly";
 
 export type RetentionMetric = {
-  key: "d1" | "d7" | "d30";
+  key: "ever_returned" | "active_7d" | "active_30d";
   label: string;
   windowLabel: string;
   returnedUsers: number;
   eligibleUsers: number;
   percentage: number | null;
+  detail: string;
 };
 
 export type AdminErrorLog = {
