@@ -216,12 +216,13 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery, retentionEventsQuery] =
+    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery, retentionEventsQuery, totalUsersCountQuery] =
       await Promise.all([
         supabase
           .from("users")
           .select("id, name, role, created_at, deleted_at")
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(5000),
         supabase
           .from("user_answers")
           .select("user_id, answers, created_at")
@@ -260,7 +261,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .in("event_name", RETURN_ACTIVITY_EVENTS)
           .gte("created_at", startOfLastDays(90).toISOString())
           .order("created_at", { ascending: false })
-          .limit(50000)
+          .limit(50000),
+        // Query dedicada apenas para contar o total real de usuários ativos.
+        // head:true faz o Supabase retornar só o count, sem baixar nenhuma linha.
+        // Assim não sofre com o limite padrão de 1000 linhas do PostgREST.
+        supabase
+          .from("users")
+          .select("*", { count: "exact", head: true })
+          .is("deleted_at", null)
       ]);
 
     const dashboardQueryErrors = [
@@ -360,8 +368,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     // Usuários premium: assinaturas ativas ou em período de graça
     const premiumUsers = (premiumSubscriptionsQuery.data ?? []).length;
 
-    // Total = usuários que completaram o cadastro (quiz finalizado, perfil salvo)
-    const totalUsers = dashboardUsers.length;
+    // Total = count exato do banco, sem sofrer com o limite de 1000 linhas do PostgREST.
+    // Fallback para dashboardUsers.length caso a query de count falhe.
+    const totalUsers = totalUsersCountQuery.count ?? dashboardUsers.length;
 
     return {
       totalUsers,
