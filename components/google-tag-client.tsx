@@ -26,6 +26,10 @@ export function GoogleTagClient() {
       return;
     }
 
+    if (pathname?.startsWith("/admin")) {
+      return;
+    }
+
     lastTrackedPagePathRef.current = pagePath;
     pageview(pagePath);
   }, [pagePath]);
