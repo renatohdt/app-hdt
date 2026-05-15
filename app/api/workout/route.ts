@@ -16,7 +16,7 @@ import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
-import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
+import { getAllTimeWorkoutCount, getWorkoutSessionStats, listAllUserSessionLogs, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
 import { experienceToInitialPhase, phaseToExperience, type UserPhase } from "@/lib/user-level";
@@ -150,11 +150,7 @@ export async function GET(request: NextRequest) {
     const now = new Date().toISOString();
     const [sessionStats, sessionLogs, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
-      listWorkoutSessionLogs(supabase, {
-        workoutId: workoutRecord.id,
-        limit: 180,
-        allCycles: true
-      }),
+      listAllUserSessionLogs(supabase, user.id, 180),
       supabase
         .from("workout_exercise_replacements")
         .select("id", { count: "exact", head: true })

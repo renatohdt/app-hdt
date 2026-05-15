@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 import OpenAI from "openai";
 import { resolveBodyType } from "@/lib/body-type";
 import { createHmac } from "node:crypto";
@@ -268,6 +268,8 @@ type MobilitySelectionContext = {
   // Opcional. Usado apenas para telemetria (gravar qual usuario gerou o
   // treino em public.ai_workout_generations). Nao afeta a logica de geracao.
   userId?: string | null;
+  // Instrucoes extras injetadas no final do prompt (usado pelo treino extra).
+  extraInstructions?: string[];
 };
 
 type BlockWindow = {
@@ -566,7 +568,8 @@ export async function generateWorkoutWithAI(
         ? { muscle_focus: strategy.focusRegion }
         : {})
     }),
-    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext) : [])
+    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext) : []),
+    ...(mobilityContext.extraInstructions ?? [])
   ].join("\n");
 
   logInfo("AI", "AI prompt payload diagnostics", {
@@ -3305,4 +3308,78 @@ Responda APENAS com JSON válido, sem texto adicional:
 
   const result = parsed as { replacementExerciseId: string; replacementExerciseName: string; reasoning: string };
   return result;
+}
+
+
+
+// ── Treino Extra ────────────────────────────────────────────────────────────
+
+export type ExtraWorkoutContext = {
+  availableMinutes: number;
+  availableEquipment: import("@/lib/types").HomeEquipment[];
+  focusMuscleGroup: string;
+  previousWorkout: WorkoutPlan | null;
+  recentSessionKeys: string[];
+  excludedExerciseIds: string[];
+  userId?: string | null;
+};
+
+/**
+ * Gera um treino avulso ("extra") de sessão única.
+ * Usa a mesma engine da geração regular, mas com answers modificados (days=1,
+ * time/equipment do contexto) e instruções extras injetadas no prompt.
+ */
+export async function generateExtraWorkoutWithAI(
+  answers: import("@/lib/types").QuizAnswers,
+  diagnosis: import("@/lib/types").DiagnosisResult,
+  exerciseLibrary: import("@/lib/types").ExerciseRecord[],
+  extraContext: ExtraWorkoutContext
+): Promise<WorkoutPlan> {
+  const extraAnswers = {
+    ...answers,
+    days: 1,
+    time: extraContext.availableMinutes,
+    equipment: extraContext.availableEquipment.includes("nenhum") || extraContext.availableEquipment.length === 0
+      ? []
+      : extraContext.availableEquipment,
+    focusRegion: "balanced" as import("@/lib/types").FocusRegion
+  };
+
+  const regularExerciseNames = extraContext.previousWorkout
+    ? extraContext.previousWorkout.sections
+        .flatMap((s) => s.exercises.map((e) => e.name))
+        .slice(0, 20)
+    : [];
+
+  const hasFocus = extraContext.focusMuscleGroup && extraContext.focusMuscleGroup !== "Sem preferência";
+
+  const extraInstructions = [
+    "",
+    "INSTRUÇÕES PARA TREINO EXTRA:",
+    "Este é um treino EXTRA avulso, fora do programa regular. Deve ser COMPLETO e independente (única sessão, apenas 1 Treino A).",
+    `Duração: ${extraContext.availableMinutes} minutos. Respeite rigorosamente esse tempo.`,
+    extraContext.availableEquipment.length > 0 && !extraContext.availableEquipment.includes("nenhum")
+      ? `Equipamentos disponíveis AGORA: ${extraContext.availableEquipment.join(", ")}. Use APENAS esses equipamentos.`
+      : "Equipamentos disponíveis AGORA: apenas peso corporal (bodyweight). Use APENAS exercícios sem equipamento.",
+    hasFocus
+      ? `Intensificar grupo muscular: ${extraContext.focusMuscleGroup}. Priorize exercícios para este grupo.`
+      : "Treino equilibrado, sem foco específico em grupo muscular.",
+    ...(regularExerciseNames.length > 0
+      ? [`Evite repetir estes exercícios do programa regular: ${regularExerciseNames.join(", ")}.`]
+      : []),
+    "Mantenha o mesmo estímulo e nível de dificuldade do programa regular."
+  ];
+
+  return generateWorkoutWithAI(
+    extraAnswers as import("@/lib/types").QuizAnswers,
+    diagnosis,
+    exerciseLibrary,
+    {
+      previousWorkout: extraContext.previousWorkout,
+      lastCompletedWorkoutKey: extraContext.recentSessionKeys[0] ?? null,
+      excludedExerciseIds: extraContext.excludedExerciseIds,
+      userId: extraContext.userId,
+      extraInstructions
+    }
+  );
 }

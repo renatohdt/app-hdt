@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import clsx from "clsx";
 import Link from "next/link";
@@ -26,6 +26,7 @@ import {
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
+import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
 
 type XpResult = {
   phasedUp: boolean;
@@ -311,6 +312,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               </button>
             );
           })}
+          <ExtraWorkoutButton
+            userId={data.user.id}
+            defaultEquipment={Array.isArray(data.answers.equipment) ? data.answers.equipment as import("@/lib/types").HomeEquipment[] : []}
+          />
         </div>
       </Card>
 
@@ -576,3 +581,4 @@ function FeedbackBanner({ feedback }: { feedback: FeedbackState }) {
     </div>
   );
 }
+

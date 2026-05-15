@@ -1,4 +1,4 @@
-import { logWarn } from "@/lib/server-logger";
+﻿import { logWarn } from "@/lib/server-logger";
 import { getSupabaseErrorCode, isSupabaseMissingColumnError } from "@/lib/supabase-errors";
 
 type SupabaseLike = {
@@ -29,12 +29,14 @@ type SaveWorkoutOptions = {
   totalSessions: number;
   createdAt?: string | null;
   scope?: string;
+  type?: "standard" | "extra";
+  expiresAt?: string | null;
 };
 
 export async function fetchLatestWorkoutRecord(supabase: SupabaseLike, options: FetchWorkoutOptions) {
   const scope = options.scope ?? "WORKOUT";
   const fields = buildWorkoutFields(options);
-  const currentResult = await runWorkoutLookup(supabase, options.userId, fields);
+  const currentResult = await runWorkoutLookup(supabase, options.userId, fields, { excludeExtra: true });
 
   if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "total_sessions")) {
     logWarn(scope, "Workout query fallback without total_sessions", {
@@ -43,7 +45,17 @@ export async function fetchLatestWorkoutRecord(supabase: SupabaseLike, options: 
     });
 
     const legacyFields = fields.filter((field) => field !== "total_sessions");
-    const legacyResult = await runWorkoutLookup(supabase, options.userId, legacyFields);
+    const legacyResult = await runWorkoutLookup(supabase, options.userId, legacyFields, { excludeExtra: true });
+
+    // If type column also missing, retry without type filter
+    if (legacyResult.error && isSupabaseMissingColumnError(legacyResult.error, "type")) {
+      const noTypeResult = await runWorkoutLookup(supabase, options.userId, legacyFields, { excludeExtra: false });
+      return {
+        data: normalizeWorkoutRecord(noTypeResult.data),
+        error: noTypeResult.error,
+        compatibility: { totalSessionsColumnAvailable: false }
+      };
+    }
 
     return {
       data: normalizeWorkoutRecord(legacyResult.data),
@@ -51,6 +63,32 @@ export async function fetchLatestWorkoutRecord(supabase: SupabaseLike, options: 
       compatibility: {
         totalSessionsColumnAvailable: false
       }
+    };
+  }
+
+  // If type column not yet created, retry without the filter
+  if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "type")) {
+    logWarn(scope, "Workout query fallback without type filter (column missing)", {
+      user_id: options.userId,
+      error_code: getSupabaseErrorCode(currentResult.error)
+    });
+
+    const fallbackResult = await runWorkoutLookup(supabase, options.userId, fields, { excludeExtra: false });
+
+    if (fallbackResult.error && isSupabaseMissingColumnError(fallbackResult.error, "total_sessions")) {
+      const legacyFields = fields.filter((field) => field !== "total_sessions");
+      const legacyResult = await runWorkoutLookup(supabase, options.userId, legacyFields, { excludeExtra: false });
+      return {
+        data: normalizeWorkoutRecord(legacyResult.data),
+        error: legacyResult.error,
+        compatibility: { totalSessionsColumnAvailable: false }
+      };
+    }
+
+    return {
+      data: normalizeWorkoutRecord(fallbackResult.data),
+      error: fallbackResult.error,
+      compatibility: { totalSessionsColumnAvailable: true }
     };
   }
 
@@ -69,11 +107,16 @@ export async function saveWorkoutRecord(supabase: SupabaseLike, options: SaveWor
     user_id: options.userId,
     hash: options.hash,
     exercises: options.exercises,
-    total_sessions: options.totalSessions
+    total_sessions: options.totalSessions,
+    type: options.type ?? "standard"
   };
 
   if (typeof options.createdAt === "string" && options.createdAt.trim()) {
     fullPayload.created_at = options.createdAt;
+  }
+
+  if (typeof options.expiresAt === "string" && options.expiresAt.trim()) {
+    fullPayload.expires_at = options.expiresAt;
   }
 
   const currentResult = await runWorkoutSave(supabase, options, fullPayload);
@@ -135,11 +178,22 @@ function normalizeWorkoutRecord(value: unknown): WorkoutRecordRow | null {
   };
 }
 
-async function runWorkoutLookup(supabase: SupabaseLike, userId: string, fields: string[]) {
-  return supabase
+async function runWorkoutLookup(
+  supabase: SupabaseLike,
+  userId: string,
+  fields: string[],
+  options: { excludeExtra: boolean }
+) {
+  let query = supabase
     .from("workouts")
     .select(fields.join(", "))
-    .eq("user_id", userId)
+    .eq("user_id", userId);
+
+  if (options.excludeExtra) {
+    query = query.neq("type", "extra");
+  }
+
+  return query
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

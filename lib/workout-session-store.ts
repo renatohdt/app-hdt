@@ -206,6 +206,43 @@ export async function listWorkoutSessionLogs(supabase: SupabaseLike, input: Sess
   return [] as WorkoutSessionLogEntry[];
 }
 
+/**
+ * Retorna todos os logs de sessão do usuário (todos os treinos — standard e extra).
+ * Usado pelo calendário para exibir o histórico completo, incluindo treinos extras.
+ */
+export async function listAllUserSessionLogs(
+  supabase: SupabaseLike,
+  userId: string,
+  limit: number = 180
+): Promise<WorkoutSessionLogEntry[]> {
+  const fields = buildLatestSessionFields(false);
+  const result = await supabase
+    .from("workout_session_logs")
+    .select(fields)
+    .eq("user_id", userId)
+    .order("completed_at", { ascending: false })
+    .limit(limit);
+
+  if (result.error) {
+    // Fallback com campos legados se necessário
+    if (hasLegacyLatestSelectIssue(result.error)) {
+      const legacyResult = await supabase
+        .from("workout_session_logs")
+        .select(buildLatestSessionFields(true))
+        .eq("user_id", userId)
+        .order("completed_at", { ascending: false })
+        .limit(limit);
+
+      if (legacyResult.error || !legacyResult.data) return [] as WorkoutSessionLogEntry[];
+      return legacyResult.data.map((row: unknown) => mapSessionLogRow(row as SessionLogRow));
+    }
+    return [] as WorkoutSessionLogEntry[];
+  }
+
+  if (!result.data) return [] as WorkoutSessionLogEntry[];
+  return result.data.map((row: unknown) => mapSessionLogRow(row as SessionLogRow));
+}
+
 export async function getUserWorkoutSessionForLocalDay(supabase: SupabaseLike, input: UserSessionDayLookupInput) {
   const dayRange = getLocalDayRange(input.referenceDate, input.timeZone ?? WORKOUT_SESSION_TIMEZONE);
   const completedDayResult = await readUserWorkoutSessionForCompletedDay(supabase, input.userId, dayRange, {

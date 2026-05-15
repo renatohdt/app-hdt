@@ -173,3 +173,18 @@ export type DiagnosisResult = {
   message: string;
   trainingShift: string;
 };
+
+export type ExtraWorkoutRequest = {
+  availableMinutes: 20 | 30 | 45 | 60;
+  equipment: HomeEquipment[];
+  focusMuscleGroup: string;
+};
+
+export type ExtraWorkoutResponse = {
+  isPremium: boolean;
+  hasExtraWorkout: boolean;
+  workout: WorkoutPlan | null;
+  expiresAt: string | null;
+  usedThisMonth: number;
+  monthlyLimit: number;
+};

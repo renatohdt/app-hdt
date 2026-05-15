@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import clsx from "clsx";
 import { useMemo, useState } from "react";
-import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target, Trophy } from "lucide-react";
+import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target, Trophy, Zap } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
 import { AchievementsModal } from "@/components/achievements-modal";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
@@ -27,6 +27,7 @@ type RecordedSessionItem = {
   dateKey: string;
   workoutKey: string | null;
   workoutLabel: string;
+  isExtra: boolean;
   sessionNumber: number | null;
   liked: boolean | null;
   intensityLevel: number | null;
@@ -82,12 +83,15 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           return null;
         }
 
-        const workout = entry.workoutKey ? data.workouts[entry.workoutKey] : undefined;
-        const workoutLabel = workout
-          ? formatWorkoutDisplayTitle(workout.title, workout.day)
-          : entry.workoutKey
-            ? `Treino ${entry.workoutKey}`
-            : "Treino concluído";
+        const isExtra = Boolean(entry.workoutKey?.startsWith("extra_"));
+        const workout = entry.workoutKey && !isExtra ? data.workouts[entry.workoutKey] : undefined;
+        const workoutLabel = isExtra
+          ? "Treino Extra"
+          : workout
+            ? formatWorkoutDisplayTitle(workout.title, workout.day)
+            : entry.workoutKey
+              ? `Treino ${entry.workoutKey}`
+              : "Treino concluído";
 
         return {
           id: entry.id,
@@ -95,6 +99,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           dateKey: toDateKey(completedAt),
           workoutKey: entry.workoutKey ?? null,
           workoutLabel,
+          isExtra,
           sessionNumber: entry.sessionNumber > 0 ? entry.sessionNumber : null,
           liked: entry.liked ?? null,
           intensityLevel: entry.intensityLevel ?? null,
@@ -246,7 +251,12 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
             {registerSessions.map((session) => (
               <div
                 key={session.id}
-                className="flex items-center gap-2.5 rounded-[22px] border border-primary/14 bg-primary/[0.08] p-3"
+                className={clsx(
+                  "flex items-center gap-2.5 rounded-[22px] border p-3",
+                  session.isExtra
+                    ? "border-yellow-500/20 bg-yellow-500/[0.07]"
+                    : "border-primary/14 bg-primary/[0.08]"
+                )}
               >
                 <div className="inline-flex min-h-[3.25rem] min-w-[3.25rem] shrink-0 flex-col items-center justify-center rounded-[14px] bg-[#0f2817] px-2">
                   <span className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-primary/70">
@@ -257,8 +267,11 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
 
                 <div className="min-w-0 flex flex-1 items-center justify-between gap-3">
                   <div className="min-w-0 flex items-center gap-2">
+                    {session.isExtra && (
+                      <Zap className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
+                    )}
                     <p className="truncate text-sm font-semibold text-white">{session.workoutLabel}</p>
-                    {session.sessionNumber ? (
+                    {!session.isExtra && session.sessionNumber ? (
                       <span className="shrink-0 text-sm font-semibold text-white">Sessão {session.sessionNumber}</span>
                     ) : null}
                     {session.intensityLevel ? (
@@ -659,3 +672,4 @@ function isSameDay(left: Date, right: Date) {
 function capitalizeLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
+

@@ -14,6 +14,7 @@ type Plan = "annual" | "monthly";
 // Tabela comparativa Free vs Premium
 const COMPARISON = [
   { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
+  { label: "Treino Extra",                                   free: false,         premium: "5 por mês"   },
   { label: "Substituições de exercício",                    free: "2 por plano", premium: "2 por treino" },
   { label: "Gerador de treino",                             free: "1 programa",  premium: "Ilimitados"  },
   { label: "Experiência sem anúncios",                      free: false,         premium: true          },

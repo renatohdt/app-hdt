@@ -1,4 +1,4 @@
-export type AnalyticsEventName =
+﻿export type AnalyticsEventName =
   | "app_session"
   | "home_view"
   | "page_view"
@@ -21,7 +21,11 @@ export type AnalyticsEventName =
   | "purchase"
   // Eventos de escolha de plano
   | "plan_selection_view"
-  | "plan_selected";
+  | "plan_selected"
+  // Eventos de treino extra
+  | "extra_workout_button_click"
+  | "extra_workout_generated"
+  | "extra_workout_completed";
 
 export const HOME_VIEW_EVENTS: AnalyticsEventName[] = ["home_view", "page_view"];
 export const QUIZ_START_EVENTS: AnalyticsEventName[] = ["quiz_started", "quiz_start"];
@@ -76,3 +80,4 @@ export function isTrackableAnalyticsEventName(value: unknown): value is Analytic
 export function isAnonymousTrackableEventName(value: unknown): value is AnalyticsEventName {
   return typeof value === "string" && ANONYMOUS_TRACKABLE_EVENT_NAME_SET.has(value as AnalyticsEventName);
 }
+

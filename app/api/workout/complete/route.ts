@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { diagnoseUser } from "@/lib/diagnosis";
 import { jsonError } from "@/lib/server-response";
@@ -51,6 +51,8 @@ type CompleteWorkoutBody = {
   workoutDifficulty?: unknown; // "muito_facil" | "adequado" | "muito_dificil"
   liked?: unknown;
   intensityLevel?: unknown;
+  workoutType?: unknown; // "extra" para treinos extras
+  workoutId?: unknown;   // ID do treino extra
 };
 
 export const dynamic = "force-dynamic";
@@ -103,6 +105,20 @@ export async function POST(request: NextRequest) {
       body.intensityLevel <= 5
         ? body.intensityLevel
         : null;
+    // Treino extra — fluxo separado e isolado do treino regular
+    if (body.workoutType === "extra") {
+      return handleExtraWorkoutCompletion({
+        supabase,
+        userId: auth.user.id,
+        workoutId: typeof body.workoutId === "string" ? body.workoutId : null,
+        exerciseWeightsPayload,
+        liked,
+        intensityLevel,
+        workoutDifficulty,
+        completedAt: new Date().toISOString()
+      });
+    }
+
     const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: auth.user.id,
       includeCreatedAt: true,
@@ -697,3 +713,118 @@ function serializeWorkoutCompletion(completion: WorkoutSessionLogEntry) {
     completedAt: completion.completedAt
   };
 }
+
+
+async function handleExtraWorkoutCompletion(input: {
+  supabase: NonNullable<ReturnType<typeof import("@/lib/supabase-user").createSupabaseUserClient>>;
+  userId: string;
+  workoutId: string | null;
+  exerciseWeightsPayload: ExerciseWeightPayload[];
+  liked: boolean | null;
+  intensityLevel: number | null;
+  workoutDifficulty: WorkoutDifficulty | null;
+  completedAt: string;
+}) {
+  if (!input.workoutId) {
+    return jsonError("ID do treino extra não informado.", 400);
+  }
+
+  // Confirma que o treino extra pertence ao usuário e está ativo
+  const { data: extraWorkout, error: lookupError } = await input.supabase
+    .from("workouts")
+    .select("id")
+    .eq("id", input.workoutId)
+    .eq("user_id", input.userId)
+    .eq("type", "extra")
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (lookupError || !extraWorkout) {
+    return jsonError("Treino extra não encontrado.", 404);
+  }
+
+  const workoutKey = "extra_A";
+
+  // Obtém a data local do usuário para completed_day_sp
+  const todaySession = await getUserWorkoutSessionForLocalDay(input.supabase as any, { userId: input.userId });
+
+  // Usa createWorkoutSessionLog que tem fallbacks para colunas ausentes
+  const sessionResult = await createWorkoutSessionLog(input.supabase as any, {
+    workoutId: input.workoutId,
+    userId: input.userId,
+    workoutHash: null,
+    workoutKey,
+    planCycleId: null,
+    sessionNumber: 1,
+    completedAt: input.completedAt,
+    completedDaySp: todaySession.dayKey
+  });
+
+  if (!sessionResult.data) {
+    logError("EXTRA_WORKOUT", "Completion log insert failed", {
+      user_id: input.userId,
+      workout_id: input.workoutId,
+      error_code: getSupabaseErrorCode(sessionResult.error),
+      error_message: (sessionResult.error as any)?.message ?? null
+    });
+    return jsonError("Não foi possível registrar a conclusão do treino extra.", 500);
+  }
+
+  const logData = sessionResult.data;
+
+  if (input.liked !== null && input.intensityLevel !== null) {
+    try {
+      await input.supabase
+        .from("workout_session_feedbacks")
+        .insert({
+          user_id: input.userId,
+          session_log_id: logData.id,
+          liked: input.liked,
+          intensity_level: input.intensityLevel
+        });
+    } catch {
+      // feedback é secundário, não quebra o fluxo
+    }
+  }
+
+  const weightEntries = buildWeightLogEntries({
+    payload: input.exerciseWeightsPayload,
+    userId: input.userId,
+    workoutKey,
+    sessionLogId: logData.id,
+    completedAt: input.completedAt
+  });
+
+  if (weightEntries.length) {
+    try {
+      await saveExerciseWeightLogs(input.supabase as any, weightEntries);
+    } catch {
+      // peso é secundário, não quebra o fluxo
+    }
+  }
+
+  // XP conta normalmente para o treino extra
+  const recentSessionDates = await getRecentSessionDates(input.supabase as any, input.userId, 60).catch(() => [] as string[]);
+  await applySessionXp(input.supabase as any, input.userId, {
+    completedAt: input.completedAt,
+    newWeightIncreases: 0,
+    workoutDifficulty: input.workoutDifficulty,
+    recentSessionDates,
+    weeklyTarget: 3
+  }).catch(() => {});
+
+  logInfo("EXTRA_WORKOUT", "Completion saved", { user_id: input.userId, workout_id: input.workoutId });
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      workoutType: "extra",
+      completion: {
+        workoutKey: logData.workoutKey,
+        sessionNumber: logData.sessionNumber,
+        completedAt: logData.completedAt
+      }
+    }
+  });
+}
+
