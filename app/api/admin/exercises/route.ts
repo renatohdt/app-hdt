@@ -3,7 +3,9 @@ import {
   buildExerciseSearchBlob,
   getExerciseEquipment,
   getExerciseLevels,
+  getExerciseLocations,
   getExerciseMuscleGroups,
+  getExerciseTrainingStyles,
   getPrimaryExerciseMuscle,
   normalizeExerciseCatalogText,
   normalizeExerciseEquipment,
@@ -71,6 +73,9 @@ export async function GET(request: Request) {
     const muscleGroup = normalizeExerciseMuscleGroup(searchParams.get("muscle_group"));
     const level = normalizeExerciseLevel(searchParams.get("level"));
     const equipment = normalizeExerciseEquipment(searchParams.get("equipment"));
+    const location = searchParams.get("location") ?? "";
+    const trainingStyle = searchParams.get("training_style") ?? "";
+    const type = normalizeStoredExerciseType(searchParams.get("type") ?? "");
     const { data, error } = await supabase.from("exercises").select("*").order("name");
 
     if (error) {
@@ -94,6 +99,18 @@ export async function GET(request: Request) {
       }
 
       if (equipment && !getExerciseEquipment(exercise).includes(equipment)) {
+        return false;
+      }
+
+      if (location && !getExerciseLocations(exercise).includes(location)) {
+        return false;
+      }
+
+      if (trainingStyle && !getExerciseTrainingStyles(exercise).includes(trainingStyle)) {
+        return false;
+      }
+
+      if (type && normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null) !== type) {
         return false;
       }
 

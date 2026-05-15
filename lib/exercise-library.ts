@@ -1,4 +1,4 @@
-import type { ExerciseRecord } from "@/lib/types";
+﻿import type { ExerciseRecord } from "@/lib/types";
 
 export const EXERCISE_MUSCLE_OPTIONS = [
   { value: "chest", label: "Peito" },
@@ -30,7 +30,7 @@ export const EXERCISE_TYPE_OPTIONS = [
 ] as const;
 
 export const EXERCISE_TRAINING_STYLE_OPTIONS = [
-  { value: "musculacao", label: "Musculação" },
+  { value: "musculacao", label: "Tradicional" },
   { value: "funcional", label: "Funcional" },
   { value: "hiit", label: "HIIT" },
   { value: "calistenia", label: "Calistenia" }
@@ -45,7 +45,7 @@ export const EXERCISE_LEVEL_OPTIONS = [
 export const EXERCISE_LOCATION_OPTIONS = [
   { value: "home", label: "Casa" },
   { value: "gym", label: "Academia" },
-  { value: "condo_gym", label: "Academia de Condomínio" }
+  { value: "condo_gym", label: "Condomínio" }
 ] as const;
 
 export const EXERCISE_EQUIPMENT_OPTIONS = [
@@ -62,6 +62,7 @@ export const EXERCISE_EQUIPMENT_OPTIONS = [
 
 const MUSCLE_LABELS = new Map<string, string>(EXERCISE_MUSCLE_OPTIONS.map((option) => [option.value, option.label]));
 const TYPE_LABELS = new Map<string, string>(EXERCISE_TYPE_OPTIONS.map((option) => [option.value, option.label]));
+const TRAINING_STYLE_LABELS = new Map<string, string>(EXERCISE_TRAINING_STYLE_OPTIONS.map((option) => [option.value, option.label]));
 const LEVEL_LABELS = new Map<string, string>(EXERCISE_LEVEL_OPTIONS.map((option) => [option.value, option.label]));
 const LOCATION_LABELS = new Map<string, string>(EXERCISE_LOCATION_OPTIONS.map((option) => [option.value, option.label]));
 const EQUIPMENT_LABELS = new Map<string, string>(EXERCISE_EQUIPMENT_OPTIONS.map((option) => [option.value, option.label]));
@@ -207,7 +208,7 @@ const EQUIPMENT_ALIASES: Record<string, string> = {
 export function normalizeExerciseCatalogText(value?: string | null) {
   return value
     ?.normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -402,6 +403,21 @@ export function getExerciseRequiredEquipment(exercise?: Pick<ExerciseRecord, "re
 export function formatExerciseEquipmentLabel(value?: string | null) {
   const normalized = normalizeExerciseEquipment(value);
   return normalized ? EQUIPMENT_LABELS.get(normalized) ?? value ?? normalized : "Não informado";
+}
+
+export function getExerciseTrainingStyles(exercise?: Pick<ExerciseRecord, "training_styles" | "metadata"> | null) {
+  if (!exercise) {
+    return [];
+  }
+
+  const raw = exercise.training_styles ?? (exercise.metadata as Record<string, unknown> | undefined)?.["training_styles"];
+  const list = Array.isArray(raw) ? (raw as string[]) : [];
+  return Array.from(new Set(list.filter(Boolean)));
+}
+
+export function formatExerciseTrainingStyleLabel(value?: string | null) {
+  if (!value) return "Não informado";
+  return TRAINING_STYLE_LABELS.get(value) ?? value;
 }
 
 export function buildExerciseSearchBlob(

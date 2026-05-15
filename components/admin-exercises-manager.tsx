@@ -9,7 +9,10 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import {
   EXERCISE_EQUIPMENT_OPTIONS,
   EXERCISE_LEVEL_OPTIONS,
+  EXERCISE_LOCATION_OPTIONS,
   EXERCISE_MUSCLE_OPTIONS,
+  EXERCISE_TRAINING_STYLE_OPTIONS,
+  EXERCISE_TYPE_OPTIONS,
   formatExerciseEquipmentLabel,
   formatExerciseLevelLabel,
   formatExerciseMuscleGroups,
@@ -24,6 +27,9 @@ type FilterState = {
   muscleGroup: string;
   level: string;
   equipment: string;
+  location: string;
+  trainingStyle: string;
+  type: string;
 };
 
 type CoverageItem = {
@@ -44,7 +50,10 @@ const PAGE_SIZE = 10;
 const emptyFilters: FilterState = {
   muscleGroup: "",
   level: "",
-  equipment: ""
+  equipment: "",
+  location: "",
+  trainingStyle: "",
+  type: ""
 };
 
 export function AdminExercisesManager({ initialExercises }: { initialExercises: ExerciseRecord[] }) {
@@ -63,7 +72,8 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
 
   const normalizedSearch = useMemo(() => search.trim(), [search]);
   const hasActiveFilters = Boolean(
-    normalizedSearch || filters.muscleGroup || filters.level || filters.equipment
+    normalizedSearch || filters.muscleGroup || filters.level || filters.equipment ||
+    filters.location || filters.trainingStyle || filters.type
   );
   const editingExercise =
     catalogExercises.find((exercise) => exercise.id === editingExerciseId) ??
@@ -81,7 +91,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [normalizedSearch, filters.equipment, filters.level, filters.muscleGroup]);
+  }, [normalizedSearch, filters.equipment, filters.level, filters.muscleGroup, filters.location, filters.trainingStyle, filters.type]);
 
   useEffect(() => {
     if (currentPage !== safeCurrentPage) {
@@ -114,6 +124,18 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
 
         if (filters.equipment) {
           params.set("equipment", filters.equipment);
+        }
+
+        if (filters.location) {
+          params.set("location", filters.location);
+        }
+
+        if (filters.trainingStyle) {
+          params.set("training_style", filters.trainingStyle);
+        }
+
+        if (filters.type) {
+          params.set("type", filters.type);
         }
 
         const query = params.size ? `?${params.toString()}` : "";
@@ -160,6 +182,9 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
     filters.equipment,
     filters.level,
     filters.muscleGroup,
+    filters.location,
+    filters.trainingStyle,
+    filters.type,
     hasActiveFilters,
     normalizedSearch,
     refreshKey
@@ -299,7 +324,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
           ) : null}
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.8fr))]">
+        <div className="space-y-3">
           <label className="grid gap-2">
             <span className="text-sm text-white/72">Busca textual</span>
             <input
@@ -311,29 +336,55 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
             />
           </label>
 
-          <FilterSelect
-            label="Grupo muscular"
-            value={filters.muscleGroup}
-            options={EXERCISE_MUSCLE_OPTIONS}
-            placeholder="Todos"
-            onChange={(value) => setFilters((current) => ({ ...current, muscleGroup: value }))}
-          />
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6 items-end">
+            <FilterSelect
+              label="Grupo muscular"
+              value={filters.muscleGroup}
+              options={EXERCISE_MUSCLE_OPTIONS}
+              placeholder="Todos"
+              onChange={(value) => setFilters((current) => ({ ...current, muscleGroup: value }))}
+            />
 
-          <FilterSelect
-            label="Nível"
-            value={filters.level}
-            options={EXERCISE_LEVEL_OPTIONS}
-            placeholder="Todos"
-            onChange={(value) => setFilters((current) => ({ ...current, level: value }))}
-          />
+            <FilterSelect
+              label="Nível"
+              value={filters.level}
+              options={EXERCISE_LEVEL_OPTIONS}
+              placeholder="Todos"
+              onChange={(value) => setFilters((current) => ({ ...current, level: value }))}
+            />
 
-          <FilterSelect
-            label="Material"
-            value={filters.equipment}
-            options={EXERCISE_EQUIPMENT_OPTIONS}
-            placeholder="Todos"
-            onChange={(value) => setFilters((current) => ({ ...current, equipment: value }))}
-          />
+            <FilterSelect
+              label="Material"
+              value={filters.equipment}
+              options={EXERCISE_EQUIPMENT_OPTIONS}
+              placeholder="Todos"
+              onChange={(value) => setFilters((current) => ({ ...current, equipment: value }))}
+            />
+
+            <FilterSelect
+              label="Local de treino"
+              value={filters.location}
+              options={EXERCISE_LOCATION_OPTIONS}
+              placeholder="Todos"
+              onChange={(value) => setFilters((current) => ({ ...current, location: value }))}
+            />
+
+            <FilterSelect
+              label="Estilo de treino"
+              value={filters.trainingStyle}
+              options={EXERCISE_TRAINING_STYLE_OPTIONS}
+              placeholder="Todos"
+              onChange={(value) => setFilters((current) => ({ ...current, trainingStyle: value }))}
+            />
+
+            <FilterSelect
+              label="Tipo"
+              value={filters.type}
+              options={EXERCISE_TYPE_OPTIONS}
+              placeholder="Todos"
+              onChange={(value) => setFilters((current) => ({ ...current, type: value }))}
+            />
+          </div>
         </div>
 
         <div className="min-h-6 text-sm">
@@ -429,7 +480,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
             {totalPages > 1 ? (
               <>
                 {" "}
-                <span className="text-white/28">•</span>{" "}
+                <span className="text-white/28">⬢</span>{" "}
                 Página <span className="font-semibold text-white">{safeCurrentPage}</span> de{" "}
                 <span className="font-semibold text-white">{totalPages}</span>
               </>
@@ -516,11 +567,11 @@ function FilterSelect({
 }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm text-white/72">{label}</span>
+      <span className="text-xs text-white/72">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-white outline-none transition focus:border-primary"
+        className="min-h-10 rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-primary"
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
