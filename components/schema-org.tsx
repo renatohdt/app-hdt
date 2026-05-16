@@ -1,33 +1,46 @@
 /**
  * SchemaOrg — dados estruturados JSON-LD para SEO
  *
- * Este é um Server Component (sem "use client"), então o Google recebe
+ * Este é um Server Component async (sem "use client"), então o Google recebe
  * o conteúdo diretamente no HTML, sem precisar executar JavaScript.
  *
  * Schemas implementados:
  *  - SoftwareApplication: identifica o app para o Google (categoria, preço, etc.)
+ *    → inclui aggregateRating calculado em tempo real a partir das avaliações reais
  *  - Organization: identifica a marca e seus perfis sociais
  *  - FAQPage: marca as perguntas frequentes da homepage para rich results
  */
 
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+
 const SITE_URL = "https://app.horadotreino.com.br";
 
-const softwareApplicationSchema = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "Hora do Treino",
-  url: SITE_URL,
-  applicationCategory: "HealthAndFitnessApplication",
-  operatingSystem: "Web, Android, iOS",
-  description:
-    "Treino personalizado online com método de personal trainer e montado por IA. Crie seu plano de treino em casa grátis.",
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "BRL",
-  },
-  inLanguage: "pt-BR",
-};
+// Mínimo de avaliações para incluir o aggregateRating no schema
+const MIN_RATING_COUNT = 5;
+
+async function fetchAggregateRating(): Promise<{ ratingValue: string; ratingCount: number } | null> {
+  try {
+    const supabase = createSupabaseAdminClient();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
+      .from("user_feedbacks")
+      .select("rating");
+
+    if (error || !data || data.length < MIN_RATING_COUNT) return null;
+
+    const total = data.length;
+    const avg = data.reduce((sum, row) => sum + (row.rating as number), 0) / total;
+    const rounded = Math.round(avg * 10) / 10; // ex: 4.7
+
+    return {
+      ratingValue: rounded.toFixed(1),
+      ratingCount: total,
+    };
+  } catch {
+    return null;
+  }
+}
 
 const organizationSchema = {
   "@context": "https://schema.org",
@@ -87,7 +100,35 @@ const faqSchema = {
   ],
 };
 
-export function SchemaOrg() {
+export async function SchemaOrg() {
+  const aggregateRating = await fetchAggregateRating();
+
+  const softwareApplicationSchema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Hora do Treino",
+    url: SITE_URL,
+    applicationCategory: "HealthAndFitnessApplication",
+    operatingSystem: "Web, Android, iOS",
+    description:
+      "Treino personalizado online com método de personal trainer e montado por IA. Crie seu plano de treino em casa grátis.",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "BRL",
+    },
+    inLanguage: "pt-BR",
+    ...(aggregateRating && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: aggregateRating.ratingValue,
+        ratingCount: aggregateRating.ratingCount,
+        bestRating: "5",
+        worstRating: "1",
+      },
+    }),
+  };
+
   return (
     <>
       <script

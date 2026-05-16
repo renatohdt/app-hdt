@@ -9,6 +9,7 @@ import { QuizForm } from "@/components/quiz-form";
 import { Card, Container, PageShell } from "@/components/ui";
 import { clientLogError } from "@/lib/client-logger";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import type { PublicReview } from "@/app/api/public/reviews/route";
 
 // ─── FAQ item ────────────────────────────────────────────────────────────────
 function FaqItem({ question, answer }: { question: string; answer: string }) {
@@ -41,6 +42,18 @@ export default function HomePage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [hasSession, setHasSession] = useState(false);
   const quizRef = useRef<HTMLElement>(null);
+  const [reviews, setReviews] = useState<PublicReview[]>([]);
+
+  useEffect(() => {
+    fetch("/api/public/reviews")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setReviews(json.data.slice(0, 4));
+        }
+      })
+      .catch(() => { /* silencioso — seção simplesmente não aparece */ });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -355,6 +368,58 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── DEPOIMENTOS ── */}
+      {reviews.length > 0 && (
+        <section className="bg-[#111] px-4 py-[70px]" aria-labelledby="reviews-title">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-10 text-center">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Avaliações reais
+              </div>
+              <h2 id="reviews-title" className="text-[clamp(22px,5vw,38px)] font-black tracking-tight">
+                O que dizem quem treina em casa com a{" "}
+                <span className="text-primary">Hora do Treino</span>
+              </h2>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {reviews.map((review, i) => (
+                <article
+                  key={i}
+                  className="flex flex-col justify-between rounded-2xl border border-white/10 bg-[#080808] p-6"
+                >
+                  {/* Estrelas */}
+                  <div className="mb-4 flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, s) => (
+                      <svg
+                        key={s}
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className={`h-4 w-4 ${s < review.rating ? "text-primary" : "text-white/20"}`}
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+
+                  {/* Comentário */}
+                  <p className="flex-1 text-sm leading-6 text-white/70">
+                    &ldquo;{review.comment}&rdquo;
+                  </p>
+
+                  {/* Nome */}
+                  <p className="mt-5 text-sm font-semibold text-white/50">
+                    — {review.first_name}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── FAQ ── */}
       <section id="faq" className="bg-[#111] px-4 py-[70px]" aria-labelledby="faq-title">
