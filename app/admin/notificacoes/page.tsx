@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Send, Users, Zap, Clock } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 
 type Audience = "all" | "premium" | "inactive";
+type StatsState = { total: number | null; loading: boolean };
 type SendResult = { sent: number; failed: number; total: number };
 
 const AUDIENCE_OPTIONS: { value: Audience; label: string; description: string; icon: typeof Users }[] = [
@@ -36,6 +37,16 @@ export default function NotificacoesAdminPage() {
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<StatsState>({ total: null, loading: true });
+
+  useEffect(() => {
+    fetch("/api/admin/push/stats")
+      .then((res) => res.json())
+      .then((data: { success: boolean; data?: { total: number } }) => {
+        setStats({ total: data.success ? (data.data?.total ?? 0) : null, loading: false });
+      })
+      .catch(() => setStats({ total: null, loading: false }));
+  }, []);
 
   async function handleSend() {
     if (!title.trim() || !message.trim()) return;
@@ -76,6 +87,28 @@ export default function NotificacoesAdminPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">Administração</p>
         <h1 className="text-[2.35rem] font-semibold tracking-tight text-white sm:text-[2.8rem]">Notificações Push</h1>
         <p className="text-sm text-white/54">Envie notificações diretamente para os dispositivos dos usuários.</p>
+      </div>
+
+      {/* Stat: usuários com notificações ativas */}
+      <div className="flex items-center gap-4 rounded-[20px] border border-primary/20 bg-primary/[0.06] px-6 py-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-primary/15">
+          <Bell className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/46">Usuários inscritos</p>
+          {stats.loading ? (
+            <p className="mt-0.5 text-2xl font-bold text-white/30">—</p>
+          ) : stats.total === null ? (
+            <p className="mt-0.5 text-sm text-red-400">Erro ao carregar</p>
+          ) : (
+            <p className="mt-0.5 text-2xl font-bold text-white">
+              {stats.total.toLocaleString("pt-BR")}
+              <span className="ml-2 text-sm font-normal text-white/46">
+                {stats.total === 1 ? "usuário ativou notificações" : "usuários ativaram notificações"}
+              </span>
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
