@@ -607,7 +607,7 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
             className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-primary text-[16px] font-bold text-white transition hover:brightness-110 disabled:opacity-60"
           >
             {completing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-            {completing ? "Registrando..." : "Treino Concluído!"}
+            {completing ? "Registrando..." : "Finalizar Treino!"}
           </button>
         )}
       </div>

@@ -406,7 +406,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           )
         ) : (
           <Button onClick={() => setConfirmCompletion(true)} className="min-h-14 w-full !text-[20px]">
-            Treino Concluído!
+            Finalizar Treino!
           </Button>
         )}
       </div>
