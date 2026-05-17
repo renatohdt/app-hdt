@@ -59,7 +59,7 @@ export function TrainingInlineAd() {
       <ins
         ref={adRef}
         className="adsbygoogle"
-        style={{ display: "inline-block", width: "400px", height: "60px" }}
+        style={{ display: "inline-block", width: "320px", height: "50px" }}
         data-ad-client={ADSENSE_CLIENT}
         data-ad-slot={AD_SLOT}
       />
