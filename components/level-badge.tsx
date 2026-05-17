@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ALMOST_THERE_MESSAGE,
   PHASE_LABELS,
@@ -127,21 +128,21 @@ function LevelModal({
     avancado:          "Faixa preta! Você tem acesso ao melhor que o app pode oferecer.",
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5"
       onClick={onClose}
     >
       <div
-        className={`w-full max-w-[320px] max-h-[80vh] overflow-y-auto rounded-[20px] border bg-[#111] p-4 shadow-2xl ${colors.ring}`}
+        className={`w-full max-w-[360px] rounded-[24px] border bg-[#111] p-5 shadow-2xl ${colors.ring}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho */}
-        <div className="mb-2.5 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between">
           <span className={`text-base font-bold ${colors.text}`}>{label}</span>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-white/50 hover:bg-white/20 hover:text-white transition"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/50 transition active:bg-white/20"
             aria-label="Fechar"
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -182,30 +183,31 @@ function LevelModal({
 
         {/* Mensagem de estado */}
         {isMax ? (
-          <p className="text-center text-sm font-semibold text-yellow-400">
+          <p className="text-center text-xs font-semibold text-yellow-400">
             🏆 Nível máximo alcançado!
           </p>
         ) : isReadyButWaiting ? (
-          <p className="rounded-lg border border-green-500/30 bg-white/5 px-3 py-2 text-center text-xs text-green-400">
+          <p className="rounded-xl border border-green-500/30 bg-white/5 px-3 py-2 text-center text-xs text-green-400">
             ✅ {ALMOST_THERE_MESSAGE}
           </p>
         ) : (
           <div>
-            <p className="mb-1 text-center text-xs text-white/40">Como evoluir:</p>
-            <ul className="space-y-0.5 text-xs text-white/60">
-              <li>🏋️ Conclua treinos <span className="font-medium text-white/80">+2 XP</span></li>
-              <li>📅 Semana perfeita <span className="font-medium text-white/80">+5 XP</span></li>
-              <li>📆 Mês consistente (≥50%) <span className="font-medium text-white/80">+3 XP</span></li>
-              <li>⚖️ Aumente a carga <span className="font-medium text-white/80">+1 XP</span></li>
-              <li>🔥 Sequência de 7 dias <span className="font-medium text-white/80">+5 XP</span></li>
+            <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-white/30">Como evoluir</p>
+            <ul className="space-y-1 text-xs text-white/60">
+              <li>🏋️ Conclua treinos <span className="font-semibold text-white/85">+2 XP</span></li>
+              <li>📅 Semana perfeita <span className="font-semibold text-white/85">+5 XP</span></li>
+              <li>📆 Mês consistente (≥50%) <span className="font-semibold text-white/85">+3 XP</span></li>
+              <li>🏋️‍♂️ Aumente a carga <span className="font-semibold text-white/85">+1 XP</span></li>
+              <li>🔥 Sequência de 7 dias <span className="font-semibold text-white/85">+5 XP</span></li>
             </ul>
-            <p className="mt-2 text-center text-xs text-white/30">
+            <p className="mt-2 text-center text-[10px] text-white/30">
               Avanço liberado após 6 meses na fase + 250 XP
             </p>
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

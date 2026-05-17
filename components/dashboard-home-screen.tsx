@@ -48,6 +48,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const [showUpsellBanner, setShowUpsellBanner] = useState(false);
   const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [showFreeLimitPopup, setShowFreeLimitPopup] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [lastWorkoutGeneratedAt, setLastWorkoutGeneratedAt] = useState<string | null | undefined>(undefined);
@@ -197,7 +198,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
     if (isGenerating) return;
     const daysLeft = daysUntilNextFreeGeneration(lastWorkoutGeneratedAt);
     if (!subscription?.isPremium && daysLeft > 0) {
-      setShowWorkoutUpsell(true);
+      setShowFreeLimitPopup(true);
       return;
     }
     setShowGenerateConfirm(true);
@@ -239,19 +240,29 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   return (
     <AppShell className="space-y-4 sm:space-y-4">
       <Card className="overflow-hidden rounded-[24px] border-white/[0.06] bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.13),transparent_62%),linear-gradient(180deg,rgba(255,255,255,0.038),rgba(255,255,255,0.016))] px-5 pb-[22px] pt-[22px] shadow-[0_12px_28px_rgba(0,0,0,0.2)] sm:px-5 sm:pb-[22px] sm:pt-[22px]">
-        <div className="relative flex items-center justify-center">
+        <div className="flex items-center justify-between mb-4">
           <img
             src={HOME_LOGO_URL}
             alt="Hora do Treino"
-            className="mt-1 mb-4 h-auto w-full max-w-[140px]"
+            className="h-auto max-w-[130px]"
           />
-          <Link
-            href="/perfil"
-            className="absolute right-0 top-1 flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
-            title="Dados para Treino"
-          >
-            <Settings className="h-4 w-4" />
-          </Link>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleGenerateWorkoutClick}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
+              title="Gerar Novo Programa de Treino"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            <Link
+              href="/perfil"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
+              title="Dados para Treino"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
 
         <div className="text-center">
@@ -259,16 +270,15 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
             Olá, {firstName}
           </h1>
           {levelData && (
-            <div className="mb-2 flex justify-center">
-              <LevelBadge data={levelData} />
+            <div className="mb-[22px] flex justify-center">
+              <div className="rounded-full border border-white/20 px-4 py-1.5">
+                <LevelBadge data={levelData} />
+              </div>
             </div>
           )}
-          <p className="mx-auto mb-[22px] max-w-[24rem] text-[13px] font-normal leading-[1.45] text-white/56">
-            {getMotivationLine(data.user.goal)}
-          </p>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-primary/86">Próximo treino</p>
-          <p className="mx-auto mb-[18px] max-w-[18rem] text-[18px] font-bold leading-[1.15] text-white">
-            {featuredWorkoutText}
+          <p className="mx-auto mb-[18px] max-w-[18rem] text-center text-[18px] font-bold leading-[1.15]">
+            <span className="text-primary/86">Próximo: </span>
+            <span className="text-white">{featuredWorkoutText}</span>
           </p>
         </div>
 
@@ -357,7 +367,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
         </div>
       </Card>
 
-      {/* Card de progresso ou ações rápidas */}
+      {/* Card de progresso — geração em andamento */}
       {isGenerating ? (
         <div ref={generatingCardRef} className="overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/14 via-[#0f0f0f] to-[#151515] p-5">
           <div className="flex flex-col gap-5">
@@ -416,59 +426,11 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
             </div>
           </div>
         </div>
-      ) : (
-        <>
-          <Card className="space-y-4 p-4 shadow-none">
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Seu plano</p>
-              <p className="font-semibold text-white">Gerar Novo Programa de Treino</p>
-              <p className="text-[13px] leading-5 text-white/54">
-                Use este botão sempre que mudar algo no seu perfil — objetivo, dias de treino, equipamentos ou tempo disponível. A IA usará seus dados atuais para montar um plano novo.
-              </p>
-            </div>
-
-            {(() => {
-              const daysLeft = daysUntilNextFreeGeneration(lastWorkoutGeneratedAt);
-              if (!subscription?.isPremium && daysLeft > 0) {
-                return (
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowWorkoutUpsell(true)}
-                      className="inline-flex w-full items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.08] px-4 py-2.5 text-sm font-semibold text-primary/80 transition hover:bg-primary/12"
-                    >
-                      <Lock className="h-4 w-4" />
-                      Gerar Novo Programa de Treino
-                    </button>
-                    <p className="text-center text-xs text-white/40">
-                      Disponível novamente em {daysLeft} dia{daysLeft === 1 ? "" : "s"} ·{" "}
-                      <button type="button" className="text-primary/70 underline" onClick={() => setShowWorkoutUpsell(true)}>
-                        Assine o Premium
-                      </button>
-                    </p>
-                  </div>
-                );
-              }
-              return (
-                <button
-                  type="button"
-                  onClick={handleGenerateWorkoutClick}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
-                >
-                  <RefreshCw className="h-4 w-4 shrink-0" />
-                  Gerar Novo Programa de Treino
-                </button>
-              );
-            })()}
-
-            {generateError ? (
-              <div className="rounded-[18px] border border-red-500/20 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
-                {generateError}
-              </div>
-            ) : null}
-          </Card>
-        </>
-      )}
+      ) : generateError ? (
+        <div className="rounded-[18px] border border-red-500/20 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
+          {generateError}
+        </div>
+      ) : null}
 
       {/* Banner Premium — exibido apenas para usuários do plano free */}
       {isFreePlan && (
@@ -579,7 +541,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
             </div>
             <p className="mb-1 text-base font-semibold text-white">Gerar novo programa?</p>
             <p className="mb-5 text-sm leading-5 text-white/56">
-              Seu programa atual será substituído e <strong className="text-white/80">todas as sessões registradas serão reiniciadas</strong>. Essa ação não pode ser desfeita.
+              Seu programa atual será substituído e <strong className="text-white/80">todas as sessões registradas serão reiniciadas</strong>. Não poderá ser desfeita, recomendamos seguir caso houve alteração no seu Perfil (objetivo, equipamentos, tempo...)
             </p>
             <div className="flex flex-col gap-2">
               <button
@@ -600,6 +562,42 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           </div>
         </div>
       ) : null}
+
+      {/* ── Popup de limite free — gerar programa ───────────────────── */}
+      {showFreeLimitPopup ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/12">
+              <RefreshCw className="h-5 w-5 text-primary" />
+            </div>
+            <p className="mb-1 text-base font-semibold text-white">Gerar novo programa de treino?</p>
+            <p className="mb-1 text-sm leading-5 text-white/56">
+              Essa função estará disponível novamente dentro de:{" "}
+              <strong className="text-white/80">{daysUntilNextFreeGeneration(lastWorkoutGeneratedAt)} dias</strong>.
+            </p>
+            <p className="mb-5 text-sm leading-5 text-white/56">
+              Assine o Premium e gere programas livremente.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowFreeLimitPopup(false); router.push("/premium"); }}
+                className="flex h-12 w-full items-center justify-center rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
+              >
+                Assinar o Premium
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFreeLimitPopup(false)}
+                className="rounded-2xl px-4 py-2.5 text-sm font-medium text-white/54 transition hover:text-white/80"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* ── Popup de regressão de nível (inatividade) ────────────────── */}
       {showRegressionPopup && (
         <LevelPopup
