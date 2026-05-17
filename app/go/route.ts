@@ -17,11 +17,13 @@ const SOURCE_MAP: Record<string, string> = {
   x: "twitter",
   wa: "whatsapp",
   bsky: "bluesky",
+  footer: "footer",
 };
 
 const MEDIUM_MAP: Record<string, string> = {
   treino: "workout",
   conquista: "achievement",
+  rodape: "footer_share",
 };
 
 const BASE_URL = "https://app.horadotreino.com.br";

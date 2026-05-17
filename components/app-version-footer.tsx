@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 
-const APP_SHARE_URL = "https://app.horadotreino.com.br/";
+const APP_SHARE_URL = "https://app.horadotreino.com.br/go?s=footer&m=rodape";
 const APP_SHARE_URL_LABEL = "app.horadotreino.com.br";
+const APP_SHARE_MESSAGE = "Já conhece a Hora do Treino? Vem treinar comigo!";
 const FEEDBACK_URL = "https://horadotreino.com.br/fale-conosco/";
 const SOCIAL_LINKS = [
   {
@@ -55,7 +56,8 @@ export function AppVersionFooter() {
   }, []);
 
   async function handleCopyLink() {
-    const copied = await copyText(APP_SHARE_URL);
+    const textToCopy = `${APP_SHARE_MESSAGE}\n${APP_SHARE_URL}`;
+    const copied = await copyText(textToCopy);
 
     if (timeoutRef.current) {
       window.clearTimeout(timeoutRef.current);
