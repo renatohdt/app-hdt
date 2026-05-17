@@ -247,7 +247,8 @@ export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: strin
         className="adsbygoogle"
         style={{
           display: "block",
-          width: "100%"
+          width: "100%",
+          minHeight: "50px"
         }}
         data-ad-client={ADSENSE_CLIENT}
         data-ad-slot={slot}
