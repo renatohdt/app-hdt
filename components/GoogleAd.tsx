@@ -14,9 +14,9 @@ declare global {
 
 const ADSENSE_SCRIPT_EVENT = "google-adsense:loaded";
 const ADSENSE_CLIENT = "ca-pub-1213559545344901";
-const ADSENSE_SLOT = "7658583800";
+const DEFAULT_ADSENSE_SLOT = "7658583800";
 
-export default function GoogleAd() {
+export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: string } = {}) {
   const pathname = usePathname();
   const { canUseAds } = useConsentPreferences();
   const adRef = useRef<HTMLModElement | null>(null);
@@ -247,11 +247,10 @@ export default function GoogleAd() {
         className="adsbygoogle"
         style={{
           display: "block",
-          width: "100%",
-          minHeight: "280px"
+          width: "100%"
         }}
         data-ad-client={ADSENSE_CLIENT}
-        data-ad-slot={ADSENSE_SLOT}
+        data-ad-slot={slot}
         data-ad-format="auto"
         data-full-width-responsive="true"
       />

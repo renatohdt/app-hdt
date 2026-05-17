@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { AppBottomNav } from "@/components/app-bottom-nav";
 import { PageShell } from "@/components/ui";
 import { FeedbackModal } from "@/components/feedback-modal";
+import { StickyAdBanner } from "@/components/StickyAdBanner";
 
 export function AppShell({
   children,
@@ -20,6 +21,7 @@ export function AppShell({
 
       <div className={clsx("mx-auto w-full max-w-[var(--app-shell-max)] space-y-4 sm:space-y-5", className)}>{children}</div>
 
+      {showNav ? <StickyAdBanner /> : null}
       {showNav ? <AppBottomNav /> : null}
       <FeedbackModal />
     </PageShell>

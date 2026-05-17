@@ -367,9 +367,6 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           />
         ))}
 
-        {/* Anúncio no final da lista — apenas para usuários free */}
-        {!subscription?.isPremium ? <GoogleAd /> : null}
-
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
         {isCycleComplete ? (
@@ -500,7 +497,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       ) : null}
 
       {showCompletionPopup ? (
-        <WorkoutCompletionPopup onClose={() => setShowCompletionPopup(false)} />
+        <WorkoutCompletionPopup
+          onClose={() => setShowCompletionPopup(false)}
+          showAd={!subscription?.isPremium}
+        />
       ) : null}
 
       {showProgramUpsell ? (

@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { ShareButton } from "@/components/share-button";
+import GoogleAd from "@/components/GoogleAd";
+
+const TRAINING_AD_SLOT = "2572593951";
 
 const FUNNY_PHRASES = [
   "Tô até vendo o pump!",
@@ -62,7 +65,7 @@ function generateParticles(count: number): Particle[] {
   });
 }
 
-export function WorkoutCompletionPopup({ onClose }: { onClose: () => void }) {
+export function WorkoutCompletionPopup({ onClose, showAd = false }: { onClose: () => void; showAd?: boolean }) {
   const [phrase] = useState<string>(() => {
     const index = Math.floor(Math.random() * FUNNY_PHRASES.length);
     return FUNNY_PHRASES[index] ?? FUNNY_PHRASES[0]!;
@@ -201,6 +204,16 @@ export function WorkoutCompletionPopup({ onClose }: { onClose: () => void }) {
           >
             <ShareButton context="workout" />
           </div>
+
+          {/* Anúncio — exibido apenas para usuários free, após o momento de celebração */}
+          {showAd ? (
+            <div
+              className="mt-5 overflow-hidden rounded-xl"
+              style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}
+            >
+              <GoogleAd slot={TRAINING_AD_SLOT} />
+            </div>
+          ) : null}
 
         </div>
       </div>
