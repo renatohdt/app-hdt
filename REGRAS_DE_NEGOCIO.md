@@ -40,7 +40,7 @@ Funcionalidades **não disponíveis** no plano gratuito:
 ### 2.2 Plano Premium
 
 Inclui tudo do plano gratuito, mais:
-- Substituição de exercício **ilimitada** por programa de treino
+- Substituição de exercício 2 por treino e não por programa de treino.
 - Geração de novos programas de treino **ilimitada** (novo programa gerado automaticamente ao concluir o atual)
 - Evolução de treino com IA
 - **Experiência sem anúncios** (anúncios do Google AdSense são exibidos apenas no plano gratuito)
@@ -58,7 +58,7 @@ Inclui tudo do plano gratuito, mais:
 - O treino é gerado com base nas respostas do formulário inicial do usuário
 - A IA utiliza apenas os exercícios cadastrados pelo administrador
 - A IA segue as regras de treino definidas pelo administrador
-- O treino gerado é personalizado por: objetivo, nível, equipamentos disponíveis, frequência semanal
+- O treino gerado é personalizado por: objetivo, nível, equipamentos disponíveis, frequência semanal, tempo disponível, exercícios excluídos, intensidade muscular
 
 ### Ciclo de um programa de treino
 
@@ -78,7 +78,7 @@ Inclui tudo do plano gratuito, mais:
 ## 4. Substituição de Exercício
 
 - Usuários **freemium**: até **2 substituições por programa de treino**
-- Usuários **premium**: substituições **ilimitadas**
+- Usuários **premium**: substituições 2 por treino.
 - A substituição é feita pela IA, respeitando o grupo muscular e nível do exercício original
 - O contador de substituições **zera automaticamente** quando um novo programa de treino é gerado
 
@@ -87,8 +87,8 @@ Inclui tudo do plano gratuito, mais:
 ## 5. Evolução de Treino com IA
 
 - Disponível **apenas para usuários premium**
-- A IA analisa o histórico do usuário (cargas, frequência, desempenho) para sugerir progressão
-- [Definir periodicidade: ex. sugestão de evolução a cada 4 semanas]
+- A IA analisa o histórico do usuário (cargas, frequência, feedback) para sugerir progressão
+- A troca ocorre após a finalização de sessões definidas pela IA. 
 
 ---
 
@@ -121,7 +121,7 @@ A emissão de nota fiscal será feita de forma manual pelo administrador em uma 
 
 ### 6.3 Cupons e Promoções
 
-Funcionalidade adiada para uma fase futura. Será implementada após análise de viabilidade financeira.
+Promoção 30 dias de premium grátis para quem compartilhar e tiver 5 usuários cadastrados pelo cupom ou link do usuário. 
 
 ---
 
@@ -188,16 +188,13 @@ Os momentos em que o usuário free verá o incentivo para assinar o premium:
 - O administrador pode cadastrar, editar e remover exercícios do banco
 - O administrador pode atualizar as regras de treino utilizadas pela IA
 - Alterações no banco de exercícios afetam apenas os **novos treinos gerados**, não os treinos já existentes dos usuários
-- [Definir quem tem acesso administrativo]
+- Atualmente somente o fundador Renato Santiago, pode ter acesso administrativo.
 
 ---
 
 ## 12. Pendências / A Definir
 
-- [ ] Periodicidade da evolução de treino com IA (sugestão: a cada 4 semanas ou ao concluir programa)
 - [ ] Método de login/cadastro (e-mail+senha / Google / Apple)
 - [ ] Política de exclusão de conta
 - [ ] Política de inatividade
-- [ ] Quem tem acesso administrativo
 - [ ] Emissão de Nota Fiscal (fase futura — dados já serão coletados no checkout)
-- [ ] Cupons e promoções (fase futura)

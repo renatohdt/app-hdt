@@ -12,7 +12,7 @@ export async function signOutAndRedirect(options: {
   onBeforeRedirect?: () => void;
   onError?: (error: unknown) => void;
 }) {
-  const { supabaseClient, redirectTo = "/", onBeforeRedirect, onError } = options;
+  const { supabaseClient, redirectTo = "/login", onBeforeRedirect, onError } = options;
 
   try {
     await supabaseClient?.auth?.signOut();
