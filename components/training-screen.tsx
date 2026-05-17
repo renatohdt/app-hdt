@@ -2,9 +2,10 @@
 
 import clsx from "clsx";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
+import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
 import { LevelPopup } from "@/components/level-badge";
@@ -345,27 +346,35 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           <Badge className="border-white/10 bg-white/[0.04] text-white/58">{exerciseRows.length} itens</Badge>
         </div>
 
-        {exerciseRows.map((exercise, index) => (
-          <ExpandableExerciseCard
-            key={exercise.id}
-            data={data}
-            workoutKey={activeWorkoutKey}
-            exercise={exercise}
-            index={index}
-            expanded={openExerciseId === exercise.id}
-            onToggle={handleToggleExercise}
-            workoutId={data.workoutId}
-            workoutDayId={workoutDayId}
-            exerciseIndex={index}
-            exerciseName={exercise.name}
-            replacementLimitReached={replacementLimitReached}
-            replacementCount={replacementCount}
-            replacementsRemaining={replacementsRemaining}
-            isPremiumUser={isPremiumUser}
-            isReplaced={replacedExerciseNames.has(exercise.name)}
-            onExerciseReplaced={handleExerciseReplaced}
-          />
-        ))}
+        {exerciseRows.map((exercise, index) => {
+          // Exibe anúncio após o 4º e o 8º exercício — apenas para usuários free (máx. 2 anúncios)
+          const adPosition = (index + 1) / 4;
+          const showAd = !isPremiumUser && (index + 1) % 4 === 0 && adPosition <= 2;
+
+          return (
+            <Fragment key={exercise.id}>
+              <ExpandableExerciseCard
+                data={data}
+                workoutKey={activeWorkoutKey}
+                exercise={exercise}
+                index={index}
+                expanded={openExerciseId === exercise.id}
+                onToggle={handleToggleExercise}
+                workoutId={data.workoutId}
+                workoutDayId={workoutDayId}
+                exerciseIndex={index}
+                exerciseName={exercise.name}
+                replacementLimitReached={replacementLimitReached}
+                replacementCount={replacementCount}
+                replacementsRemaining={replacementsRemaining}
+                isPremiumUser={isPremiumUser}
+                isReplaced={replacedExerciseNames.has(exercise.name)}
+                onExerciseReplaced={handleExerciseReplaced}
+              />
+              {showAd ? <TrainingInlineAd /> : null}
+            </Fragment>
+          );
+        })}
 
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
