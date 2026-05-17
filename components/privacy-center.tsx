@@ -228,7 +228,7 @@ export function PrivacyCenter() {
 
       await signOutAndRedirect({
         supabaseClient: supabase,
-        redirectTo: "/"
+        redirectTo: "/login"
       });
     } catch (error) {
       setFeedback({

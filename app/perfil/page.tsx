@@ -282,7 +282,7 @@ export default function PerfilPage() {
 
     await signOutAndRedirect({
       supabaseClient: supabase,
-      redirectTo: "/",
+      redirectTo: "/login",
       onBeforeRedirect: () => {
         setPayload(null);
       },
