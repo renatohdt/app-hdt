@@ -347,7 +347,7 @@ export default function HomePage() {
               { icon: "🔄", title: "Substituição de exercício", desc: "Não tem o aparelho, achou fácil ou difícil demais? Faça a substituição inteligente na hora." },
               { icon: "🎯", title: "Todos os objetivos", desc: "Hipertrofia, emagrecimento, definição e condicionamento físico." },
               { icon: "📈", title: "Evolução e conquistas", desc: "Acompanhe seu progresso, bata metas e celebre cada conquista." },
-              { icon: "🎓", title: "Conteúdo educativo", desc: "Aprenda sobre treino, nutrição e hábitos com conteúdos da Hora do Treino." },
+              { icon: "⚡", title: "Treino Extra", desc: "Viajando, treino em lugar diferente, sem tempo? Crie um treino extra sem perder o ritmo." },
               { icon: "🆓", title: "Gratuito e Premium", desc: "Comece grátis e desbloqueie recursos avançados quando quiser evoluir mais." },
             ].map((card) => (
               <article
