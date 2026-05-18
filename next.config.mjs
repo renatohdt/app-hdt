@@ -52,9 +52,12 @@ export default withSentryConfig(nextConfig, {
   // Oculta os source maps do bundle público (segurança)
   hideSourceMaps: true,
 
-  // Remove logs do SDK do Sentry do bundle de produção
-  disableLogger: true,
-
-  // Não cria Vercel Cron Monitors automaticamente
-  automaticVercelMonitors: false
+  webpack: {
+    // Remove logs do SDK do Sentry do bundle de produção
+    treeshake: {
+      removeDebugLogging: true
+    },
+    // Não cria Vercel Cron Monitors automaticamente
+    automaticVercelMonitors: false
+  }
 });
