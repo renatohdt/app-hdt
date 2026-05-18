@@ -121,6 +121,30 @@ export async function saveWorkoutRecord(supabase: SupabaseLike, options: SaveWor
 
   const currentResult = await runWorkoutSave(supabase, options, fullPayload);
 
+  if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "type")) {
+    logWarn(scope, "Workout save fallback without type", {
+      user_id: options.userId,
+      error_code: getSupabaseErrorCode(currentResult.error)
+    });
+
+    const { type: _ignoredType, ...noTypePayload } = fullPayload;
+
+    if (isSupabaseMissingColumnError(currentResult.error, "total_sessions")) {
+      const { total_sessions: _ignoredTs, ...legacyPayload } = noTypePayload;
+      const legacyResult = await runWorkoutSave(supabase, options, legacyPayload);
+      return {
+        error: legacyResult.error,
+        compatibility: { totalSessionsColumnAvailable: false }
+      };
+    }
+
+    const noTypeResult = await runWorkoutSave(supabase, options, noTypePayload);
+    return {
+      error: noTypeResult.error,
+      compatibility: { totalSessionsColumnAvailable: true }
+    };
+  }
+
   if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "total_sessions")) {
     logWarn(scope, "Workout save fallback without total_sessions", {
       user_id: options.userId,
