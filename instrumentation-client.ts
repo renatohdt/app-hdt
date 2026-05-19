@@ -13,7 +13,15 @@ Sentry.init({
 
   integrations: [Sentry.replayIntegration()],
 
-  debug: false
+  debug: false,
+
+  // Ignora erros internos de bibliotecas que não podemos controlar
+  ignoreErrors: [
+    // Erro interno do Supabase Auth com Web Locks — não afeta o usuário
+    "Lock broken by another request with the 'steal' option",
+    // Erro de SW em navegadores que não suportam update() corretamente
+    "Cannot update a null/nonexistent service worker registration"
+  ]
 });
 
 // Necessário para o Sentry rastrear navegações entre páginas

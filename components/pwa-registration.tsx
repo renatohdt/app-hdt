@@ -23,7 +23,8 @@ export function PwaRegistration() {
           scope: "/"
         });
 
-        void registration.update();
+        // Captura falhas silenciosamente — update pode falhar em alguns navegadores (ex: iOS Safari)
+        registration.update().catch(() => {});
       } catch (error) {
         console.error("SERVICE WORKER REGISTRATION ERROR:", error);
       }
