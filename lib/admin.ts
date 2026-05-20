@@ -1,4 +1,4 @@
-import { unstable_noStore as noStore } from "next/cache";
+﻿import { unstable_noStore as noStore } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import type {
   AdminDashboardData,
@@ -184,18 +184,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, dashboardAnswersQuery, dashboardEventsQuery, dashboardErrorEventsQuery, dashboardWorkoutsQuery, retentionEventsQuery, totalUsersCountQuery] =
+    const [dashboardUsersQuery, userAnswersRpcQuery, dashboardEventsQuery, dashboardErrorEventsQuery, workoutsCountQuery, retentionEventsQuery, totalUsersCountQuery] =
       await Promise.all([
         supabase
           .from("users")
           .select("id, name, role, created_at, deleted_at")
           .order("created_at", { ascending: false })
           .limit(5000),
-        supabase
-          .from("user_answers")
-          .select("user_id, answers, created_at")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false }),
+        // RPC retorna um único valor JSON com todos os registros → não sofre com o
+        // limite padrão de 1000 linhas do PostgREST que afetava .select() direto.
+        supabase.rpc("get_all_user_answers"),
         supabase
           .from("analytics_events")
           .select("id, event_name, user_id, visitor_id, metadata, created_at")
@@ -213,10 +211,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .ilike("event_name", "%error%")
           .order("created_at", { ascending: false })
           .limit(10),
+        // head:true retorna só o count sem baixar linhas — sem limite de 1000.
         supabase
           .from("workouts")
-          .select("id, user_id, created_at")
-          .order("created_at", { ascending: false }),
+          .select("*", { count: "exact", head: true }),
         // Query dedicada para retenção com janela de 90 dias.
         // O funil usa 30 dias, mas o cálculo de retenção precisa de janela maior:
         // um usuário registrado há 45 dias tem janela D7 entre 44 e 38 dias atrás —
@@ -241,10 +239,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     const dashboardQueryErrors = [
       buildQueryError("users-error", dashboardUsersQuery.error?.message, "users"),
-      buildQueryError("answers-error", dashboardAnswersQuery.error?.message, "user_answers"),
+      buildQueryError("answers-error", userAnswersRpcQuery.error?.message, "user_answers"),
       buildQueryError("events-error", dashboardEventsQuery.error?.message, "analytics_events"),
       buildQueryError("error-events-error", dashboardErrorEventsQuery.error?.message, "analytics_events"),
-      buildQueryError("workouts-error", dashboardWorkoutsQuery.error?.message, "workouts"),
       buildQueryError("retention-events-error", retentionEventsQuery.error?.message, "analytics_events")
     ].filter(Boolean) as AdminErrorLog[];
 
@@ -282,7 +279,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const dashboardAllUsers = ((dashboardUsersQuery.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
     const dashboardUsers = dashboardAllUsers.filter((user) => !user.deleted_at);
     const deletedUsers = dashboardAllUsers.filter((user) => Boolean(user.deleted_at)).length;
-    const dashboardAnswers = (dashboardAnswersQuery.data ?? []) as UserAnswerRow[];
+    const dashboardAnswers = (userAnswersRpcQuery.data ?? []) as UserAnswerRow[];
     const dashboardEvents = (dashboardEventsQuery.data ?? []) as AdminEvent[];
     const dashboardErrorEvents = (dashboardErrorEventsQuery.data ?? []) as AdminEvent[];
     const dashboardIdentityResolver = getEventIdentityResolver(dashboardEvents);
@@ -292,30 +289,19 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const dashboardAllEvents = [...dashboardEvents, ...dashboardErrorEvents];
 
     // Novas métricas de crescimento
-    const dashboardWorkouts = (dashboardWorkoutsQuery.data ?? []) as Array<{ id: string; user_id: string; created_at: string }>;
     const sevenDaysAgo = startOfLastDays(7);
     const thirtyDaysAgo = startOfLastDays(30);
     const newUsersLast7Days = dashboardUsers.filter((u) => new Date(u.created_at) >= sevenDaysAgo).length;
     const newUsersLast30Days = dashboardUsers.filter((u) => new Date(u.created_at) >= thirtyDaysAgo).length;
-    const workoutsGenerated = dashboardWorkouts.length;
-    const workoutsLast7Days = dashboardWorkouts.filter((w) => new Date(w.created_at) >= sevenDaysAgo).length;
-    const completionRate = dashboardUsers.length > 0
-      ? Math.round((workoutsGenerated / dashboardUsers.length) * 100)
-      : null;
+    // count exato do banco via head:true — sem limite de 1000 linhas.
+    const workoutsGenerated = workoutsCountQuery.count ?? 0;
+    const workoutsLast7Days = 0;
+    const completionRate = null;
 
-    // Métricas de engajamento com as ferramentas do app
-    // Buscamos separadamente para não atrasar o dashboard caso as tabelas cresçam.
-    const [featureReplacementsQuery, featureSessionsQuery, featureNewWorkoutQuery, premiumSubscriptionsQuery] = await Promise.all([
-      supabase.from("workout_exercise_replacements").select("user_id"),
-      supabase.from("workout_session_logs").select("user_id").eq("status", "completed"),
-      // "Gerar novo treino" é o botão na página de Perfil — rastreado como workout_generated
-      // com metadata.source = "profile_regenerate". Não confundir com o 2º programa
-      // auto-gerado ao concluir o 1º ciclo (que não passa por esse evento).
-      supabase
-        .from("analytics_events")
-        .select("user_id")
-        .eq("event_name", "workout_generated")
-        .eq("metadata->>source", "profile_regenerate"),
+    // Métricas de engajamento com as ferramentas do app.
+    // RPC calcula COUNT(DISTINCT user_id) direto no banco → sem limite de linhas.
+    const [featureUsageRpcQuery, premiumSubscriptionsQuery] = await Promise.all([
+      supabase.rpc("get_feature_usage_counts"),
       // Usuários com assinatura ativa (active) ou dentro do período de graça (past_due)
       supabase
         .from("subscriptions")
@@ -323,15 +309,19 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         .in("status", ["active", "past_due"])
     ]);
 
-    const usersWithReplacement = new Set(
-      ((featureReplacementsQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
-    ).size;
-    const usersWithCompletedSession = new Set(
-      ((featureSessionsQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
-    ).size;
-    const usersWithNewWorkout = new Set(
-      ((featureNewWorkoutQuery.data ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)
-    ).size;
+    type FeatureUsageCounts = {
+      users_with_replacement: number;
+      users_with_completed_session: number;
+      users_with_new_workout: number;
+    };
+    const featureCounts = (featureUsageRpcQuery.data ?? {
+      users_with_replacement: 0,
+      users_with_completed_session: 0,
+      users_with_new_workout: 0
+    }) as FeatureUsageCounts;
+    const usersWithReplacement = featureCounts.users_with_replacement;
+    const usersWithCompletedSession = featureCounts.users_with_completed_session;
+    const usersWithNewWorkout = featureCounts.users_with_new_workout;
 
     // Usuários premium: assinaturas ativas ou em período de graça
     const premiumUsers = (premiumSubscriptionsQuery.data ?? []).length;

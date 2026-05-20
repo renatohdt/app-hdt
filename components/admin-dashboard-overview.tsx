@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { Card } from "@/components/ui";
@@ -99,16 +99,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           value={String(data.newUsersLast30Days)}
           description="Cadastros nos últimos 30 dias."
         />
-        <SummaryMetricCard
-          label="Treinos gerados"
-          value={String(data.workoutsGenerated)}
-          description="Total histórico de treinos gerados."
-        />
-        <SummaryMetricCard
-          label="Taxa de geração"
-          value={data.completionRate !== null ? `${data.completionRate}%` : "—"}
-          description="Usuários que geraram treino."
-        />
+
       </section>
 
       <section className="space-y-3">
