@@ -5,6 +5,7 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
 import { AppVersionFooter } from "@/components/app-version-footer";
 import { ConsentProvider } from "@/components/consent-provider";
+import { ClarityScript } from "@/components/clarity-script";
 import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { getCurrentConsentVersion } from "@/lib/consents";
@@ -103,6 +104,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Suspense fallback={null}>
             <GoogleTag />
           </Suspense>
+          <ClarityScript />
           <div className="flex min-h-screen flex-col">
             <PwaRegistration />
             <div className="flex-1">
