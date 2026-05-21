@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { Suspense } from "react";
 import Script from "next/script";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AppVersionFooter } from "@/components/app-version-footer";
 import { ConsentProvider } from "@/components/consent-provider";
 import { ClarityScript } from "@/components/clarity-script";
@@ -114,6 +115,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </div>
         </ConsentProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
