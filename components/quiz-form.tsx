@@ -535,9 +535,16 @@ export function QuizForm() {
               type="password"
               value={account.password}
               onChange={(event) => updateAccountField("password", event.target.value)}
-              placeholder="Crie uma senha"
-              className="min-h-16 w-full rounded-[24px] border border-white/10 bg-white/[0.03] px-5 text-white outline-none transition focus:border-primary"
+              placeholder="Senha (mínimo 6 caracteres)"
+              className={`min-h-16 w-full rounded-[24px] border bg-white/[0.03] px-5 text-white outline-none transition focus:border-primary ${
+                account.password.length > 0 && account.password.trim().length < 6
+                  ? "border-red-500"
+                  : "border-white/10"
+              }`}
             />
+            {account.password.length > 0 && account.password.trim().length < 6 && (
+              <p className="text-sm text-red-400 px-2 -mt-2">Senha muito curta. Use pelo menos 6 caracteres.</p>
+            )}
             <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-4 space-y-2">
               <p className="text-sm font-medium text-white/80">🎁 Tem um cupom de indicação? <span className="text-white/40 font-normal">(opcional)</span></p>
               <input
