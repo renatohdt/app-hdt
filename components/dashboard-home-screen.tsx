@@ -30,6 +30,7 @@ import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
+import { RecommendationsCard } from "@/components/recommendations-card";
 
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
@@ -326,7 +327,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
       <Link href="/treino" className="block">
         <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none transition duration-200 hover:border-primary/20 sm:p-[18px]">
           <p className="mb-[10px] text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Ciclo do plano</p>
-          <h2 className="mb-3 text-[20px] font-bold leading-[1.15] text-white">
+          <h2 className="mb-3 text-[17px] font-bold leading-[1.15] text-white">
             {coverage.coveredSessions}/{coverage.totalSessions} sessões
           </h2>
           <p className="mb-4 text-[14px] leading-[1.45] text-white/58">
@@ -413,6 +414,12 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           {generateError}
         </div>
       ) : null}
+
+      <RecommendationsCard
+        goal={data.user.goal}
+        level={data.user.level}
+        equipment={data.answers.equipment}
+      />
 
       {/* Banner Premium — exibido apenas para usuários do plano free */}
       {isFreePlan && (

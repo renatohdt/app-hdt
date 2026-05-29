@@ -43,7 +43,7 @@ export default function GlobalError({
       >
         <h2 style={{ marginBottom: "16px" }}>Algo deu errado</h2>
         <p style={{ color: "#666", marginBottom: "24px" }}>
-          Um erro inesperado aconteceu. Nossa equipe já foi notificada.
+    Um erro inesperado aconteceu. Nossa equipe já foi notificada.
         </p>
         <button
           onClick={reset}
