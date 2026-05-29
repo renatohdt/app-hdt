@@ -4,10 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  BicepsFlexed,
-  CalendarRange,
   Dumbbell,
-  Lock,
   RefreshCw,
   Settings,
   Target,
@@ -20,17 +17,10 @@ import { UpsellModal } from "@/components/upsell-modal";
 import { ReferralRewardPopup } from "@/components/referral-reward-popup";
 import { ReferralExpiryPopup } from "@/components/referral-expiry-popup";
 import { useSubscription } from "@/components/use-subscription";
-import {
-  ARTICLE_PLACEHOLDER_IMAGE,
-  getEvergreenFallbackArticles,
-  sanitizeArticleRecommendations,
-  type ArticleRecommendation
-} from "@/lib/articles";
 import { LevelBadge, LevelPopup } from "@/components/level-badge";
 import { REGRESSION_MESSAGE } from "@/lib/user-level";
 import {
   formatSessionCounter,
-  getMotivationLine,
   getPlanCoverage,
   type AppWorkoutData
 } from "@/lib/app-workout";
@@ -39,14 +29,18 @@ import { AchievementPopup } from "@/components/achievement-popup";
 import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
+import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
 
-const BLOG_URL = "https://horadotreino.com.br/";
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
 export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
-  const [articles, setArticles] = useState<ArticleRecommendation[]>([]);
   const [showUpsellBanner, setShowUpsellBanner] = useState(false);
   const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
+  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [goalTarget, setGoalTarget] = useState("12");
+  const [goalDays, setGoalDays] = useState("30");
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [activeGoal, setActiveGoal] = useState<ActiveGoalShape>(data.activeGoal ?? null);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
   const [showFreeLimitPopup, setShowFreeLimitPopup] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -57,10 +51,8 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const generatingCardRef = useRef<HTMLDivElement | null>(null);
   const { subscription } = useSubscription();
   const router = useRouter();
-  const metrics = useMemo(() => buildHomeMetrics(data), [data]);
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
   const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
-  const fallbackArticles = useMemo(() => sanitizeArticleRecommendations(getEvergreenFallbackArticles()), []);
 
   // ── Sistema de nível/XP ──────────────────────────────────────────────────
   const [phasePopupDismissed, setPhasePopupDismissed] = useState(false);
@@ -163,34 +155,6 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
       .catch(() => setLastWorkoutGeneratedAt(null));
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadArticles() {
-      try {
-        const response = await fetchWithAuth("/api/articles", {
-          signal: controller.signal
-        });
-        const payload = (await response.json()) as { success: boolean; data?: ArticleRecommendation[] };
-
-        if (!response.ok || !payload.success) {
-          throw new Error("articles-load-failed");
-        }
-
-        setArticles(sanitizeArticleRecommendations(payload.data));
-      } catch {
-        if (!controller.signal.aborted) {
-          setArticles([]);
-        }
-      }
-    }
-
-    void loadArticles();
-
-    return () => controller.abort();
-  }, []);
-
-  const articleItems = (articles.length ? articles : fallbackArticles).slice(0, 2);
   const remainingSessions = Math.max(coverage.totalSessions - coverage.coveredSessions, 0);
   const progressBarWidth = Math.max(Math.min(coverage.percentage, 100), 0);
 
@@ -237,6 +201,30 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
     }
   }
 
+  const SAUDACOES = [
+    "Boa sor... ops... Bom treino, {nome}!",
+    "O sofá vai sentir sua falta, {nome}!",
+    "Hoje não tem desculpa, {nome}!",
+    "Você veio! O difícil já foi, {nome}!",
+    "VAMOS DESTRUIR, {nome}! 💥",
+    "{nome} chegou! O treino treme!",
+    "Modo fera ativado, {nome}!",
+    "Bora, {nome}! 💪",
+    "Vamos quebrar tudo hoje, {nome}?",
+    "Hora de suar, {nome}!",
+    "Força total, {nome}!",
+    "Chegou a hora, {nome}! 🔥",
+    "Sem dó hoje, {nome}!",
+    "É hoje, {nome}!",
+    "{nome} no treino, ninguém para!"
+  ];
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const saudacao = useMemo(() => {
+    const template = SAUDACOES[Math.floor(Math.random() * SAUDACOES.length)];
+    return template.replace(/\{nome\}/g, firstName);
+  }, []);
+
   return (
     <AppShell className="space-y-4 sm:space-y-4">
       <Card className="overflow-hidden rounded-[24px] border-white/[0.06] bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.13),transparent_62%),linear-gradient(180deg,rgba(255,255,255,0.038),rgba(255,255,255,0.016))] px-5 pb-[22px] pt-[22px] shadow-[0_12px_28px_rgba(0,0,0,0.2)] sm:px-5 sm:pb-[22px] sm:pt-[22px]">
@@ -267,11 +255,12 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
 
         <div className="text-center">
           <h1 className="mb-[10px] text-[20px] font-bold leading-[1.15] tracking-tight text-white">
-            Olá, {firstName}
+            {saudacao}
           </h1>
           {levelData && (
             <div className="mb-[22px] flex justify-center">
               <div className="rounded-full border border-white/20 px-4 py-1.5">
+                <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/46">Nível</span>
                 <LevelBadge data={levelData} />
               </div>
             </div>
@@ -279,6 +268,9 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           <p className="mx-auto mb-[18px] max-w-[18rem] text-center text-[18px] font-bold leading-[1.15]">
             <span className="text-primary/86">Próximo: </span>
             <span className="text-white">{featuredWorkoutText}</span>
+            {data.averageDurationMinutes > 0 && (
+              <span className="text-white/46"> · ⏱ {data.averageDurationMinutes} min</span>
+            )}
           </p>
         </div>
 
@@ -294,78 +286,68 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
         >
           <div className="flex h-12 w-full items-center justify-center gap-[7px] rounded-[16px] border border-primary/12 bg-[linear-gradient(90deg,rgba(34,197,94,0.94),rgba(20,128,61,0.94))] px-4 text-center text-white shadow-[0_12px_24px_rgba(34,197,94,0.16)] transition duration-200 hover:-translate-y-0.5">
             <Dumbbell className="h-4 w-4 shrink-0" />
-            <span className="text-[15px] font-bold leading-none">Iniciar treino</span>
+            <span className="text-[15px] font-bold leading-none">Ver treino</span>
           </div>
         </Link>
       </Card>
 
-      {data.activeGoal && (
-        <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-          <div className="flex items-center gap-2">
-            <Target className="h-4 w-4 shrink-0 text-primary" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/88">Meta ativa</p>
-          </div>
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-[20px] font-bold leading-none text-white">
-                {data.activeGoal.workoutsDone}
-                <span className="text-[14px] font-semibold text-white/50">/{data.activeGoal.targetCount}</span>
-              </p>
-              <p className="mt-1 text-[12px] text-white/52">treinos concluídos</p>
-            </div>
-            <p className="text-[13px] font-bold text-white/52">
-              {data.activeGoal.targetCount > 0
-                ? Math.round((data.activeGoal.workoutsDone / data.activeGoal.targetCount) * 100)
-                : 0}%
-            </p>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
+      <GoalCard
+        activeGoal={activeGoal}
+        showForm={showGoalForm}
+        goalTarget={goalTarget}
+        goalDays={goalDays}
+        saving={savingGoal}
+        onShowForm={() => setShowGoalForm(true)}
+        onCancelForm={() => setShowGoalForm(false)}
+        onChangeTarget={setGoalTarget}
+        onChangeDays={setGoalDays}
+        onSubmit={async () => {
+          const target = Number(goalTarget);
+          const days = Number(goalDays);
+          if (!target || !days) return;
+          setSavingGoal(true);
+          try {
+            const res = await fetchWithAuth("/api/goals", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ targetCount: target, periodDays: days })
+            });
+            const json = await res.json();
+            if (json.success) {
+              setActiveGoal(json.data);
+              setShowGoalForm(false);
+            }
+          } finally {
+            setSavingGoal(false);
+          }
+        }}
+      />
+
+      <Link href="/treino" className="block">
+        <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none transition duration-200 hover:border-primary/20 sm:p-[18px]">
+          <p className="mb-[10px] text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Ciclo do plano</p>
+          <h2 className="mb-3 text-[20px] font-bold leading-[1.15] text-white">
+            {coverage.coveredSessions}/{coverage.totalSessions} sessões
+          </h2>
+          <p className="mb-4 text-[14px] leading-[1.45] text-white/58">
+            {remainingSessions === 0
+              ? "Meta concluída neste ciclo. Siga mantendo a consistência nas próximas sessões."
+              : `Faltam ${remainingSessions} ${remainingSessions === 1 ? "treino" : "treinos"} para concluir esta etapa do plano.`}
+          </p>
+
+          <div className="mb-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-primary to-primaryStrong transition-[width] duration-300"
-              style={{
-                width: `${data.activeGoal.targetCount > 0
-                  ? Math.min(Math.round((data.activeGoal.workoutsDone / data.activeGoal.targetCount) * 100), 100)
-                  : 0}%`
-              }}
+              className="h-full rounded-full bg-gradient-to-r from-primary to-primaryStrong"
+              style={{ width: `${progressBarWidth}%` }}
             />
           </div>
-          <p className="text-[12px] text-white/40">{data.activeGoal.periodDays} dias de meta</p>
+
+          <div className="flex items-center justify-between gap-3 text-[13px] font-semibold text-white/52">
+            <span>{formatSessionCounter(data.sessionProgress)}</span>
+            <span>{coverage.percentage}% do ciclo</span>
+          </div>
         </Card>
-      )}
-
-      <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-        <SectionHeader title="Sua evolução" />
-
-        <div className="grid grid-cols-3 gap-3">
-          {metrics.map((metric) => (
-            <MetricCard key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} />
-          ))}
-        </div>
-      </Card>
-
-      <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-        <p className="mb-[10px] text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Ciclo do plano</p>
-        <h2 className="mb-3 text-[20px] font-bold leading-[1.15] text-white">
-          {coverage.coveredSessions}/{coverage.totalSessions} sessoes
-        </h2>
-        <p className="mb-4 text-[14px] leading-[1.45] text-white/58">
-          {remainingSessions === 0
-            ? "Meta concluída neste ciclo. Siga mantendo a consistência nas próximas sessões."
-            : `Faltam ${remainingSessions} ${remainingSessions === 1 ? "treino" : "treinos"} para concluir esta etapa do plano.`}
-        </p>
-
-        <div className="mb-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary to-primaryStrong"
-            style={{ width: `${progressBarWidth}%` }}
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-3 text-[13px] font-semibold text-white/52">
-          <span>{formatSessionCounter(data.sessionProgress)}</span>
-          <span>{coverage.percentage}% do ciclo</span>
-        </div>
-      </Card>
+      </Link>
 
       {/* Card de progresso — geração em andamento */}
       {isGenerating ? (
@@ -473,54 +455,6 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
 
       </div>
 
-      <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-[16px] font-bold text-white">Artigos Hora do Treino</h2>
-
-          <a
-            href={BLOG_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[14px] font-semibold text-primary transition hover:text-white"
-          >
-            Ver todos
-          </a>
-        </div>
-
-        <div className="grid grid-cols-2 gap-[14px]">
-          {articleItems.map((article) => (
-            <a
-              key={article.url}
-              href={article.url}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() =>
-                trackEvent("article_click", data.user.id, {
-                  source: "home_articles",
-                  goal: data.user.goal ?? null,
-                  article: article.title,
-                  url: article.url
-                })
-              }
-              className="group rounded-[16px] border border-white/[0.06] bg-white/[0.03] p-[10px] transition duration-200 hover:-translate-y-0.5 hover:border-primary/12 hover:bg-white/[0.045]"
-            >
-              <div className="mb-[10px] aspect-[4/3] overflow-hidden rounded-[12px] bg-white/[0.04]">
-                <img
-                  src={article.image || ARTICLE_PLACEHOLDER_IMAGE}
-                  alt={article.title}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                />
-              </div>
-
-              <div className="space-y-1.5 px-1 pb-1">
-                <p className="min-h-[4rem] text-[15px] font-semibold leading-[1.35] text-white">{article.title}</p>
-                <p className="text-[13px] leading-[1.4] text-white/46">{formatArticleMeta(article)}</p>
-              </div>
-            </a>
-          ))}
-        </div>
-      </Card>
 
       {isFreePlan ? <GoogleAd /> : null}
 
@@ -638,61 +572,6 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   );
 }
 
-function buildHomeMetrics(data: AppWorkoutData) {
-  return [
-    {
-      label: "Treinos concluídos",
-      value: `${data.sessionProgress.completedSessions}`,
-      icon: BicepsFlexed
-    },
-    {
-      label: "Sessão",
-      value: `${data.sessionProgress.completedSessions}/${data.sessionProgress.totalSessions}`,
-      icon: CalendarRange
-    },
-    {
-      label: "Meta",
-      value: `${data.sessionProgress.progressPercentage}%`,
-      icon: Target
-    }
-  ];
-}
-
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <div>
-      <h2 className="mb-3 text-[16px] font-bold text-white">{title}</h2>
-    </div>
-  );
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value
-}: {
-  icon: typeof Dumbbell;
-  label: string;
-  value: string;
-}) {
-  const compactLabel = label === "Treinos concluídos" ? "Treinos" : label;
-
-  return (
-    <div className="flex min-h-[88px] items-center gap-[10px] rounded-[15px] border border-white/[0.05] bg-black/18 p-[14px] text-left">
-      <Icon className="h-[18px] w-[18px] shrink-0 text-primary" />
-
-      <div className="min-w-0 flex-1">
-        <p className="text-[17px] font-bold leading-[1.05] text-white">{value}</p>
-        <p className="mt-[5px] text-[11px] font-medium leading-[1.15] text-white/54">{compactLabel}</p>
-      </div>
-    </div>
-  );
-}
-
-function formatArticleMeta(article: ArticleRecommendation) {
-  const readingTime = Math.max(Number(article.readingTime) || 1, 1);
-  return `${readingTime} min de leitura`;
-}
 
 function normalizeDisplayName(...values: unknown[]) {
   for (const value of values) {
