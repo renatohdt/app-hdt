@@ -11,6 +11,19 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Chunk load error: acontece após deploy quando o browser tenta carregar
+    // chunks antigos que já não existem no servidor. Recarrega silenciosamente.
+    const isChunkError =
+      error?.message?.includes("Loading chunk") ||
+      error?.message?.includes("ChunkLoadError") ||
+      error?.message?.includes("is not a function") ||
+      error?.name === "ChunkLoadError";
+
+    if (isChunkError) {
+      window.location.reload();
+      return;
+    }
+
     Sentry.captureException(error);
   }, [error]);
 
