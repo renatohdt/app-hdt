@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConfigAlert } from "@/components/config-alert";
 import { QuizForm } from "@/components/quiz-form";
-import { Card, Container, PageShell } from "@/components/ui";
+import { Container, PageShell } from "@/components/ui";
 import { clientLogError } from "@/lib/client-logger";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { PublicReview } from "@/app/api/public/reviews/route";
@@ -39,8 +39,6 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const router = useRouter();
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [hasSession, setHasSession] = useState(false);
   const quizRef = useRef<HTMLElement>(null);
   const [reviews, setReviews] = useState<PublicReview[]>([]);
 
@@ -55,26 +53,18 @@ export default function HomePage() {
       .catch(() => { /* silencioso — seção simplesmente não aparece */ });
   }, []);
 
+  // Verifica sessão em background — sem bloquear a renderização da landing
   useEffect(() => {
     let active = true;
 
     async function checkUser() {
-      if (!isSupabaseConfigured() || !supabase) {
-        if (active) setCheckingSession(false);
-        return;
-      }
+      if (!isSupabaseConfigured() || !supabase) return;
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!active) return;
-        if (session) {
-          setHasSession(true);
-          router.replace("/dashboard");
-          return;
-        }
+        if (session) router.replace("/dashboard");
       } catch (error) {
         clientLogError("SESSION CHECK ERROR", error);
-      } finally {
-        if (active) setCheckingSession(false);
       }
     }
 
@@ -103,22 +93,7 @@ export default function HomePage() {
     );
   }
 
-  // ── Loading session ──
-  if (checkingSession) {
-    return (
-      <PageShell>
-        <Container className="py-12">
-          <Card className="mx-auto max-w-3xl">
-            <div className="flex min-h-[280px] items-center justify-center text-sm text-white/64">
-              Carregando...
-            </div>
-          </Card>
-        </Container>
-      </PageShell>
-    );
-  }
-
-  // ── Landing page ──
+  // ── Landing page (sem bloquear na verificação de sessão) ──
   return (
     <div className="min-h-screen bg-[#080808] text-white">
 
@@ -127,13 +102,12 @@ export default function HomePage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link href="/" aria-label="Hora do Treino">
             <Image
-              src="https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png"
+              src="/logo-branco.png"
               alt="Hora do Treino"
               width={180}
               height={60}
               className="h-auto w-[130px] sm:w-[155px]"
               priority
-              unoptimized
             />
           </Link>
 
@@ -197,13 +171,12 @@ export default function HomePage() {
           {/* Imagem colada logo abaixo do botão, sem contorno */}
           <div className="relative mx-auto mt-3 max-w-[260px] sm:max-w-[300px]">
             <Image
-              src="https://horadotreino.com.br/wp-content/uploads/2026/04/app-treino-em-casa.webp"
+              src="/app-treino-em-casa.webp"
               alt="App de treino em casa Hora do Treino — tela do treino personalizado"
               width={320}
               height={580}
               className="w-full rounded-3xl"
               priority
-              unoptimized
             />
             <div className="absolute -bottom-3 -right-2 whitespace-nowrap rounded-full bg-primary px-4 py-2 text-xs font-bold text-black shadow-[0_8px_24px_rgba(34,197,94,0.4)]">
               ✓ Treino gerado!
