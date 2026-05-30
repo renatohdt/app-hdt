@@ -16,7 +16,7 @@ import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
-import { getAllTimeWorkoutCount, getWorkoutSessionStats, listAllUserSessionLogs, listWorkoutSessionLogs } from "@/lib/workout-session-store";
+import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
 import { experienceToInitialPhase, phaseToExperience, type UserPhase } from "@/lib/user-level";
@@ -148,9 +148,8 @@ export async function GET(request: NextRequest) {
       answers
     });
     const now = new Date().toISOString();
-    const [sessionStats, sessionLogs, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary] = await Promise.all([
+    const [sessionStats, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
-      listAllUserSessionLogs(supabase, user.id, 180),
       supabase
         .from("workout_exercise_replacements")
         .select("id", { count: "exact", head: true })
@@ -205,20 +204,6 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const _logIds = sessionLogs.map((l) => l.id);
-    const { data: _fbRows } = _logIds.length
-      ? await supabase
-          .from("workout_session_feedbacks")
-          .select("session_log_id, liked, intensity_level")
-          .in("session_log_id", _logIds)
-      : { data: [] };
-    const _fbMap = new Map((_fbRows ?? []).map((f) => [f.session_log_id, f]));
-    const sessionLogsWithFeedback = sessionLogs.map((log) => ({
-      ...log,
-      liked: _fbMap.get(log.id)?.liked ?? null,
-      intensityLevel: _fbMap.get(log.id)?.intensity_level ?? null,
-    }));
-
     return NextResponse.json({
       success: true,
       data: {
@@ -237,7 +222,6 @@ export async function GET(request: NextRequest) {
         diagnosis,
         workout: workoutState.workout,
         sessionProgress,
-        sessionLogs: sessionLogsWithFeedback,
         // Dados de nível/XP — inclui decay aplicado se havia inatividade
         levelData: userLevelSummary
           ? {

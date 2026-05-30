@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import clsx from "clsx";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target, Trophy, Zap } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
 import { AchievementsModal } from "@/components/achievements-modal";
@@ -14,8 +14,9 @@ import {
   formatWorkoutDisplayTitle,
   type AppWorkoutData
 } from "@/lib/app-workout";
-import { getAllAchievementsUnified } from "@/lib/achievements";
+import { getAllAchievementsUnified, calcConsistencyStats } from "@/lib/achievements";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
+import type { WorkoutSessionLogEntry } from "@/lib/workout-sessions";
 
 type PlannedWorkoutDay = {
   workoutKey: string | null;
@@ -52,6 +53,18 @@ const MONTH_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 export function CalendarScreen({ data }: { data: AppWorkoutData }) {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [showAchievements, setShowAchievements] = useState(false);
+  const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLogEntry[]>([]);
+
+  useEffect(() => {
+    fetchWithAuth("/api/workout/session-logs")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setSessionLogs(json.data);
+        }
+      })
+      .catch(() => { /* falha silenciosa — calendário exibe sem histórico */ });
+  }, []);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [goalTarget, setGoalTarget] = useState("12");
   const [goalDays, setGoalDays] = useState("30");
@@ -76,8 +89,13 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
     );
   }, [data]);
 
+  const consistencyStats = useMemo(
+    () => calcConsistencyStats(sessionLogs, data.weeklyTarget, data.sessionProgress.completedSessions, data.sessionProgress.totalSessions),
+    [sessionLogs, data.weeklyTarget, data.sessionProgress.completedSessions, data.sessionProgress.totalSessions]
+  );
+
   const recordedSessions = useMemo(() => {
-    return data.sessionLogs
+    return sessionLogs
       .map((entry) => {
         const completedAt = new Date(entry.completedAt);
         if (Number.isNaN(completedAt.getTime())) {
@@ -372,7 +390,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
               <div>
                 <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Conquistas</p>
                 <p className="mt-0.5 text-base font-semibold text-white">
-                  {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0)} de {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.length, 0)} desbloqueadas
+                  {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0)} de {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.length, 0)} desbloqueadas
                 </p>
               </div>
             </div>
@@ -381,7 +399,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
 
           <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
             {(() => {
-              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted);
+              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted);
               const total = groups.reduce((sum, g) => sum + g.achievements.length, 0);
               const unlocked = groups.reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0);
               const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
@@ -391,7 +409,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
 
           <p className="text-xs text-white/40">
             {(() => {
-              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, data.consistencyStats, data.totalGoalsCompleted);
+              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted);
               const total = groups.reduce((sum, g) => sum + g.achievements.length, 0);
               const unlocked = groups.reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0);
               const remaining = total - unlocked;
@@ -406,7 +424,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       {isFreePlan ? <GoogleAd /> : null}
 
       {showAchievements && (
-        <AchievementsModal data={data} onClose={() => setShowAchievements(false)} />
+        <AchievementsModal data={{ ...data, consistencyStats }} onClose={() => setShowAchievements(false)} />
       )}
     </AppShell>
   );
