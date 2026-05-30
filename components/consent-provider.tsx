@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { Suspense, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui";
 import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-tracker";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
@@ -334,6 +335,17 @@ export function ConsentProvider({
   );
 }
 
+// Páginas onde o pixel do Facebook faz sentido para negócio:
+// / (home + evento de cadastro), /premium (InitiateCheckout), /checkout (Purchase)
+const PIXEL_ALLOWED_PATHS = ["/", "/premium", "/checkout"];
+
+function useIsPixelPage() {
+  const pathname = usePathname();
+  return PIXEL_ALLOWED_PATHS.some((p) =>
+    p === "/" ? pathname === "/" : pathname.startsWith(p)
+  );
+}
+
 function ConsentManagedScripts({
   canUseAds,
   canUseMarketing
@@ -341,6 +353,8 @@ function ConsentManagedScripts({
   canUseAds: boolean;
   canUseMarketing: boolean;
 }) {
+  const isPixelPage = useIsPixelPage();
+
   return (
     <>
       {canUseAds ? (
@@ -364,7 +378,7 @@ function ConsentManagedScripts({
         />
       ) : null}
 
-      {canUseMarketing ? (
+      {canUseMarketing && isPixelPage ? (
         <>
           <Script id="facebook-pixel" strategy="afterInteractive">
             {`

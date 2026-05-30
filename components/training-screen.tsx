@@ -4,7 +4,6 @@ import clsx from "clsx";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
-import GoogleAd from "@/components/GoogleAd";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
