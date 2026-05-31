@@ -56,14 +56,27 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
   const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLogEntry[]>([]);
 
   useEffect(() => {
-    fetchWithAuth("/api/workout/session-logs")
-      .then((r) => r.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.data)) {
-          setSessionLogs(json.data);
-        }
-      })
-      .catch(() => { /* falha silenciosa — calendário exibe sem histórico */ });
+    function fetchSessionLogs() {
+      fetchWithAuth("/api/workout/session-logs")
+        .then((r) => r.ok ? r.json() : null)
+        .then((json) => {
+          if (json?.success && Array.isArray(json.data)) {
+            setSessionLogs(json.data);
+          }
+        })
+        .catch(() => { /* falha silenciosa */ });
+    }
+
+    fetchSessionLogs();
+
+    function handleVisibilityChange() {
+      if (!document.hidden) {
+        fetchSessionLogs();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [goalTarget, setGoalTarget] = useState("12");
@@ -126,7 +139,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       })
       .filter((entry): entry is RecordedSessionItem => Boolean(entry))
       .sort((left, right) => right.date.getTime() - left.date.getTime());
-  }, [data]);
+  }, [sessionLogs, data.workouts]);
 
   const recordedSessionsByDate = useMemo(() => {
     const grouped = new Map<string, RecordedSessionItem[]>();
