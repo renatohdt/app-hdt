@@ -4,7 +4,10 @@ import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target, Trophy, Zap } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
-import { AchievementsModal } from "@/components/achievements-modal";
+import dynamic from "next/dynamic";
+const AchievementsModal = dynamic(() =>
+  import("@/components/achievements-modal").then((m) => ({ default: m.AchievementsModal }))
+);
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";

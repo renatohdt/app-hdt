@@ -363,7 +363,7 @@ function ConsentManagedScripts({
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1213559545344901"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           onLoad={() => {
             window.__googleAdsenseScriptLoaded = true;
             window.dispatchEvent(new CustomEvent("google-adsense:loaded"));
