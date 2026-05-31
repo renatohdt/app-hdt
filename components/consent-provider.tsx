@@ -20,6 +20,7 @@ import {
 import { clientLogError, clientLogInfo } from "@/lib/client-logger";
 import { updateGtagConsent } from "@/lib/analytics";
 import { FACEBOOK_PIXEL_ID } from "@/lib/facebook-pixel";
+import { useSubscription } from "@/components/use-subscription";
 
 declare global {
   interface Window {
@@ -354,10 +355,12 @@ function ConsentManagedScripts({
   canUseMarketing: boolean;
 }) {
   const isPixelPage = useIsPixelPage();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
+  const canShowAds = canUseAds && !subscriptionLoading && !subscription?.isPremium;
 
   return (
     <>
-      {canUseAds ? (
+      {canShowAds ? (
         <Script
           id="google-adsense"
           async
