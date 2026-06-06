@@ -28,6 +28,18 @@ import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Ac
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
 
+const TRAINING_STYLE_LABELS: Record<string, string> = {
+  musculacao: "Tradicional",
+  funcional: "Funcional",
+  hiit: "HIIT",
+  calistenia: "Calistenia"
+};
+
+function formatTrainingStyleLabel(value?: string) {
+  if (!value) return "";
+  return TRAINING_STYLE_LABELS[value] ?? "";
+}
+
 type XpResult = {
   phasedUp: boolean;
   phaseUpMessage: { title: string; phrase: string } | null;
@@ -326,6 +338,18 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
             <h2 className="text-[22px] font-semibold leading-tight text-white">
               {formatWorkoutDisplayTitle(workout.title, workout.day)}
             </h2>
+            {formatTrainingStyleLabel(workout.trainingStyle) ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary/80">
+                {formatTrainingStyleLabel(workout.trainingStyle)}
+                {workout.sessionFormat ? ` · ${workout.sessionFormat.label}` : ""}
+              </p>
+            ) : null}
+            {workout.sessionFormat?.protocol ? (
+              <p className="text-xs text-white/55">{workout.sessionFormat.protocol}</p>
+            ) : null}
+            {workout.sessionFormat?.description ? (
+              <p className="mt-1 text-xs leading-snug text-white/45">{workout.sessionFormat.description}</p>
+            ) : null}
           </div>
 
           <div className="shrink-0 text-right">

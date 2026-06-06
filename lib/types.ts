@@ -12,6 +12,9 @@ export type BodyType = "endomorph" | "mesomorph" | "ectomorph" | "unknown";
 export type Location = "gym" | "home" | "condo_gym";
 export type StructuredPlan = "coach" | "self" | "no";
 export type FocusRegion = "chest" | "back" | "legs" | "legs_glutes" | "arms" | "balanced";
+// Estilo de treino escolhido pelo usuário. "personal" = "Personal Escolhe"
+// (na F1 mantém o comportamento atual, sem filtro de estilo).
+export type TrainingStyle = "musculacao" | "funcional" | "hiit" | "calistenia" | "personal";
 export type HomeEquipment =
   | "halteres"
   | "elasticos"
@@ -43,6 +46,10 @@ export type QuizAnswers = {
   time: number;
   structuredPlan?: StructuredPlan;
   focusRegion?: FocusRegion;
+  trainingStyle?: TrainingStyle;
+  // Conjunto de estilos para plano multi-estilo (premium). Quando tem 2+ estilos
+  // concretos, a IA distribui pelos treinos. Gratuito usa só trainingStyle (1 estilo).
+  trainingStyles?: TrainingStyle[];
 };
 
 export type ExerciseRecord = {
@@ -130,11 +137,21 @@ export type WorkoutCombinedBlockItem = {
 
 export type WorkoutSectionItem = WorkoutSingleItem | WorkoutCombinedBlockItem;
 
+// Formato pré-moldado de um treino HIIT (o app encaixa os exercícios na regra).
+export type HiitFormat = {
+  id: "tabata" | "intervals" | "amrap" | "emom" | "pyramid";
+  label: string; // ex.: "Tabata", "Intervalado 45/15", "AMRAP", "EMOM", "Pirâmide"
+  protocol: string; // números, ex.: "8 voltas · 20s trabalho / 10s descanso"
+  description: string; // explicação curta de como executar o formato
+};
+
 export type WorkoutSection = {
   title: string;
   subtitle: string;
   focus: string;
   splitType?: string;
+  trainingStyle?: string;
+  sessionFormat?: HiitFormat;
   sessionFocus?: string;
   focusLabel?: string;
   rationale?: string | null;
@@ -156,6 +173,8 @@ export type WorkoutPlan = {
   timeFitRationale?: string | null;
   focus: string[];
   splitType?: string;
+  trainingStyle?: string;
+  trainingStyles?: string[];
   rationale?: string | null;
   sessionCount?: number;
   blockDurationWeeks?: number;

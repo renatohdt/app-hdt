@@ -7,10 +7,9 @@ import {
 } from "@/lib/exercise-library";
 import {
   buildSessionTimeBudget,
-  buildTimeBudgetBrief,
   type SessionTimeBudget
 } from "@/lib/workout-time";
-import type { ExerciseRecord, FocusRegion, QuizAnswers, WorkoutBlockType } from "@/lib/types";
+import type { ExerciseRecord, FocusRegion, QuizAnswers, TrainingStyle, WorkoutBlockType } from "@/lib/types";
 
 export type TrainingLevel = "beginner" | "intermediate" | "advanced";
 export type TrainingGoalStyle = "fat_loss" | "hypertrophy" | "conditioning" | "recomposition";
@@ -33,6 +32,9 @@ export type SessionBlueprint = {
   primaryMuscles: string[];
   secondaryMuscles: string[];
   preferredBlockTypes: WorkoutBlockType[];
+  // Estilo de treino deste treino específico (multi-estilo). Preenchido após a
+  // distribuição; pode estar ausente em blueprints intermediários.
+  trainingStyle?: TrainingStyle;
 };
 
 export type WorkoutStrategy = {
@@ -41,6 +43,10 @@ export type WorkoutStrategy = {
   rationale: string;
   level: TrainingLevel;
   goalStyle: TrainingGoalStyle;
+  // Estilo representativo do plano (primeiro estilo). Para multi-estilo, cada
+  // treino tem o seu em sessions[].trainingStyle; o conjunto está em trainingStyles.
+  trainingStyle: TrainingStyle;
+  trainingStyles: TrainingStyle[];
   dayCount: number;
   uniqueSessionCount: number;
   timeAvailable: number;
@@ -147,6 +153,24 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
   const equipment = normalizeEquipmentList(answers.equipment);
   const bodyType = resolveBodyType(answers);
   const focusRegion: FocusRegion = answers.focusRegion ?? "balanced";
+  // Conjunto de estilos do plano. Multi-estilo (premium): trainingStyles com 2+
+  // estilos concretos. Caso contrário, 1 estilo (resolvendo "personal").
+  const explicitSet = Array.isArray(answers.trainingStyles)
+    ? Array.from(new Set(answers.trainingStyles.filter((s): s is TrainingStyle => Boolean(s) && s !== "personal")))
+    : [];
+
+  let trainingStyles: TrainingStyle[];
+  if (explicitSet.length >= 1) {
+    trainingStyles = explicitSet;
+  } else {
+    const requestedStyle: TrainingStyle = answers.trainingStyle ?? "personal";
+    const single: TrainingStyle =
+      requestedStyle === "personal"
+        ? resolveAutoTrainingStyle(goalStyle, level, equipment, timeAvailable)
+        : requestedStyle;
+    trainingStyles = [single];
+  }
+  const trainingStyle: TrainingStyle = trainingStyles[0];
   const timeBudget = buildSessionTimeBudget({
     availableTimeMinutes: timeAvailable,
     level,
@@ -160,8 +184,16 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     equipment,
     focusRegion
   });
-  const uniqueSessionCount = resolveUniqueSessionCount(dayCount, timeAvailable);
-  const sessions = buildSessionBlueprints(splitType, uniqueSessionCount, goalStyle, focusRegion);
+  // No multi-estilo, mais treinos DISTINTOS para separar bem os estilos pelos dias
+  // (ex.: 4x/sem com 2 estilos → A/B/C/D alternando), em vez de só 2 treinos.
+  const isMultiStyle = trainingStyles.length >= 2;
+  const requestedUniqueSessions = isMultiStyle
+    ? Math.min(dayCount, 6)
+    : resolveUniqueSessionCount(dayCount, timeAvailable);
+  const sessionStyles = distributeStylesAcrossSessions(trainingStyles, requestedUniqueSessions);
+  const sessions = buildSessionBlueprints(splitType, requestedUniqueSessions, goalStyle, focusRegion, sessionStyles);
+  // Ajusta ao nº real de blueprints disponíveis para o split (o slice pode reduzir).
+  const uniqueSessionCount = sessions.length;
 
   return {
     splitType,
@@ -169,6 +201,8 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     rationale: buildSplitRationale(splitType, level, goalStyle, timeAvailable),
     level,
     goalStyle,
+    trainingStyle,
+    trainingStyles,
     dayCount,
     uniqueSessionCount,
     timeAvailable,
@@ -177,7 +211,7 @@ export function buildWorkoutStrategy(answers: QuizAnswers): WorkoutStrategy {
     bodyType,
     focusRegion,
     weeklyVolumeTargets: buildWeeklyVolumeTargets(sessions, goalStyle, level),
-    allowedBlockTypes: buildAllowedBlockTypes(level, goalStyle, timeAvailable, timeBudget),
+    allowedBlockTypes: buildAllowedBlockTypes(level, goalStyle, timeAvailable, timeBudget, trainingStyles),
     maxAdvancedBlocksPerSession: buildTechniqueBudget(level, goalStyle, timeAvailable, timeBudget),
     sessions
   };
@@ -285,12 +319,16 @@ export function buildCoachBrief(strategy: WorkoutStrategy) {
     splitLabel: strategy.splitLabel,
     rationale: strategy.rationale,
     focusRegion: strategy.focusRegion !== "balanced" ? strategy.focusRegion : undefined,
-    timeBudget: buildTimeBudgetBrief(strategy.timeBudget),
+    // timeBudget removido do prompt: os mesmos números já aparecem em texto na
+    // seção RESTRIÇÕES OBRIGATÓRIAS (tempo-alvo, exercícios/sessão, blocos). Evita
+    // duplicação em "código" e reduz tokens.
     weeklyVolumeTargets: strategy.weeklyVolumeTargets,
-    allowedBlockTypes: strategy.allowedBlockTypes,
+    // allowedBlockTypes removido do prompt: o bloco é definido pelo estilo de cada
+    // treino (módulo de estilo); a validação de blocos continua interna ao app.
     maxAdvancedBlocksPerSession: strategy.maxAdvancedBlocksPerSession,
     sessions: strategy.sessions.map((session) => ({
       day: session.day,
+      trainingStyle: session.trainingStyle ?? strategy.trainingStyle,
       primaryMuscles: session.primaryMuscles,
       secondaryMuscles: session.secondaryMuscles
     }))
@@ -308,6 +346,53 @@ function resolveGoalStyle(goal: QuizAnswers["goal"]): TrainingGoalStyle {
   if (goal === "improve_conditioning") return "conditioning";
   if (goal === "body_recomposition") return "recomposition";
   return "fat_loss";
+}
+
+/**
+ * "Personal Escolhe": resolve um estilo de treino CONCRETO a partir das respostas.
+ * Lógica em camadas (ver docs/estilos-de-treino.md, seção 4):
+ *   1. Equipamento (viabilidade): sem carga, "tradicional" vira calistenia/funcional.
+ *   2. Objetivo × nível (tabela). Regra fixa: iniciante nunca recebe HIIT.
+ *   3. Tempo (desempate leve), sem quebrar a regra do iniciante.
+ */
+function resolveAutoTrainingStyle(
+  goalStyle: TrainingGoalStyle,
+  level: TrainingLevel,
+  equipment: string[],
+  timeAvailable: number
+): TrainingStyle {
+  // Camada 2 — tabela objetivo × nível.
+  const table: Record<TrainingGoalStyle, Record<TrainingLevel, TrainingStyle>> = {
+    fat_loss:      { beginner: "musculacao", intermediate: "funcional",  advanced: "hiit" },
+    hypertrophy:   { beginner: "musculacao", intermediate: "musculacao", advanced: "musculacao" },
+    conditioning:  { beginner: "funcional",  intermediate: "funcional",  advanced: "hiit" },
+    recomposition: { beginner: "musculacao", intermediate: "funcional",  advanced: "musculacao" }
+  };
+  let style: TrainingStyle = table[goalStyle][level];
+
+  // Camada 1 — equipamento. "Tradicional" só rende com carga (halteres/caneleira).
+  const hasLoad = equipment.some((item) => ["halteres", "caneleira", "machine"].includes(item));
+  if (style === "musculacao" && !hasLoad) {
+    style = goalStyle === "hypertrophy" || goalStyle === "recomposition" ? "calistenia" : "funcional";
+  }
+
+  // Camada 3 — desempate por tempo. Avançado com pouco tempo: funcional → HIIT
+  // (mais eficiente). Nunca afeta iniciante (a tabela já não lhe dá HIIT).
+  if (style === "funcional" && level === "advanced" && timeAvailable <= 30) {
+    style = "hiit";
+  }
+
+  return style;
+}
+
+/**
+ * Distribui um conjunto de estilos pelos treinos únicos, de forma intercalada
+ * (round-robin). Ex.: [A,B] em 6 treinos → A,B,A,B,A,B; em 5 → A,B,A,B,A.
+ * Sobras vão para os primeiros estilos da lista.
+ */
+function distributeStylesAcrossSessions(styles: TrainingStyle[], sessionCount: number): TrainingStyle[] {
+  const safeStyles = styles.length ? styles : (["musculacao"] as TrainingStyle[]);
+  return Array.from({ length: Math.max(1, sessionCount) }, (_, index) => safeStyles[index % safeStyles.length]);
 }
 
 function decideSplitType(input: {
@@ -354,10 +439,31 @@ function buildSessionBlueprints(
   splitType: WorkoutSplitType,
   dayCount: number,
   goalStyle: TrainingGoalStyle,
-  focusRegion: FocusRegion = "balanced"
+  focusRegion: FocusRegion = "balanced",
+  sessionStyles: TrainingStyle[] = []
 ): SessionBlueprint[] {
+  // HIIT não segue divisão por músculo: é full-body e variado (peito+perna,
+  // costas+perna, etc.), evitando sobrecarregar o mesmo grupo no circuito.
+  const HIIT_FULLBODY_PRIMARY = ["chest", "back", "quadriceps", "glutes", "abs"];
+  const HIIT_FULLBODY_SECONDARY = ["shoulders", "hamstrings", "calves", "triceps", "biceps"];
+
+  const assignStyles = (blueprints: SessionBlueprint[]): SessionBlueprint[] =>
+    blueprints.map((blueprint, index) => {
+      const style = sessionStyles[index] ?? sessionStyles[sessionStyles.length - 1] ?? blueprint.trainingStyle;
+      if (style === "hiit") {
+        return {
+          ...blueprint,
+          trainingStyle: style,
+          sessionFocus: "Full body metabólico (HIIT)",
+          primaryMuscles: HIIT_FULLBODY_PRIMARY,
+          secondaryMuscles: HIIT_FULLBODY_SECONDARY
+        };
+      }
+      return { ...blueprint, trainingStyle: style };
+    });
+
   if (splitType === "focus_split") {
-    return buildFocusSplitBlueprints(focusRegion, dayCount, goalStyle);
+    return assignStyles(buildFocusSplitBlueprints(focusRegion, dayCount, goalStyle));
   }
   const base: Record<WorkoutSplitType, SessionBlueprint[]> = {
     full_body_single: [
@@ -405,7 +511,7 @@ function buildSessionBlueprints(
     focus_split: []
   };
 
-  return base[splitType].slice(0, dayCount);
+  return assignStyles(base[splitType].slice(0, dayCount));
 }
 
 /**
@@ -572,11 +678,18 @@ function buildAllowedBlockTypes(
   level: TrainingLevel,
   goalStyle: TrainingGoalStyle,
   timeAvailable: number,
-  timeBudget: SessionTimeBudget
+  timeBudget: SessionTimeBudget,
+  trainingStyles: TrainingStyle[]
 ): WorkoutBlockType[] {
   const allowed = new Set<WorkoutBlockType>(["normal", "mobility", "tempo_controlado", "isometria"]);
 
   allowed.add("superset");
+
+  // HIIT e Funcional são montados em circuitos — liberar 'circuit' se QUALQUER
+  // treino do plano usar esses estilos (multi-estilo). Gated: não afeta musculacao/personal.
+  if (trainingStyles.some((style) => style === "hiit" || style === "funcional")) {
+    allowed.add("circuit");
+  }
 
   if (level !== "beginner" && timeAvailable >= 25) {
     allowed.add("bi-set");

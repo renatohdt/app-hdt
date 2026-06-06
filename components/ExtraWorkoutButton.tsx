@@ -47,6 +47,14 @@ const FOCUS_OPTIONS = [
   "Tríceps", "Core", "Glúteos", "Pernas", "Sem preferência"
 ];
 
+const STYLE_OPTIONS = [
+  { value: "personal", label: "Personal Escolhe" },
+  { value: "musculacao", label: "Tradicional" },
+  { value: "funcional", label: "Funcional" },
+  { value: "hiit", label: "HIIT" },
+  { value: "calistenia", label: "Calistenia" }
+];
+
 const TIME_OPTIONS: (20 | 30 | 45 | 60)[] = [20, 30, 45, 60];
 
 const LOADING_MESSAGES = [
@@ -68,6 +76,7 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
   const [selectedMinutes, setSelectedMinutes] = useState<20 | 30 | 45 | 60>(45);
   const [selectedEquipment, setSelectedEquipment] = useState<HomeEquipment[]>(defaultEquipment ?? []);
   const [selectedFocus, setSelectedFocus] = useState("Sem preferência");
+  const [selectedStyle, setSelectedStyle] = useState("personal");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
@@ -160,7 +169,8 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
         body: JSON.stringify({
           availableMinutes: selectedMinutes,
           equipment: selectedEquipment,
-          focusMuscleGroup: selectedFocus
+          focusMuscleGroup: selectedFocus,
+          trainingStyle: selectedStyle
         })
       });
 
@@ -286,6 +296,7 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
                 selectedMinutes={selectedMinutes}
                 selectedEquipment={selectedEquipment}
                 selectedFocus={selectedFocus}
+                selectedStyle={selectedStyle}
                 generateError={generateError}
                 onSelectMinutes={setSelectedMinutes}
                 onToggleEquipment={(eq) => {
@@ -299,6 +310,7 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
                   });
                 }}
                 onSelectFocus={setSelectedFocus}
+                onSelectStyle={setSelectedStyle}
                 onGenerate={handleGenerate}
                 onBack={() => setModalState("intro")}
                 onClose={closeModal}
@@ -398,16 +410,18 @@ function ModalIntro({ usedThisMonth, monthlyLimit, onClose, onStart }: {
 }
 
 function ModalQuestionnaire({
-  selectedMinutes, selectedEquipment, selectedFocus, generateError,
-  onSelectMinutes, onToggleEquipment, onSelectFocus, onGenerate, onBack, onClose
+  selectedMinutes, selectedEquipment, selectedFocus, selectedStyle, generateError,
+  onSelectMinutes, onToggleEquipment, onSelectFocus, onSelectStyle, onGenerate, onBack, onClose
 }: {
   selectedMinutes: 20 | 30 | 45 | 60;
   selectedEquipment: HomeEquipment[];
   selectedFocus: string;
+  selectedStyle: string;
   generateError: string | null;
   onSelectMinutes: (v: 20 | 30 | 45 | 60) => void;
   onToggleEquipment: (eq: HomeEquipment) => void;
   onSelectFocus: (f: string) => void;
+  onSelectStyle: (s: string) => void;
   onGenerate: () => void;
   onBack: () => void;
   onClose: () => void;
@@ -483,6 +497,28 @@ function ModalQuestionnaire({
               )}
             >
               {focus}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Estilo de treino */}
+      <div className="space-y-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/52">Qual estilo de treino você prefere?</p>
+        <div className="flex flex-wrap gap-2">
+          {STYLE_OPTIONS.map((style) => (
+            <button
+              key={style.value}
+              type="button"
+              onClick={() => onSelectStyle(style.value)}
+              className={clsx(
+                "rounded-full border px-3 py-1.5 text-[12px] font-semibold transition",
+                selectedStyle === style.value
+                  ? "border-yellow-500/40 bg-yellow-500/18 text-yellow-300"
+                  : "border-white/10 bg-white/[0.04] text-white/56 hover:text-white"
+              )}
+            >
+              {style.label}
             </button>
           ))}
         </div>

@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       time: toNumber(body.time),
       equipment: Array.isArray(body.equipment) ? body.equipment : [],
       structuredPlan: typeof body.structuredPlan === "string" ? body.structuredPlan : "no",
+      trainingStyle: typeof body.trainingStyle === "string" ? body.trainingStyle : "personal",
       wrist: bodyTypeFields.wrist,
       body_type_raw: bodyTypeFields.body_type_raw,
       body_type: bodyTypeFields.body_type,

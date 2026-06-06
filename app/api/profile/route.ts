@@ -6,7 +6,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { BodyType, FocusRegion, Gender, Goal, HomeEquipment, QuizAnswers } from "@/lib/types";
+import type { BodyType, FocusRegion, Gender, Goal, HomeEquipment, QuizAnswers, TrainingStyle } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { getUserLevelSummary } from "@/lib/user-level-store";
 import { PHASE_LABELS } from "@/lib/user-level";
@@ -18,6 +18,7 @@ const GOAL_OPTIONS: Goal[] = ["lose_weight", "gain_muscle", "body_recomposition"
 const GENDER_OPTIONS: Gender[] = ["male", "female"];
 const BODY_TYPE_OPTIONS: BodyType[] = ["endomorph", "mesomorph", "ectomorph"];
 const FOCUS_REGION_OPTIONS: FocusRegion[] = ["chest", "back", "legs", "legs_glutes", "arms", "balanced"];
+const TRAINING_STYLE_OPTIONS: TrainingStyle[] = ["musculacao", "funcional", "hiit", "calistenia", "personal"];
 const EQUIPMENT_OPTIONS: HomeEquipment[] = [
   "halteres",
   "elasticos",
@@ -47,6 +48,8 @@ type ProfilePayload = {
     height?: number;
     profession?: string;
     focusRegion?: string;
+    trainingStyle?: string;
+    trainingStyles?: string[];
     days?: number;
     time?: number;
     equipment?: string[];
@@ -70,6 +73,8 @@ type ProfileUpdateBody = {
   time?: unknown;
   equipment?: unknown;
   focusRegion?: unknown;
+  trainingStyle?: unknown;
+  trainingStyles?: unknown;
 };
 
 class ProfileValidationError extends Error {
@@ -190,6 +195,18 @@ export async function PATCH(request: Request) {
     const nextProfession = parseText(body.profession);
     const nextEquipment = parseEquipment(body.equipment);
     const nextFocusRegion = parseOptionalEnumValue(body.focusRegion, FOCUS_REGION_OPTIONS) ?? "balanced";
+    const nextTrainingStyle = parseOptionalEnumValue(body.trainingStyle, TRAINING_STYLE_OPTIONS) ?? "personal";
+    // Conjunto multi-estilo (premium): só estilos concretos e válidos, sem duplicar.
+    const nextTrainingStyles = Array.isArray(body.trainingStyles)
+      ? Array.from(
+          new Set(
+            body.trainingStyles.filter(
+              (style): style is TrainingStyle =>
+                typeof style === "string" && style !== "personal" && TRAINING_STYLE_OPTIONS.includes(style as TrainingStyle)
+            )
+          )
+        )
+      : [];
     const bodyTypeFields = normalizeBodyTypeFields({ body_type: nextBodyType });
 
     if (nextEmail !== currentEmail) {
@@ -221,6 +238,8 @@ export async function PATCH(request: Request) {
       time: nextTime,
       equipment: nextEquipment,
       focusRegion: nextFocusRegion,
+      trainingStyle: nextTrainingStyle,
+      trainingStyles: nextTrainingStyles,
       wrist: bodyTypeFields.wrist,
       body_type_raw: bodyTypeFields.body_type_raw,
       body_type: bodyTypeFields.body_type
@@ -291,6 +310,8 @@ function buildProfilePayload(
       height: normalizedAnswers.height,
       profession: normalizedAnswers.profession,
       focusRegion: normalizedAnswers.focusRegion ?? "balanced",
+      trainingStyle: normalizedAnswers.trainingStyle ?? "personal",
+      trainingStyles: Array.isArray(normalizedAnswers.trainingStyles) ? normalizedAnswers.trainingStyles : [],
       days: normalizedAnswers.days,
       time: normalizedAnswers.time,
       equipment: Array.isArray(normalizedAnswers.equipment) ? normalizedAnswers.equipment : []

@@ -431,7 +431,9 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null): QuizAnswers
     body_type_raw: savedAnswers?.body_type_raw,
     body_type: savedAnswers?.body_type,
     location: savedAnswers?.location ?? "home",
-    focusRegion: savedAnswers?.focusRegion ?? "balanced"
+    focusRegion: savedAnswers?.focusRegion ?? "balanced",
+    trainingStyle: savedAnswers?.trainingStyle ?? "personal",
+    trainingStyles: Array.isArray(savedAnswers?.trainingStyles) ? savedAnswers.trainingStyles : undefined
   }) as QuizAnswers;
 }
 

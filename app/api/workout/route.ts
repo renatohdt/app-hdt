@@ -13,6 +13,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { Experience, ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
+import { isPremium } from "@/lib/subscription";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
@@ -284,6 +285,24 @@ export async function POST(request: Request) {
     }
 
     const answers = buildRuntimeQuizAnswers(savedAnswers);
+
+    // ── Trava premium do multi-estilo ───────────────────────────────────────
+    // Plano com 2+ estilos distintos é exclusivo Premium. Não-premium é
+    // rebaixado para 1 estilo (o primeiro). A trava real fica aqui no backend.
+    const requestedStyles = Array.from(
+      new Set((answers.trainingStyles ?? []).filter((style) => style && style !== "personal"))
+    );
+    if (requestedStyles.length >= 2) {
+      const userToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+      const premium = await isPremium(userId, userToken);
+      if (!premium) {
+        answers.trainingStyles = [requestedStyles[0]];
+        logWarn("AI", "Multi-estilo negado (não premium); rebaixado para 1 estilo", {
+          user_id: userId,
+          requested: requestedStyles
+        });
+      }
+    }
 
     // ── Nível para geração do treino ────────────────────────────────────────
     // O quiz é a fonte primária. O XP só sobrescreve se a fase evoluiu além
@@ -617,7 +636,9 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null) {
     body_type_raw: savedAnswers?.body_type_raw,
     body_type: savedAnswers?.body_type,
     location: savedAnswers?.location ?? "home",
-    focusRegion: savedAnswers?.focusRegion ?? "balanced"
+    focusRegion: savedAnswers?.focusRegion ?? "balanced",
+    trainingStyle: savedAnswers?.trainingStyle ?? "personal",
+    trainingStyles: Array.isArray(savedAnswers?.trainingStyles) ? savedAnswers.trainingStyles : undefined
   }) as QuizAnswers;
 }
 

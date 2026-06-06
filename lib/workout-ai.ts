@@ -35,7 +35,9 @@ import type {
   CombinedBlockType,
   DiagnosisResult,
   ExerciseRecord,
+  HiitFormat,
   QuizAnswers,
+  TrainingStyle,
   WorkoutBlockType,
   WorkoutExercise,
   WorkoutPlan,
@@ -148,7 +150,7 @@ SELECAO DE EXERCICIOS:
 - Abs/core (abdominais, prancha, etc.): inclua SOMENTE nas sessoes onde 'abs' estiver listado como musculo PRIMARIO da sessao; em sessoes onde abs e apenas secundario (ex: push, pull) NAO adicione exercicios isolados de abs
 
 SERIES, REPETICOES E DESCANSO:
-Use os DADOS DO USUARIO (experience, goal) para calibrar conforme a tabela abaixo. NUNCA use o mesmo valor de reps para todos os exercicios da sessao.
+Use os DADOS DO USUARIO (nivel, goal) para calibrar conforme a tabela abaixo. NUNCA use o mesmo valor de reps para todos os exercicios da sessao.
 
 Repeticoes por objetivo e nivel:
 | Objetivo       | Nivel         | Composto    | Isolador    |
@@ -169,7 +171,7 @@ Descanso entre series:
 - Isolador: 45s | Bloco combinado (entre exercicios): 0-15s | Bloco combinado (entre rounds): 60-90s
 - Drop-set / rest-pause: 20-30s
 
-BLOCOS COMBINADOS (tipos permitidos: ver allowedBlockTypes na estrategia):
+BLOCOS COMBINADOS (use o tipo de bloco indicado pelo ESTILO de cada treino):
 - Une exercicios muscularmente compativeis; descanso so ao final da volta
 - Iniciante: superset simples ou circuit leve | Intermediario: bi-set moderado | Avancado: bi-set/tri-set/drop-set com parcimonia
 
@@ -311,7 +313,17 @@ export function buildWorkoutHash(answers: QuizAnswers) {
     days: Number(answers.days) || 0,
     time: Number(answers.time) || 0,
     location: normalizeLocation(typeof answers.location === "string" ? answers.location : "home"),
-    equipment: normalizeEquipmentList(answers.equipment)
+    equipment: normalizeEquipmentList(answers.equipment),
+    // Só entra na chave quando há estilo(s) concreto(s). Para "personal"/indefinido
+    // a chave fica idêntica à de hoje → usuários existentes NÃO são regenerados.
+    ...(() => {
+      const multi = Array.isArray(answers.trainingStyles)
+        ? Array.from(new Set(answers.trainingStyles.filter((s) => s && s !== "personal"))).sort()
+        : [];
+      if (multi.length >= 2) return { trainingStyles: multi };
+      if (answers.trainingStyle && answers.trainingStyle !== "personal") return { trainingStyle: answers.trainingStyle };
+      return {};
+    })()
   };
 
   return createHmac("sha256", secret).update(JSON.stringify(cacheKey)).digest("hex");
@@ -341,8 +353,10 @@ const MUSCLE_TIER_MAP: Record<string, number> = {
   calves: 3, lower_back: 3, forearms: 3, adductors: 3, abductors: 3, tibialis: 3, hip_flexors: 3
 };
 
-const TIER_BASE_QUOTAS: Record<number, number> = { 1: 8, 2: 4, 3: 3 };
-const ABS_QUOTA_BASE = 5;
+// Cotas por músculo no catálogo enviado à IA. Quanto maior, mais opções a IA tem
+// (mais variedade, menos repetição entre treinos) — ao custo de mais tokens.
+const TIER_BASE_QUOTAS: Record<number, number> = { 1: 12, 2: 7, 3: 4 };
+const ABS_QUOTA_BASE = 7;
 
 /**
  * Músculos que recebem bônus de quota quando o usuário escolhe uma região de ênfase.
@@ -367,12 +381,36 @@ function selectExercisesForAiCatalog(
   const strategy = buildWorkoutStrategy(answers);
   const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
   const excludedIds = new Set(options.excludedExerciseIds ?? []);
-  const scored = exerciseLibrary
+
+  // Filtros base (independentes do estilo de treino).
+  const baseLibrary = exerciseLibrary
     .filter((exercise) => !excludedIds.has(exercise.id))
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment))
     .filter((exercise) => matchesExerciseLevel(exercise, strategy.level))
-    .filter((exercise) => matchesGoalExerciseType(exercise, strategy.goalStyle))
+    .filter((exercise) => matchesGoalExerciseType(exercise, strategy.goalStyle));
+
+  // Filtro por estilo de treino. Multi-estilo: filtra pela UNIÃO dos estilos do plano.
+  const styledLibrary = baseLibrary.filter((exercise) =>
+    matchesTrainingStyle(exercise, strategy.trainingStyles)
+  );
+
+  // Guardrail: se o filtro de estilo deixar o catálogo pequeno demais para montar
+  // um treino decente, cai para o catálogo base (sem filtro de estilo) e registra aviso.
+  const MIN_VIABLE_CATALOG = 20;
+  const styleFilterApplied = strategy.trainingStyles.some((style) => style !== "personal");
+  const styleCatalogTooSmall = styleFilterApplied && styledLibrary.length < MIN_VIABLE_CATALOG;
+  if (styleCatalogTooSmall) {
+    logWarn("AI", "Catálogo por estilo pequeno demais; usando catálogo base", {
+      training_style: strategy.trainingStyle,
+      styled_catalog_size: styledLibrary.length,
+      base_catalog_size: baseLibrary.length,
+      min_viable: MIN_VIABLE_CATALOG
+    });
+  }
+  const chosenLibrary = styleCatalogTooSmall ? baseLibrary : styledLibrary;
+
+  const scored = chosenLibrary
     .map((exercise) => ({
       exercise,
       profile: buildExerciseProfile(exercise),
@@ -399,17 +437,33 @@ function selectExercisesForAiCatalog(
   const nonMobility = scored.filter((entry) => entry.profile.movementType !== "mobility");
   const allMuscles = [...Object.keys(MUSCLE_TIER_MAP), "abs"];
 
-  for (const muscle of allMuscles) {
-    const quota = calcMuscleQuota(muscle, strategy);
-    const candidates = nonMobility.filter((entry) => entry.profile.primaryMuscles.includes(muscle));
-    let addedForMuscle = 0;
-    for (const item of candidates) {
-      if (addedForMuscle >= quota) break;
-      if (!added.has(item.exercise.id)) {
-        pushExercise(results, added, item.exercise);
-        addedForMuscle++;
+  // Preenche a cota de cada músculo a partir dos candidatos que passam no filtro.
+  const fillMuscleQuota = (styleFilter: (exercise: ExerciseRecord) => boolean) => {
+    for (const muscle of allMuscles) {
+      const quota = calcMuscleQuota(muscle, strategy);
+      const candidates = nonMobility.filter(
+        (entry) => entry.profile.primaryMuscles.includes(muscle) && styleFilter(entry.exercise)
+      );
+      let addedForMuscle = 0;
+      for (const item of candidates) {
+        if (addedForMuscle >= quota) break;
+        if (!added.has(item.exercise.id)) {
+          pushExercise(results, added, item.exercise);
+          addedForMuscle++;
+        }
       }
     }
+  };
+
+  const concreteStyles = strategy.trainingStyles.filter((style) => style !== "personal");
+  if (concreteStyles.length >= 2) {
+    // Multi-estilo: cada estilo recebe a própria cota por músculo, garantindo que
+    // todos os estilos do plano fiquem bem representados (catálogo maior e equilibrado).
+    for (const style of concreteStyles) {
+      fillMuscleQuota((exercise) => matchesTrainingStyle(exercise, [style]));
+    }
+  } else {
+    fillMuscleQuota(() => true);
   }
 
   return results;
@@ -442,10 +496,70 @@ function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
   }
 
   if (ctx.previousWorkoutSummary) {
-    lines.push("", "TREINO ANTERIOR (não repetir os mesmos exercícios principais):", ctx.previousWorkoutSummary);
+    lines.push(
+      "",
+      "TREINO ANTERIOR (apenas para NAO repetir estes exercicios; NAO use como referencia de quantidade — siga o numero de Exercicios/sessao acima):",
+      ctx.previousWorkoutSummary
+    );
   }
 
   return lines;
+}
+
+/**
+ * Módulo de estilo de treino injetado no prompt. Gated: para "personal" e
+ * "musculacao" retorna [] (comportamento tradicional, idêntico ao de hoje).
+ * Para HIIT/funcional/calistenia, sobrepõe a estrutura padrão de musculação
+ * com as regras do estilo (ver docs/estilos-de-treino.md).
+ */
+function styleModuleLines(style: TrainingStyle): string[] {
+  if (style === "hiit") {
+    return [
+      "ESTILO HIIT (alta intensidade intervalada). Para treinos deste estilo, IGNORE a tabela de repeticoes por objetivo do system e siga:",
+      "- Estruture em CIRCUITOS: blockType 'circuit' nos exercicios principais, agrupados em voltas.",
+      "- Trabalho por TEMPO: 'reps' como tempo em segundos no formato string (ex: '30s', '40s'); 20s a 40s.",
+      "- Descanso CURTO: 'rest' entre 10 e 20 segundos.",
+      "- 'sets' = numero de voltas do circuito: 2 a 4.",
+      "- Exercicios explosivos e de corpo inteiro (functional/cardio/compostos); evite isoladores. Assinatura = descanso curto e ritmo continuo."
+    ];
+  }
+  if (style === "funcional") {
+    return [
+      "ESTILO FUNCIONAL (padroes de movimento). Para treinos deste estilo:",
+      "- Organize por padroes (empurrar, puxar, agachar, girar, carregar); multiarticular, muito core/estabilidade.",
+      "- Prefira blockType 'circuit' ou 'superset'; evite isoladores.",
+      "- 'rest' moderado (30 a 60s). 'reps' 10 a 15, ou tempo para core/estabilidade."
+    ];
+  }
+  if (style === "calistenia") {
+    return [
+      "ESTILO CALISTENIA (peso corporal, progressoes). Para treinos deste estilo:",
+      "- Sem carga externa: dificuldade vem do movimento. Do mais dificil (skill) ao mais facil (resistencia).",
+      "- Use isometrias com frequencia (blockType 'isometria', 'reps' como tempo ex '30s').",
+      "- Reps altas ate quase a falha nos dinamicos; 'rest' moderado (45 a 75s)."
+    ];
+  }
+  // musculacao: estrutura tradicional (sem modulo extra).
+  return [];
+}
+
+function buildTrainingStylePromptLines(strategy: WorkoutStrategy): string[] {
+  const styles = Array.from(new Set(strategy.trainingStyles.filter((style) => style !== "personal")));
+  const modules = styles.flatMap((style) => styleModuleLines(style));
+
+  if (!modules.length) return [];
+
+  const isMulti = strategy.sessions.some(
+    (session) => session.trainingStyle && session.trainingStyle !== strategy.sessions[0]?.trainingStyle
+  );
+
+  const header = isMulti
+    ? [
+        "PLANO MULTI-ESTILO: cada treino segue o estilo indicado no campo trainingStyle do respectivo item em sessions (abaixo). Aplique as regras do estilo APENAS aos treinos daquele estilo, e escolha para cada treino SOMENTE exercicios cujo campo trainingStyles (no catalogo) inclua o estilo daquele treino."
+      ]
+    : [];
+
+  return ["", ...header, ...modules];
 }
 
 export async function generateWorkoutWithAI(
@@ -516,12 +630,22 @@ export async function generateWorkoutWithAI(
   // Quantidade de sessoes ÚNICAS esperada no array "plan".
   // uniqueSessionCount <= dayCount: quando menor, os treinos se repetem na semana.
   // Ex: 2 treinos únicos para 4 dias → rotação A-B-A-B no app automaticamente.
-  const sessionCountTarget = strategy.uniqueSessionCount;
-  const expectedSessionLabels = strategy.sessions
-    .slice(0, sessionCountTarget)
+  // HIIT é montado pelo app — o prompt descreve APENAS as sessões de outros
+  // estilos. Assim o pedido de HIIT não interfere na criação dos demais treinos.
+  const aiSessions = strategy.sessions
+    .slice(0, strategy.uniqueSessionCount)
+    .filter((session) => (session.trainingStyle ?? strategy.trainingStyle) !== "hiit");
+  const promptStrategy: WorkoutStrategy = {
+    ...strategy,
+    sessions: aiSessions,
+    uniqueSessionCount: aiSessions.length,
+    trainingStyles: strategy.trainingStyles.filter((style) => style !== "hiit")
+  };
+
+  const sessionCountTarget = aiSessions.length;
+  const expectedSessionLabels = aiSessions
     .map((session) => `Treino ${session.day}`)
     .join(", ");
-  const isRotating = strategy.uniqueSessionCount < strategy.dayCount;
 
   // User message: exercícios primeiro (semi-estático, maximiza prefixo cacheável),
   // depois os dados dinâmicos (restrições, estratégia, usuário).
@@ -539,18 +663,19 @@ export async function generateWorkoutWithAI(
       : []),
     "RESTRIÇÕES OBRIGATÓRIAS:",
     `- Sessoes: exatamente ${sessionCountTarget} (${expectedSessionLabels}), focos distintos conforme sessions abaixo`,
-    ...(isRotating
-      ? [`- ROTACAO: o usuario treina ${strategy.dayCount}x/semana mas recebe apenas ${sessionCountTarget} treinos distintos; o app repete automaticamente na ordem (ex: ${expectedSessionLabels.split(", ").concat(expectedSessionLabels.split(", ")).slice(0, strategy.dayCount).join("→")}); por isso cada treino deve ser COMPLETO e SEM repetir exercicios dos outros treinos`]
-      : []),
-    `- Exercicios/sessao: ${exerciseRangeLabel} (alvo ${exerciseTarget}); mobilidade NAO conta`,
-    `- Blocos combinados/sessao: ${combinedRangeLabel} (alvo ${combinedTarget})`,
+    "- Cada treino deve ser COMPLETO e NAO repetir exercicios dos outros treinos.",
+    `- Exercicios/sessao: OBRIGATORIO ${exerciseRangeLabel} exercicios por treino (alvo ${exerciseTarget}); mobilidade NAO conta.`,
+    ...(promptStrategy.trainingStyles.some((style) => style === "funcional")
+      ? []
+      : [`- Blocos combinados/sessao: ${combinedRangeLabel} (alvo ${combinedTarget})`]),
     `- Tempo-alvo: ${targetDurationMinutes} min (janela ${durationWindowLabel} min, disponivel: ${availableMinutes} min)`,
     ...(strategy.focusRegion && strategy.focusRegion !== "balanced"
       ? [`- Treino A OBRIGATORIAMENTE deve ser o primeiro treino da semana e DEVE priorizar os músculos de muscle_focus (${strategy.focusRegion}); os exercícios desse grupo muscular devem ocupar a maior parte do volume do Treino A`]
       : []),
+    ...buildTrainingStylePromptLines(promptStrategy),
     "",
     "ESTRATEGIA BASE OBRIGATORIA:",
-    toWorkoutYaml(buildCoachBrief(strategy)),
+    toWorkoutYaml(buildCoachBrief(promptStrategy)),
     "",
     "DADOS DO USUÁRIO:",
     toWorkoutYaml({
@@ -560,9 +685,11 @@ export async function generateWorkoutWithAI(
       goal: answers.goal,
       days: strategy.dayCount,
       time: strategy.timeAvailable,
-      equipment: strategy.equipment,
+      // equipment removido: o catálogo já vem filtrado pelo equipamento do usuário,
+      // então a IA não consegue escolher fora dele — enviar de novo seria redundante.
       gender: answers.gender,
-      experience: answers.experience,
+      // experiencia em texto legível (nivel) em vez do código cru "gt_1_year".
+      nivel: formatLevel(strategy.level),
       body_type: resolveBodyType(answers),
       ...(strategy.focusRegion && strategy.focusRegion !== "balanced"
         ? { muscle_focus: strategy.focusRegion }
@@ -584,6 +711,62 @@ export async function generateWorkoutWithAI(
   // de observabilidade da IA (public.ai_workout_generations).
   const telemetryModel = process.env.OPENAI_WORKOUT_MODEL?.trim() || "gpt-4o-mini";
   const telemetryStartedAt = Date.now();
+
+  // Plano 100% HIIT: o app monta tudo localmente (buildLocalHiitExercises),
+  // então NÃO há motivo para chamar a OpenAI — economiza tokens/custo. A IA só é
+  // chamada quando há algum treino de outro estilo no plano.
+  const allHiit = strategy.sessions
+    .slice(0, strategy.uniqueSessionCount)
+    .every((session) => (session.trainingStyle ?? strategy.trainingStyle) === "hiit");
+
+  if (allHiit) {
+    logInfo("AI", "Plano 100% HIIT — montado localmente, sem chamada à OpenAI", {
+      session_count: strategy.uniqueSessionCount
+    });
+
+    const localHiitPlan = validateAndBuildWorkoutPlan(
+      {
+        splitType: strategy.splitType,
+        sessionCount: strategy.uniqueSessionCount,
+        plan: strategy.sessions.slice(0, strategy.uniqueSessionCount).map((session) => ({
+          day: session.day,
+          title: `Treino ${session.day}`,
+          splitType: strategy.splitType,
+          exercises: []
+        }))
+      } as AiWorkoutResponse,
+      answers,
+      diagnosis,
+      exerciseLibrary,
+      filteredLibrary,
+      strategy,
+      mobilityContext
+    );
+
+    if (!localHiitPlan) {
+      throw new Error("Não foi possível montar o treino HIIT localmente.");
+    }
+
+    await recordWorkoutGeneration({
+      userId: mobilityContext.userId ?? null,
+      model: "local-hiit",
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      promptChars: 0,
+      responseChars: 0,
+      catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
+      catalogSizeAfterFilter: filteredLibrary.length,
+      promptBody: "",
+      responseBody: "",
+      splitType: strategy.splitType ?? null,
+      dayCount: strategy.dayCount ?? null,
+      durationMs: Date.now() - telemetryStartedAt,
+      status: "success"
+    }).catch(() => {});
+
+    return localHiitPlan;
+  }
 
   try {
     logInfo("AI", "Workout AI request started", {
@@ -782,12 +965,16 @@ export function isOpenAIQuotaError(error: unknown) {
 function buildAiCatalogExercise(exercise: ExerciseRecord) {
   const profile = buildExerciseProfile(exercise);
 
+  // recommendedBlockTypes removido (definido pelo estilo). Em troca, enviamos
+  // trainingStyles: assim a IA aloca cada exercício no treino do estilo certo
+  // (essencial no multi-estilo). O local NÃO vai aqui — o catálogo já é filtrado
+  // pelo local do usuário, então seria redundante.
   return {
     name: exercise.name,
     primaryMuscles: profile.primaryMuscles,
     secondaryMuscles: profile.secondaryMuscles,
     movementType: profile.movementType,
-    recommendedBlockTypes: profile.recommendedBlockTypes
+    trainingStyles: normalizeStringArray(exercise.training_styles).map((value) => value.toLowerCase().trim())
   };
 }
 
@@ -874,13 +1061,26 @@ function validateAndBuildWorkoutPlan(
   // Cada nome que passar pela sanitização entra aqui e é bloqueado nas próximas sessões.
   const usedAcrossSessions = new Set<string>();
 
-  for (const [index, day] of normalizedPlan.slice(0, strategy.uniqueSessionCount).entries()) {
-    const blueprint = strategy.sessions[index] ?? strategy.sessions[strategy.sessions.length - 1];
+  // Conta as sessões HIIT para alternar o formato (Tabata, 45/15, AMRAP, EMOM, Pirâmide).
+  let hiitSessionCount = 0;
+  // Cursor na resposta da IA: a IA só devolve as sessões NÃO-HIIT (o HIIT é do app),
+  // então mapeamos cada sessão não-HIIT da estratégia ao próximo item da resposta.
+  let aiCursor = 0;
+
+  for (const [index, blueprint] of strategy.sessions.slice(0, strategy.uniqueSessionCount).entries()) {
+    // HIIT: o app monta o treino inteiro. Demais estilos: usa a resposta da IA.
+    const isHiitSession = (blueprint.trainingStyle ?? strategy.trainingStyle) === "hiit";
+    const day: AiWorkoutDay = isHiitSession
+      ? ({ day: blueprint.day, title: `Treino ${blueprint.day}`, splitType: strategy.splitType, exercises: [] } as AiWorkoutDay)
+      : ((normalizedPlan[aiCursor++] as AiWorkoutDay | undefined) ??
+          ({ day: blueprint.day, title: `Treino ${blueprint.day}`, splitType: strategy.splitType, exercises: [] } as AiWorkoutDay));
     const rawExercises = Array.isArray(day.exercises) ? day.exercises : [];
-    const sanitized = sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
+    const sanitized = isHiitSession
+      ? buildLocalHiitExercises(strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
+      : sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
 
     if (!sanitized.length) {
-      logWarn("AI", "Workout AI session adjusted after sanitization");
+      logWarn("AI", "Workout session adjusted after sanitization", { session_index: index + 1, hiit: isHiitSession });
       continue;
     }
 
@@ -915,7 +1115,8 @@ function validateAndBuildWorkoutPlan(
       strategy,
       blueprint,
       exerciseMap,
-      allowedNames
+      allowedNames,
+      usedAcrossSessions
     });
     const structuredExercises = fittedSession.structuredExercises;
     const sessionFocus =
@@ -925,8 +1126,25 @@ function validateAndBuildWorkoutPlan(
         blueprint
       ) || blueprint.sessionFocus;
     const progressionTip = buildSectionProgressionTip(strategy, structuredExercises);
-    const items = fittedSession.items;
-    const flattened = fittedSession.flattened;
+
+    // HIIT: encaixa os exercícios num FORMATO pré-moldado (Tabata, 45/15, AMRAP,
+    // EMOM, Pirâmide), alternando entre as sessões HIIT. O app passa a ser dono da
+    // estrutura — tudo vira um circuito único, sem "circuito perdido".
+    let items = fittedSession.items;
+    let flattened = fittedSession.flattened;
+    let sessionFormat: HiitFormat | undefined;
+    let estimatedMinutes = fittedSession.estimate.totalMinutes;
+    let durationRangeLabel = fittedSession.estimate.durationRange;
+    if ((blueprint.trainingStyle ?? strategy.trainingStyle) === "hiit" && structuredExercises.length) {
+      const formatted = applyHiitFormat(structuredExercises, strategy, hiitSessionCount);
+      hiitSessionCount += 1;
+      sessionFormat = formatted.format;
+      items = buildWorkoutSectionItems(fittedSession.mobility, formatted.exercises);
+      flattened = flattenWorkoutSectionItems(items);
+      // HIIT dura 10-30 min — exibe o tempo capado, não o do formulário.
+      estimatedMinutes = clamp(strategy.timeBudget.targetDurationMinutes, 10, 30);
+      durationRangeLabel = `${estimatedMinutes} min`;
+    }
     sectionEstimates.push(fittedSession.estimate);
 
     sections.push({
@@ -934,13 +1152,15 @@ function validateAndBuildWorkoutPlan(
       subtitle: sessionFocus,
       focus: normalizeFocus(day.focus, blueprint.primaryMuscles[0] ?? "full_body"),
       splitType: typeof day.splitType === "string" && day.splitType.trim() ? day.splitType : strategy.splitType,
+      trainingStyle: blueprint.trainingStyle ?? strategy.trainingStyle,
+      sessionFormat,
       sessionFocus,
       focusLabel: sessionFocus,
       rationale:
         typeof day.rationale === "string" && day.rationale.trim() ? day.rationale.trim() : blueprint.rationale,
       progressionTip,
-      estimatedDurationMinutes: fittedSession.estimate.totalMinutes,
-      durationRange: fittedSession.estimate.durationRange,
+      estimatedDurationMinutes: estimatedMinutes,
+      durationRange: durationRangeLabel,
       timeFitRationale: buildSectionTimeFitRationale(strategy, fittedSession.estimate, items),
       mobility: flattened.mobility,
       exercises: flattened.exercises,
@@ -969,6 +1189,8 @@ function validateAndBuildWorkoutPlan(
       `Tempo por sessão: ${durationSummary.durationRange}`
     ],
     splitType: strategy.splitType,
+    trainingStyle: strategy.trainingStyle,
+    trainingStyles: strategy.trainingStyles,
     rationale:
       typeof aiResponse.rationale === "string" && aiResponse.rationale.trim() ? aiResponse.rationale.trim() : strategy.rationale,
     sessionCount: sections.length,
@@ -1360,6 +1582,7 @@ function fitSessionToTimeBudget(input: {
   blueprint: SessionBlueprint;
   exerciseMap: Map<string, ExerciseLookup>;
   allowedNames: Set<string>;
+  usedAcrossSessions?: Set<string>;
 }) {
   const mobility = normalizeMobilityForTime(input.mobility, input.blueprint, input.strategy);
   let exercises = alignExercisesToTimeBudget(
@@ -1367,9 +1590,17 @@ function fitSessionToTimeBudget(input: {
     input.strategy,
     input.blueprint,
     input.exerciseMap,
-    input.allowedNames
+    input.allowedNames,
+    input.usedAcrossSessions
   );
   let draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+
+  // Estilos da IA: respeita a lista da IA — não ajusta o nº de exercícios por
+  // tempo (sem expandir nem simplificar). O HIIT (app) segue o ajuste por voltas.
+  const respectAi = (input.blueprint.trainingStyle ?? input.strategy.trainingStyle) !== "hiit";
+  if (respectAi) {
+    return draft;
+  }
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
     if (draft.estimate.totalMinutesExact > input.strategy.timeBudget.maxDurationMinutes) {
@@ -1382,7 +1613,8 @@ function fitSessionToTimeBudget(input: {
         input.strategy,
         input.blueprint,
         input.exerciseMap,
-        input.allowedNames
+        input.allowedNames,
+        input.usedAcrossSessions
       );
       draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
       continue;
@@ -1394,7 +1626,8 @@ function fitSessionToTimeBudget(input: {
         input.strategy,
         input.blueprint,
         input.exerciseMap,
-        input.allowedNames
+        input.allowedNames,
+        input.usedAcrossSessions
       );
       if (!expanded.length || areExercisesEqual(exercises, expanded)) {
         break;
@@ -1404,7 +1637,8 @@ function fitSessionToTimeBudget(input: {
         input.strategy,
         input.blueprint,
         input.exerciseMap,
-        input.allowedNames
+        input.allowedNames,
+        input.usedAcrossSessions
       );
       draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
       continue;
@@ -1470,10 +1704,18 @@ function alignExercisesToTimeBudget(
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
   exerciseMap: Map<string, ExerciseLookup>,
-  allowedNames: Set<string>
+  allowedNames: Set<string>,
+  usedAcrossSessions?: Set<string>
 ) {
   const budget = strategy.timeBudget;
   let normalized = [...exercises].map((exercise) => applyExerciseTimePrescription(exercise, strategy));
+
+  // Estilos da IA (Tradicional/Funcional/Calistenia): RESPEITA a lista da IA —
+  // não corta nem preenche exercícios por tempo. O app não reescreve o treino.
+  const respectAi = (blueprint.trainingStyle ?? strategy.trainingStyle) !== "hiit";
+  if (respectAi) {
+    return normalized;
+  }
 
   normalized = trimExcessIsolationExercises(normalized, strategy, blueprint);
 
@@ -1482,7 +1724,7 @@ function alignExercisesToTimeBudget(
   }
 
   while (normalized.length < budget.exerciseCountRange.min) {
-    const next = pickNextFallbackExercise(normalized, strategy, blueprint, exerciseMap, allowedNames);
+    const next = pickNextFallbackExercise(normalized, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
     if (!next) {
       break;
     }
@@ -1563,9 +1805,11 @@ function pickNextFallbackExercise(
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
   exerciseMap: Map<string, ExerciseLookup>,
-  allowedNames: Set<string>
+  allowedNames: Set<string>,
+  usedAcrossSessions?: Set<string>
 ) {
   const usedNames = new Set(currentExercises.map((exercise) => exercise.name.trim().toLowerCase()));
+  const sessionStyle = blueprint.trainingStyle;
   const currentPrimaryCounts = new Map<string, number>();
 
   currentExercises.forEach((exercise) => {
@@ -1578,8 +1822,12 @@ function pickNextFallbackExercise(
   // (equipamento/localização do usuário). Mobilidade é tratada em outra rota.
   const candidates = Array.from(exerciseMap.values())
     .filter((lookup) => !usedNames.has(lookup.source.name.trim().toLowerCase()))
+    // Unicidade entre treinos: não repescar exercício já usado em outra sessão do plano.
+    .filter((lookup) => !usedAcrossSessions?.has(lookup.source.name.trim().toLowerCase()))
     .filter((lookup) => lookup.profile.movementType !== "mobility")
     .filter((lookup) => allowedNames.has(lookup.source.name.trim().toLowerCase()))
+    // Respeita o estilo DESTE treino (não repescar exercício de outro estilo).
+    .filter((lookup) => sessionStyle === undefined || sessionStyle === "personal" || matchesTrainingStyle(lookup.source, [sessionStyle]))
     .sort((left, right) => {
       const leftScore = scoreFallbackCandidate(left, currentExercises, strategy, blueprint, currentPrimaryCounts);
       const rightScore = scoreFallbackCandidate(right, currentExercises, strategy, blueprint, currentPrimaryCounts);
@@ -1596,6 +1844,9 @@ function pickNextFallbackExercise(
     });
     return null;
   }
+
+  // Marca como usado no plano para não repetir nas próximas sessões.
+  usedAcrossSessions?.add(next.source.name.trim().toLowerCase());
 
   return buildFallbackExercise(next, strategy, blueprint);
 }
@@ -1648,16 +1899,34 @@ function buildFallbackExercise(
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint
 ): SanitizedExercise {
-  const blockType: WorkoutBlockType = "normal";
+  const sessionStyle = blueprint.trainingStyle;
+  const movementType = lookup.profile.movementType;
+
+  // O preenchimento respeita as mesmas regras da IA: isométrico → isometria;
+  // HIIT → circuito por tempo. Senão, normal. (Antes saía sempre normal/reps.)
+  let blockType: WorkoutBlockType = "normal";
+  if (movementType === "isometric") {
+    blockType = "isometria";
+  } else if (sessionStyle === "hiit" && movementType !== "mobility") {
+    blockType = "circuit";
+  }
+
+  const reps =
+    blockType === "isometria"
+      ? "30s"
+      : sessionStyle === "hiit" && movementType !== "mobility"
+        ? "30s"
+        : String(normalizeRepsForBudget(getDefaultReps(strategy, movementType, blockType), strategy, movementType, blockType, sessionStyle));
+  const rest = `${normalizeRestForBudget(getDefaultRest(strategy, blockType, movementType), strategy, blockType, movementType, sessionStyle)}s`;
   const trainingTechnique = resolveTrainingTechnique({}, blockType, blueprint, lookup.profile.primaryMuscles[0]);
 
   return applyExerciseTimePrescription(
     {
       name: lookup.source.name,
-      sets: String(getDefaultSets(strategy, lookup.profile.movementType)),
-      reps: String(getDefaultReps(strategy, lookup.profile.movementType, blockType)),
-      rest: `${getDefaultRest(strategy, blockType, lookup.profile.movementType)}s`,
-      type: "normal",
+      sets: String(getDefaultSets(strategy, movementType)),
+      reps,
+      rest,
+      type: isCombinedBlockType(blockType) ? "superset" : "normal",
       method: trainingTechnique,
       technique: trainingTechnique,
       blockType,
@@ -1705,10 +1974,20 @@ function expandSessionForTime(
   strategy: WorkoutStrategy,
   blueprint: SessionBlueprint,
   exerciseMap: Map<string, ExerciseLookup>,
-  allowedNames: Set<string>
+  allowedNames: Set<string>,
+  usedAcrossSessions?: Set<string>
 ) {
+  // Estilos de circuito (HIIT/funcional): o tempo é preenchido com mais VOLTAS,
+  // NUNCA com mais exercícios. Um circuito é poucos exercícios repetidos em voltas
+  // — adicionar exercícios o torna brutal (ex.: Tabata com 9 exercícios). No HIIT,
+  // as voltas vêm do próprio formato (applyHiitFormat).
+  const isCircuitStyle = blueprint.trainingStyle === "hiit" || blueprint.trainingStyle === "funcional";
+  if (isCircuitStyle) {
+    return increaseSetsOnHighValueExercise(exercises, strategy, blueprint);
+  }
+
   if (exercises.length < strategy.timeBudget.targetExerciseCount) {
-    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap, allowedNames);
+    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
     if (next) {
       return [...exercises, next];
     }
@@ -1720,7 +1999,7 @@ function expandSessionForTime(
   }
 
   if (exercises.length < strategy.timeBudget.exerciseCountRange.max) {
-    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap, allowedNames);
+    const next = pickNextFallbackExercise(exercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
     if (next) {
       return [...exercises, next];
     }
@@ -1916,7 +2195,8 @@ function resolveSetBounds(
 function resolveRestBounds(
   strategy: WorkoutStrategy,
   blockType: WorkoutBlockType | undefined,
-  movementType: string
+  movementType: string,
+  sessionStyle?: TrainingStyle
 ) {
   if (blockType === "mobility" || movementType === "mobility") {
     return { min: 10, max: 20, target: 15 };
@@ -1924,6 +2204,21 @@ function resolveRestBounds(
 
   if (isCombinedBlockType(blockType)) {
     return { min: 0, max: 15, target: 10 };
+  }
+
+  // Descanso por estilo do treino (multi-estilo); cai para o do plano se ausente.
+  const effectiveStyle = sessionStyle ?? strategy.trainingStyle;
+  // HIIT: descanso curto (assinatura do estilo).
+  if (effectiveStyle === "hiit") {
+    return { min: 10, max: 60, target: 20 };
+  }
+  // Calistenia: descanso moderado (controle e progressão).
+  if (effectiveStyle === "calistenia") {
+    return { min: 45, max: 75, target: 60 };
+  }
+  // Funcional: descanso curto-moderado (ritmo de circuito/padrões).
+  if (effectiveStyle === "funcional") {
+    return { min: 30, max: 60, target: 45 };
   }
 
   if (blockType === "drop-set" || blockType === "rest-pause") {
@@ -1986,12 +2281,21 @@ function resolveRestBounds(
 function resolveRepBounds(
   strategy: WorkoutStrategy,
   movementType: string,
-  blockType?: WorkoutBlockType
+  blockType?: WorkoutBlockType,
+  sessionStyle?: TrainingStyle
 ): { min: number; max: number; target: number } {
   if (movementType === "mobility") return { min: 20, max: 40, target: 30 };
 
   const isCompound = movementType === "compound";
   const { goalStyle, level } = strategy;
+
+  // Calistenia: sem carga externa → a intensidade vem de mais repetições.
+  // Reps mais altas para os movimentos dinâmicos (isometria é tratada à parte).
+  if (sessionStyle === "calistenia") {
+    return isCompound
+      ? { min: 10, max: 20, target: 15 }
+      : { min: 12, max: 25, target: 18 };
+  }
 
   if (goalStyle === "hypertrophy") {
     if (isCompound) {
@@ -2021,9 +2325,10 @@ function normalizeRepsForBudget(
   value: unknown,
   strategy: WorkoutStrategy,
   movementType: string,
-  blockType?: WorkoutBlockType
+  blockType?: WorkoutBlockType,
+  sessionStyle?: TrainingStyle
 ): number {
-  const bounds = resolveRepBounds(strategy, movementType, blockType);
+  const bounds = resolveRepBounds(strategy, movementType, blockType, sessionStyle);
 
   // Se a IA mandou um valor no formato tempo ("45s", "30s") mas o blockType
   // não é isometria, é um erro de prescrição da IA (confundiu o tipo do exercício).
@@ -2081,28 +2386,40 @@ function sanitizeAiDayExercises(
 ) {
   const seen = new Set<string>();
   let advancedBlocks = 0;
+  // Estilo DESTE treino (multi-estilo). Cai para o estilo do plano se ausente.
+  const sessionStyle: TrainingStyle = blueprint.trainingStyle ?? strategy.trainingStyle;
 
   const sanitized = exercises
     .map((exercise) => {
       const rawName = typeof exercise.name === "string" ? exercise.name.trim() : "";
-      const key = rawName.toLowerCase();
+      let key = rawName.toLowerCase();
 
       if (!rawName || seen.has(key)) {
         return null;
       }
 
-      // Bloqueia exercício já usado em outra sessão do mesmo plano
-      if (usedAcrossSessions?.has(key)) {
-        logWarn("AI", "Exercise rejected — already used in another session", { exercise_name: rawName });
+      let lookup = exerciseMap.get(key);
+      if (!lookup) {
         return null;
+      }
+
+      // Repetição entre treinos do plano: tenta um substituto SIMILAR (mesmo grupo
+      // muscular primário, estilo, nível e equipamento). Se não houver substituto,
+      // MANTÉM o exercício original (permite a repetição) — em vez de inventar
+      // um exercício qualquer, que descaracterizava o treino da IA.
+      if (usedAcrossSessions?.has(key)) {
+        const substitute = findSimilarReplacement(lookup, exerciseMap, allowedNames, usedAcrossSessions, seen, sessionStyle);
+        if (substitute) {
+          lookup = substitute;
+          key = substitute.source.name.trim().toLowerCase();
+          logInfo("AI", "Exercício repetido substituído por similar", { from: rawName, to: substitute.source.name });
+        } else {
+          logInfo("AI", "Exercício repetido mantido (sem substituto similar)", { exercise_name: rawName });
+        }
       }
 
       seen.add(key);
       usedAcrossSessions?.add(key);
-      const lookup = exerciseMap.get(key);
-      if (!lookup) {
-        return null;
-      }
 
       // Segunda camada de validação: a IA só pode escolher exercícios
       // que estejam no catálogo permitido (equipamento/localização/etc.).
@@ -2112,6 +2429,17 @@ function sanitizeAiDayExercises(
         logWarn("AI", "AI selected exercise outside allowed catalog", {
           exercise_name: lookup.source.name,
           exercise_id: lookup.source.id
+        });
+        return null;
+      }
+
+      // Trava por sessão (multi-estilo): o exercício precisa pertencer ao estilo
+      // DESTE treino. Sem isso, a IA pode colocar um exercício de musculacao num
+      // treino HIIT (o catálogo é a união dos estilos do plano).
+      if (!isMobility && sessionStyle !== "personal" && !matchesTrainingStyle(lookup.source, [sessionStyle])) {
+        logWarn("AI", "Exercise rejected — style mismatch for this session", {
+          exercise_name: lookup.source.name,
+          session_style: sessionStyle
         });
         return null;
       }
@@ -2146,6 +2474,28 @@ function sanitizeAiDayExercises(
         }
       }
 
+      // Aquecimento (ativação isolada, ex.: manguito rotador) só faz sentido no
+      // estilo TRADICIONAL. Em HIIT/funcional/calistenia o aquecimento é a própria
+      // mobilidade + a primeira volta leve. Além disso, exige relação muscular com
+      // a sessão (ex.: aquecimento de ombro não entra num treino de perna).
+      const isWarmup = normalizeStoredExerciseType(lookup.source.type ?? lookup.source.metadata?.type) === "warmup";
+      if (isWarmup) {
+        const sessionMuscles = new Set([...blueprint.primaryMuscles, ...blueprint.secondaryMuscles]);
+        const warmupMuscles = [
+          ...(lookup.profile.primaryMuscles ?? []),
+          ...(lookup.profile.secondaryMuscles ?? [])
+        ];
+        const styleAllowsWarmup = sessionStyle === "musculacao" || sessionStyle === "personal";
+        if (!styleAllowsWarmup || !warmupMuscles.some((muscle) => sessionMuscles.has(muscle))) {
+          logWarn("AI", "Warmup rejected — style/muscles don't match session", {
+            exercise_name: lookup.source.name,
+            session_style: sessionStyle,
+            session_primary_muscles: blueprint.primaryMuscles
+          });
+          return null;
+        }
+      }
+
       let blockType = normalizeBlockType(exercise.blockType ?? exercise.type ?? exercise.trainingTechnique ?? exercise.technique);
       if (lookup.profile.movementType === "mobility") {
         blockType = "mobility";
@@ -2155,9 +2505,37 @@ function sanitizeAiDayExercises(
         blockType = "normal";
       } else if (blockType === "cluster" && strategy.level !== "advanced") {
         blockType = "normal";
+      } else if (blockType === "isometria" && lookup.profile.movementType !== "isometric") {
+        // 'isometria' (reps em tempo) só faz sentido em exercícios isométricos.
+        // A IA às vezes marca um exercício dinâmico como isometria — rebaixa p/ normal.
+        blockType = "normal";
       }
 
-      if (isAdvancedBlockType(blockType)) {
+      // Exercício ISOMÉTRICO sempre prescrito como 'isometria' (reps em tempo).
+      // Impede que a IA/estruturação o transforme em bi-set/normal com repetições
+      // (ex.: Prancha Isométrica saindo com "12 reps"). Em HIIT, a regra abaixo
+      // sobrepõe para 'circuit' (mantendo reps em tempo).
+      if (lookup.profile.movementType === "isometric") {
+        blockType = "isometria";
+      }
+
+      // HIIT: a sessão inteira é UM circuito. Uniformiza os exercícios principais
+      // como 'circuit' para ficarem agrupados (evita circuitos soltos no meio do
+      // treino). Aquecimento e mobilidade ficam de fora.
+      if (
+        sessionStyle === "hiit" &&
+        lookup.profile.movementType !== "mobility" &&
+        blockType !== "warmup"
+      ) {
+        blockType = "circuit";
+      }
+
+      // Em HIIT/funcional o circuito é a estrutura base do treino, não uma
+      // "técnica avançada" pontual — por isso fica isento do limite por sessão.
+      const circuitIsStyleBase =
+        blockType === "circuit" && (sessionStyle === "hiit" || sessionStyle === "funcional");
+
+      if (isAdvancedBlockType(blockType) && !circuitIsStyleBase) {
         if (advancedBlocks >= strategy.maxAdvancedBlocksPerSession) {
           blockType = "normal";
         } else {
@@ -2174,8 +2552,10 @@ function sanitizeAiDayExercises(
         sets: String(normalizeSetsForBudget(exercise.sets, strategy, movementType, blockType)),
         reps: blockType === "isometria"
           ? (typeof exercise.reps === "string" && exercise.reps.trim() ? exercise.reps.trim() : "30s")
-          : String(normalizeRepsForBudget(exercise.reps, strategy, movementType, blockType)),
-        rest: `${normalizeRestForBudget(exercise.rest, strategy, blockType, movementType)}s`,
+          : sessionStyle === "hiit" && movementType !== "mobility"
+            ? resolveHiitTimeReps(exercise.reps)
+            : String(normalizeRepsForBudget(exercise.reps, strategy, movementType, blockType, sessionStyle)),
+        rest: `${normalizeRestForBudget(exercise.rest, strategy, blockType, movementType, sessionStyle)}s`,
         type: legacyType,
         method: trainingTechnique,
         technique: trainingTechnique,
@@ -2196,6 +2576,162 @@ function sanitizeAiDayExercises(
   return enforceCombinedRuns(sanitized);
 }
 
+// Reordena para intercalar grupos musculares: evita 2 exercícios seguidos do
+// mesmo músculo primário (ex.: flexão + flexão declinada + diamond). Importante
+// no HIIT para não sobrecarregar o mesmo músculo e manter o ritmo do circuito.
+function interleaveMuscleGroups(exercises: SanitizedExercise[]): SanitizedExercise[] {
+  const remaining = [...exercises];
+  const result: SanitizedExercise[] = [];
+
+  while (remaining.length) {
+    const lastMuscle = result.length ? result[result.length - 1].primaryMuscles?.[0] : undefined;
+    // Prefere o próximo exercício cujo músculo primário difere do anterior.
+    let index = remaining.findIndex((exercise) => (exercise.primaryMuscles?.[0]) !== lastMuscle);
+    if (index === -1) index = 0; // só sobraram do mesmo músculo
+    result.push(remaining[index]);
+    remaining.splice(index, 1);
+  }
+
+  return result;
+}
+
+// O treino HIIT é montado INTEIRAMENTE pelo app (a IA cuida só dos outros estilos).
+// Seleciona poucos exercícios HIIT, variando grupos musculares e sem repetir entre
+// treinos. Reaproveita pickNextFallbackExercise (já respeita estilo/variedade/unicidade).
+// Acha um exercício SIMILAR ao original (mesmo grupo muscular primário, mesmo
+// estilo, dentro do catálogo permitido = nível/equipamento/local, e ainda não
+// usado). Usado para substituir uma repetição entre treinos sem descaracterizar.
+function findSimilarReplacement(
+  original: ExerciseLookup,
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>,
+  usedAcrossSessions: Set<string> | undefined,
+  seen: Set<string>,
+  sessionStyle: TrainingStyle
+): ExerciseLookup | null {
+  const originalKey = original.source.name.trim().toLowerCase();
+  const targetMuscle = original.profile.primaryMuscles?.[0];
+  const targetMovement = original.profile.movementType;
+  if (!targetMuscle) return null;
+
+  const candidates = Array.from(exerciseMap.values()).filter((lookup) => {
+    const key = lookup.source.name.trim().toLowerCase();
+    if (key === originalKey) return false;
+    if (seen.has(key) || usedAcrossSessions?.has(key)) return false;
+    if (!allowedNames.has(key)) return false; // respeita equipamento/local/nível
+    if (lookup.profile.movementType === "mobility") return false;
+    if (sessionStyle !== "personal" && !matchesTrainingStyle(lookup.source, [sessionStyle])) return false;
+    return lookup.profile.primaryMuscles?.[0] === targetMuscle;
+  });
+
+  // Prefere o mesmo tipo de movimento (composto/isolado/funcional/isométrico).
+  candidates.sort((left, right) => {
+    const leftScore = left.profile.movementType === targetMovement ? 1 : 0;
+    const rightScore = right.profile.movementType === targetMovement ? 1 : 0;
+    return rightScore - leftScore;
+  });
+
+  return candidates[0] ?? null;
+}
+
+function buildLocalHiitExercises(
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>,
+  usedAcrossSessions: Set<string>
+): SanitizedExercise[] {
+  const HIIT_EXERCISE_COUNT = 4; // circuito pequeno e intenso
+  const result: SanitizedExercise[] = [];
+  for (let i = 0; i < HIIT_EXERCISE_COUNT; i += 1) {
+    const next = pickNextFallbackExercise(result, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
+    if (!next) break;
+    result.push(next);
+  }
+  return result;
+}
+
+const HIIT_FORMAT_ROTATION: HiitFormat["id"][] = ["tabata", "intervals", "amrap", "emom", "pyramid"];
+
+// Encaixa os exercícios do HIIT num FORMATO pré-moldado (o app é dono da
+// estrutura). Intercala os músculos, marca tudo como UM circuito e sobrescreve
+// séries/reps/descanso conforme a regra do formato. Elimina "circuito perdido".
+function applyHiitFormat(
+  exercises: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  hiitOrdinal: number
+): { exercises: SanitizedExercise[]; format: HiitFormat } {
+  // HIIT é um circuito PEQUENO (poucos exercícios, repetidos em voltas). Limita o
+  // nº de exercícios para o treino não virar interminável (ex.: Tabata com 9).
+  const HIIT_MAX_CIRCUIT_EXERCISES = 5;
+  const circuitExercises = interleaveMuscleGroups(exercises).slice(0, HIIT_MAX_CIRCUIT_EXERCISES);
+  const count = Math.max(1, circuitExercises.length);
+  // HIIT dura entre 10 e 30 min — é intenso demais para durar mais, mesmo que a
+  // pessoa peça 60 min no formulário. Por isso o tempo é capado aqui.
+  const cappedMinutes = clamp(strategy.timeBudget.targetDurationMinutes, 10, 30);
+  const availableSeconds = cappedMinutes * 60;
+  const id = HIIT_FORMAT_ROTATION[hiitOrdinal % HIIT_FORMAT_ROTATION.length];
+
+  let reps = "30s";
+  let rest = "15s";
+  let sets = 3;
+  let label = "Circuito";
+  let protocol = "";
+  let description = "";
+
+  if (id === "tabata") {
+    const rounds = clamp(Math.round(availableSeconds / (count * 30)), 4, 8);
+    reps = "20s"; rest = "10s"; sets = rounds;
+    label = "Tabata";
+    protocol = `${rounds} voltas · 20s trabalho / 10s descanso`;
+    description = "Faça cada exercício por 20 segundos na máxima intensidade e descanse 10 segundos. Repita o circuito pelas voltas indicadas.";
+  } else if (id === "intervals") {
+    const variants = [{ w: 45, r: 15 }, { w: 40, r: 20 }, { w: 30, r: 30 }];
+    const variant = variants[hiitOrdinal % variants.length];
+    const rounds = clamp(Math.round(availableSeconds / (count * (variant.w + variant.r))), 3, 6);
+    reps = `${variant.w}s`; rest = `${variant.r}s`; sets = rounds;
+    label = `Intervalado ${variant.w}/${variant.r}`;
+    protocol = `${rounds} voltas · ${variant.w}s trabalho / ${variant.r}s descanso`;
+    description = `Trabalhe ${variant.w} segundos em cada exercício e descanse ${variant.r} segundos antes do próximo. Repita o circuito a cada volta.`;
+  } else if (id === "amrap") {
+    const minutes = cappedMinutes;
+    reps = "12"; rest = "0s"; sets = 1;
+    label = "AMRAP";
+    protocol = `${minutes} min · faça o máximo de voltas do circuito`;
+    description = `AMRAP = "o máximo de voltas possível". Faça quantas voltas do circuito conseguir em ${minutes} minutos, descansando só quando precisar.`;
+  } else if (id === "emom") {
+    const minutes = cappedMinutes;
+    reps = "12"; rest = "0s"; sets = Math.max(2, Math.floor(minutes / count));
+    label = "EMOM";
+    protocol = `${minutes} min · 1 exercício por minuto`;
+    description = "EMOM = a cada minuto, você completa a série do exercício. O tempo que sobrar dentro do minuto é o seu descanso.";
+  } else {
+    // pirâmide: repetições sobem e descem ao longo das séries
+    reps = "10/15/20/15/10"; rest = "20s"; sets = 5;
+    label = "Pirâmide";
+    protocol = `5 séries em pirâmide (10→20→10 reps) · 20s descanso`;
+    description = "As repetições sobem e depois descem a cada série (10, 15, 20, 15, 10), aumentando e reduzindo a intensidade ao longo do exercício.";
+  }
+
+  const applied = circuitExercises.map((exercise) => ({
+    ...exercise,
+    blockType: "circuit" as WorkoutBlockType,
+    type: "superset",
+    // Limpa o blockId/label individual para os exercícios formarem UM circuito só
+    // (sem isso viram D1, D2, D3… separados no app).
+    blockId: undefined,
+    blockLabel: undefined,
+    sets: String(sets),
+    reps,
+    rest,
+    method: "circuito",
+    technique: "circuito",
+    trainingTechnique: "circuito"
+  }));
+
+  return { exercises: applied, format: { id, label, protocol, description } };
+}
+
 function structureSessionExercises(
   exercises: SanitizedExercise[],
   strategy: WorkoutStrategy,
@@ -2203,12 +2739,29 @@ function structureSessionExercises(
 ) {
   const ordered = [...exercises].sort((left, right) => scoreExerciseOrder(right, blueprint) - scoreExerciseOrder(left, blueprint));
   const withExistingBlocks = annotateExistingCombinedBlocks(ordered, strategy, blueprint);
+
+  // Estilos da IA: NÃO inventa bi-sets/técnicas — mantém só os blocos que a
+  // própria IA pediu. (Era isso que gerava os "B1/B2 · Bi-set" indevidos.)
+  const respectAi = (blueprint.trainingStyle ?? strategy.trainingStyle) !== "hiit";
+  if (respectAi) {
+    return enforceCombinedRuns(withExistingBlocks);
+  }
+
   const withContextualBlocks = addContextualCombinedBlocks(withExistingBlocks, strategy, blueprint);
-  return applyStandaloneIntensityTechniques(withContextualBlocks, strategy, blueprint);
+  const withTechniques = applyStandaloneIntensityTechniques(withContextualBlocks, strategy, blueprint);
+  // Revalida os blocos combinados DEPOIS da reordenação: a reordenação pode ter
+  // separado um circuito/bi-set, deixando um bloco "solto" (ex.: circuito de 1).
+  // enforceCombinedRuns rebaixa para 'normal' qualquer bloco abaixo do mínimo.
+  return enforceCombinedRuns(withTechniques);
 }
 
 function scoreExerciseOrder(exercise: SanitizedExercise, blueprint: SessionBlueprint) {
   let score = 0;
+
+  // Aquecimento sempre primeiro (logo após a mobilidade, que é adicionada à parte).
+  if (exercise.blockType === "warmup" || exercise.movementType === "warmup") {
+    return 1000;
+  }
 
   if (exercise.movementType === "compound") score += 28;
   if (exercise.movementType === "functional") score += 6;
@@ -2898,7 +3451,8 @@ function resolveTrainingTechnique(
   if (blockType === "parciais") return "repetições parciais controladas";
   if (blockType === "pre-exaustao") return `pré-exaustão para ${formatMuscleLabel(primaryMuscle)}`;
   if (blockType === "pos-exaustao") return `pós-exaustão para ${formatMuscleLabel(primaryMuscle)}`;
-  return `circuito para ${blueprint.sessionFocus.toLowerCase()}`;
+  // Rótulo curto e limpo (igual aos demais), em vez de uma frase descritiva.
+  return "circuito";
 }
 
 function buildExerciseRationale(blockType: WorkoutBlockType, blueprint: SessionBlueprint, primaryMuscle: string | undefined) {
@@ -2987,13 +3541,28 @@ function normalizeSetsForBudget(
   return clamp(sanitizeFixedNumber(value, bounds.target), bounds.min, bounds.max);
 }
 
+/**
+ * Reps em formato tempo para HIIT (trabalho por tempo, não repetições).
+ * Se a IA enviou um tempo válido, usa-o (clamp 15-60s); senão default 30s.
+ */
+function resolveHiitTimeReps(value: unknown): string {
+  if (typeof value === "string") {
+    const match = value.trim().match(/^(\d+)\s*s$/i);
+    if (match) {
+      return `${clamp(Number(match[1]), 15, 60)}s`;
+    }
+  }
+  return "30s";
+}
+
 function normalizeRestForBudget(
   value: unknown,
   strategy: WorkoutStrategy,
   blockType: WorkoutBlockType,
-  movementType: string
+  movementType: string,
+  sessionStyle?: TrainingStyle
 ) {
-  const bounds = resolveRestBounds(strategy, blockType, movementType);
+  const bounds = resolveRestBounds(strategy, blockType, movementType, sessionStyle);
   return clamp(sanitizeFixedNumber(value, bounds.target), bounds.min, bounds.max);
 }
 
@@ -3089,6 +3658,19 @@ function matchesEquipment(exercise: ExerciseRecord, allowedEquipment: Set<string
   const equipment = normalizeStringArray(exercise.equipment ?? exercise.metadata?.equipment).map(normalizeEquipment);
   if (!equipment.length) return true;
   return equipment.some((item) => allowedEquipment.has(item));
+}
+
+function matchesTrainingStyle(exercise: ExerciseRecord, trainingStyles: TrainingStyle[]) {
+  // União dos estilos do plano (multi-estilo). Sem estilo concreto → sem filtro.
+  const wanted = trainingStyles.filter((style) => style !== "personal");
+  if (!wanted.length) return true;
+
+  const styles = normalizeStringArray(exercise.training_styles).map((value) => value.toLowerCase().trim());
+
+  // Quando há estilo concreto, exercícios sem estilo marcado não entram.
+  if (!styles.length) return false;
+
+  return styles.some((style) => (wanted as string[]).includes(style));
 }
 
 function cleanText(value?: string | null) {
@@ -3318,6 +3900,8 @@ export type ExtraWorkoutContext = {
   availableMinutes: number;
   availableEquipment: import("@/lib/types").HomeEquipment[];
   focusMuscleGroup: string;
+  // Estilo escolhido para o treino extra (1 estilo). "personal" = app decide.
+  trainingStyle?: import("@/lib/types").TrainingStyle;
   previousWorkout: WorkoutPlan | null;
   recentSessionKeys: string[];
   excludedExerciseIds: string[];
@@ -3342,7 +3926,11 @@ export async function generateExtraWorkoutWithAI(
     equipment: extraContext.availableEquipment.includes("nenhum") || extraContext.availableEquipment.length === 0
       ? []
       : extraContext.availableEquipment,
-    focusRegion: "balanced" as import("@/lib/types").FocusRegion
+    focusRegion: "balanced" as import("@/lib/types").FocusRegion,
+    // Estilo do treino extra (1 estilo). Reusa toda a engine de estilo da geração
+    // regular: filtro de catálogo, HIIT montado pelo app + formatos, etc.
+    trainingStyle: extraContext.trainingStyle ?? answers.trainingStyle ?? "personal",
+    trainingStyles: undefined
   };
 
   const regularExerciseNames = extraContext.previousWorkout

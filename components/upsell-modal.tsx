@@ -9,6 +9,7 @@ type UpsellReason =
   | "replacement_limit"   // Tentou substituir o 3º exercício
   | "program_completed"   // Completou o 2º programa no free
   | "generate_workout"    // Tentou gerar novo treino sem ser premium
+  | "combine_styles"      // Tentou combinar 2+ estilos de treino sem ser premium
   | "home_banner";        // Banner da home
 
 type UpsellModalProps = {
@@ -30,6 +31,11 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   generate_workout: {
     title: "Gere treinos ilimitados",
     description: "Com o Premium você pode gerar um novo programa de treino a qualquer momento — sem precisar esperar o ciclo terminar e sem anúncios.",
+    cta: "Assinar Premium",
+  },
+  combine_styles: {
+    title: "Combine estilos de treino",
+    description: "No Premium você mistura vários estilos no mesmo programa (ex.: Tradicional + Funcional) e a IA distribui pelos treinos. No plano gratuito você escolhe 1 estilo.",
     cta: "Assinar Premium",
   },
   home_banner: {

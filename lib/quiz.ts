@@ -133,6 +133,19 @@ export const quizSteps = [
     ]
   },
   {
+    key: "trainingStyle",
+    title: "Qual estilo de treino você prefere?",
+    description: "Escolha o método do seu treino. Em \"Personal Escolhe\", definimos o melhor estilo com base nas suas respostas.",
+    type: "choice",
+    options: [
+      { label: "Tradicional", value: "musculacao" },
+      { label: "Funcional", value: "funcional" },
+      { label: "HIIT", value: "hiit" },
+      { label: "Calistenia", value: "calistenia" },
+      { label: "Personal Escolhe", value: "personal" }
+    ]
+  },
+  {
     key: "account",
     title: "Crie sua conta para ver sua sugestão de treino",
     description: "Preencha seus dados para salvar o acesso e ver sua sugestão completa agora mesmo.",
@@ -147,5 +160,6 @@ export const initialAnswers: Partial<QuizAnswers> = {
   weight: 70,
   height: 170,
   days: 3,
-  time: 45
+  time: 45,
+  trainingStyle: "personal"
 };

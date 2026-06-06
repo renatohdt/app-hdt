@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
       availableMinutes?: unknown;
       equipment?: unknown;
       focusMuscleGroup?: unknown;
+      trainingStyle?: unknown;
     };
 
     const availableMinutes = validateAvailableMinutes(body.availableMinutes);
@@ -159,6 +160,10 @@ export async function POST(request: NextRequest) {
     const focusMuscleGroup = typeof body.focusMuscleGroup === "string" && body.focusMuscleGroup.trim()
       ? body.focusMuscleGroup.trim()
       : "Sem preferência";
+    const VALID_STYLES = ["musculacao", "funcional", "hiit", "calistenia", "personal"] as const;
+    const trainingStyle = (typeof body.trainingStyle === "string" && VALID_STYLES.includes(body.trainingStyle as (typeof VALID_STYLES)[number])
+      ? body.trainingStyle
+      : "personal") as (typeof VALID_STYLES)[number];
 
     const [savedAnswers, exercisesResult, excludedResult, regularWorkoutResult] = await Promise.all([
       getUserAnswersByUserId(supabase, userId),
@@ -202,6 +207,7 @@ export async function POST(request: NextRequest) {
         availableMinutes,
         availableEquipment: equipment,
         focusMuscleGroup,
+        trainingStyle,
         previousWorkout: regularWorkout,
         recentSessionKeys,
         excludedExerciseIds: excludedIds,
@@ -331,7 +337,9 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null): QuizAnswers
     body_type_raw: savedAnswers?.body_type_raw,
     body_type: savedAnswers?.body_type,
     location: savedAnswers?.location ?? "home",
-    focusRegion: savedAnswers?.focusRegion ?? "balanced"
+    focusRegion: savedAnswers?.focusRegion ?? "balanced",
+    trainingStyle: savedAnswers?.trainingStyle ?? "personal",
+    trainingStyles: Array.isArray(savedAnswers?.trainingStyles) ? savedAnswers.trainingStyles : undefined
   } as unknown as QuizAnswers;
 }
 

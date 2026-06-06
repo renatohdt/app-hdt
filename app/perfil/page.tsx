@@ -33,6 +33,8 @@ type ProfilePayload = {
     height?: number;
     profession?: string;
     focusRegion?: string;
+    trainingStyle?: string;
+    trainingStyles?: string[];
     days?: number;
     time?: number;
     equipment?: string[];
@@ -58,6 +60,8 @@ type ProfileFormState = {
   time: string;
   equipment: string[];
   focusRegion: string;
+  trainingStyle: string;
+  trainingStyles: string[];
 };
 
 type FeedbackState = {
@@ -111,6 +115,14 @@ const FOCUS_REGION_OPTIONS = [
   { value: "arms", label: "Braços" }
 ];
 
+const TRAINING_STYLE_OPTIONS = [
+  { value: "personal", label: "Personal Escolhe" },
+  { value: "musculacao", label: "Tradicional" },
+  { value: "funcional", label: "Funcional" },
+  { value: "hiit", label: "HIIT" },
+  { value: "calistenia", label: "Calistenia" }
+];
+
 const EQUIPMENT_OPTIONS = [
   { value: "halteres", label: "Halteres" },
   { value: "elasticos", label: "Elasticos" },
@@ -135,7 +147,9 @@ const EMPTY_FORM_STATE: ProfileFormState = {
   days: "3",
   time: "45",
   equipment: ["nenhum"],
-  focusRegion: "balanced"
+  focusRegion: "balanced",
+  trainingStyle: "personal",
+  trainingStyles: []
 };
 
 type EditingSection = "personal" | "physical" | "training";
@@ -161,6 +175,7 @@ export default function PerfilPage() {
     }).catch(() => {});
   }, []);
   const [isSaving, setIsSaving] = useState(false);
+  const [showPremiumStyleModal, setShowPremiumStyleModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const generatingAnimFrameRef = useRef(0);
@@ -176,6 +191,47 @@ export default function PerfilPage() {
   const [referralData, setReferralData] = useState<ReferralData | null>(null);
   const [referralLoading, setReferralLoading] = useState(true);
   const [referralCopied, setReferralCopied] = useState(false);
+
+  // ── Seletor unificado de estilo de treino ───────────────────────────────
+  // 1 estilo (ou "Personal Escolhe") é grátis; 2+ estilos é Premium.
+  const isPremiumUser = Boolean(subscription?.isPremium);
+  const selectedStyles: string[] =
+    form.trainingStyles.length >= 2
+      ? form.trainingStyles
+      : [form.trainingStyle && form.trainingStyle !== "personal" ? form.trainingStyle : "personal"];
+
+  const applyStyleSelection = (next: string[]) => {
+    const concrete = next.filter((style) => style !== "personal");
+    if (concrete.length >= 2) {
+      setForm((current) => ({ ...current, trainingStyle: concrete[0], trainingStyles: concrete }));
+    } else if (concrete.length === 1) {
+      setForm((current) => ({ ...current, trainingStyle: concrete[0], trainingStyles: [] }));
+    } else {
+      setForm((current) => ({ ...current, trainingStyle: "personal", trainingStyles: [] }));
+    }
+  };
+
+  const toggleTrainingStyle = (value: string) => {
+    const concretePreview = selectedStyles.filter((style) => style !== "personal");
+    // DEBUG temporário — remover depois de validar o paywall.
+    console.log("[estilo] clique:", { value, isPremiumUser, selectedStyles, concrete: concretePreview });
+    if (value === "personal") {
+      applyStyleSelection(["personal"]);
+      return;
+    }
+    const concrete = selectedStyles.filter((style) => style !== "personal");
+    if (concrete.includes(value)) {
+      applyStyleSelection(concrete.filter((style) => style !== value));
+      return;
+    }
+    // Adicionar um 2º estilo concreto exige Premium → mostra o popup.
+    if (concrete.length >= 1 && !isPremiumUser) {
+      console.log("[estilo] abrindo modal premium");
+      setShowPremiumStyleModal(true);
+      return;
+    }
+    applyStyleSelection([...concrete, value]);
+  };
 
   // Animação da barra de progresso durante geração do treino
   useEffect(() => {
@@ -340,7 +396,10 @@ export default function PerfilPage() {
           days: form.days,
           time: form.time,
           equipment: form.equipment,
-          focusRegion: form.focusRegion
+          focusRegion: form.focusRegion,
+          trainingStyle: form.trainingStyle,
+          // Multi-estilo só vale com 2+ selecionados; senão, o estilo único governa.
+          trainingStyles: form.trainingStyles.length >= 2 ? form.trainingStyles : []
         })
       });
 
@@ -711,6 +770,37 @@ export default function PerfilPage() {
                 options={TIME_OPTIONS}
                 onChange={(value) => updateForm(setForm, "time", value)}
               />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-white/50">Estilo de treino</p>
+                <span className="text-[0.7rem] text-white/35">1 grátis · 2+ Premium</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {TRAINING_STYLE_OPTIONS.map((option) => {
+                  const selected = selectedStyles.includes(option.value);
+                  const lockedForFree = !isPremiumUser && option.value !== "personal" && !selected && selectedStyles.some((style) => style !== "personal");
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => toggleTrainingStyle(option.value)}
+                      className={clsx(
+                        "inline-flex min-h-10 items-center justify-center gap-1 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition",
+                        selected
+                          ? "border-primary/40 bg-primary/12 text-white"
+                          : "border-white/10 bg-white/[0.04] text-white/72 hover:bg-white/[0.08] hover:text-white"
+                      )}
+                    >
+                      {option.label}
+                      {lockedForFree ? <span aria-hidden className="text-[0.65rem] text-white/40">🔒</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[0.7rem] text-white/40">
+                Escolha 1 estilo (ou &quot;Personal Escolhe&quot;, em que a IA decide). Combinar 2 ou mais estilos é Premium — a IA distribui pelos treinos.
+              </p>
             </div>
             <div className="space-y-2">
               <p className="text-xs text-white/50">Intensificar</p>
@@ -1098,6 +1188,38 @@ export default function PerfilPage() {
       {showWorkoutUpsell ? (
         <UpsellModal reason="generate_workout" onClose={() => setShowWorkoutUpsell(false)} />
       ) : null}
+
+      {showPremiumStyleModal ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowPremiumStyleModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0f110f] p-6 text-center shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-lg font-semibold text-white">Combine estilos de treino</p>
+            <p className="mt-2 text-sm text-white/60">
+              No Premium você mistura vários estilos no mesmo programa (ex.: Tradicional + Funcional) e a IA distribui pelos treinos. No plano gratuito você escolhe 1 estilo.
+            </p>
+            <a
+              href="/premium"
+              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-primary px-4 py-3 text-sm font-semibold text-black"
+            >
+              Assinar Premium
+            </a>
+            <button
+              type="button"
+              onClick={() => setShowPremiumStyleModal(false)}
+              className="mt-2 w-full rounded-full px-4 py-2 text-sm text-white/50"
+            >
+              Agora não
+            </button>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }
@@ -1224,7 +1346,9 @@ function buildFormState(payload: ProfilePayload): ProfileFormState {
     days: payload.answers.days ? String(payload.answers.days) : "3",
     time: payload.answers.time ? String(payload.answers.time) : "45",
     equipment: normalizeEquipment(payload.answers.equipment),
-    focusRegion: payload.answers.focusRegion ?? "balanced"
+    focusRegion: payload.answers.focusRegion ?? "balanced",
+    trainingStyle: payload.answers.trainingStyle ?? "personal",
+    trainingStyles: Array.isArray(payload.answers.trainingStyles) ? payload.answers.trainingStyles : []
   };
 }
 
