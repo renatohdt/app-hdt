@@ -7,8 +7,8 @@ import { Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
-import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { WeightChartModal } from "@/components/weight-chart-modal";
+import { fetchWithAuth } from "@/lib/authenticated-fetch";
 
 type ExerciseSetEntry = {
   weightKg: string;
@@ -45,7 +45,8 @@ export function ExpandableExerciseCard({
   replacementsRemaining,
   isPremiumUser = false,
   isReplaced = false,
-  onExerciseReplaced
+  onExerciseReplaced,
+  initialWeightKg = null
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -63,6 +64,7 @@ export function ExpandableExerciseCard({
   isPremiumUser?: boolean;
   isReplaced?: boolean;
   onExerciseReplaced: (newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) => void;
+  initialWeightKg?: number | null;
 }) {
   const storageKey = useMemo(
     () => `hdt-exercise-draft:${data.user.id}:${workoutKey}:${exercise.id}`,
@@ -85,26 +87,20 @@ export function ExpandableExerciseCard({
     const current = readExerciseDraft(storageKey, exercise.plannedRestSeconds, exercise.plannedRepsLabel, exercise.plannedSetsCount);
     setDraft(current);
 
+    // Usa o peso inicial carregado em batch pelo componente pai (sem chamada de API individual)
     const hasAnyWeight = current.setEntries.some((e) => e.weightKg !== "");
-    if (hasAnyWeight) return;
+    if (hasAnyWeight || !initialWeightKg) return;
 
-    fetchWithAuth(`/api/exercise-weight?exercise=${encodeURIComponent(exercise.name)}&mode=last`)
-      .then((res) => res.json())
-      .then((result) => {
-        const kg = result?.data?.lastWeightKg;
-        if (!kg || typeof kg !== "number") return;
-        setDraft((prev) => {
-          const base = prev ?? current;
-          const anyFilled = base.setEntries.some((e) => e.weightKg !== "");
-          if (anyFilled) return base;
-          return {
-            ...base,
-            setEntries: base.setEntries.map((e) => ({ ...e, weightKg: String(kg) }))
-          };
-        });
-      })
-      .catch(() => {});
-  }, [exercise.name, exercise.plannedRepsLabel, exercise.plannedRestSeconds, exercise.plannedSetsCount, storageKey]);
+    setDraft((prev) => {
+      const base = prev ?? current;
+      const anyFilled = base.setEntries.some((e) => e.weightKg !== "");
+      if (anyFilled) return base;
+      return {
+        ...base,
+        setEntries: base.setEntries.map((e) => ({ ...e, weightKg: String(initialWeightKg) }))
+      };
+    });
+  }, [exercise.plannedRepsLabel, exercise.plannedRestSeconds, exercise.plannedSetsCount, initialWeightKg, storageKey]);
 
   useEffect(() => {
     if (!draft || typeof window === "undefined") {

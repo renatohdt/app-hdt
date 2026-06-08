@@ -79,6 +79,33 @@ export async function getLastWeightForExercise(
   return data.max_weight_kg;
 }
 
+export async function getLastWeightBatch(
+  supabase: SupabaseClient,
+  userId: string,
+  exerciseNamesNormalized: string[]
+): Promise<Record<string, number>> {
+  if (!exerciseNamesNormalized.length) return {};
+
+  const { data, error } = await supabase
+    .from("exercise_weight_logs")
+    .select("exercise_name_normalized, max_weight_kg, completed_at")
+    .eq("user_id", userId)
+    .in("exercise_name_normalized", exerciseNamesNormalized)
+    .order("completed_at", { ascending: false });
+
+  if (error || !data) return {};
+
+  // Como os dados vem ordenados por completed_at desc,
+  // o primeiro registro de cada exercicio e o mais recente.
+  const result: Record<string, number> = {};
+  for (const row of data) {
+    if (!(row.exercise_name_normalized in result)) {
+      result[row.exercise_name_normalized] = row.max_weight_kg;
+    }
+  }
+  return result;
+}
+
 export async function getWeightHistoryForExercise(
   supabase: SupabaseClient,
   userId: string,

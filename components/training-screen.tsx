@@ -27,6 +27,7 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
+import { normalizeExerciseName } from "@/lib/exercise-weight-store";
 
 const TRAINING_STYLE_LABELS: Record<string, string> = {
   musculacao: "Tradicional",
@@ -93,6 +94,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [sessionIntensity, setSessionIntensity] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [replacementCount, setReplacementCount] = useState(data.replacementCount);
+  // Mapa de nome normalizado → último peso registrado, carregado em batch ao abrir a tela
+  const [lastWeightsMap, setLastWeightsMap] = useState<Record<string, number>>({});
   // Contador de substituições por sessão (Treino A, B, C...) — usado para o limite do premium
   const [replacementsPerWorkoutKey, setReplacementsPerWorkoutKey] = useState<Record<string, number>>({});
   const [replacedExerciseNames, setReplacedExerciseNames] = useState<Set<string>>(new Set());
@@ -135,6 +138,21 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
   const workout = data.workouts[activeWorkoutKey] ?? data.workouts[data.workoutOrder[0] ?? ""];
   const exerciseRows = useMemo(() => buildTrainingExerciseRows(workout), [workout]);
+
+  // Busca o último peso de todos os exercícios em uma única chamada ao mudar de treino
+  useEffect(() => {
+    if (!exerciseRows.length) return;
+    const names = exerciseRows.map((e) => e.name).join(",");
+    fetchWithAuth(`/api/exercise-weight/batch?exercises=${encodeURIComponent(names)}`)
+      .then((res) => res.json())
+      .then((result) => {
+        if (result?.success && result.data) {
+          setLastWeightsMap(result.data as Record<string, number>);
+        }
+      })
+      .catch(() => {});
+  }, [exerciseRows]);
+
   const sessionLabel = formatSessionCounter(sessionProgress);
   const isCycleComplete = sessionProgress.cycleCompleted;
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
@@ -393,6 +411,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 isPremiumUser={isPremiumUser}
                 isReplaced={replacedExerciseNames.has(exercise.name)}
                 onExerciseReplaced={handleExerciseReplaced}
+                initialWeightKg={lastWeightsMap[normalizeExerciseName(exercise.name)] ?? null}
               />
               {showAd ? <TrainingInlineAd /> : null}
             </Fragment>
@@ -584,6 +603,7 @@ function PremiumContinuationCard({ sessionCount }: { sessionCount: number }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-6">
       <div className="w-full max-w-sm rounded-[24px] border border-primary/20 bg-[#111] p-6 text-center shadow-2xl">
         <p className="text-3xl">🎉</p>
+        <p className="mt-3 text-lg font-bold text-white">Programa concluído!</p>
         <p className="mt-3 text-lg font-bold text-white">Programa concluído!</p>
         <p className="mt-1 text-sm text-white/60">{sessionCount} sessões realizadas</p>
         <p className="mt-4 text-sm leading-relaxed text-white/72">

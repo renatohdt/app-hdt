@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AppVersionFooter } from "@/components/app-version-footer";
 import { ConsentProvider } from "@/components/consent-provider";
+import { SubscriptionProvider } from "@/components/subscription-provider";
 import { ClarityScript } from "@/components/clarity-script";
 import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
@@ -85,7 +86,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${jakarta.className} bg-background text-white antialiased`}>
         {/*
           Consent Mode v2: deve rodar ANTES do gtag.js carregar.
-          Fica direto no body (fora do Suspense) para garantir execução no HTML inicial.
+          Fica direto no body (fora do Suspense) para garantir execucao no HTML inicial.
         */}
         <Script id="gtag-consent-default" strategy="beforeInteractive">
           {`
@@ -101,19 +102,21 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             });
           `}
         </Script>
-        <ConsentProvider currentVersion={getCurrentConsentVersion()}>
-          <Suspense fallback={null}>
-            <GoogleTag />
-          </Suspense>
-          <ClarityScript />
-          <div className="flex min-h-screen flex-col">
-            <PwaRegistration />
-            <div className="flex-1">
-              {children}
+        <SubscriptionProvider>
+          <ConsentProvider currentVersion={getCurrentConsentVersion()}>
+            <Suspense fallback={null}>
+              <GoogleTag />
+            </Suspense>
+            <ClarityScript />
+            <div className="flex min-h-screen flex-col">
+              <PwaRegistration />
+              <div className="flex-1">
+                {children}
+              </div>
+              <AppVersionFooter />
             </div>
-            <AppVersionFooter />
-          </div>
-        </ConsentProvider>
+          </ConsentProvider>
+        </SubscriptionProvider>
         <Analytics />
         <SpeedInsights />
       </body>

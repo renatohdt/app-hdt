@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 
 type SubscriptionSummary = {
@@ -24,7 +24,22 @@ const DEFAULT: SubscriptionSummary = {
   cancelAtPeriodEnd: false,
 };
 
+// Contexto compartilhado: evita multiplas chamadas a /api/subscription
+// quando varios componentes na arvore usam useSubscription ao mesmo tempo.
+const SubscriptionContext = createContext<UseSubscriptionResult>({
+  subscription: null,
+  loading: true,
+});
+
+export { SubscriptionContext };
+export type { SubscriptionSummary };
+
 export function useSubscription(): UseSubscriptionResult {
+  return useContext(SubscriptionContext);
+}
+
+// Hook interno usado apenas pelo SubscriptionProvider para fazer o fetch uma unica vez
+export function useSubscriptionLoader(): UseSubscriptionResult {
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,24 +51,16 @@ export function useSubscription(): UseSubscriptionResult {
         const response = await fetchWithAuth("/api/subscription");
 
         if (!response.ok) {
-          if (!cancelled) {
-            setSubscription(DEFAULT);
-          }
+          if (!cancelled) setSubscription(DEFAULT);
           return;
         }
 
         const json = await response.json();
-        if (!cancelled) {
-          setSubscription(json?.data ?? DEFAULT);
-        }
+        if (!cancelled) setSubscription(json?.data ?? DEFAULT);
       } catch {
-        if (!cancelled) {
-          setSubscription(DEFAULT);
-        }
+        if (!cancelled) setSubscription(DEFAULT);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
