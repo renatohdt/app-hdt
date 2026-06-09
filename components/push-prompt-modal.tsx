@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { getScreenCount } from "@/components/app-shell";
 
 const STORAGE_KEY = "push_prompt_shown";
+const MIN_SCREENS_BEFORE_PROMPT = 5;
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -36,6 +38,9 @@ export function PushPromptModal() {
 
     const alreadyShown = localStorage.getItem(STORAGE_KEY);
     if (alreadyShown) return;
+
+    // Só mostra após o usuário ter visitado pelo menos 5 telas
+    if (getScreenCount() < MIN_SCREENS_BEFORE_PROMPT) return;
 
     // Pequeno delay para não aparecer antes da página carregar
     const timer = window.setTimeout(() => setVisible(true), 1200);
