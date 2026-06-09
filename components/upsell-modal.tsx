@@ -9,7 +9,8 @@ type UpsellReason =
   | "replacement_limit"   // Tentou substituir o 3º exercício
   | "program_completed"   // Completou o 2º programa no free
   | "generate_workout"    // Tentou gerar novo treino sem ser premium
-  | "combine_styles"      // Tentou combinar 2+ estilos de treino sem ser premium
+  | "combine_styles"         // Tentou combinar 2+ estilos de treino sem ser premium
+  | "combine_styles_locked"  // Clicou em estilo bloqueado no perfil
   | "home_banner";        // Banner da home
 
 type UpsellModalProps = {
@@ -36,6 +37,11 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   combine_styles: {
     title: "Combine estilos de treino",
     description: "No Premium você mistura vários estilos no mesmo programa (ex.: Tradicional + Funcional) e a IA distribui pelos treinos. No plano gratuito você escolhe 1 estilo.",
+    cta: "Assinar Premium",
+  },
+  combine_styles_locked: {
+    title: "Libere mais modalidades para o seu treino!",
+    description: "Com o Premium você desbloqueia Funcional, HIIT, Calistenia e pode combinar vários estilos no mesmo programa — a IA distribui pelos treinos.",
     cta: "Assinar Premium",
   },
   home_banner: {

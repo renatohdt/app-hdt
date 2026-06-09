@@ -315,8 +315,8 @@ export default function HomePage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { icon: "🤖", title: "Treino com apoio de IA", desc: "Tecnologia que adapta o treino ao seu perfil, objetivo e disponibilidade.", highlight: true },
-              { icon: "📅", title: "Exercícios por dia", desc: "Treino organizado por dia da semana, com estrutura clara e fácil de seguir." },
-              { icon: "⏱️", title: "Cronômetro para o seu treino", desc: "Controle o tempo de descanso e o volume de carga para evoluir a cada sessão." },
+              { icon: "🏋️", title: "Escolha seu método de treino", desc: "Tradicional, Funcional, HIIT ou Calistenia. Ou deixe que escolhemos o melhor método para você." },
+              { icon: "💪", title: "Treine mais o que preferir", desc: "Escolha qual músculo gostaria de dar mais ênfase ou deixe tudo equilibrado." },
               { icon: "🔄", title: "Substituição de exercício", desc: "Não tem o aparelho, achou fácil ou difícil demais? Faça a substituição inteligente na hora." },
               { icon: "🎯", title: "Todos os objetivos", desc: "Hipertrofia, emagrecimento, definição e condicionamento físico." },
               { icon: "📈", title: "Evolução e conquistas", desc: "Acompanhe seu progresso, bata metas e celebre cada conquista." },

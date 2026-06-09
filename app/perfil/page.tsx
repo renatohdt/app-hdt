@@ -212,9 +212,6 @@ export default function PerfilPage() {
   };
 
   const toggleTrainingStyle = (value: string) => {
-    const concretePreview = selectedStyles.filter((style) => style !== "personal");
-    // DEBUG temporário — remover depois de validar o paywall.
-    console.log("[estilo] clique:", { value, isPremiumUser, selectedStyles, concrete: concretePreview });
     if (value === "personal") {
       applyStyleSelection(["personal"]);
       return;
@@ -224,9 +221,8 @@ export default function PerfilPage() {
       applyStyleSelection(concrete.filter((style) => style !== value));
       return;
     }
-    // Adicionar um 2º estilo concreto exige Premium → mostra o popup.
+    // Tentar adicionar um 2º estilo sem ser Premium → abre upsell
     if (concrete.length >= 1 && !isPremiumUser) {
-      console.log("[estilo] abrindo modal premium");
       setShowPremiumStyleModal(true);
       return;
     }
@@ -878,6 +874,9 @@ export default function PerfilPage() {
             </div>
           </Card>
         )}
+      {showPremiumStyleModal ? (
+        <UpsellModal reason="combine_styles_locked" onClose={() => setShowPremiumStyleModal(false)} />
+      ) : null}
       </AppShell>
     );
   }
@@ -1190,35 +1189,7 @@ export default function PerfilPage() {
       ) : null}
 
       {showPremiumStyleModal ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowPremiumStyleModal(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#0f110f] p-6 text-center shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="text-lg font-semibold text-white">Combine estilos de treino</p>
-            <p className="mt-2 text-sm text-white/60">
-              No Premium você mistura vários estilos no mesmo programa (ex.: Tradicional + Funcional) e a IA distribui pelos treinos. No plano gratuito você escolhe 1 estilo.
-            </p>
-            <a
-              href="/premium"
-              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-primary px-4 py-3 text-sm font-semibold text-black"
-            >
-              Assinar Premium
-            </a>
-            <button
-              type="button"
-              onClick={() => setShowPremiumStyleModal(false)}
-              className="mt-2 w-full rounded-full px-4 py-2 text-sm text-white/50"
-            >
-              Agora não
-            </button>
-          </div>
-        </div>
+        <UpsellModal reason="combine_styles_locked" onClose={() => setShowPremiumStyleModal(false)} />
       ) : null}
     </AppShell>
   );
