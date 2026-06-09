@@ -1,78 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Sparkles } from "lucide-react";
 import clsx from "clsx";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card } from "@/components/ui";
 
-const LOADING_EMOJIS = ["🏋️‍♂️", "🤸‍♂️", "🚴‍♂️", "🤾‍♂️", "🏃‍♂️", "💪"];
-
-const LOADING_TITLES = [
-  "Aguarde...",
-  "Já vai, já vai!",
-  "Trabalhando",
-  "Um segundo...",
-  "Quase lá...",
-];
-
-const LOADING_SUBTEXTS = [
-  "O bom do app ser lento é que você pode descansar mais",
-  "A IA está por trás, mas a velocidade de raciocínio é igual à do personal que criou",
-  "O app poderia ser mais rápido se o personal trabalhasse mais ao invés de treinar tanto",
-  "Enquanto isso, aproveita e faz um alongamento",
-  "Carregando na velocidade de 1 burpee por segundo",
-  "Pior que treino de perna? Esse carregamento — mas você aguenta",
-  "A IA tá calculando. O personal tá na academia. Alguém tem que trabalhar aqui",
-];
-
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function AppLoadingScreen({ title: _title }: { title?: string } = {}) {
-  const [emojiIndex, setEmojiIndex] = useState(0);
-  const [visible, setVisible] = useState(true);
-  const [title, setTitle] = useState(LOADING_TITLES[0]);
-  const [subtext, setSubtext] = useState(LOADING_SUBTEXTS[0]);
-
-  useEffect(() => {
-    setTitle(pickRandom(LOADING_TITLES));
-    setSubtext(pickRandom(LOADING_SUBTEXTS));
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVisible(false);
-      setTimeout(() => {
-        setEmojiIndex((i) => (i + 1) % LOADING_EMOJIS.length);
-        setVisible(true);
-      }, 200);
-    }, 1200);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <AppShell>
-      <Card className="space-y-5 p-5 sm:p-6">
-        <div
-          className="inline-flex h-14 w-14 items-center justify-center rounded-[18px] border border-primary/20 bg-primary/10 text-3xl transition-all duration-200"
-          style={{ opacity: visible ? 1 : 0, transform: visible ? "scale(1)" : "scale(0.7)" }}
-        >
-          {LOADING_EMOJIS[emojiIndex]}
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-primary/90">Hora do Treino</p>
-          <h1 className="text-2xl font-semibold text-white">{title}</h1>
-          <p className="text-sm text-white/58">{subtext}</p>
-        </div>
-      </Card>
-    </AppShell>
-  );
-}
 
 export function AppWorkoutUnavailableScreen({
   error,
@@ -251,6 +185,34 @@ export function TreinoLoadingScreen() {
           </div>
         </Card>
       ))}
+    </AppShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton da tela de Calendário
+// ---------------------------------------------------------------------------
+
+export function CalendarioLoadingScreen() {
+  return (
+    <AppShell className="space-y-4">
+      <Card className="space-y-4 rounded-[24px] border-white/[0.06] p-5">
+        <Sk className="h-5 w-40" />
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <Sk key={i} className="h-9 rounded-xl" />
+          ))}
+        </div>
+      </Card>
+      <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-5">
+        <Sk className="h-4 w-32" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Sk className="h-8 w-8 rounded-full" />
+            <Sk className="h-4 flex-1" />
+          </div>
+        ))}
+      </Card>
     </AppShell>
   );
 }

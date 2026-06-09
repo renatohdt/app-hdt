@@ -2,7 +2,7 @@
 
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { CalendarScreen } from "@/components/calendar-screen";
-import { AppLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-workout-states";
+import { CalendarioLoadingScreen, AppWorkoutUnavailableScreen } from "@/components/app-workout-states";
 import { useWorkoutAppState } from "@/components/use-workout-app-state";
 
 export default function CalendarioPage() {
@@ -10,7 +10,7 @@ export default function CalendarioPage() {
     useWorkoutAppState();
 
   if (loading) {
-    return <AppLoadingScreen title="Montando seu calendario" />;
+    return <CalendarioLoadingScreen />;
   }
 
   if (error || noWorkout || !data) {
