@@ -3769,15 +3769,20 @@ export function filterReplacementCandidates(
   originalExercise: ExerciseRecord,
   exercisesInWorkoutDay: string[],
   answers: QuizAnswers,
-  exerciseLibrary: ExerciseRecord[]
+  exerciseLibrary: ExerciseRecord[],
+  excludedExerciseIds: string[] = []
 ) {
   const primaryMuscle = getPrimaryExerciseMuscle(originalExercise);
   const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
   const daySet = new Set(exercisesInWorkoutDay);
+  // Exercícios já descartados pelo usuário (lista user_excluded_exercises).
+  // Nunca devem voltar como substitutos até o usuário removê-los da lista.
+  const excludedSet = new Set(excludedExerciseIds);
 
   const candidates = exerciseLibrary
     .filter((exercise) => exercise.id !== originalExercise.id)
     .filter((exercise) => !daySet.has(exercise.id))
+    .filter((exercise) => !excludedSet.has(exercise.id))
     .filter((exercise) => normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null) !== "mobility")
     .filter((exercise) => getPrimaryExerciseMuscle(exercise) === primaryMuscle)
     .filter((exercise) => matchesLocation(exercise, answers.location))

@@ -221,8 +221,31 @@ export async function POST(request: NextRequest) {
       })
       .filter((id): id is string => id !== null);
 
-    // --- Filtrar candidatos ---
-    const candidates = filterReplacementCandidates(originalRecord, sessionExerciseIds, answers, exerciseLibrary);
+    // --- Carregar lista de exercícios descartados pelo usuário ---
+    // Esses exercícios não podem voltar como substitutos até o usuário
+    // removê-los manualmente da lista (user_excluded_exercises).
+    const { data: excludedRows, error: excludedReadError } = await supabase
+      .from("user_excluded_exercises")
+      .select("exercise_id")
+      .eq("user_id", userId);
+
+    if (excludedReadError) {
+      logWarn("REPLACE_EXERCISE", "Excluded exercises read failed (non-blocking)", {
+        user_id: userId,
+        error_code: getSupabaseErrorCode(excludedReadError)
+      });
+    }
+
+    const excludedExerciseIds = (excludedRows ?? []).map((row) => row.exercise_id as string);
+
+    // --- Filtrar candidatos (removendo também os já descartados) ---
+    const candidates = filterReplacementCandidates(
+      originalRecord,
+      sessionExerciseIds,
+      answers,
+      exerciseLibrary,
+      excludedExerciseIds
+    );
 
     if (!candidates.length) {
       logWarn("REPLACE_EXERCISE", "No replacement candidates found", {
