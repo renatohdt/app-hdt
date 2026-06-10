@@ -7,6 +7,7 @@ import { trackEvent } from "@/lib/analytics-client";
 
 const FEATURES = [
   { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
+  { label: "Métodos de treino",                              free: "1 método",    premium: "Combináveis" },
   { label: "Treino Extra",                                    free: false,         premium: "5 por mês"   },
   { label: "Substituições de exercício",                     free: "2 por plano", premium: "2 por treino" },
   { label: "Gerador de treino",                              free: "1 programa",  premium: "Ilimitados"  },
