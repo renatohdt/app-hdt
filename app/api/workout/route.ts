@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
       answers
     });
     const now = new Date().toISOString();
-    const [sessionStats, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary] = await Promise.all([
+    const [sessionStats, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary, referralAchievementResult] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
       supabase
         .from("workout_exercise_replacements")
@@ -175,6 +175,12 @@ export async function GET(request: NextRequest) {
       // Aplica decaimento por inatividade e retorna resumo do nível.
       // Passa a experiência do quiz para inicializar a fase corretamente na 1ª vez.
       getUserLevelSummary(supabase, user.id, savedAnswers?.experience ?? null).catch(() => null),
+      // Flag de desbloqueio da conquista de indicação ("Fofoqueiro(a)").
+      supabase
+        .from("users")
+        .select("referral_achievement_unlocked")
+        .eq("id", user.id)
+        .maybeSingle(),
     ]);
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions: workoutState.sessionConfig.totalSessions,
@@ -214,6 +220,7 @@ export async function GET(request: NextRequest) {
         totalWorkoutsAllTime,
         totalWeightIncreasesAllTime,
         totalGoalsCompleted: completedGoalsResult.count ?? 0,
+        referralAchievementUnlocked: referralAchievementResult.data?.referral_achievement_unlocked === true,
         activeGoal: activeGoalData,
         user: {
           id: user.id,

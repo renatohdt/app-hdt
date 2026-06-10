@@ -406,7 +406,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
               <div>
                 <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Conquistas</p>
                 <p className="mt-0.5 text-base font-semibold text-white">
-                  {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0)} de {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted).reduce((sum, g) => sum + g.achievements.length, 0)} desbloqueadas
+                  {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted, data.referralAchievementUnlocked).reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0)} de {getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted, data.referralAchievementUnlocked).reduce((sum, g) => sum + g.achievements.length, 0)} desbloqueadas
                 </p>
               </div>
             </div>
@@ -415,7 +415,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
 
           <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
             {(() => {
-              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted);
+              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted, data.referralAchievementUnlocked);
               const total = groups.reduce((sum, g) => sum + g.achievements.length, 0);
               const unlocked = groups.reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0);
               const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
@@ -425,7 +425,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
 
           <p className="text-xs text-white/40">
             {(() => {
-              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted);
+              const groups = getAllAchievementsUnified(data.totalWorkoutsAllTime, data.totalWeightIncreasesAllTime, consistencyStats, data.totalGoalsCompleted, data.referralAchievementUnlocked);
               const total = groups.reduce((sum, g) => sum + g.achievements.length, 0);
               const unlocked = groups.reduce((sum, g) => sum + g.achievements.filter((a) => a.unlocked).length, 0);
               const remaining = total - unlocked;

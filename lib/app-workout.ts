@@ -48,6 +48,7 @@ export type AppWorkoutPayload = {
   totalWorkoutsAllTime?: number | null;
   totalWeightIncreasesAllTime?: number | null;
   totalGoalsCompleted?: number | null;
+  referralAchievementUnlocked?: boolean | null;
   activeGoal?: {
     id: string;
     targetCount: number;
@@ -103,6 +104,7 @@ export type AppWorkoutData = {
   totalWeightIncreasesAllTime: number;
   consistencyStats: ConsistencyStats;
   totalGoalsCompleted: number;
+  referralAchievementUnlocked: boolean;
   activeGoal: {
     id: string;
     targetCount: number;
@@ -253,6 +255,7 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
       sessionProgress.totalSessions
     ),
     totalGoalsCompleted: typeof payload.totalGoalsCompleted === "number" ? payload.totalGoalsCompleted : 0,
+    referralAchievementUnlocked: payload.referralAchievementUnlocked === true,
     activeGoal: payload.activeGoal ?? null,
     levelData: payload.levelData ?? null,
   } satisfies AppWorkoutData;

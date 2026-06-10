@@ -335,13 +335,19 @@ function toDateKey(d: Date): string {
 /**
  * Retorna todas as conquistas de consistencia com status de desbloqueio.
  */
-export function getAllConsistencyAchievementsWithStatus(stats: ConsistencyStats): AchievementWithStatus[] {
+export function getAllConsistencyAchievementsWithStatus(
+  stats: ConsistencyStats,
+  referralAchievementUnlocked = false
+): AchievementWithStatus[] {
   return CONSISTENCY_MILESTONES.map((achievement) => {
     let unlocked = false;
     if (achievement.id === "perfect_week") unlocked = stats.hasPerfectWeek;
     else if (achievement.id === "streak_7") unlocked = stats.hasStreak7Days;
     else if (achievement.id === "monthly_20") unlocked = stats.maxWorkoutsInMonth >= 20;
     else if (achievement.id === "plan_completed") unlocked = stats.planCompleted;
+    // A conquista de indicação não vem dos logs de treino: seu desbloqueio fica
+    // registrado em users.referral_achievement_unlocked e é repassado até aqui.
+    else if (achievement.id === "referral_reward") unlocked = referralAchievementUnlocked;
     return { ...achievement, unlocked };
   });
 }
@@ -364,7 +370,8 @@ export function getAllAchievementsUnified(
   totalWorkouts: number,
   totalWeightIncreases: number,
   consistencyStats: ConsistencyStats,
-  totalGoalsCompleted: number
+  totalGoalsCompleted: number,
+  referralAchievementUnlocked = false
 ): { label: string; achievements: AchievementWithStatus[] }[] {
   return [
     {
@@ -373,7 +380,7 @@ export function getAllAchievementsUnified(
     },
     {
       label: "Consistencia",
-      achievements: getAllConsistencyAchievementsWithStatus(consistencyStats)
+      achievements: getAllConsistencyAchievementsWithStatus(consistencyStats, referralAchievementUnlocked)
     },
     {
       label: "Aumento de carga",

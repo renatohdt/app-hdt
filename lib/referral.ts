@@ -164,13 +164,15 @@ export async function grantReferralPremium(userId: string): Promise<boolean> {
 
   const now = new Date();
 
-  // Já tem prêmio ativo → não sobrescreve
-  if (user.referral_premium_until && new Date(user.referral_premium_until) > now) {
-    return false;
-  }
+  // Prêmio repetível: soma 30 dias. Se ainda houver premium de indicação ativo,
+  // estende a partir do prazo restante (não substitui); caso contrário, conta a
+  // partir de agora. A elegibilidade (5 indicações novas) é validada antes, em
+  // checkAndGrantReferralReward.
+  const currentUntil = user.referral_premium_until ? new Date(user.referral_premium_until) : null;
+  const base = currentUntil && currentUntil > now ? currentUntil : now;
 
   const premiumUntil = new Date(
-    now.getTime() + PREMIUM_DAYS * 24 * 60 * 60 * 1000
+    base.getTime() + PREMIUM_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
 
   const { error } = await supabase
@@ -207,12 +209,39 @@ export async function hasActiveReferralPremium(userId: string): Promise<boolean>
 }
 
 /**
- * Verifica se o usuário atingiu o número de indicações necessárias (5)
+ * Verifica se o usuário atingiu mais um bloco de indicações necessárias (5 NOVAS)
  * e, se sim, tenta conceder o prêmio.
+ *
+ * O prêmio é repetível: a cada 5 indicações novas, +30 dias de premium.
+ * Em vez de zerar/apagar a tabela de indicações, usamos referral_rewarded_count
+ * (quantos prêmios já foram dados) como deslocamento. Assim o usuário só ganha de
+ * novo ao alcançar o próximo múltiplo de 5:
+ *   1º prêmio  → 5 indicações
+ *   2º prêmio  → 10 indicações (5 novas)
+ *   3º prêmio  → 15 indicações (5 novas)...
+ * Isso evita a re-concessão indevida quando o premium expira mas a contagem
+ * histórica continua >= 5.
+ *
  * Retorna true se o prêmio foi concedido nesta chamada.
  */
 export async function checkAndGrantReferralReward(referrerUserId: string): Promise<boolean> {
+  const supabase = createSupabaseAdminClient();
+  if (!supabase) return false;
+
   const count = await getReferralCount(referrerUserId);
-  if (count < REFERRALS_NEEDED) return false;
+
+  // Quantos prêmios já foram concedidos a este usuário.
+  const { data: user } = await supabase
+    .from("users")
+    .select("referral_rewarded_count")
+    .eq("id", referrerUserId)
+    .maybeSingle();
+
+  const alreadyRewarded = user?.referral_rewarded_count ?? 0;
+
+  // Precisa de 5 indicações novas além das que já geraram prêmio.
+  const needed = (alreadyRewarded + 1) * REFERRALS_NEEDED;
+  if (count < needed) return false;
+
   return grantReferralPremium(referrerUserId);
 }

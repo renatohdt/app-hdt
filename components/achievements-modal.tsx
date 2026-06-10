@@ -22,7 +22,8 @@ export function AchievementsModal({
     data.totalWorkoutsAllTime,
     data.totalWeightIncreasesAllTime,
     data.consistencyStats,
-    data.totalGoalsCompleted
+    data.totalGoalsCompleted,
+    data.referralAchievementUnlocked
   );
 
   const totalAchievements = groups.reduce((sum, g) => sum + g.achievements.length, 0);
