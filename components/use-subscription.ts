@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
 
 type SubscriptionSummary = {
   plan: "free" | "monthly" | "annual";
@@ -48,6 +48,18 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
 
     async function fetchSubscription() {
       try {
+        // Verifica sessao local antes de chamar a API.
+        // getAccessToken() le do cache do Supabase (localStorage) -- sem chamada de rede.
+        // Evita 401 desnecessario para usuarios nao logados (ex: landing page).
+        const token = await getAccessToken();
+        if (!token) {
+          if (!cancelled) {
+            setSubscription(DEFAULT);
+            setLoading(false);
+          }
+          return;
+        }
+
         const response = await fetchWithAuth("/api/subscription");
 
         if (!response.ok) {
