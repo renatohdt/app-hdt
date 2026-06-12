@@ -9,6 +9,37 @@ import { signOutAndRedirect } from "@/lib/client-signout";
 import { buildAppWorkoutData, type AppWorkoutPayload } from "@/lib/app-workout";
 import { getSupabaseConfigError, isSupabaseConfigured, supabase } from "@/lib/supabase";
 
+// Cache em memória do payload do treino, compartilhado entre as páginas
+// (dashboard, treino, calendário...). Em navegação SPA o módulo continua
+// vivo, então trocar de página dentro do TTL não refaz o GET /api/workout —
+// navegação instantânea e menos invocações de função no Vercel.
+const WORKOUT_CACHE_TTL_MS = 60_000;
+
+let workoutCache: { userId: string; payload: AppWorkoutPayload; fetchedAt: number } | null = null;
+
+// Chame após qualquer ação que mude o treino fora deste hook
+// (ex.: regenerar treino na página de perfil).
+export function invalidateWorkoutCache() {
+  workoutCache = null;
+}
+
+function readWorkoutCache(userId: string): AppWorkoutPayload | null {
+  if (!workoutCache || workoutCache.userId !== userId) {
+    return null;
+  }
+
+  if (Date.now() - workoutCache.fetchedAt > WORKOUT_CACHE_TTL_MS) {
+    workoutCache = null;
+    return null;
+  }
+
+  return workoutCache.payload;
+}
+
+function writeWorkoutCache(userId: string, payload: AppWorkoutPayload) {
+  workoutCache = { userId, payload, fetchedAt: Date.now() };
+}
+
 export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | null } = {}) {
   const router = useRouter();
   const [payload, setPayload] = useState<AppWorkoutPayload | null>(null);
@@ -48,7 +79,11 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
   function applyWorkoutUpdate(updatedWorkout: import("@/lib/types").WorkoutPlan) {
     setPayload((current) => {
       if (!current) return current;
-      return { ...current, workout: updatedWorkout };
+      const next = { ...current, workout: updatedWorkout };
+      if (currentUserId) {
+        writeWorkoutCache(currentUserId, next);
+      }
+      return next;
     });
   }
 
@@ -58,6 +93,7 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
     try {
       const data = await fetchWorkoutNoCache(currentUserId);
       if (data) {
+        writeWorkoutCache(currentUserId, data);
         setPayload(data);
         setNoWorkout(data.hasWorkout === false || !data.workout);
       }
@@ -135,10 +171,24 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
           setCurrentUserId(userId);
         }
 
+        // Se o treino já foi buscado há pouco (outra página), reaproveita
+        // sem fazer novo request.
+        const cached = readWorkoutCache(userId);
+        if (cached) {
+          if (active) {
+            setPayload(cached);
+            setNoWorkout(cached.hasWorkout === false || !cached.workout);
+            setError(null);
+          }
+          return;
+        }
+
         const data = await fetchWorkoutInitial(userId);
         if (!data) {
           return;
         }
+
+        writeWorkoutCache(userId, data);
 
         if (active) {
           setPayload(data);
@@ -190,6 +240,7 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
         throw new Error(("error" in result ? result.error : undefined) ?? "Não foi possível gerar o treino agora.");
       }
 
+      writeWorkoutCache(currentUserId, result.data);
       setPayload(result.data);
       setNoWorkout(result.data.hasWorkout === false || !result.data.workout);
     } catch (requestError) {

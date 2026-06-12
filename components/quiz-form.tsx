@@ -51,7 +51,6 @@ export function QuizForm() {
 
   useEffect(() => {
     trackAppEvent("home_view", null, { source: "landing_page" });
-    trackAppEvent("page_view", null, { source: "landing_page" });
   }, []);
 
   useEffect(() => {
@@ -174,7 +173,6 @@ export function QuizForm() {
   function trackStart(stepNumber: number) {
     if (!hasTrackedStart) {
       trackAppEvent("quiz_started", null, { step: stepNumber });
-      trackAppEvent("quiz_start", null, { step: stepNumber });
       setHasTrackedStart(true);
     }
   }
@@ -332,15 +330,9 @@ export function QuizForm() {
             };
           }>(response);
 
-          trackAppEvent("quiz_completed", payload.data.userId ?? null, {
+          trackAppEvent("signup", payload.data.userId ?? null, {
             goal: answers.goal ?? null,
             location: "home"
-          });
-          trackAppEvent("signup", payload.data.userId ?? null, {
-            goal: answers.goal ?? null
-          });
-          trackAppEvent("sign_up", payload.data.userId ?? null, {
-            goal: answers.goal ?? null
           });
           trackMetaCompleteRegistration();
           trackAppEvent("workout_generated", payload.data.userId ?? null, {

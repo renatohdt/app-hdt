@@ -10,6 +10,7 @@ import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
+import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
@@ -514,6 +515,8 @@ export default function PerfilPage() {
       });
       setLoadingProgress(100);
       await new Promise((resolve) => window.setTimeout(resolve, 300));
+      // O treino mudou: limpa o cache para o dashboard buscar a versão nova.
+      invalidateWorkoutCache();
       router.push("/dashboard");
       router.refresh();
     } catch (generationError) {
