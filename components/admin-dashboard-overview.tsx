@@ -95,7 +95,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
                   ...metric,
                   returnedUsers: count,
                   percentage: pct,
-                  detail: `${count} de ${totalUsers} usuários acessaram o app nos últimos 7 dias.`
+                  detail: `${count} de ${totalUsers} usuários retornaram ao app nos últimos 7 dias.`
                 }}
               />
             );
@@ -110,7 +110,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
                   ...metric,
                   returnedUsers: count,
                   percentage: pct,
-                  detail: `${count} de ${totalUsers} usuários acessaram o app nos últimos 30 dias.`
+                  detail: `${count} de ${totalUsers} usuários retornaram ao app nos últimos 30 dias.`
                 }}
               />
             );
@@ -283,22 +283,6 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
               <div className="shrink-0 rounded-[18px] border border-primary/30 bg-primary/10 px-5 py-3 text-center">
                 <p className="text-[2rem] font-bold leading-none text-primary">{data.premiumPotentialCount}</p>
                 <p className="mt-1 text-[10px] text-white/50">usuários</p>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3 text-[12px]">
-              <div className="rounded-[14px] border border-white/8 bg-black/20 px-3.5 py-3">
-                <p className="text-white/45 text-[10px] uppercase tracking-[0.14em]">Critério</p>
-                <p className="mt-1.5 text-white/80">2+ treinos gerados</p>
-              </div>
-              <div className="rounded-[14px] border border-white/8 bg-black/20 px-3.5 py-3">
-                <p className="text-white/45 text-[10px] uppercase tracking-[0.14em]">Status</p>
-                <p className="mt-1.5 text-white/80">Sem assinatura ativa</p>
-              </div>
-              <div className="rounded-[14px] border border-white/8 bg-black/20 px-3.5 py-3">
-                <p className="text-white/45 text-[10px] uppercase tracking-[0.14em]">% do total</p>
-                <p className="mt-1.5 text-white/80">
-                  {totalUsers > 0 ? Math.round((data.premiumPotentialCount / totalUsers) * 100) : 0}% da base
-                </p>
               </div>
             </div>
           </Card>

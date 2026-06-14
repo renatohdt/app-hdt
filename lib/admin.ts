@@ -1036,7 +1036,7 @@ function buildRetentionMetrics(
     },
     {
       key: "active_7d",
-      label: "Ativos 7 dias",
+      label: "Retornaram 7 dias",
       windowLabel: "Últimos 7 dias",
       returnedUsers: activeUsersLast7.size,
       eligibleUsers: totalUsers,
@@ -1044,11 +1044,11 @@ function buildRetentionMetrics(
       detail:
         totalUsers === 0
           ? "Ainda não há usuários cadastrados."
-          : `${activeUsersLast7.size} de ${totalUsers} usuários acessaram o app nos últimos 7 dias.`
+          : `${activeUsersLast7.size} de ${totalUsers} usuários retornaram ao app nos últimos 7 dias.`
     },
     {
       key: "active_30d",
-      label: "Ativos 30 dias",
+      label: "Retornaram 30 dias",
       windowLabel: "Últimos 30 dias",
       returnedUsers: activeUsersLast30.size,
       eligibleUsers: totalUsers,
@@ -1056,7 +1056,7 @@ function buildRetentionMetrics(
       detail:
         totalUsers === 0
           ? "Ainda não há usuários cadastrados."
-          : `${activeUsersLast30.size} de ${totalUsers} usuários acessaram o app nos últimos 30 dias.`
+          : `${activeUsersLast30.size} de ${totalUsers} usuários retornaram ao app nos últimos 30 dias.`
     }
   ];
 }
