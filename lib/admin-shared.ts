@@ -43,6 +43,9 @@ export type AdminDashboardData = {
   deletedUsers: number;
   premiumUsers: number;
   activeUsers: Record<DashboardWindowKey, number>;
+  // Retenção calculada via RPC no banco (valores precisos)
+  activeUsersLast7d: number;
+  activeUsersLast30d: number;
   ageDistribution: DistributionDatum[];
   genderDistribution: DistributionDatum[];
   goalDistribution: DistributionDatum[];
@@ -53,7 +56,6 @@ export type AdminDashboardData = {
   };
   errors: AdminErrorLog[];
   newUsersLast7Days: number;
-  newUsersLast30Days: number;
   workoutsGenerated: number;
   workoutsLast7Days: number;
   completionRate: number | null;
@@ -61,11 +63,17 @@ export type AdminDashboardData = {
     usersWithReplacement: number;
     usersWithNewWorkout: number;
     usersWithCompletedSession: number;
+    usersWithExtraWorkout: number;
+    usersWithGoals: number;
+    usersRegisteredViaReferral: number;
   };
   daysDistribution: DistributionDatum[];
   levelDistribution: DistributionDatum[];
   equipmentDistribution: DistributionDatum[];
   durationDistribution: DistributionDatum[];
+  trainingStyleDistribution: DistributionDatum[];
+  focusRegionDistribution: DistributionDatum[];
+  premiumPotentialCount: number;
 };
 
 export function getGoalLabel(goal?: QuizAnswers["goal"]) {

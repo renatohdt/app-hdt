@@ -83,9 +83,40 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-3">
-        {data.retention.map((metric) => (
-          <RetentionMetricCard key={metric.key} metric={metric} />
-        ))}
+        {data.retention.map((metric) => {
+          // Sobrescreve active_7d e active_30d com os valores precisos do RPC de banco
+          if (metric.key === "active_7d") {
+            const count = data.activeUsersLast7d;
+            const pct = totalUsers > 0 ? Math.round((count / totalUsers) * 100) : null;
+            return (
+              <RetentionMetricCard
+                key={metric.key}
+                metric={{
+                  ...metric,
+                  returnedUsers: count,
+                  percentage: pct,
+                  detail: `${count} de ${totalUsers} usuários acessaram o app nos últimos 7 dias.`
+                }}
+              />
+            );
+          }
+          if (metric.key === "active_30d") {
+            const count = data.activeUsersLast30d;
+            const pct = totalUsers > 0 ? Math.round((count / totalUsers) * 100) : null;
+            return (
+              <RetentionMetricCard
+                key={metric.key}
+                metric={{
+                  ...metric,
+                  returnedUsers: count,
+                  percentage: pct,
+                  detail: `${count} de ${totalUsers} usuários acessaram o app nos últimos 30 dias.`
+                }}
+              />
+            );
+          }
+          return <RetentionMetricCard key={metric.key} metric={metric} />;
+        })}
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -94,12 +125,6 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           value={String(data.newUsersLast7Days)}
           description="Cadastros nos últimos 7 dias."
         />
-        <SummaryMetricCard
-          label="Novos (30 dias)"
-          value={String(data.newUsersLast30Days)}
-          description="Cadastros nos últimos 30 dias."
-        />
-
       </section>
 
       <section className="space-y-3">
@@ -121,6 +146,21 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
             label="Concluíram sessão"
             value={String(data.featureUsage.usersWithCompletedSession)}
             description="Usuários únicos que marcaram ao menos uma sessão de treino como concluída."
+          />
+          <SummaryMetricCard
+            label="Treino Extra"
+            value={String(data.featureUsage.usersWithExtraWorkout)}
+            description="Usuários únicos que geraram pelo menos 1 treino extra."
+          />
+          <SummaryMetricCard
+            label="Criaram meta"
+            value={String(data.featureUsage.usersWithGoals)}
+            description="Usuários únicos que criaram ao menos uma meta de treino."
+          />
+          <SummaryMetricCard
+            label="Vieram por indicação"
+            value={String(data.featureUsage.usersRegisteredViaReferral)}
+            description="Usuários que se cadastraram usando o cupom de outro usuário."
           />
         </div>
       </section>
@@ -211,7 +251,60 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
             emptyLabel="Sem dados de duração registrados."
           />
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DistributionBarCard
+            title="Método de treino"
+            data={data.trainingStyleDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de método de treino registrados."
+          />
+          <DistributionBarCard
+            title="Ênfase muscular"
+            data={data.focusRegionDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de ênfase muscular registrados."
+          />
+        </div>
       </section>
+
+      {data.premiumPotentialCount > 0 && (
+        <section className="space-y-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+            Oportunidade de conversão
+          </p>
+          <Card className="min-w-0 space-y-3 overflow-hidden p-4 sm:p-[1.15rem]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <h2 className="text-[1rem] font-semibold text-white">Usuários free com potencial premium</h2>
+                <p className="text-[12px] leading-5 text-white/56">
+                  Usuários sem assinatura que finalizaram 5 ou mais treinos — comportamento recorrente é o principal sinal de potencial de conversão.
+                </p>
+              </div>
+              <div className="shrink-0 rounded-[18px] border border-primary/30 bg-primary/10 px-5 py-3 text-center">
+                <p className="text-[2rem] font-bold leading-none text-primary">{data.premiumPotentialCount}</p>
+                <p className="mt-1 text-[10px] text-white/50">usuários</p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 text-[12px]">
+              <div className="rounded-[14px] border border-white/8 bg-black/20 px-3.5 py-3">
+                <p className="text-white/45 text-[10px] uppercase tracking-[0.14em]">Critério</p>
+                <p className="mt-1.5 text-white/80">2+ treinos gerados</p>
+              </div>
+              <div className="rounded-[14px] border border-white/8 bg-black/20 px-3.5 py-3">
+                <p className="text-white/45 text-[10px] uppercase tracking-[0.14em]">Status</p>
+                <p className="mt-1.5 text-white/80">Sem assinatura ativa</p>
+              </div>
+              <div className="rounded-[14px] border border-white/8 bg-black/20 px-3.5 py-3">
+                <p className="text-white/45 text-[10px] uppercase tracking-[0.14em]">% do total</p>
+                <p className="mt-1.5 text-white/80">
+                  {totalUsers > 0 ? Math.round((data.premiumPotentialCount / totalUsers) * 100) : 0}% da base
+                </p>
+              </div>
+            </div>
+          </Card>
+          <PremiumPotentialTable />
+        </section>
+      )}
 
       <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
         <div className="space-y-2">
@@ -437,4 +530,94 @@ function getTotalUsersDescription(period: DashboardWindowKey, activeUsers: numbe
   }
 
   return `${activeUsers} com atividade ou onboarding salvo nos últimos 7 dias.`;
+}
+
+type PremiumPotentialUser = {
+  id: string;
+  name: string;
+  email: string;
+  session_count: number;
+  created_at: string;
+  last_workout_at: string | null;
+};
+
+function PremiumPotentialTable() {
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [users, setUsers] = useState<PremiumPotentialUser[]>([]);
+
+  async function load() {
+    setStatus("loading");
+    try {
+      const res = await fetchWithAuth("/api/admin/premium-potential");
+      if (!res.ok) throw new Error("Falha ao carregar");
+      const json = await res.json();
+      setUsers(json.data ?? []);
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  if (status === "idle") {
+    return (
+      <button
+        type="button"
+        onClick={load}
+        className="flex w-full items-center justify-center gap-2 rounded-[18px] border border-dashed border-white/14 py-3 text-[12px] font-semibold text-white/52 transition hover:border-primary/40 hover:text-primary"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Ver lista de usuários
+      </button>
+    );
+  }
+
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center gap-2 py-5 text-[12px] text-white/45">
+        <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        Carregando lista...
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <p className="py-4 text-center text-[12px] text-red-400/80">
+        Não foi possível carregar a lista. Tente novamente.
+      </p>
+    );
+  }
+
+  if (!users.length) {
+    return (
+      <p className="py-4 text-center text-[12px] text-white/45">Nenhum usuário encontrado.</p>
+    );
+  }
+
+  return (
+    <div className="mt-1 overflow-x-auto rounded-[18px] border border-white/8">
+      <table className="w-full min-w-[600px] text-[12px]">
+        <thead>
+          <tr className="border-b border-white/8 text-left text-[10px] uppercase tracking-[0.14em] text-white/40">
+            <th className="px-4 py-3 font-medium">Nome</th>
+            <th className="px-4 py-3 font-medium">E-mail</th>
+            <th className="px-4 py-3 font-medium text-right">Sessões</th>
+            <th className="px-4 py-3 font-medium">Cadastro</th>
+            <th className="px-4 py-3 font-medium">Último treino</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {users.map((u) => (
+            <tr key={u.id} className="transition hover:bg-white/[0.03]">
+              <td className="px-4 py-3 text-white/85">{u.name}</td>
+              <td className="px-4 py-3 text-white/65">{u.email}</td>
+              <td className="px-4 py-3 text-right font-semibold text-primary">{u.session_count}</td>
+              <td className="px-4 py-3 text-white/52">{formatDate(u.created_at)}</td>
+              <td className="px-4 py-3 text-white/52">{u.last_workout_at ? formatDate(u.last_workout_at) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

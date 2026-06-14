@@ -57,7 +57,8 @@ export const EXERCISE_EQUIPMENT_OPTIONS = [
   { value: "fita_suspensa", label: "Fita Suspensa" },
   { value: "caneleira", label: "Caneleira" },
   { value: "kettlebell", label: "Kettlebell" },
-  { value: "rolo_abdominal", label: "Rolo Abdominal" }
+  { value: "rolo_abdominal", label: "Rolo Abdominal" },
+  { value: "barra_fixa", label: "Barra Fixa" }
 ] as const;
 
 const MUSCLE_LABELS = new Map<string, string>(EXERCISE_MUSCLE_OPTIONS.map((option) => [option.value, option.label]));
@@ -202,6 +203,16 @@ const EQUIPMENT_ALIASES: Record<string, string> = {
   rolinho: "rolo_abdominal",
   ab_wheel: "rolo_abdominal",
   "ab wheel": "rolo_abdominal",
+  barra_fixa: "barra_fixa",
+  "barra fixa": "barra_fixa",
+  "pull-up": "barra_fixa",
+  "pull up": "barra_fixa",
+  pullup: "barra_fixa",
+  pullups: "barra_fixa",
+  "chin-up": "barra_fixa",
+  "chin up": "barra_fixa",
+  chinup: "barra_fixa",
+  chinups: "barra_fixa",
   other: ""
 };
 

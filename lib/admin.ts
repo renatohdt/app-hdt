@@ -148,10 +148,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers: 0,
       deletedUsers: 0,
       premiumUsers: 0,
-      activeUsers: {
-        daily: 0,
-        weekly: 0
-      },
+      activeUsers: { daily: 0, weekly: 0 },
+      activeUsersLast7d: 0,
+      activeUsersLast30d: 0,
       ageDistribution: [],
       genderDistribution: [],
       goalDistribution: [],
@@ -169,15 +168,24 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         }
       ],
       newUsersLast7Days: 0,
-      newUsersLast30Days: 0,
       workoutsGenerated: 0,
       workoutsLast7Days: 0,
       completionRate: null,
-      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+      featureUsage: {
+        usersWithReplacement: 0,
+        usersWithNewWorkout: 0,
+        usersWithCompletedSession: 0,
+        usersWithExtraWorkout: 0,
+        usersWithGoals: 0,
+        usersRegisteredViaReferral: 0
+      },
       daysDistribution: [],
       levelDistribution: [],
       equipmentDistribution: [],
-      durationDistribution: []
+      durationDistribution: [],
+      trainingStyleDistribution: [],
+      focusRegionDistribution: [],
+      premiumPotentialCount: 0
     };
   }
 
@@ -263,16 +271,27 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           weekly: buildLegacyFunnelPeriod([], startOfLastDays(7), "Semanal")
         },
         errors: dashboardQueryErrors,
+        activeUsersLast7d: 0,
+        activeUsersLast30d: 0,
         newUsersLast7Days: 0,
-        newUsersLast30Days: 0,
         workoutsGenerated: 0,
         workoutsLast7Days: 0,
         completionRate: null,
-        featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+        featureUsage: {
+          usersWithReplacement: 0,
+          usersWithNewWorkout: 0,
+          usersWithCompletedSession: 0,
+          usersWithExtraWorkout: 0,
+          usersWithGoals: 0,
+          usersRegisteredViaReferral: 0
+        },
         daysDistribution: [],
         levelDistribution: [],
         equipmentDistribution: [],
-        durationDistribution: []
+        durationDistribution: [],
+        trainingStyleDistribution: [],
+        focusRegionDistribution: [],
+        premiumPotentialCount: 0
       };
     }
 
@@ -290,18 +309,18 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     // Novas métricas de crescimento
     const sevenDaysAgo = startOfLastDays(7);
-    const thirtyDaysAgo = startOfLastDays(30);
     const newUsersLast7Days = dashboardUsers.filter((u) => new Date(u.created_at) >= sevenDaysAgo).length;
-    const newUsersLast30Days = dashboardUsers.filter((u) => new Date(u.created_at) >= thirtyDaysAgo).length;
     // count exato do banco via head:true — sem limite de 1000 linhas.
     const workoutsGenerated = workoutsCountQuery.count ?? 0;
     const workoutsLast7Days = 0;
     const completionRate = null;
 
-    // Métricas de engajamento com as ferramentas do app.
-    // RPC calcula COUNT(DISTINCT user_id) direto no banco → sem limite de linhas.
-    const [featureUsageRpcQuery, premiumSubscriptionsQuery] = await Promise.all([
+    // RPCs paralelos: engajamento, retenção precisa (banco), premium
+    const [featureUsageRpcQuery, retentionRpcQuery, premiumSubscriptionsQuery] = await Promise.all([
       supabase.rpc("get_feature_usage_counts"),
+      // Ativos 7d e 30d calculados direto no banco → elimina bug de 7d = 30d
+      // causado pelo limite de linhas no client-side filtering anterior.
+      supabase.rpc("get_retention_metrics"),
       // Usuários com assinatura ativa (active) ou dentro do período de graça (past_due)
       supabase
         .from("subscriptions")
@@ -313,15 +332,27 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       users_with_replacement: number;
       users_with_completed_session: number;
       users_with_new_workout: number;
+      users_with_extra_workout: number;
+      users_with_goals: number;
+      users_registered_via_referral: number;
+      premium_potential_count: number;
     };
     const featureCounts = (featureUsageRpcQuery.data ?? {
       users_with_replacement: 0,
       users_with_completed_session: 0,
-      users_with_new_workout: 0
+      users_with_new_workout: 0,
+      users_with_extra_workout: 0,
+      users_with_goals: 0,
+      users_with_referral_code: 0,
+      premium_potential_count: 0
     }) as FeatureUsageCounts;
-    const usersWithReplacement = featureCounts.users_with_replacement;
-    const usersWithCompletedSession = featureCounts.users_with_completed_session;
-    const usersWithNewWorkout = featureCounts.users_with_new_workout;
+
+    type RetentionMetricsCounts = { active_7d: number; active_30d: number };
+    const retentionRaw = (retentionRpcQuery.data ?? {}) as Partial<RetentionMetricsCounts>;
+    const retentionCounts: RetentionMetricsCounts = {
+      active_7d: retentionRaw.active_7d ?? 0,
+      active_30d: retentionRaw.active_30d ?? 0
+    };
 
     // Usuários premium: assinaturas ativas ou em período de graça
     const premiumUsers = (premiumSubscriptionsQuery.data ?? []).length;
@@ -344,6 +375,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           label: "Semanal"
         })
       },
+      activeUsersLast7d: retentionCounts.active_7d,
+      activeUsersLast30d: retentionCounts.active_30d,
       ageDistribution: toDistribution(dashboardAnswerList.map(getAgeBucket)),
       genderDistribution: toDistribution(dashboardAnswerList.map((answers) => getGenderLabel(answers.gender))),
       goalDistribution: toDistribution(dashboardAnswerList.map((answers) => getGoalLabel(answers.goal))),
@@ -360,14 +393,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       },
       errors: [...dashboardQueryErrors, ...getRecentSystemErrors(dashboardAllEvents)].slice(0, 10),
       newUsersLast7Days,
-      newUsersLast30Days,
       workoutsGenerated,
       workoutsLast7Days,
       completionRate,
       featureUsage: {
-        usersWithReplacement,
-        usersWithNewWorkout,
-        usersWithCompletedSession
+        usersWithReplacement: featureCounts.users_with_replacement ?? 0,
+        usersWithNewWorkout: featureCounts.users_with_new_workout ?? 0,
+        usersWithCompletedSession: featureCounts.users_with_completed_session ?? 0,
+        usersWithExtraWorkout: featureCounts.users_with_extra_workout ?? 0,
+        usersWithGoals: featureCounts.users_with_goals ?? 0,
+        usersRegisteredViaReferral: featureCounts.users_registered_via_referral ?? 0
       },
       daysDistribution: toDistribution(
         dashboardAnswerList.map((a) => {
@@ -386,7 +421,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           const time = typeof a.time === "number" ? a.time : null;
           return time !== null ? getDurationLabel(time) : "";
         })
-      )
+      ),
+      trainingStyleDistribution: toDistribution(
+        dashboardAnswerList.map((a) => getTrainingStyleLabel(a.trainingStyle as QuizAnswers["trainingStyle"]))
+      ),
+      focusRegionDistribution: toDistribution(
+        dashboardAnswerList.map((a) => getFocusRegionLabel(a.focusRegion as QuizAnswers["focusRegion"]))
+      ),
+      premiumPotentialCount: featureCounts.premium_potential_count
     };
   }
 
@@ -418,10 +460,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers: 0,
       deletedUsers: 0,
       premiumUsers: 0,
-      activeUsers: {
-        daily: 0,
-        weekly: 0
-      },
+      activeUsers: { daily: 0, weekly: 0 },
+      activeUsersLast7d: 0,
+      activeUsersLast30d: 0,
       ageDistribution: [],
       genderDistribution: [],
       goalDistribution: [],
@@ -432,15 +473,24 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       },
       errors: queryErrors,
       newUsersLast7Days: 0,
-      newUsersLast30Days: 0,
       workoutsGenerated: 0,
       workoutsLast7Days: 0,
       completionRate: null,
-      featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+      featureUsage: {
+        usersWithReplacement: 0,
+        usersWithNewWorkout: 0,
+        usersWithCompletedSession: 0,
+        usersWithExtraWorkout: 0,
+        usersWithGoals: 0,
+        usersRegisteredViaReferral: 0
+      },
       daysDistribution: [],
       levelDistribution: [],
       equipmentDistribution: [],
-      durationDistribution: []
+      durationDistribution: [],
+      trainingStyleDistribution: [],
+      focusRegionDistribution: [],
+      premiumPotentialCount: 0
     };
   }
 
@@ -465,6 +515,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       daily: activeUsers,
       weekly: activeUsers
     },
+    activeUsersLast7d: 0,
+    activeUsersLast30d: 0,
     ageDistribution: toDistribution(answersList.map(getAgeBucket)),
     genderDistribution: toDistribution(answersList.map((answers) => getGenderLabel(answers.gender))),
     goalDistribution: toDistribution(answersList.map((answers) => getGoalLabel(answers.goal))),
@@ -475,11 +527,17 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     },
     errors: [...queryErrors, ...getRecentSystemErrors(events)].slice(0, 10),
     newUsersLast7Days: 0,
-    newUsersLast30Days: 0,
     workoutsGenerated: 0,
     workoutsLast7Days: 0,
     completionRate: null,
-    featureUsage: { usersWithReplacement: 0, usersWithNewWorkout: 0, usersWithCompletedSession: 0 },
+    featureUsage: {
+      usersWithReplacement: 0,
+      usersWithNewWorkout: 0,
+      usersWithCompletedSession: 0,
+      usersWithExtraWorkout: 0,
+      usersWithGoals: 0,
+      usersRegisteredViaReferral: 0
+    },
     daysDistribution: toDistribution(
       answersList.map((a) => {
         const days = typeof a.days === "number" ? a.days : null;
@@ -497,7 +555,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         const time = typeof a.time === "number" ? a.time : null;
         return time !== null ? getDurationLabel(time) : "";
       })
-    )
+    ),
+    trainingStyleDistribution: [],
+    focusRegionDistribution: [],
+    premiumPotentialCount: 0
   };
 }
 
@@ -1325,6 +1386,29 @@ function getDaysLabel(days: number): string {
 
 function getDurationLabel(time: number): string {
   return `${time} min`;
+}
+
+function getTrainingStyleLabel(style?: QuizAnswers["trainingStyle"]): string {
+  const labels: Record<string, string> = {
+    musculacao: "Musculação",
+    funcional: "Funcional",
+    hiit: "HIIT",
+    calistenia: "Calistenia",
+    personal: "Personal Escolhe"
+  };
+  return style ? (labels[style] ?? style) : "";
+}
+
+function getFocusRegionLabel(region?: QuizAnswers["focusRegion"]): string {
+  const labels: Record<string, string> = {
+    chest: "Peito",
+    back: "Costas",
+    legs: "Pernas",
+    legs_glutes: "Pernas e Glúteos",
+    arms: "Braços",
+    balanced: "Equilibrado"
+  };
+  return region ? (labels[region] ?? region) : "";
 }
 
 function toEquipmentDistribution(
