@@ -63,7 +63,12 @@ export function writeStoredConsentPreferences(value: StoredConsentPreferences) {
     return;
   }
 
-  window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(value));
+  try {
+    window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Navegador pode bloquear o acesso ao localStorage (modo privado,
+    // cookies bloqueados, iframe restrito). Ignoramos para não quebrar a UI.
+  }
 }
 
 export function clearStoredConsentPreferences() {
@@ -71,7 +76,11 @@ export function clearStoredConsentPreferences() {
     return;
   }
 
-  window.localStorage.removeItem(CONSENT_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(CONSENT_STORAGE_KEY);
+  } catch {
+    // Mesmo motivo de writeStoredConsentPreferences: acesso pode ser negado.
+  }
 }
 
 export function hasConsentPreference(scope: CmpConsentScope) {
