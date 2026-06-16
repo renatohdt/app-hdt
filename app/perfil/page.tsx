@@ -132,6 +132,7 @@ const EQUIPMENT_OPTIONS = [
   { value: "caneleira", label: "Caneleira" },
   { value: "kettlebell", label: "Kettlebell" },
   { value: "rolo_abdominal", label: "Rolo Abdominal" },
+  { value: "barra_fixa", label: "Barra Fixa" },
   { value: "nenhum", label: "Nenhum" }
 ];
 

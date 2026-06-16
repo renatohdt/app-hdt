@@ -293,7 +293,7 @@ function validateAvailableMinutes(value: unknown): 20 | 30 | 45 | 60 {
 }
 
 function validateEquipment(value: unknown): HomeEquipment[] {
-  const valid: HomeEquipment[] = ["halteres", "elasticos", "fitball", "fita_suspensa", "caneleira", "kettlebell", "rolo_abdominal", "nenhum"];
+  const valid: HomeEquipment[] = ["halteres", "elasticos", "fitball", "fita_suspensa", "caneleira", "kettlebell", "rolo_abdominal", "barra_fixa", "nenhum"];
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is HomeEquipment => valid.includes(v as HomeEquipment));
 }

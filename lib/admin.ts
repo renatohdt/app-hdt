@@ -1375,6 +1375,7 @@ function getEquipmentLabel(value: string): string {
     caneleira: "Caneleira",
     kettlebell: "Kettlebell",
     rolo_abdominal: "Rolo Abdominal",
+    barra_fixa: "Barra Fixa",
     nenhum: "Sem equipamento"
   };
   return labels[value] ?? value;

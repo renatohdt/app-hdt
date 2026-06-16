@@ -61,37 +61,42 @@ export const quizSteps = [
       {
         label: "Halteres",
         value: "halteres",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-halteres.webp"
+        icon: "/icon-halteres.webp"
       },
       {
         label: "Elásticos",
         value: "elasticos",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-elasticos.webp"
+        icon: "/icon-elasticos.webp"
       },
       {
         label: "Fitball",
         value: "fitball",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-fitball.webp"
+        icon: "/icon-fitball.webp"
       },
       {
         label: "Fita Suspensa",
         value: "fita_suspensa",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-fita-suspensa.webp"
+        icon: "/icon-fita-suspensa.webp"
       },
       {
         label: "Caneleira",
         value: "caneleira",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-caneleira.webp"
+        icon: "/icon-caneleira.webp"
       },
       {
         label: "Kettlebell",
         value: "kettlebell",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/03/icon-kettlebell.webp"
+        icon: "/icon-kettlebell.webp"
       },
       {
         label: "Rolo Abdominal",
         value: "rolo_abdominal",
-        icon: "https://horadotreino.com.br/wp-content/uploads/2026/04/icon-abs-carrinho.webp"
+        icon: "/icon-abs-carrinho.webp"
+      },
+      {
+        label: "Barra Fixa",
+        value: "barra_fixa",
+        icon: "/icon-barra-fixa.webp"
       },
       {
         label: "Nenhum",

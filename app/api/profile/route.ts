@@ -27,6 +27,7 @@ const EQUIPMENT_OPTIONS: HomeEquipment[] = [
   "caneleira",
   "kettlebell",
   "rolo_abdominal",
+  "barra_fixa",
   "nenhum"
 ];
 const TIME_OPTIONS = [15, 30, 45, 60, 75, 90];

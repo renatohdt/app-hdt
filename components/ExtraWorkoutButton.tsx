@@ -39,6 +39,7 @@ const EQUIPMENT_OPTIONS: { value: HomeEquipment; label: string }[] = [
   { value: "caneleira", label: "CANELEIRA" },
   { value: "kettlebell", label: "KETTLEBELL" },
   { value: "rolo_abdominal", label: "ROLO ABDOMINAL" },
+  { value: "barra_fixa", label: "BARRA FIXA" },
   { value: "nenhum", label: "NENHUM" }
 ];
 

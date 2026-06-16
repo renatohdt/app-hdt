@@ -23,6 +23,7 @@ export type HomeEquipment =
   | "caneleira"
   | "kettlebell"
   | "rolo_abdominal"
+  | "barra_fixa"
   | "nenhum";
 
 export type UserProfile = "beginner_lost" | "false_intermediate" | "inconsistent" | "stagnated";

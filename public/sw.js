@@ -1,4 +1,4 @@
-const STATIC_CACHE = "hora-do-treino-static-v2";
+const STATIC_CACHE = "hora-do-treino-static-v3";
 const PAGE_CACHE = "hora-do-treino-pages-v1";
 const PRECACHE_URLS = [
   "/",
@@ -21,7 +21,7 @@ const PRECACHE_URLS = [
   "/pwa/icon-512x512.png",
   "/pwa/icon-192x192-maskable.png",
   "/pwa/icon-512x512-maskable.png",
-  "/pwa/icon-notification.png"
+  "/pwa/icon-dumbbell.png"
 ];
 const PRIVATE_PATH_PREFIXES = ["/admin", "/dashboard", "/perfil", "/results", "/api"];
 
@@ -69,7 +69,7 @@ self.addEventListener("push", (event) => {
   const options = {
     body: payload.body ?? "",
     icon: "/pwa/icon-192x192-maskable.png",
-    badge: "/pwa/icon-notification.png",
+    badge: "/pwa/icon-dumbbell.png",
     data: { url: payload.url ?? "/dashboard" },
     vibrate: [100, 50, 100]
   };
