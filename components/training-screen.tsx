@@ -447,9 +447,17 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
             </div>
           )
         ) : (
-          <Button onClick={() => setConfirmCompletion(true)} className="min-h-14 w-full !text-[20px]">
-            Finalizar Treino!
-          </Button>
+          // Botão "domo" (semicírculo) fixo, centralizado, saindo de trás do menu inferior.
+          // z-30 fica ABAIXO do menu (z-40), então a base reta some atrás da barra de navegação,
+          // criando o efeito de estar emergindo do menu. Sempre visível, mesmo ao rolar a tela.
+          <button
+            type="button"
+            onClick={() => setConfirmCompletion(true)}
+            aria-label="Finalizar treino"
+            className="fixed bottom-[calc(4.9rem+var(--app-safe-bottom))] left-1/2 z-30 flex h-[3rem] w-[6.25rem] -translate-x-1/2 items-center justify-center rounded-t-full bg-gradient-to-b from-primary to-primaryStrong text-[12px] font-bold uppercase tracking-wider text-black shadow-[0_-6px_22px_rgba(34,197,94,0.5)] transition active:scale-95"
+          >
+            <span className="-translate-y-0.5">Finalizar</span>
+          </button>
         )}
       </div>
       {newAchievement ? (
