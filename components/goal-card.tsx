@@ -15,10 +15,11 @@ export type ActiveGoalShape = {
 
 export function GoalCard({
   activeGoal,
-  showForm,
-  goalTarget,
-  goalDays,
-  saving,
+  showForm = false,
+  goalTarget = "",
+  goalDays = "",
+  saving = false,
+  readOnly = false,
   onShowForm,
   onCancelForm,
   onChangeTarget,
@@ -26,15 +27,18 @@ export function GoalCard({
   onSubmit
 }: {
   activeGoal: ActiveGoalShape;
-  showForm: boolean;
-  goalTarget: string;
-  goalDays: string;
-  saving: boolean;
-  onShowForm: () => void;
-  onCancelForm: () => void;
-  onChangeTarget: (v: string) => void;
-  onChangeDays: (v: string) => void;
-  onSubmit: () => void;
+  // Props do formulário são opcionais: no modo somente leitura (ex: calendário)
+  // o card só exibe a evolução e não recebe os controles de criação.
+  showForm?: boolean;
+  goalTarget?: string;
+  goalDays?: string;
+  saving?: boolean;
+  readOnly?: boolean;
+  onShowForm?: () => void;
+  onCancelForm?: () => void;
+  onChangeTarget?: (v: string) => void;
+  onChangeDays?: (v: string) => void;
+  onSubmit?: () => void;
 }) {
   if (activeGoal) {
     const done = activeGoal.workoutsDone;
@@ -100,7 +104,7 @@ export function GoalCard({
               min={1}
               max={200}
               value={goalTarget}
-              onChange={(e) => onChangeTarget(e.target.value)}
+              onChange={(e) => onChangeTarget?.(e.target.value)}
               className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white outline-none focus:border-primary/40"
               placeholder="Ex: 12"
             />
@@ -114,7 +118,7 @@ export function GoalCard({
               min={1}
               max={365}
               value={goalDays}
-              onChange={(e) => onChangeDays(e.target.value)}
+              onChange={(e) => onChangeDays?.(e.target.value)}
               className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white outline-none focus:border-primary/40"
               placeholder="Ex: 30"
             />
@@ -142,6 +146,21 @@ export function GoalCard({
             Cancelar
           </button>
         </div>
+      </Card>
+    );
+  }
+
+  // Estado: sem meta ativa, modo somente leitura (ex: calendário) — sem botão de criar
+  if (readOnly) {
+    return (
+      <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
+        <div className="flex items-center gap-2 mb-3">
+          <Target className="h-4 w-4 shrink-0 text-primary" />
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary/88">Meta pessoal</p>
+        </div>
+        <p className="text-[14px] leading-[1.45] text-white/58">
+          Você ainda não definiu uma meta. Crie a sua na tela inicial para acompanhar a evolução aqui.
+        </p>
       </Card>
     );
   }

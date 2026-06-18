@@ -81,11 +81,6 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
-  const [showGoalForm, setShowGoalForm] = useState(false);
-  const [goalTarget, setGoalTarget] = useState("12");
-  const [goalDays, setGoalDays] = useState("30");
-  const [savingGoal, setSavingGoal] = useState(false);
-  const [activeGoal, setActiveGoal] = useState(data.activeGoal);
   const { subscription } = useSubscription();
   const isFreePlan = !subscription?.isPremium;
 
@@ -359,38 +354,8 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         </div>
       </Card>
 
-      {/* Card de meta pessoal */}
-      <GoalCard
-        activeGoal={activeGoal}
-        showForm={showGoalForm}
-        goalTarget={goalTarget}
-        goalDays={goalDays}
-        saving={savingGoal}
-        onShowForm={() => setShowGoalForm(true)}
-        onCancelForm={() => setShowGoalForm(false)}
-        onChangeTarget={setGoalTarget}
-        onChangeDays={setGoalDays}
-        onSubmit={async () => {
-          const target = Number(goalTarget);
-          const days = Number(goalDays);
-          if (!target || !days) return;
-          setSavingGoal(true);
-          try {
-            const res = await fetchWithAuth("/api/goals", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ targetCount: target, periodDays: days })
-            });
-            const json = await res.json();
-            if (json.success) {
-              setActiveGoal(json.data);
-              setShowGoalForm(false);
-            }
-          } finally {
-            setSavingGoal(false);
-          }
-        }}
-      />
+      {/* Card de meta pessoal — somente leitura (criação fica na tela inicial) */}
+      <GoalCard activeGoal={data.activeGoal} readOnly />
 
       <button
         type="button"
