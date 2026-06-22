@@ -81,8 +81,9 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
-  const { subscription } = useSubscription();
-  const isFreePlan = !subscription?.isPremium;
+  const { subscription, loading: subscriptionLoading } = useSubscription();
+  // Só trata como free depois que a assinatura carregou (evita anúncio piscar para premium).
+  const isFreePlan = !subscriptionLoading && !subscription?.isPremium;
 
   const plannedWorkoutsByWeekday = useMemo(() => {
     const schedule = buildWeeklySchedule(data);

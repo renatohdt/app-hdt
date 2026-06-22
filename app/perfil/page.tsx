@@ -161,7 +161,7 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
-  const { subscription } = useSubscription();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
   const [isEditing, setIsEditing] = useState(false);
   const [editingSection, setEditingSection] = useState<EditingSection | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -611,7 +611,7 @@ export default function PerfilPage() {
 
   // ── Loading / signing out ───────────────────────────────────────────────────
 
-  if (loading || isSigningOut) {
+  if (loading || isSigningOut || subscriptionLoading) {
     return (
       <AppShell>
         <Card className="p-5 sm:p-6">

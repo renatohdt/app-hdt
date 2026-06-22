@@ -50,7 +50,7 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const [generateError, setGenerateError] = useState<string | null>(null);
   const generatingAnimFrameRef = useRef(0);
   const generatingCardRef = useRef<HTMLDivElement | null>(null);
-  const { subscription } = useSubscription();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
   const router = useRouter();
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
   const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
@@ -70,7 +70,9 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
   const showRegressionPopup = !phasePopupDismissed && (levelData?.decayRegressed ?? false);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
   const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
-  const isFreePlan = !subscription?.isPremium;
+  // Só trata como free depois que a assinatura terminou de carregar.
+  // Evita mostrar anúncio/banner premium para quem é premium durante o carregamento.
+  const isFreePlan = !subscriptionLoading && !subscription?.isPremium;
 
   // Animação da barra de progresso durante geração do treino
   useEffect(() => {

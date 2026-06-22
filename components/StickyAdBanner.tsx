@@ -8,11 +8,12 @@ import GoogleAd from "@/components/GoogleAd";
 const STICKY_BANNER_SLOT = "7189522393";
 
 export function StickyAdBanner() {
-  const { subscription } = useSubscription();
+  const { subscription, loading } = useSubscription();
   const { canUseAds } = useConsentPreferences();
 
-  // Só exibe para usuários free com consentimento de anúncios
-  if (subscription?.isPremium || !canUseAds) {
+  // Só exibe para usuários free com consentimento de anúncios.
+  // Enquanto a assinatura carrega, não mostra nada (evita anúncio piscar para premium).
+  if (loading || subscription?.isPremium || !canUseAds) {
     return null;
   }
 

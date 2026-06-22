@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
+import { supabase } from "@/lib/supabase";
 
 type SubscriptionSummary = {
   plan: "free" | "monthly" | "annual";
@@ -76,10 +77,35 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
       }
     }
 
-    void fetchSubscription();
+    // Sem cliente Supabase (ex: ambiente sem env configurado): faz a busca uma única vez.
+    if (!supabase) {
+      void fetchSubscription();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // Reage à sessão do Supabase. O evento INITIAL_SESSION dispara no carregamento
+    // (com ou sem sessão) e os demais cobrem login, refresh de token e troca de conta.
+    // Antes, se a sessão ainda não estivesse pronta no primeiro instante, o usuário
+    // ficava marcado como free até dar um refresh manual.
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+
+      if (event === "SIGNED_OUT") {
+        setSubscription(DEFAULT);
+        setLoading(false);
+        return;
+      }
+
+      // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED: refaz a busca.
+      // Não reativa o "loading" para não piscar a UI em refresh de token periódico.
+      void fetchSubscription();
+    });
 
     return () => {
       cancelled = true;
+      authListener.subscription.unsubscribe();
     };
   }, []);
 

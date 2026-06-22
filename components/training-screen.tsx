@@ -105,7 +105,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [showProgramUpsell, setShowProgramUpsell] = useState(false);
   const [showProgramContinuation, setShowProgramContinuation] = useState(false);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
-  const { subscription } = useSubscription();
+  const { subscription, loading: subscriptionLoading } = useSubscription();
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
     [data.workoutOrder, sessionProgress.lastCompletedWorkoutKey]
@@ -158,6 +158,9 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
   const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
   const isPremiumUser = subscription?.isPremium ?? false;
+  // Para exibir anúncios, só consideramos "free" depois que a assinatura carregou.
+  // Evita anúncio piscar para premium durante o carregamento.
+  const showAds = !subscriptionLoading && !isPremiumUser;
   // Free: limite de 2 por programa | Premium: limite de 2 por sessão (Treino A, B, C independentes)
   const replacementsForActiveDay = replacementsPerWorkoutKey[activeWorkoutKey] ?? 0;
   const replacementLimitReached = isPremiumUser
@@ -390,7 +393,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         {exerciseRows.map((exercise, index) => {
           // Exibe anúncio após o 4º e o 8º exercício — apenas para usuários free (máx. 2 anúncios)
           const adPosition = (index + 1) / 4;
-          const showAd = !isPremiumUser && (index + 1) % 4 === 0 && adPosition <= 2;
+          const showAd = showAds && (index + 1) % 4 === 0 && adPosition <= 2;
 
           return (
             <Fragment key={exercise.id}>
@@ -558,7 +561,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       {showCompletionPopup ? (
         <WorkoutCompletionPopup
           onClose={() => setShowCompletionPopup(false)}
-          showAd={!subscription?.isPremium}
+          showAd={showAds}
         />
       ) : null}
 
