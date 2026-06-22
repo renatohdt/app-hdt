@@ -43,6 +43,9 @@ export function AppVersionFooter() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">("idle");
   const timeoutRef = useRef<number | null>(null);
   const isAdminRoute = pathname?.startsWith("/admin") ?? false;
+  // Home, login e criar-conta usam o rodapé discreto próprio (BrandFooter) — ocultar o global.
+  const isHome = pathname === "/";
+  const isEntryRoute = ["/login", "/criar-conta"].some((route) => pathname?.startsWith(route));
   const isAppRoute = ["/dashboard", "/treino", "/calendario", "/progresso", "/perfil"].some((route) =>
     pathname?.startsWith(route)
   );
@@ -77,7 +80,7 @@ export function AppVersionFooter() {
     }, copied ? 2200 : 2800);
   }
 
-  if (isAppRoute) {
+  if (isHome || isEntryRoute || isAppRoute) {
     return null;
   }
 

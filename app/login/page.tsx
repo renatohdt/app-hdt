@@ -1,3 +1,4 @@
+import { BrandFooter } from "@/components/brand-footer";
 import { ConfigAlert } from "@/components/config-alert";
 import { LoginForm } from "@/components/login-form";
 import { Container, PageShell } from "@/components/ui";
@@ -9,6 +10,7 @@ export default function LoginPage() {
       <Container className="py-12">
         {isSupabaseConfigured() ? <LoginForm /> : <ConfigAlert />}
       </Container>
+      <BrandFooter className="mt-6 pb-4" />
     </PageShell>
   );
 }

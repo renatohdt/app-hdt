@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { BrandFooter } from "@/components/brand-footer";
 import { ConfigAlert } from "@/components/config-alert";
 import { QuizForm } from "@/components/quiz-form";
 import { PageShell } from "@/components/ui";
@@ -54,6 +55,8 @@ export default function CriarContaPage() {
             Entrar
           </Link>
         </p>
+
+        <BrandFooter className="mt-10" />
       </div>
     </PageShell>
   );
