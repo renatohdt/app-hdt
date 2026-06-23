@@ -2,14 +2,50 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandFooter } from "@/components/brand-footer";
 import { clientLogError } from "@/lib/client-logger";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
+// Chave usada para guardar o cupom de indicação no navegador até o cadastro.
+// O QuizForm (tela /criar-conta) lê essa mesma chave.
+const REFERRAL_STORAGE_KEY = "hdt_referral_code";
+
 export default function HomePage() {
   const router = useRouter();
+  const [referralCode, setReferralCode] = useState("");
+
+  // Captura o ?ref= do link de indicação. Quem compartilha manda
+  // https://app.horadotreino.com.br?ref=HDT-XXXX e a pessoa cai aqui na home.
+  // Guardamos o código para ele "sobreviver" até a tela de criar conta.
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("ref");
+    const cleaned = (fromUrl ?? "").trim().toUpperCase().slice(0, 8);
+
+    if (cleaned) {
+      setReferralCode(cleaned);
+      try {
+        window.localStorage.setItem(REFERRAL_STORAGE_KEY, cleaned);
+      } catch {
+        // Se o navegador bloquear o localStorage, ainda repassamos o código pelo link.
+      }
+      return;
+    }
+
+    // Sem ?ref= na URL: reaproveita um código guardado de uma visita anterior.
+    try {
+      const stored = window.localStorage.getItem(REFERRAL_STORAGE_KEY);
+      if (stored) setReferralCode(stored);
+    } catch {
+      // ignora
+    }
+  }, []);
+
+  // Repassa o cupom para a tela de cadastro pela própria URL.
+  const criarContaHref = referralCode
+    ? `/criar-conta?ref=${encodeURIComponent(referralCode)}`
+    : "/criar-conta";
 
   // Se a pessoa já estiver logada, vai direto para o app (mantém o comportamento antigo).
   useEffect(() => {
@@ -79,7 +115,7 @@ export default function HomePage() {
             Entrar
           </Link>
           <Link
-            href="/criar-conta"
+            href={criarContaHref}
             className="flex h-14 w-full items-center justify-center rounded-full border border-white/15 bg-white/5 text-[16px] font-semibold text-white transition hover:bg-white/10 active:scale-[0.98]"
           >
             Criar conta

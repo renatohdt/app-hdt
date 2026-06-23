@@ -53,6 +53,32 @@ export function QuizForm() {
     trackAppEvent("home_view", null, { source: "landing_page" });
   }, []);
 
+  // Preenche o cupom de indicação automaticamente.
+  // Ordem: 1) ?ref= na URL (link direto /criar-conta?ref=...),
+  //        2) código guardado pela home quando a pessoa veio pelo link de indicação.
+  // Mesma chave usada em app/page.tsx.
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("ref");
+    const cleaned = (fromUrl ?? "").trim().toUpperCase().slice(0, 8);
+
+    if (cleaned) {
+      setReferralCode(cleaned);
+      try {
+        window.localStorage.setItem("hdt_referral_code", cleaned);
+      } catch {
+        // ignora se o navegador bloquear o armazenamento
+      }
+      return;
+    }
+
+    try {
+      const stored = window.localStorage.getItem("hdt_referral_code");
+      if (stored) setReferralCode(stored.trim().toUpperCase().slice(0, 8));
+    } catch {
+      // ignora
+    }
+  }, []);
+
   useEffect(() => {
     if (!isPending) {
       setLoadingProgress(0);
@@ -349,6 +375,14 @@ export function QuizForm() {
               });
             } catch {
               // ignora silenciosamente — cupom é bônus, não deve travar o onboarding
+            } finally {
+              // Limpa o cupom guardado para não atribuir indicação a um
+              // próximo cadastro feito no mesmo dispositivo.
+              try {
+                window.localStorage.removeItem("hdt_referral_code");
+              } catch {
+                // ignora
+              }
             }
           }
 
