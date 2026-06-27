@@ -11,6 +11,7 @@ import {
   Trophy
 } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
+import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
@@ -293,6 +294,9 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
           </div>
         </Link>
       </Card>
+
+      {/* Anúncio menor (320x50) — entre os cards, somente plano free e com consentimento ativo */}
+      {isFreePlan ? <TrainingInlineAd /> : null}
 
       <GoalCard
         activeGoal={activeGoal}
