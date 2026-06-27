@@ -46,7 +46,8 @@ export function ExpandableExerciseCard({
   isPremiumUser = false,
   isReplaced = false,
   onExerciseReplaced,
-  initialWeightKg = null
+  initialWeightKg = null,
+  onCompletionChange
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -65,6 +66,9 @@ export function ExpandableExerciseCard({
   isReplaced?: boolean;
   onExerciseReplaced: (newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) => void;
   initialWeightKg?: number | null;
+  // Avisa o componente pai (TrainingScreen) sempre que a conclusão deste exercício muda.
+  // isComplete = true quando todas as séries planejadas estão marcadas como concluídas.
+  onCompletionChange?: (exerciseId: string, isComplete: boolean) => void;
 }) {
   const storageKey = useMemo(
     () => `hdt-exercise-draft:${data.user.id}:${workoutKey}:${exercise.id}`,
@@ -166,6 +170,8 @@ export function ExpandableExerciseCard({
   const muscleBadges = exercise.muscles.length ? exercise.muscles : ["Treino principal"];
   const totalSetRows = Math.max(exercise.plannedSetsCount ?? 1, draftState.setEntries.length, 1);
   const setEntries = ensureSetEntries(draftState.setEntries, totalSetRows);
+  // Este exercício está 100% concluído quando todas as séries planejadas estão marcadas.
+  const isExerciseComplete = totalSetRows > 0 && setEntries.every((entry) => entry.completed);
   const panelId = `exercise-panel-${exercise.id}`;
   const posterUrl = resolveVideoPoster(exercise.videoUrl);
   const isMobilityExercise = exercise.isMobility;
@@ -177,6 +183,12 @@ export function ExpandableExerciseCard({
     : null;
   const plannedRepsLabel = exercise.plannedRepsLabel?.trim() || "-";
   const isIsometric = exercise.blockType === "isometria";
+
+  // Informa o componente pai sempre que a conclusão deste exercício muda
+  // (inclusive na carga inicial, lida do sessionStorage). Sem chamadas de rede.
+  useEffect(() => {
+    onCompletionChange?.(exercise.id, isExerciseComplete);
+  }, [exercise.id, isExerciseComplete, onCompletionChange]);
 
   function updateDraft(next: Partial<ExerciseExecutionDraft>) {
     setDraft((current) => {

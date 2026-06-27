@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
@@ -105,6 +105,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [showProgramUpsell, setShowProgramUpsell] = useState(false);
   const [showProgramContinuation, setShowProgramContinuation] = useState(false);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+  // Conjunto de exercícios com TODAS as séries concluídas (reportado por cada card)
+  const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set());
+  // Garante que o popup automático abra apenas uma vez por sessão de treino
+  const [autoPrompted, setAutoPrompted] = useState(false);
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
@@ -152,6 +156,35 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       })
       .catch(() => {});
   }, [exerciseRows]);
+
+  // Cada card avisa aqui quando seu estado de conclusão muda. Atualizamos o conjunto
+  // apenas quando há mudança real, evitando re-renderizações desnecessárias.
+  const handleExerciseCompletionChange = useCallback((exerciseId: string, isComplete: boolean) => {
+    setCompletedExerciseIds((prev) => {
+      if (isComplete === prev.has(exerciseId)) return prev;
+      const next = new Set(prev);
+      if (isComplete) next.add(exerciseId);
+      else next.delete(exerciseId);
+      return next;
+    });
+  }, []);
+
+  // Ao trocar de treino (ou avançar para o próximo após concluir), recomeçamos do zero.
+  useEffect(() => {
+    setCompletedExerciseIds(new Set());
+    setAutoPrompted(false);
+  }, [activeWorkoutKey]);
+
+  // Quando TODAS as séries de TODOS os exercícios estão marcadas, abre o popup automaticamente.
+  // Dispara só uma vez por sessão (autoPrompted); se a pessoa cancelar, não reabre sozinho.
+  useEffect(() => {
+    if (autoPrompted || !exerciseRows.length) return;
+    const allComplete = exerciseRows.every((exercise) => completedExerciseIds.has(exercise.id));
+    if (allComplete) {
+      setAutoPrompted(true);
+      setConfirmCompletion(true);
+    }
+  }, [autoPrompted, completedExerciseIds, exerciseRows]);
 
   const sessionLabel = formatSessionCounter(sessionProgress);
   const isCycleComplete = sessionProgress.cycleCompleted;
@@ -415,6 +448,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 isReplaced={replacedExerciseNames.has(exercise.name)}
                 onExerciseReplaced={handleExerciseReplaced}
                 initialWeightKg={lastWeightsMap[normalizeExerciseName(exercise.name)] ?? null}
+                onCompletionChange={handleExerciseCompletionChange}
               />
               {showAd ? <TrainingInlineAd /> : null}
             </Fragment>
