@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, RotateCcw, TimerReset } from "lucide-react";
+import { Pause, Play, RotateCcw, TimerReset, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui";
 
 const MIN_SECONDS = 10;
@@ -27,6 +27,34 @@ export function RestTimer({
   const [selectedSeconds, setSelectedSeconds] = useState(fallbackSeconds);
   const [running, setRunning] = useState(false);
   const selectionChangeRef = useRef(onSelectedSecondsChange);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(muted);
+
+  useEffect(() => {
+    const audio = new Audio("/sound/sino-boxe.mp3");
+    audio.preload = "auto";
+    audioRef.current = audio;
+
+    return () => {
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("horadotreino:cronometro-mudo");
+      if (stored === "true") {
+        setMuted(true);
+      }
+    } catch {
+      // Sem acesso ao armazenamento; mantém o som ligado por padrão.
+    }
+  }, []);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   useEffect(() => {
     if (!running || remainingSeconds <= 0) {
@@ -43,6 +71,14 @@ export function RestTimer({
   useEffect(() => {
     if (remainingSeconds === 0) {
       setRunning(false);
+
+      const audio = audioRef.current;
+      if (audio && !mutedRef.current) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {
+          // Navegador pode bloquear o áudio; ignoramos sem quebrar o app.
+        });
+      }
     }
   }, [remainingSeconds]);
 
@@ -91,6 +127,23 @@ export function RestTimer({
       return;
     }
 
+    // "Destrava" o áudio dentro do toque do usuário (necessário no iPhone/Android):
+    // tocamos em silêncio por um instante para o som funcionar quando o tempo zerar.
+    const audio = audioRef.current;
+    if (audio) {
+      audio.muted = true;
+      audio
+        .play()
+        .then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        })
+        .catch(() => {
+          audio.muted = false;
+        });
+    }
+
     setRemainingSeconds(selectedSeconds);
     setRunning(true);
   }
@@ -98,6 +151,18 @@ export function RestTimer({
   function handleReset() {
     setRunning(false);
     setRemainingSeconds(selectedSeconds);
+  }
+
+  function handleToggleMuted() {
+    setMuted((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem("horadotreino:cronometro-mudo", String(next));
+      } catch {
+        // Ignora se o armazenamento não estiver disponível.
+      }
+      return next;
+    });
   }
 
   function handleSuggestedSelect() {
@@ -116,10 +181,21 @@ export function RestTimer({
   return (
     <div
       className={clsx(
-        "rounded-[26px] border border-primary/14 bg-[linear-gradient(180deg,rgba(14,22,14,0.92),rgba(7,10,7,0.92))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+        "relative rounded-[26px] border border-primary/14 bg-[linear-gradient(180deg,rgba(14,22,14,0.92),rgba(7,10,7,0.92))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
         compact && "rounded-[24px] p-3.5"
       )}
     >
+      <button
+        type="button"
+        onClick={handleToggleMuted}
+        className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:text-white"
+        aria-label={muted ? "Ativar som do cronômetro" : "Silenciar som do cronômetro"}
+        aria-pressed={muted}
+        title={muted ? "Som desligado — toque para ativar" : "Som ligado — toque para silenciar"}
+      >
+        {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+      </button>
+
       <div className="flex flex-col items-center text-center">
         <div>
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-primary/90">{title}</p>
