@@ -35,7 +35,17 @@ import { RecommendationsCard } from "@/components/recommendations-card";
 
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
-export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
+export function DashboardHomeScreen({
+  data,
+  onChangeProgramWeek,
+  changingWeek = false
+}: {
+  data: AppWorkoutData;
+  onChangeProgramWeek?: (week: number) => void;
+  changingWeek?: boolean;
+}) {
+  // Modo programa: presente apenas quando o usuário tem um programa comprado ativo.
+  const program = data.raw.program ?? null;
   const [showUpsellBanner, setShowUpsellBanner] = useState(false);
   const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
   const [showGoalForm, setShowGoalForm] = useState(false);
@@ -239,14 +249,16 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
             className="h-auto max-w-[130px]"
           />
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleGenerateWorkoutClick}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
-              title="Gerar Novo Programa de Treino"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
+            {!program && (
+              <button
+                type="button"
+                onClick={handleGenerateWorkoutClick}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
+                title="Gerar Novo Programa de Treino"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
+            )}
             <Link
               href="/perfil"
               className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/54 transition hover:border-white/20 hover:text-white/80"
@@ -276,6 +288,34 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
               <span className="text-white/46"> · ⏱ {data.averageDurationMinutes} min</span>
             )}
           </p>
+
+          {program && (
+            <div className="mb-[18px] flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => onChangeProgramWeek?.(program.currentWeek - 1)}
+                disabled={changingWeek || program.currentWeek <= 1}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                title="Semana anterior"
+                aria-label="Semana anterior"
+              >
+                ‹
+              </button>
+              <span className="min-w-[9rem] text-center text-[13px] font-semibold text-white/80">
+                {program.weekLabel} · {program.currentWeek}/{program.totalWeeks}
+              </span>
+              <button
+                type="button"
+                onClick={() => onChangeProgramWeek?.(program.currentWeek + 1)}
+                disabled={changingWeek || program.currentWeek >= program.totalWeeks}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                title="Próxima semana"
+                aria-label="Próxima semana"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
 
         <Link
@@ -297,6 +337,19 @@ export function DashboardHomeScreen({ data }: { data: AppWorkoutData }) {
 
       {/* Anúncio menor (320x50) — entre os cards, somente plano free e com consentimento ativo */}
       {isFreePlan ? <TrainingInlineAd /> : null}
+
+      {/* Entrada para os programas de treino (só para quem não está em um programa) */}
+      {!program && (
+        <Link href="/programas" className="block">
+          <Card className="flex items-center justify-between gap-3 p-4 transition hover:border-primary/30">
+            <div>
+              <p className="text-sm font-semibold text-white">Programas de treino do Renato</p>
+              <p className="text-xs text-white/55">Programa completo de 3 meses, com o app liberado no período.</p>
+            </div>
+            <span className="text-lg text-primary">›</span>
+          </Card>
+        </Link>
+      )}
 
       <GoalCard
         activeGoal={activeGoal}

@@ -85,6 +85,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   reloadWorkout: () => Promise<void>;
   applyWorkoutUpdate: (workout: import("@/lib/types").WorkoutPlan) => void;
 }) {
+  // Modo programa: presente apenas quando o usuário tem um programa comprado ativo.
+  const isProgram = Boolean(data.raw.program);
   const [activeWorkoutKey, setActiveWorkoutKey] = useState(data.featuredWorkoutKey ?? data.workoutOrder[0] ?? "");
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   const [sessionProgress, setSessionProgress] = useState(data.sessionProgress);
@@ -378,10 +380,12 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               </button>
             );
           })}
-          <ExtraWorkoutButton
-            userId={data.user.id}
-            defaultEquipment={Array.isArray(data.answers.equipment) ? data.answers.equipment as import("@/lib/types").HomeEquipment[] : []}
-          />
+          {!isProgram && (
+            <ExtraWorkoutButton
+              userId={data.user.id}
+              defaultEquipment={Array.isArray(data.answers.equipment) ? data.answers.equipment as import("@/lib/types").HomeEquipment[] : []}
+            />
+          )}
         </div>
       </Card>
 
@@ -403,6 +407,14 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
             ) : null}
             {workout.sessionFormat?.description ? (
               <p className="mt-1 text-xs leading-snug text-white/45">{workout.sessionFormat.description}</p>
+            ) : null}
+            {isProgram && workout.rationale ? (
+              <div className="mt-2 rounded-2xl border border-primary/20 bg-primary/10 p-3">
+                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-primary/80">
+                  Dica do treinador
+                </p>
+                <p className="mt-1 text-xs leading-snug text-white/75">{workout.rationale}</p>
+              </div>
             ) : null}
           </div>
 

@@ -45,7 +45,8 @@ export function AppVersionFooter() {
   const isAdminRoute = pathname?.startsWith("/admin") ?? false;
   // Home, login e criar-conta usam o rodapé discreto próprio (BrandFooter) — ocultar o global.
   const isHome = pathname === "/";
-  const isEntryRoute = ["/login", "/criar-conta"].some((route) => pathname?.startsWith(route));
+  // Páginas de programa usam rodapé próprio (BrandFooter / menu do app) — ocultar o global.
+  const isEntryRoute = ["/login", "/criar-conta", "/programas"].some((route) => pathname?.startsWith(route));
   const isAppRoute = ["/dashboard", "/treino", "/calendario", "/progresso", "/perfil"].some((route) =>
     pathname?.startsWith(route)
   );

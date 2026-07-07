@@ -25,3 +25,10 @@ PROMPT_*.md
 scripts/recover-leads.*
 scripts/test-leadlovers.*
 e-card/
+
+# Docs de análise/planejamento (ficam só local, não vão para produção)
+docs/analise-treino-esportivo.md
+docs/ficha-loja-google-apple.md
+docs/mapeamento-dados-lojas.md
+docs/programa-de-treino-spec.md
+docs/programa-migration-DRAFT.sql

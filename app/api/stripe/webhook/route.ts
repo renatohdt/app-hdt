@@ -46,8 +46,109 @@ function mapPlanFromPriceId(priceId: string): "monthly" | "annual" | null {
 
 // ─── Handlers de cada evento ────────────────────────────────────────────────
 
+// Compra de programa concluída → cria o entitlement (libera acesso + premium por N dias)
+async function handleProgramCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const userId = session.metadata?.user_id;
+  const programId = session.metadata?.program_id;
+
+  logInfo("STRIPE_WEBHOOK", "handleProgramCheckoutCompleted iniciado", {
+    session_id: session.id,
+    has_user_id: Boolean(userId),
+    has_program_id: Boolean(programId),
+  });
+
+  if (!userId || !programId) {
+    logWarn("STRIPE_WEBHOOK", "checkout de programa sem metadata obrigatório", {
+      session_id: session.id,
+      metadata: session.metadata,
+    });
+    return;
+  }
+
+  // Nome e CPF coletados na página do Stripe (para Nota Fiscal futura)
+  const customFields = session.custom_fields ?? [];
+  const customerName = customFields.find((f) => f.key === "full_name")?.text?.value ?? null;
+  const customerCpf = customFields.find((f) => f.key === "cpf")?.text?.value ?? null;
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id ?? null;
+
+  const supabase = getServiceRoleClient();
+
+  // Idempotência: se já criamos o entitlement para esta sessão, não duplica.
+  const { data: existing } = await supabase
+    .from("program_entitlements")
+    .select("id")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+
+  if (existing) {
+    logInfo("STRIPE_WEBHOOK", "Entitlement de programa já existente (ignorado)", {
+      session_id: session.id,
+    });
+    return;
+  }
+
+  // Busca a duração de acesso do programa para calcular a expiração.
+  const { data: program, error: programError } = await supabase
+    .from("programs")
+    .select("access_days")
+    .eq("id", programId)
+    .maybeSingle();
+
+  if (programError || !program) {
+    logError("STRIPE_WEBHOOK", "Programa não encontrado ao criar entitlement", {
+      program_id: programId,
+      error: programError?.message,
+    });
+    return;
+  }
+
+  const accessDays =
+    typeof program.access_days === "number" && program.access_days > 0 ? program.access_days : 90;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + accessDays * 24 * 60 * 60 * 1000);
+
+  const { error } = await supabase.from("program_entitlements").insert({
+    user_id: userId,
+    program_id: programId,
+    status: "active",
+    purchased_at: now.toISOString(),
+    expires_at: expiresAt.toISOString(),
+    started_at: now.toISOString(),
+    current_week: 1,
+    stripe_checkout_session_id: session.id,
+    stripe_payment_intent_id: paymentIntentId,
+    billing_name: customerName,
+    billing_cpf: customerCpf,
+  });
+
+  if (error) {
+    logError("STRIPE_WEBHOOK", "Erro ao criar entitlement do programa", {
+      user_id: userId,
+      program_id: programId,
+      error: error.message,
+    });
+    return;
+  }
+
+  logInfo("STRIPE_WEBHOOK", "Entitlement de programa criado", {
+    user_id: userId,
+    program_id: programId,
+    expires_at: expiresAt.toISOString(),
+  });
+}
+
 // Checkout concluído → cria ou atualiza a assinatura no banco
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  // Compra de programa (pagamento único) segue por outro caminho.
+  if (session.metadata?.type === "program") {
+    await handleProgramCheckoutCompleted(session);
+    return;
+  }
+
   const userId = session.metadata?.user_id;
   const plan = session.metadata?.plan as "monthly" | "annual" | undefined;
 
@@ -344,6 +445,38 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   });
 }
 
+// Reembolso → marca o entitlement do programa como refunded (perde o acesso)
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  const paymentIntentId =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent
+      : charge.payment_intent?.id ?? null;
+
+  if (!paymentIntentId) {
+    logWarn("STRIPE_WEBHOOK", "charge.refunded sem payment_intent", { charge_id: charge.id });
+    return;
+  }
+
+  const supabase = getServiceRoleClient();
+
+  const { error } = await supabase
+    .from("program_entitlements")
+    .update({ status: "refunded", updated_at: new Date().toISOString() })
+    .eq("stripe_payment_intent_id", paymentIntentId);
+
+  if (error) {
+    logError("STRIPE_WEBHOOK", "Erro ao marcar entitlement como refunded", {
+      payment_intent_id: paymentIntentId,
+      error: error.message,
+    });
+    return;
+  }
+
+  logInfo("STRIPE_WEBHOOK", "Entitlement de programa reembolsado", {
+    payment_intent_id: paymentIntentId,
+  });
+}
+
 // ─── Handler principal do webhook ───────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -388,6 +521,10 @@ export async function POST(request: NextRequest) {
 
       case "customer.subscription.updated":
         await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        break;
+
+      case "charge.refunded":
+        await handleChargeRefunded(event.data.object as Stripe.Charge);
         break;
 
       default:

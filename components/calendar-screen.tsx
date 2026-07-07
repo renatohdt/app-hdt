@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import { BicepsFlexed, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Target, Trophy, Zap } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
+import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import dynamic from "next/dynamic";
 const AchievementsModal = dynamic(() =>
   import("@/components/achievements-modal").then((m) => ({ default: m.AchievementsModal }))
@@ -266,6 +267,9 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           <LegendItem tone="today" label="Hoje" />
         </div>
       </Card>
+
+      {/* Anúncio menor (320x50) — somente plano free e com consentimento ativo */}
+      {isFreePlan ? <TrainingInlineAd /> : null}
 
       <Card className="space-y-3 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">

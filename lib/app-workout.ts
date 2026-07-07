@@ -64,6 +64,16 @@ export type AppWorkoutPayload = {
   sessionProgress?: WorkoutSessionProgress | null;
   sessionLogs?: WorkoutSessionLogEntry[] | null;
   levelData?: AppLevelData | null;
+  // Presente apenas no "modo programa" (compra de programa). Null/ausente no fluxo de IA.
+  program?: {
+    id: string;
+    slug: string;
+    title: string;
+    currentWeek: number;
+    totalWeeks: number;
+    weekLabel: string;
+    weeks: { week: number; label: string }[];
+  } | null;
 };
 
 export type AppWorkoutData = {

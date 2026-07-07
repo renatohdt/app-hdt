@@ -14,6 +14,8 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { Experience, ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { isPremium } from "@/lib/subscription";
+import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
+import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
@@ -55,6 +57,13 @@ export async function GET(request: NextRequest) {
     if (requestedUserId && requestedUserId !== userId) {
       logWarn("AUTH", "Workout access denied", { user_id: userId });
       return jsonError("Acesso negado.", 403);
+    }
+
+    // Modo programa: se o usuário tem um programa comprado ativo, ele tem
+    // prioridade sobre o fluxo de treino por IA (que segue intocado abaixo).
+    const programEntitlement = await getActiveProgramEntitlement(supabase, userId);
+    if (programEntitlement) {
+      return await buildProgramWorkoutResponse(request, userId, programEntitlement);
     }
 
     // Todas as queries iniciais rodam em paralelo — nenhuma depende do resultado da outra,
@@ -249,6 +258,120 @@ export async function GET(request: NextRequest) {
     logError("WORKOUT", "Workout GET unexpected failure", {});
     return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
   }
+}
+
+// Converte o nível do programa para o formato de "experiência" do app.
+function programLevelToExperience(level: string): Experience {
+  if (level === "advanced") return "gt_1_year";
+  if (level === "intermediate") return "6_to_12_months";
+  return "lt_6_months";
+}
+
+// Monta a resposta do GET no "modo programa": entrega a semana do programa no
+// formato AppWorkoutPayload que a tela de treino/dashboard já consome.
+async function buildProgramWorkoutResponse(
+  request: NextRequest,
+  userId: string,
+  entitlement: { id: string; program_id: string; current_week: number; expires_at: string }
+) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
+  }
+
+  const [userResult, program] = await Promise.all([
+    admin.from("users").select("id, name").eq("id", userId).maybeSingle(),
+    getProgramById(admin, entitlement.program_id),
+  ]);
+
+  if (!program) {
+    logError("WORKOUT", "Programa do entitlement não encontrado", {
+      program_id: entitlement.program_id,
+    });
+    return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
+  }
+
+  const requestedWeekParam = request.nextUrl.searchParams.get("week");
+  const requestedWeek = requestedWeekParam ? Number(requestedWeekParam) : entitlement.current_week;
+  const week = clampProgramWeek(program, requestedWeek);
+  const totalWeeks = getProgramTotalWeeks(program);
+
+  // Mapa exercise_id -> video_url a partir do catálogo (cacheado).
+  const catalog = await getCachedExerciseCatalog();
+  const videoByExerciseId = new Map<string, string | null>();
+  for (const exercise of catalog) {
+    videoByExerciseId.set(exercise.id, exercise.video_url ?? null);
+  }
+
+  const workout = mapProgramWeekToWorkoutPlan(program, week, videoByExerciseId);
+
+  const sessionProgress = buildWorkoutSessionProgress({
+    totalSessions: workout.sections.length,
+    completedSessions: 0,
+    lastCompletedAt: null,
+    lastCompletedWorkoutKey: null,
+    lastCompletedSessionNumber: null,
+  });
+
+  // Mantém a gamificação visível (XP/fase); não altera o conteúdo do programa.
+  const userLevelSummary = await getUserLevelSummary(admin, userId, null).catch(() => null);
+
+  const pf = (program.fixed_profile ?? {}) as Record<string, unknown>;
+  const answers = {
+    goal: pf["goal"],
+    days: Number(pf["days"]) || program.sessions_per_week,
+    time: Number(pf["time"]) || undefined,
+    equipment: Array.isArray(pf["equipment"]) ? (pf["equipment"] as string[]) : [],
+    location: pf["location"],
+    experience: programLevelToExperience(program.level),
+  };
+
+  const weeks = getProgramWeeks(program).map((w, index) => ({
+    week: Number(w.week) || index + 1,
+    label: w.label ?? `Semana ${index + 1}`,
+  }));
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      hasWorkout: true,
+      workoutId: entitlement.id,
+      replacementCount: 0,
+      totalWorkoutsAllTime: 0,
+      totalWeightIncreasesAllTime: 0,
+      totalGoalsCompleted: 0,
+      referralAchievementUnlocked: false,
+      activeGoal: null,
+      user: {
+        id: userId,
+        name: userResult.data?.name ?? "Aluno",
+      },
+      answers,
+      workout,
+      sessionProgress,
+      levelData: userLevelSummary
+        ? {
+            xpPoints: userLevelSummary.xpPoints,
+            currentPhase: userLevelSummary.currentPhase,
+            phaseStartedAt: userLevelSummary.phaseStartedAt,
+            dotProgress: userLevelSummary.dotProgress,
+            isReadyButWaiting: userLevelSummary.isReadyButWaiting,
+            decayRegressed: userLevelSummary.decayResult?.regressed ?? false,
+            decayRegressedPhase: userLevelSummary.decayResult?.regressedPhase ?? false,
+            regressionMessage: userLevelSummary.decayResult?.regressionMessage ?? null,
+          }
+        : null,
+      program: {
+        id: program.id,
+        slug: program.slug,
+        title: program.title,
+        currentWeek: week,
+        totalWeeks,
+        weekLabel: workout.subtitle,
+        weeks,
+      },
+    },
+  });
 }
 
 export async function POST(request: Request) {

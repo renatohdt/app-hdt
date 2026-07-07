@@ -2,6 +2,8 @@ import "server-only";
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
+import { hasActiveProgramEntitlement } from "@/lib/program-store";
+
 // Tipos de plano disponíveis no app
 export type SubscriptionPlan = "free" | "monthly" | "annual";
 
@@ -112,12 +114,13 @@ export async function getUserSubscription(
 export async function isPremium(userId: string, userToken?: string | null): Promise<boolean> {
   const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  const [subscription, referralPremium] = await Promise.all([
+  const [subscription, referralPremium, programPremium] = await Promise.all([
     getUserSubscription(userId, userToken),
     hasReferralPremium(userId, client),
+    hasActiveProgramEntitlement(client, userId),
   ]);
 
-  return subscription !== null || referralPremium;
+  return subscription !== null || referralPremium || programPremium;
 }
 
 /**
@@ -138,12 +141,13 @@ export async function getPlanType(userId: string, userToken?: string | null): Pr
 export async function getSubscriptionSummary(userId: string, userToken?: string | null) {
   const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  const [subscription, referralPremium] = await Promise.all([
+  const [subscription, referralPremium, programPremium] = await Promise.all([
     getUserSubscription(userId, userToken),
     hasReferralPremium(userId, client),
+    hasActiveProgramEntitlement(client, userId),
   ]);
 
-  if (!subscription && !referralPremium) {
+  if (!subscription && !referralPremium && !programPremium) {
     return {
       plan: "free" as SubscriptionPlan,
       isPremium: false,
@@ -153,8 +157,8 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
     };
   }
 
-  if (!subscription && referralPremium) {
-    // Premium por indicação — sem assinatura Stripe
+  if (!subscription && (referralPremium || programPremium)) {
+    // Premium sem assinatura Stripe: via indicação OU via programa comprado
     return {
       plan: "monthly" as SubscriptionPlan,
       isPremium: true,

@@ -48,6 +48,7 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
   const [noWorkout, setNoWorkout] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [generatingWorkout, setGeneratingWorkout] = useState(false);
+  const [changingWeek, setChangingWeek] = useState(false);
 
   async function fetchWorkout(userId: string) {
     const response = await fetchWithAuth(`/api/workout?userId=${userId}`);
@@ -99,6 +100,34 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
       }
     } catch (reloadError) {
       clientLogError("RELOAD_WORKOUT_ERROR", reloadError);
+    }
+  }
+
+  // Modo programa: troca a semana exibida, buscando o conteúdo daquela semana.
+  async function changeProgramWeek(week: number) {
+    if (!currentUserId) return;
+
+    setChangingWeek(true);
+    setError(null);
+
+    try {
+      const response = await fetchWithAuth(`/api/workout?userId=${currentUserId}&week=${week}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" }
+      });
+
+      if (!response.ok) {
+        const result = await parseJsonResponse<{ success: false; error?: string }>(response);
+        throw new Error(result.error ?? "Não foi possível carregar a semana.");
+      }
+
+      const result = await parseJsonResponse<{ success: true; data: AppWorkoutPayload }>(response);
+      writeWorkoutCache(currentUserId, result.data);
+      setPayload(result.data);
+    } catch (requestError) {
+      setError(getRequestErrorMessage(requestError, "Não foi possível carregar a semana."));
+    } finally {
+      setChangingWeek(false);
     }
   }
 
@@ -258,8 +287,10 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
     noWorkout,
     currentUserId,
     generatingWorkout,
+    changingWeek,
     data,
     handleGenerateWorkoutNow,
+    changeProgramWeek,
     reloadWorkout,
     applyWorkoutUpdate
   };

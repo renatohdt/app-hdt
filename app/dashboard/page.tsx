@@ -17,10 +17,19 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const { loading, error, noWorkout, currentUserId, generatingWorkout, data, handleGenerateWorkoutNow } =
-    useWorkoutAppState({
-      searchUserId: searchParams.get("userId")
-    });
+  const {
+    loading,
+    error,
+    noWorkout,
+    currentUserId,
+    generatingWorkout,
+    changingWeek,
+    data,
+    handleGenerateWorkoutNow,
+    changeProgramWeek
+  } = useWorkoutAppState({
+    searchUserId: searchParams.get("userId")
+  });
 
   if (loading) {
     return <DashboardLoadingScreen />;
@@ -43,7 +52,7 @@ function DashboardContent() {
   return (
     <>
       <AppSessionTracker userId={currentUserId} source="dashboard" />
-      <DashboardHomeScreen data={data} />
+      <DashboardHomeScreen data={data} onChangeProgramWeek={changeProgramWeek} changingWeek={changingWeek} />
     </>
   );
 }
