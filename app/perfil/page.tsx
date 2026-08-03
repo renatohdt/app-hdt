@@ -10,12 +10,14 @@ import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
+import { NativeSubscriptionManager } from "@/components/native-subscription-manager";
 import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/auth-errors";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { useIsNativeApp } from "@/lib/is-native-app";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { signOutAndRedirect } from "@/lib/client-signout";
 import { ENABLE_WORKOUT_REGENERATION } from "@/lib/feature-flags";
@@ -162,6 +164,7 @@ export default function PerfilPage() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
   const { subscription, loading: subscriptionLoading } = useSubscription();
+  const isNative = useIsNativeApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editingSection, setEditingSection] = useState<EditingSection | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -960,53 +963,67 @@ export default function PerfilPage() {
         </div>
 
         {subscription?.isPremium ? (
-          // ── Premium: badge + data de renovação + botão gerenciar ──
-          <div className="mt-3 space-y-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
-              <Sparkles className="h-3 w-3" />
-              {subscription.plan === "annual" ? "Premium Anual" : "Premium Mensal"}
-            </span>
+          isNative ? (
+            // ── Premium (app): gestão in-app, sem abrir o portal do Stripe ──
+            <NativeSubscriptionManager
+              plan={subscription.plan}
+              manageable={subscription.manageable}
+              initialCancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
+              initialCancelsAt={subscription.cancelsAt}
+              initialRenewsAt={subscription.renewsAt}
+              formatDate={formatSubscriptionDate}
+            />
+          ) : (
+            // ── Premium (web): badge + data de renovação + botão gerenciar (portal Stripe) ──
+            <div className="mt-3 space-y-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
+                <Sparkles className="h-3 w-3" />
+                {subscription.plan === "annual" ? "Premium Anual" : "Premium Mensal"}
+              </span>
 
-            {(subscription.cancelAtPeriodEnd && subscription.cancelsAt) || subscription.renewsAt ? (
-              <p className="text-[13px] text-white/50">
-                {subscription.cancelAtPeriodEnd && subscription.cancelsAt
-                  ? `⚠️ Cancela em ${formatSubscriptionDate(subscription.cancelsAt)}`
-                  : `Renova em ${formatSubscriptionDate(subscription.renewsAt!)}`}
-              </p>
-            ) : null}
+              {(subscription.cancelAtPeriodEnd && subscription.cancelsAt) || subscription.renewsAt ? (
+                <p className="text-[13px] text-white/50">
+                  {subscription.cancelAtPeriodEnd && subscription.cancelsAt
+                    ? `⚠️ Cancela em ${formatSubscriptionDate(subscription.cancelsAt)}`
+                    : `Renova em ${formatSubscriptionDate(subscription.renewsAt!)}`}
+                </p>
+              ) : null}
 
-            <button
-              type="button"
-              onClick={() => void handleManageSubscription()}
-              disabled={isManagingSubscription}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/8 hover:text-white disabled:opacity-50"
-            >
-              {isManagingSubscription ? (
-                <>
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/20 border-t-white/70" />
-                  Redirecionando...
-                </>
-              ) : (
-                <>
-                  <CreditCard className="h-3.5 w-3.5" />
-                  Gerenciar assinatura
-                </>
-              )}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => void handleManageSubscription()}
+                disabled={isManagingSubscription}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/8 hover:text-white disabled:opacity-50"
+              >
+                {isManagingSubscription ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/20 border-t-white/70" />
+                    Redirecionando...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-3.5 w-3.5" />
+                    Gerenciar assinatura
+                  </>
+                )}
+              </button>
+            </div>
+          )
         ) : (
           // ── Free: badge e botão lado a lado ──
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[12px] font-semibold text-white/60">
               Gratuito
             </span>
-            <Link
-              href="/premium"
-              className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-2 text-[13px] font-bold text-black shadow-glow transition hover:opacity-95"
-            >
-              <Sparkles className="h-3 w-3" />
-              Fazer upgrade
-            </Link>
+            {!isNative && (
+              <Link
+                href="/premium"
+                className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-2 text-[13px] font-bold text-black shadow-glow transition hover:opacity-95"
+              >
+                <Sparkles className="h-3 w-3" />
+                Fazer upgrade
+              </Link>
+            )}
           </div>
         )}
       </Card>

@@ -154,6 +154,7 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
       renewsAt: null,
       cancelsAt: null,
       cancelAtPeriodEnd: false,
+      manageable: false,
     };
   }
 
@@ -165,6 +166,7 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
       renewsAt: null,
       cancelsAt: null,
       cancelAtPeriodEnd: false,
+      manageable: false,
     };
   }
 
@@ -178,5 +180,6 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
       ? subscription!.current_period_end
       : null,
     cancelAtPeriodEnd: subscription!.cancel_at_period_end,
+    manageable: Boolean(subscription!.stripe_subscription_id),
   };
 }

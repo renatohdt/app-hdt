@@ -10,6 +10,7 @@ type SubscriptionSummary = {
   renewsAt: string | null;
   cancelsAt: string | null;
   cancelAtPeriodEnd: boolean;
+  manageable: boolean;
 };
 
 type UseSubscriptionResult = {
@@ -23,6 +24,7 @@ const DEFAULT: SubscriptionSummary = {
   renewsAt: null,
   cancelsAt: null,
   cancelAtPeriodEnd: false,
+  manageable: false,
 };
 
 // Contexto compartilhado: evita multiplas chamadas a /api/subscription
