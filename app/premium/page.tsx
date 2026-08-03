@@ -8,6 +8,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackMetaInitiateCheckout } from "@/lib/facebook-pixel";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { useIsNativeApp } from "@/lib/is-native-app";
 
 type Plan = "annual" | "monthly";
 
@@ -40,9 +41,11 @@ function PremiumPageContent() {
   const searchParams = useSearchParams();
   const canceled = searchParams.get("canceled") === "true";
 
+  const isNative = useIsNativeApp();
   const [selectedPlan, setSelectedPlan] = useState<Plan>("annual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [interested, setInterested] = useState(false);
   const trackedRef = useRef(false);
 
   useEffect(() => {
@@ -52,7 +55,15 @@ function PremiumPageContent() {
     }
   }, []);
 
+  function handleInterest() {
+    trackEvent("premium_interest", null, { source: "app" });
+    setInterested(true);
+  }
+
   async function handleCheckout() {
+    // Segurança: dentro do app nativo não iniciamos pagamento externo (regra das lojas).
+    if (isNative) return;
+
     setError(null);
     setLoading(true);
 
@@ -98,7 +109,7 @@ function PremiumPageContent() {
         </Link>
 
         {/* Aviso de checkout cancelado */}
-        {canceled && (
+        {canceled && !isNative && (
           <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
             Pagamento não concluído. Você pode tentar novamente quando quiser.
           </div>
@@ -156,119 +167,148 @@ function PremiumPageContent() {
           ))}
         </div>
 
-        {/* ── Seletor de plano ── */}
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">
-          Escolha seu plano
-        </p>
-        <div className="mb-6 grid grid-cols-2 gap-3">
-
-          {/* Plano Anual */}
-          <button
-            onClick={() => setSelectedPlan("annual")}
-            className={clsx(
-              "relative flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
-              selectedPlan === "annual"
-                ? "border-primary bg-primary/10 shadow-glow"
-                : "border-white/10 bg-white/5 hover:border-white/20"
+        {isNative ? (
+          /* ───────── Dentro do app: sem checkout, apenas captura de interesse ───────── */
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
+            {!interested ? (
+              <>
+                <p className="text-sm leading-relaxed text-white/70">
+                  A ativação do Premium é feita pela nossa equipe. Deixe seu
+                  interesse e enviamos por e-mail as novidades e como desbloquear
+                  todos os recursos.
+                </p>
+                <button
+                  onClick={handleInterest}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
+                >
+                  <Zap size={16} strokeWidth={2.5} />
+                  Tenho interesse no Premium
+                </button>
+              </>
+            ) : (
+              <p className="py-2 text-sm font-semibold text-primary">
+                Recebemos seu interesse! ✨ Em breve entramos em contato por e-mail.
+              </p>
             )}
-          >
-            <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-[10px] font-black text-black whitespace-nowrap">
-              Mais popular
-            </span>
-            <div className="mt-1 w-full text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Anual</p>
-              <p className="mt-1 text-2xl font-black text-white">R$&nbsp;9,90</p>
-              <p className="text-[11px] text-white/40">/mês · R$&nbsp;118,80/ano</p>
-              <p className="mt-1.5 text-[11px] font-semibold text-primary">Economize 33%</p>
-            </div>
-            {selectedPlan === "annual" && (
-              <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-                <Check size={11} className="text-black" strokeWidth={3} />
-              </div>
-            )}
-          </button>
-
-          {/* Plano Mensal */}
-          <button
-            onClick={() => setSelectedPlan("monthly")}
-            className={clsx(
-              "flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
-              selectedPlan === "monthly"
-                ? "border-primary bg-primary/10 shadow-glow"
-                : "border-white/10 bg-white/5 hover:border-white/20"
-            )}
-          >
-            <div className="w-full text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Mensal</p>
-              <p className="mt-1 text-2xl font-black text-white">R$&nbsp;14,90</p>
-              <p className="text-[11px] text-white/40">/mês</p>
-              <p className="mt-1.5 text-[11px] text-white/30">Cartão de crédito</p>
-            </div>
-            {selectedPlan === "monthly" && (
-              <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-                <Check size={11} className="text-black" strokeWidth={3} />
-              </div>
-            )}
-          </button>
-        </div>
-
-        {/* Erro */}
-        {error && (
-          <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-            {error}
           </div>
+        ) : (
+          /* ───────── No navegador: fluxo de assinatura normal ───────── */
+          <>
+            {/* ── Seletor de plano ── */}
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">
+              Escolha seu plano
+            </p>
+            <div className="mb-6 grid grid-cols-2 gap-3">
+
+              {/* Plano Anual */}
+              <button
+                onClick={() => setSelectedPlan("annual")}
+                className={clsx(
+                  "relative flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
+                  selectedPlan === "annual"
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-[10px] font-black text-black whitespace-nowrap">
+                  Mais popular
+                </span>
+                <div className="mt-1 w-full text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Anual</p>
+                  <p className="mt-1 text-2xl font-black text-white">R$&nbsp;9,90</p>
+                  <p className="text-[11px] text-white/40">/mês · R$&nbsp;118,80/ano</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-primary">Economize 33%</p>
+                </div>
+                {selectedPlan === "annual" && (
+                  <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                    <Check size={11} className="text-black" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
+
+              {/* Plano Mensal */}
+              <button
+                onClick={() => setSelectedPlan("monthly")}
+                className={clsx(
+                  "flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
+                  selectedPlan === "monthly"
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div className="w-full text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Mensal</p>
+                  <p className="mt-1 text-2xl font-black text-white">R$&nbsp;14,90</p>
+                  <p className="text-[11px] text-white/40">/mês</p>
+                  <p className="mt-1.5 text-[11px] text-white/30">Cartão de crédito</p>
+                </div>
+                {selectedPlan === "monthly" && (
+                  <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                    <Check size={11} className="text-black" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
+            </div>
+
+            {/* Erro */}
+            {error && (
+              <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
+            {/* ── Botão de checkout ── */}
+            <button
+              onClick={handleCheckout}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                  Redirecionando...
+                </>
+              ) : (
+                <>
+                  <Zap size={16} strokeWidth={2.5} />
+                  {selectedPlan === "annual" ? "Assinar por R$ 118,80/ano" : "Assinar por R$ 14,90/mês"}
+                </>
+              )}
+            </button>
+
+            {/* Garantias */}
+            <div className="mt-5 space-y-2.5">
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Shield size={13} className="shrink-0 text-primary/70" />
+                Pagamento seguro processado pelo Stripe
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Lock size={13} className="shrink-0 text-primary/70" />
+                Seus dados são protegidos com criptografia
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Check size={13} className="shrink-0 text-primary/70" />
+                Garantia de 7 dias — reembolso sem burocracia
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Check size={13} className="shrink-0 text-primary/70" />
+                Cancele quando quiser, sem multas
+              </div>
+            </div>
+
+            <p className="mt-6 text-center text-xs text-white/50">
+              Ao assinar, você concorda com os{" "}
+              <Link href="/termos-de-uso" className="underline hover:text-white/40">
+                Termos de Uso
+              </Link>{" "}
+              e{" "}
+              <Link href="/politica-de-privacidade" className="underline hover:text-white/40">
+                Política de Privacidade
+              </Link>
+              .
+            </p>
+          </>
         )}
-
-        {/* ── Botão de checkout ── */}
-        <button
-          onClick={handleCheckout}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-              Redirecionando...
-            </>
-          ) : (
-            <>
-              <Zap size={16} strokeWidth={2.5} />
-              {selectedPlan === "annual" ? "Assinar por R$ 118,80/ano" : "Assinar por R$ 14,90/mês"}
-            </>
-          )}
-        </button>
-
-        {/* Garantias */}
-        <div className="mt-5 space-y-2.5">
-          <div className="flex items-center gap-2.5 text-xs text-white/60">
-            <Shield size={13} className="shrink-0 text-primary/70" />
-            Pagamento seguro processado pelo Stripe
-          </div>
-          <div className="flex items-center gap-2.5 text-xs text-white/60">
-            <Lock size={13} className="shrink-0 text-primary/70" />
-            Seus dados são protegidos com criptografia
-          </div>
-          <div className="flex items-center gap-2.5 text-xs text-white/60">
-            <Check size={13} className="shrink-0 text-primary/70" />
-            Garantia de 7 dias — reembolso sem burocracia
-          </div>
-          <div className="flex items-center gap-2.5 text-xs text-white/60">
-            <Check size={13} className="shrink-0 text-primary/70" />
-            Cancele quando quiser, sem multas
-          </div>
-        </div>
-
-        <p className="mt-6 text-center text-xs text-white/50">
-          Ao assinar, você concorda com os{" "}
-          <Link href="/termos-de-uso" className="underline hover:text-white/40">
-            Termos de Uso
-          </Link>{" "}
-          e{" "}
-          <Link href="/politica-de-privacidade" className="underline hover:text-white/40">
-            Política de Privacidade
-          </Link>
-          .
-        </p>
       </div>
     </main>
   );
