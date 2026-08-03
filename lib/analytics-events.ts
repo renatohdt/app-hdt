@@ -17,6 +17,7 @@
   | "clicked_cta"
   // Eventos de assinatura premium
   | "premium_page_view"
+  | "premium_interest"
   | "checkout_started"
   | "purchase"
   // Eventos de escolha de plano
