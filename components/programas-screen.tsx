@@ -8,6 +8,8 @@ import { Button, Card, Container, PageShell, SectionTitle } from "@/components/u
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { trackEvent } from "@/lib/analytics-client";
+import { useIsNativeApp } from "@/lib/is-native-app";
 
 type PublicProgram = {
   id: string;
@@ -35,6 +37,8 @@ export function ProgramasScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [buyingSlug, setBuyingSlug] = useState<string | null>(null);
+  const isNative = useIsNativeApp();
+  const [interestedSlugs, setInterestedSlugs] = useState<string[]>([]);
   // null = ainda verificando; true = logado (mostra menu do app); false = deslogado (rodapé limpo).
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
@@ -72,6 +76,11 @@ export function ProgramasScreen() {
       active = false;
     };
   }, []);
+
+  function handleInterest(slug: string) {
+    trackEvent("program_interest", null, { slug });
+    setInterestedSlugs((prev) => (prev.includes(slug) ? prev : [...prev, slug]));
+  }
 
   async function handleBuy(slug: string) {
     setBuyingSlug(slug);
@@ -134,19 +143,33 @@ export function ProgramasScreen() {
                 <p className="text-xs text-white/45">
                   {program.duration_weeks} semanas · {program.sessions_per_week}x por semana
                 </p>
-                <div className="flex items-end gap-2">
-                  {program.compare_at_cents && program.compare_at_cents > program.price_cents && (
-                    <span className="text-sm text-white/40 line-through">{formatBRL(program.compare_at_cents)}</span>
-                  )}
-                  <span className="text-2xl font-bold text-primary">{formatBRL(program.price_cents)}</span>
-                </div>
-                <Button
-                  onClick={() => handleBuy(program.slug)}
-                  disabled={buyingSlug === program.slug}
-                  className="w-full"
-                >
-                  {buyingSlug === program.slug ? "Redirecionando..." : "Comprar programa"}
-                </Button>
+                {isNative ? (
+                  interestedSlugs.includes(program.slug) ? (
+                    <p className="text-sm font-semibold text-primary">
+                      Interesse registrado! ✨ Enviaremos novidades por e-mail.
+                    </p>
+                  ) : (
+                    <Button onClick={() => handleInterest(program.slug)} className="w-full">
+                      Tenho interesse
+                    </Button>
+                  )
+                ) : (
+                  <>
+                    <div className="flex items-end gap-2">
+                      {program.compare_at_cents && program.compare_at_cents > program.price_cents && (
+                        <span className="text-sm text-white/40 line-through">{formatBRL(program.compare_at_cents)}</span>
+                      )}
+                      <span className="text-2xl font-bold text-primary">{formatBRL(program.price_cents)}</span>
+                    </div>
+                    <Button
+                      onClick={() => handleBuy(program.slug)}
+                      disabled={buyingSlug === program.slug}
+                      className="w-full"
+                    >
+                      {buyingSlug === program.slug ? "Redirecionando..." : "Comprar programa"}
+                    </Button>
+                  </>
+                )}
               </div>
             </Card>
           ))}
