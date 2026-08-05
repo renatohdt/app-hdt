@@ -4,6 +4,7 @@ import { Check, Sparkles, X, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { trackEvent } from "@/lib/analytics-client";
+import { BrandFooter } from "@/components/brand-footer";
 
 const FEATURES = [
   { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
@@ -126,6 +127,7 @@ export default function EscolherPlanoPage() {
           </p>
         </div>
 
+        <BrandFooter className="mt-10" />
       </div>
     </main>
   );

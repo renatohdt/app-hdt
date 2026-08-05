@@ -78,7 +78,6 @@ type FeedbackState = {
 };
 
 const COMPLETE_WORKOUT_ERROR_MESSAGE = "Não foi possível marcar o treino como concluído.";
-const ALREADY_COMPLETED_TODAY_MESSAGE = "Você já treinou hoje. Agora é descansar e voltar amanhã.";
 
 export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   data: AppWorkoutData;
@@ -107,6 +106,9 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [showProgramUpsell, setShowProgramUpsell] = useState(false);
   const [showProgramContinuation, setShowProgramContinuation] = useState(false);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+  // Popup "Você já treinou hoje" — exibido antes da confirmação quando a pessoa
+  // tenta finalizar um treino tendo já concluído uma sessão no mesmo dia.
+  const [showAlreadyTrainedPopup, setShowAlreadyTrainedPopup] = useState(false);
   // Conjunto de exercícios com TODAS as séries concluídas (reportado por cada card)
   const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set());
   // Garante que o popup automático abra apenas uma vez por sessão de treino
@@ -184,9 +186,20 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     const allComplete = exerciseRows.every((exercise) => completedExerciseIds.has(exercise.id));
     if (allComplete) {
       setAutoPrompted(true);
-      setConfirmCompletion(true);
+      requestCompletion();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrompted, completedExerciseIds, exerciseRows]);
+
+  // Ponto único para iniciar a finalização: se a pessoa já treinou hoje, mostra o
+  // popup antes de qualquer confirmação; caso contrário, abre o fluxo normal.
+  function requestCompletion() {
+    if (isCompletedTodaySaoPaulo(sessionProgress.lastCompletedAt)) {
+      setShowAlreadyTrainedPopup(true);
+      return;
+    }
+    setConfirmCompletion(true);
+  }
 
   const sessionLabel = formatSessionCounter(sessionProgress);
   const isCycleComplete = sessionProgress.cycleCompleted;
@@ -263,10 +276,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         }
 
         setConfirmCompletion(false);
-        setFeedback({
-          tone: "info",
-          text: result.message ?? result.error ?? ALREADY_COMPLETED_TODAY_MESSAGE
-        });
+        setShowAlreadyTrainedPopup(true);
         return;
       }
 
@@ -501,7 +511,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           // criando o efeito de estar emergindo do menu. Sempre visível, mesmo ao rolar a tela.
           <button
             type="button"
-            onClick={() => setConfirmCompletion(true)}
+            onClick={requestCompletion}
             aria-label="Finalizar treino"
             className="fixed bottom-[calc(4.9rem+var(--app-safe-bottom))] left-1/2 z-30 flex h-[3rem] w-[6.25rem] -translate-x-1/2 items-center justify-center rounded-t-full bg-gradient-to-b from-primary to-primaryStrong text-[12px] font-bold uppercase tracking-wider text-black shadow-[0_-6px_22px_rgba(34,197,94,0.5)] transition active:scale-95"
           >
@@ -611,6 +621,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         />
       ) : null}
 
+      {showAlreadyTrainedPopup ? (
+        <AlreadyTrainedTodayPopup onClose={() => setShowAlreadyTrainedPopup(false)} />
+      ) : null}
+
       {showProgramUpsell ? (
         <UpsellModal reason="program_completed" onClose={() => setShowProgramUpsell(false)} />
       ) : null}
@@ -669,6 +683,38 @@ function PremiumContinuationCard({ sessionCount }: { sessionCount: number }) {
         <div className="mt-5 flex justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Verifica se a última sessão concluída aconteceu "hoje" no fuso de São Paulo,
+// o mesmo usado pelo back-end para o limite diário. Evita erro na virada do dia.
+function isCompletedTodaySaoPaulo(lastCompletedAt: string | null): boolean {
+  if (!lastCompletedAt) return false;
+  const last = new Date(lastCompletedAt);
+  if (Number.isNaN(last.getTime())) return false;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  return formatter.format(new Date()) === formatter.format(last);
+}
+
+function AlreadyTrainedTodayPopup({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#111] px-8 pb-8 pt-7 text-center shadow-2xl">
+        <p className="text-4xl">💪</p>
+        <p className="mt-4 text-lg font-bold text-white">Você já treinou hoje!</p>
+        <p className="mt-2 text-sm leading-relaxed text-white/70">
+          Agora é descansar e voltar amanhã. A recuperação também faz parte do treino.
+        </p>
+        <Button onClick={onClose} className="mt-6 w-full">
+          Entendi
+        </Button>
       </div>
     </div>
   );

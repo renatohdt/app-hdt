@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackEvent as trackGA4 } from "@/lib/analytics";
+import { BrandFooter } from "@/components/brand-footer";
 
 // Dispara eventos de conversão uma única vez após o pagamento.
 // Serve tanto para assinatura (plan mensal/anual) quanto para compra de programa.
@@ -101,6 +102,8 @@ function SuccessContent() {
           </Link>
           .
         </p>
+
+        <BrandFooter className="mt-10" />
       </div>
     </main>
   );

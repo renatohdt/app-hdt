@@ -9,6 +9,7 @@ import { trackEvent } from "@/lib/analytics-client";
 import { trackMetaInitiateCheckout } from "@/lib/facebook-pixel";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { useIsNativeApp } from "@/lib/is-native-app";
+import { BrandFooter } from "@/components/brand-footer";
 
 type Plan = "annual" | "monthly";
 
@@ -309,6 +310,8 @@ function PremiumPageContent() {
             </p>
           </>
         )}
+
+        <BrandFooter className="mt-10" />
       </div>
     </main>
   );

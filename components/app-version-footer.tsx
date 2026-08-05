@@ -47,9 +47,18 @@ export function AppVersionFooter() {
   const isHome = pathname === "/";
   // Páginas de programa usam rodapé próprio (BrandFooter / menu do app) — ocultar o global.
   const isEntryRoute = ["/login", "/criar-conta", "/programas"].some((route) => pathname?.startsWith(route));
-  const isAppRoute = ["/dashboard", "/treino", "/calendario", "/progresso", "/perfil"].some((route) =>
-    pathname?.startsWith(route)
-  );
+  const isAppRoute = [
+    "/dashboard",
+    "/treino",
+    "/calendario",
+    "/progresso",
+    "/perfil",
+    "/premium",
+    "/escolher-plano",
+    "/results",
+    "/reset-password",
+    "/checkout"
+  ].some((route) => pathname?.startsWith(route));
 
   useEffect(() => {
     return () => {
