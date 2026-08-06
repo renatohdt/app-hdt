@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- O app faz rastreamento (anúncios de terceiros / AdSense) -->
+  <key>NSPrivacyTracking</key>
+  <true/>
+
+  <!-- Domínios usados para rastreamento/anúncios. Quando o usuário recusa o ATT,
+       o iOS bloqueia estas conexões automaticamente. -->
+  <key>NSPrivacyTrackingDomains</key>
+  <array>
+    <string>googlesyndication.com</string>
+    <string>doubleclick.net</string>
+    <string>google-analytics.com</string>
+    <string>googletagmanager.com</string>
+    <string>connect.facebook.net</string>
+    <string>clarity.ms</string>
+  </array>
+
+  <!-- Tipos de dados coletados: declaração autoritativa fica no App Store Connect
+       (App Privacy), montada a partir do nosso mapeamento. -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array/>
+
+  <!-- APIs de "motivo obrigatório" usadas pelo app (Capacitor usa UserDefaults). -->
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
