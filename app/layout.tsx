@@ -11,6 +11,7 @@ import { ClarityScript } from "@/components/clarity-script";
 import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { AttProvider } from "@/components/att-provider";
+import { NativePushProvider } from "@/components/native-push-provider";
 import { getCurrentConsentVersion } from "@/lib/consents";
 import { getSiteUrl } from "@/lib/site-url";
 import { SchemaOrg } from "@/components/schema-org";
@@ -112,6 +113,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div className="flex min-h-screen flex-col">
               <PwaRegistration />
               <AttProvider />
+              <NativePushProvider />
               <div className="flex-1">
                 {children}
               </div>

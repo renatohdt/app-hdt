@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "945277274050",
+    "project_id": "hora-do-treino-fbff9",
+    "storage_bucket": "hora-do-treino-fbff9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945277274050:android:98a9e445388f0cb327385b",
+        "android_client_info": {
+          "package_name": "com.horadotreino.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhvDc7seZS7EdLMptCMgKsoorkuzH5rU8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

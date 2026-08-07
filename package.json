@@ -19,6 +19,7 @@
     "retention:cleanup:dry": "node scripts/run-retention-cleanup.mjs --dry-run"
   },
   "dependencies": {
+    "@capacitor-firebase/messaging": "^8.3.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
@@ -28,6 +29,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
+    "firebase-admin": "^14.2.0",
     "lucide-react": "^0.542.0",
     "next": "14.2.35",
     "openai": "^6.33.0",
