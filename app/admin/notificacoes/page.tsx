@@ -1,43 +1,59 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Bell, Send, Users, Zap, Clock } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Bell, Send, Users, Zap, Clock, CalendarClock, Trash2 } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 
 type Audience = "all" | "premium" | "inactive";
+type Mode = "now" | "schedule";
 type StatsState = { total: number | null; loading: boolean };
 type SendResult = { sent: number; failed: number; total: number };
+type ScheduledItem = {
+  id: string;
+  title: string;
+  body: string;
+  audience: Audience;
+  scheduled_for: string;
+  status: "pending" | "sent" | "canceled" | "error";
+  result_sent: number | null;
+  result_total: number | null;
+};
 
 const AUDIENCE_OPTIONS: { value: Audience; label: string; description: string; icon: typeof Users }[] = [
-  {
-    value: "all",
-    label: "Todos os usuários",
-    description: "Envia para todos que ativaram notificações",
-    icon: Users
-  },
-  {
-    value: "premium",
-    label: "Somente Premium",
-    description: "Apenas assinantes ativos do plano premium",
-    icon: Zap
-  },
-  {
-    value: "inactive",
-    label: "Usuários inativos",
-    description: "Quem não treina há 2 ou mais dias",
-    icon: Clock
-  }
+  { value: "all", label: "Todos os usuários", description: "Envia para todos que ativaram notificações", icon: Users },
+  { value: "premium", label: "Somente Premium", description: "Apenas assinantes ativos do plano premium", icon: Zap },
+  { value: "inactive", label: "Usuários inativos", description: "Quem não treina há 2 ou mais dias", icon: Clock }
 ];
+
+const AUDIENCE_LABEL: Record<Audience, string> = {
+  all: "Todos",
+  premium: "Premium",
+  inactive: "Inativos"
+};
+
+const STATUS_LABEL: Record<ScheduledItem["status"], string> = {
+  pending: "Agendada",
+  sent: "Enviada",
+  canceled: "Cancelada",
+  error: "Erro"
+};
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
 
 export default function NotificacoesAdminPage() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [url, setUrl] = useState("/dashboard");
   const [audience, setAudience] = useState<Audience>("all");
+  const [mode, setMode] = useState<Mode>("now");
+  const [scheduledFor, setScheduledFor] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<StatsState>({ total: null, loading: true });
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/push/stats")
@@ -48,45 +64,89 @@ export default function NotificacoesAdminPage() {
       .catch(() => setStats({ total: null, loading: false }));
   }, []);
 
-  async function handleSend() {
+  const loadScheduled = useCallback(() => {
+    fetch("/api/admin/push/schedule")
+      .then((res) => res.json())
+      .then((data: { success: boolean; data?: { items: ScheduledItem[] } }) => {
+        if (data.success) setScheduled(data.data?.items ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadScheduled();
+  }, [loadScheduled]);
+
+  async function handleSubmit() {
     if (!title.trim() || !message.trim()) return;
+    if (mode === "schedule" && !scheduledFor) {
+      setError("Escolha a data e a hora do agendamento.");
+      return;
+    }
 
     setIsSending(true);
     setResult(null);
     setError(null);
 
     try {
-      const response = await fetch("/api/admin/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body: message, url, audience })
-      });
+      if (mode === "schedule") {
+        const response = await fetch("/api/admin/push/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            body: message,
+            url,
+            audience,
+            scheduledFor: new Date(scheduledFor).toISOString()
+          })
+        });
+        const data = (await response.json()) as { success: boolean; error?: string };
+        if (!response.ok || !data.success) throw new Error(data.error ?? "Erro ao agendar.");
 
-      const data = await response.json() as { success: boolean; data?: SendResult; error?: string };
+        setTitle("");
+        setMessage("");
+        setScheduledFor("");
+        loadScheduled();
+      } else {
+        const response = await fetch("/api/admin/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, body: message, url, audience })
+        });
+        const data = (await response.json()) as { success: boolean; data?: SendResult; error?: string };
+        if (!response.ok || !data.success) throw new Error(data.error ?? "Erro ao enviar notificação.");
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error ?? "Erro ao enviar notificação.");
+        setResult(data.data ?? { sent: 0, failed: 0, total: 0 });
+        setTitle("");
+        setMessage("");
       }
-
-      setResult(data.data ?? { sent: 0, failed: 0, total: 0 });
-      setTitle("");
-      setMessage("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao enviar notificação.");
+      setError(err instanceof Error ? err.message : "Erro ao processar.");
     } finally {
       setIsSending(false);
     }
   }
 
+  async function handleCancel(id: string) {
+    try {
+      await fetch(`/api/admin/push/schedule?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      loadScheduled();
+    } catch {
+      // silencioso
+    }
+  }
+
   const charCount = message.length;
-  const isValid = title.trim().length > 0 && message.trim().length > 0;
+  const isValid = title.trim().length > 0 && message.trim().length > 0 && (mode === "now" || scheduledFor.length > 0);
+  const pending = scheduled.filter((s) => s.status === "pending");
 
   return (
     <section className="space-y-6">
       <div className="space-y-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">Administração</p>
         <h1 className="text-[2.35rem] font-semibold tracking-tight text-white sm:text-[2.8rem]">Notificações Push</h1>
-        <p className="text-sm text-white/54">Envie notificações diretamente para os dispositivos dos usuários.</p>
+        <p className="text-sm text-white/54">Envie ou agende notificações para os dispositivos dos usuários.</p>
       </div>
 
       {/* Stat: usuários com notificações ativas */}
@@ -161,6 +221,42 @@ export default function NotificacoesAdminPage() {
             </div>
           </Card>
 
+          {/* Quando enviar */}
+          <Card className="space-y-4 p-5">
+            <h2 className="text-sm font-semibold text-white">Quando enviar</h2>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("now")}
+                className={`flex items-center justify-center gap-2 rounded-[14px] border px-4 py-2.5 text-sm font-semibold transition ${
+                  mode === "now" ? "border-primary/30 bg-primary/10 text-primary" : "border-white/8 bg-white/[0.02] text-white/60"
+                }`}
+              >
+                <Send className="h-4 w-4" /> Agora
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("schedule")}
+                className={`flex items-center justify-center gap-2 rounded-[14px] border px-4 py-2.5 text-sm font-semibold transition ${
+                  mode === "schedule" ? "border-primary/30 bg-primary/10 text-primary" : "border-white/8 bg-white/[0.02] text-white/60"
+                }`}
+              >
+                <CalendarClock className="h-4 w-4" /> Agendar
+              </button>
+            </div>
+            {mode === "schedule" && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Data e hora</label>
+                <input
+                  type="datetime-local"
+                  value={scheduledFor}
+                  onChange={(e) => setScheduledFor(e.target.value)}
+                  className="w-full rounded-[14px] border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white outline-none transition focus:border-primary/30 [color-scheme:dark]"
+                />
+              </div>
+            )}
+          </Card>
+
           {/* Audiência */}
           <Card className="space-y-4 p-5">
             <h2 className="text-sm font-semibold text-white">Audiência</h2>
@@ -174,9 +270,7 @@ export default function NotificacoesAdminPage() {
                     type="button"
                     onClick={() => setAudience(option.value)}
                     className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
-                      active
-                        ? "border-primary/30 bg-primary/10"
-                        : "border-white/8 bg-white/[0.02] hover:border-white/14"
+                      active ? "border-primary/30 bg-primary/10" : "border-white/8 bg-white/[0.02] hover:border-white/14"
                     }`}
                   >
                     <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : "text-white/40"}`} />
@@ -184,32 +278,23 @@ export default function NotificacoesAdminPage() {
                       <p className={`text-sm font-semibold ${active ? "text-white" : "text-white/70"}`}>{option.label}</p>
                       <p className="text-xs text-white/40">{option.description}</p>
                     </div>
-                    <span
-                      className={`h-4 w-4 shrink-0 rounded-full border-2 ${
-                        active ? "border-primary bg-primary" : "border-white/20"
-                      }`}
-                    />
+                    <span className={`h-4 w-4 shrink-0 rounded-full border-2 ${active ? "border-primary bg-primary" : "border-white/20"}`} />
                   </button>
                 );
               })}
             </div>
           </Card>
 
-          <Button
-            onClick={() => void handleSend()}
-            disabled={!isValid || isSending}
-            className="w-full"
-          >
+          <Button onClick={() => void handleSubmit()} disabled={!isValid || isSending} className="w-full">
             <span className="inline-flex items-center gap-2">
-              <Send className="h-4 w-4" />
-              {isSending ? "Enviando..." : "Enviar notificação"}
+              {mode === "schedule" ? <CalendarClock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+              {isSending ? "Processando..." : mode === "schedule" ? "Agendar notificação" : "Enviar notificação"}
             </span>
           </Button>
         </div>
 
-        {/* Preview + resultado */}
+        {/* Preview + resultado + agendados */}
         <div className="space-y-4">
-          {/* Preview da notificação */}
           <Card className="space-y-4 p-5">
             <h2 className="text-sm font-semibold text-white">Preview</h2>
             <div className="rounded-[18px] border border-white/10 bg-[#1c1c1e] p-4 shadow-lg">
@@ -229,7 +314,6 @@ export default function NotificacoesAdminPage() {
             </div>
           </Card>
 
-          {/* Resultado do envio */}
           {result ? (
             <Card className="space-y-3 p-5">
               <h2 className="text-sm font-semibold text-white">Resultado do envio</h2>
@@ -247,31 +331,45 @@ export default function NotificacoesAdminPage() {
                   <p className="mt-1 text-xs text-white/46">Falhas</p>
                 </div>
               </div>
-              {result.sent > 0 && (
-                <p className="text-xs text-primary/80">✓ Notificação enviada com sucesso!</p>
-              )}
-              {result.total === 0 && (
-                <p className="text-xs text-white/46">Nenhum dispositivo inscrito para essa audiência.</p>
-              )}
             </Card>
           ) : null}
 
-          {/* Erro */}
           {error ? (
             <div className="rounded-[16px] border border-red-500/20 bg-red-500/[0.08] px-4 py-3 text-sm text-red-300">
               {error}
             </div>
           ) : null}
 
-          {/* Dicas */}
+          {/* Agendadas */}
           <Card className="space-y-3 p-5">
-            <h2 className="text-sm font-semibold text-white">Dicas de boas práticas</h2>
-            <ul className="space-y-2 text-xs text-white/54">
-              <li>• Título curto e direto — máximo 50 caracteres para não ser cortado</li>
-              <li>• Mensagens de reengajamento funcionam melhor com "Inativos"</li>
-              <li>• Use a URL para direcionar para uma página específica (ex: /treino)</li>
-              <li>• Evite enviar mais de 1 notificação por dia para não gerar cancelamentos</li>
-            </ul>
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-white">Agendadas ({pending.length})</h2>
+            </div>
+            {pending.length === 0 ? (
+              <p className="text-xs text-white/40">Nenhuma notificação agendada.</p>
+            ) : (
+              <div className="space-y-2">
+                {pending.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 rounded-[14px] border border-white/8 bg-white/[0.02] px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                      <p className="mt-0.5 text-xs text-white/45">
+                        {formatDateTime(item.scheduled_for)} · {AUDIENCE_LABEL[item.audience]}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleCancel(item.id)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-white/10 text-white/50 transition hover:border-red-500/30 hover:text-red-400"
+                      aria-label="Cancelar agendamento"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </div>
