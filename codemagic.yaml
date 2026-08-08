@@ -37,7 +37,7 @@ workflows:
             --project "App.xcodeproj" \
             --scheme "App"
     artifacts:
-      - build/ios/ipa/*.ipa
+      - "**/*.ipa"
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
