@@ -21,7 +21,16 @@ workflows:
       - name: Instalar CocoaPods
         script: |
           cd ios/App && pod install
-      - name: Configurar assinatura (profiles)
+      - name: Inicializar keychain
+        script: keychain initialize
+      - name: Buscar/criar certificado e profile de assinatura
+        script: |
+          app-store-connect fetch-signing-files "com.horadotreino.app" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Adicionar certificado ao keychain
+        script: keychain add-certificates
+      - name: Aplicar profiles no projeto Xcode
         script: xcode-project use-profiles
       - name: Gerar o IPA
         script: |
