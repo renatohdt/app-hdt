@@ -7,9 +7,6 @@ workflows:
       # Deve bater com o NOME dado à integração App Store Connect no Codemagic.
       app_store_connect: codemagic
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.horadotreino.app
       node: 20
       xcode: latest
       cocoapods: default
