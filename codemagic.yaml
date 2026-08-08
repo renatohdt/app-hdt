@@ -7,7 +7,7 @@ workflows:
       # Deve bater com o NOME dado à integração App Store Connect no Codemagic.
       app_store_connect: codemagic
     environment:
-      node: 20
+      node: 22
       xcode: latest
       cocoapods: default
     scripts:
