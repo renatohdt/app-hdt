@@ -7,6 +7,8 @@ workflows:
       # Deve bater com o NOME dado à integração App Store Connect no Codemagic.
       app_store_connect: codemagic
     environment:
+      groups:
+        - signing
       node: latest
       xcode: latest
       cocoapods: default
@@ -19,8 +21,10 @@ workflows:
         script: keychain initialize
       - name: Buscar/criar certificado e profile de assinatura
         script: |
+          echo "$CERT_KEY_B64" | base64 --decode > /tmp/cert_key.pem
           app-store-connect fetch-signing-files "com.horadotreino.app" \
             --type IOS_APP_STORE \
+            --certificate-key @file:/tmp/cert_key.pem \
             --create
       - name: Adicionar certificado ao keychain
         script: keychain add-certificates
