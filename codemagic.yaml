@@ -15,9 +15,6 @@ workflows:
         script: npm ci
       - name: Sincronizar Capacitor (iOS)
         script: npx cap sync ios
-      - name: Instalar CocoaPods
-        script: |
-          cd ios/App && pod install
       - name: Inicializar keychain
         script: keychain initialize
       - name: Buscar/criar certificado e profile de assinatura
@@ -33,7 +30,7 @@ workflows:
         script: |
           cd ios/App
           xcode-project build-ipa \
-            --workspace "App.xcworkspace" \
+            --project "App.xcodeproj" \
             --scheme "App"
     artifacts:
       - build/ios/ipa/*.ipa
