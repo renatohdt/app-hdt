@@ -1,0 +1,39 @@
+workflows:
+  ios-horadotreino:
+    name: iOS Hora do Treino
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      # Deve bater com o NOME dado à integração App Store Connect no Codemagic.
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.horadotreino.app
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Instalar dependências npm
+        script: npm ci
+      - name: Sincronizar Capacitor (iOS)
+        script: npx cap sync ios
+      - name: Instalar CocoaPods
+        script: |
+          cd ios/App && pod install
+      - name: Configurar assinatura (profiles)
+        script: xcode-project use-profiles
+      - name: Gerar o IPA
+        script: |
+          cd ios/App
+          xcode-project build-ipa \
+            --workspace "App.xcworkspace" \
+            --scheme "App"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Envia automaticamente pro TestFlight após o build
+        submit_to_testflight: true
