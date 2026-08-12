@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { Check, Lock, Shield, Sparkles, X, Zap } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackMetaInitiateCheckout } from "@/lib/facebook-pixel";
@@ -40,6 +40,7 @@ function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: 
 
 function PremiumPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const canceled = searchParams.get("canceled") === "true";
 
   const isNative = useIsNativeApp();
@@ -48,6 +49,7 @@ function PremiumPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [interested, setInterested] = useState(false);
   const trackedRef = useRef(false);
+  const autoCheckoutRef = useRef(false);
 
   useEffect(() => {
     if (!trackedRef.current) {
@@ -55,6 +57,19 @@ function PremiumPageContent() {
       trackEvent("premium_page_view");
     }
   }, []);
+
+  useEffect(() => {
+    // Retoma o checkout automaticamente quando o usuário acabou de logar e
+    // voltou pra cá com ?checkout=<plano>. A trava garante que rode só uma vez.
+    if (autoCheckoutRef.current || isNative) return;
+    const resumePlan = searchParams.get("checkout");
+    if (resumePlan === "annual" || resumePlan === "monthly") {
+      autoCheckoutRef.current = true;
+      setSelectedPlan(resumePlan);
+      void handleCheckout(resumePlan);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, isNative]);
 
   function handleInterest() {
     trackEvent("premium_interest", null, { source: "app" });
@@ -68,23 +83,36 @@ function PremiumPageContent() {
     }).catch(() => {});
   }
 
-  async function handleCheckout() {
+  async function handleCheckout(planOverride?: Plan) {
     // Segurança: dentro do app nativo não iniciamos pagamento externo (regra das lojas).
     if (isNative) return;
+
+    const plan = planOverride ?? selectedPlan;
 
     setError(null);
     setLoading(true);
 
-    const value = selectedPlan === "annual" ? 118.9 : 14.9;
-    trackEvent("checkout_started", null, { plan: selectedPlan, value });
-    trackMetaInitiateCheckout({ value, currency: "BRL", content_name: `Premium ${selectedPlan}` });
+    const value = plan === "annual" ? 118.9 : 14.9;
+    trackEvent("checkout_started", null, { plan, value });
+    trackMetaInitiateCheckout({ value, currency: "BRL", content_name: `Premium ${plan}` });
 
     try {
       const response = await fetchWithAuth("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: selectedPlan }),
+        body: JSON.stringify({ plan }),
       });
+
+      // Não logado: manda pro login guardando o plano, e retoma o checkout do
+      // MESMO plano assim que a pessoa voltar (via ?checkout=<plano>).
+      if (response.status === 401) {
+        const alreadyReturnedFromLogin = Boolean(searchParams.get("checkout"));
+        if (!alreadyReturnedFromLogin) {
+          router.push(`/login?next=${encodeURIComponent(`/premium?checkout=${plan}`)}`);
+          return;
+        }
+        // Já voltou do login e ainda deu 401: cai no erro normal (evita loop).
+      }
 
       let data: { data?: { url?: string }; error?: string } | null = null;
       try {
@@ -267,7 +295,7 @@ function PremiumPageContent() {
 
             {/* ── Botão de checkout ── */}
             <button
-              onClick={handleCheckout}
+              onClick={() => handleCheckout()}
               disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
             >

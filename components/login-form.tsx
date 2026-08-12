@@ -46,7 +46,14 @@ export function LoginForm() {
         throw new Error("Usuário não encontrado ou credenciais inválidas.");
       }
 
-      router.push("/dashboard");
+      // Se veio de um fluxo que pediu retorno (ex.: /premium?checkout=annual),
+      // volta pra lá. Por segurança, só aceitamos caminhos internos (que começam
+      // com "/", mas não "//"), evitando redirecionamento pra sites externos.
+      const nextParam = new URLSearchParams(window.location.search).get("next");
+      const destination =
+        nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/dashboard";
+
+      router.push(destination);
       router.refresh();
     } catch (submissionError) {
       clientLogError("LOGIN FLOW ERROR", submissionError);
