@@ -5,6 +5,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { QuizAnswers } from "@/lib/types";
 
 const LEADLOVERS_ENDPOINT = "https://llapi.leadlovers.com/webapi/lead";
+const LEADLOVERS_SEQUENCES_ENDPOINT = "https://llapi.leadlovers.com/webapi/EmailSequences";
 const LEADLOVERS_MACHINE_CODE = 774503;
 const LEADLOVERS_EMAIL_SEQUENCE_CODE = 1838006;
 const LEADLOVERS_SEQUENCE_LEVEL_CODE = 1;
@@ -148,6 +149,118 @@ export async function sendLeadLoversLead({
       note: "The API response omits DynamicFields, so confirmation must be done in the LeadLovers UI."
     });
   }
+}
+
+// Cache em memória: nome da sequência -> código. Evita consultar a LeadLovers
+// toda vez que alguém clica em "Tenho interesse" (a consulta só acontece na
+// primeira vez, por instância do servidor).
+const sequenceCodeCache = new Map<string, number>();
+
+// Descobre o código (EmailSequenceCode) de uma sequência pelo NOME, consultando
+// a API da LeadLovers. Assim não precisamos fixar números mágicos no código.
+async function resolveLeadLoversSequenceCode(sequenceName: string): Promise<number | null> {
+  const cached = sequenceCodeCache.get(sequenceName);
+  if (typeof cached === "number") {
+    return cached;
+  }
+
+  const token = process.env.LEADLOVERS_TOKEN?.trim();
+  if (!token) {
+    logWarn("LEADLOVERS", "Sequence lookup skipped", { reason: "missing_token" });
+    return null;
+  }
+
+  const url = new URL(LEADLOVERS_SEQUENCES_ENDPOINT);
+  url.searchParams.set("token", token);
+  url.searchParams.set("machineCode", String(LEADLOVERS_MACHINE_CODE));
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const responseBody = await response.text().catch(() => "");
+
+    if (!response.ok) {
+      logError("LEADLOVERS", "Sequence lookup failed", {
+        status_code: response.status,
+        response_body: responseBody || response.statusText
+      });
+      return null;
+    }
+
+    const parsed = safeParseLeadLoversJson(responseBody) as
+      | { Items?: Array<{ SequenceCode?: number; SequenceName?: string }> }
+      | null;
+
+    const items = parsed?.Items ?? [];
+    const wanted = sequenceName.trim().toLowerCase();
+    const match = items.find((item) => (item.SequenceName ?? "").trim().toLowerCase() === wanted);
+
+    if (typeof match?.SequenceCode !== "number") {
+      logWarn("LEADLOVERS", "Sequence not found by name", {
+        sequence_name: sequenceName,
+        available: items.map((item) => item.SequenceName)
+      });
+      return null;
+    }
+
+    sequenceCodeCache.set(sequenceName, match.SequenceCode);
+    logInfo("LEADLOVERS", "Sequence resolved by name", {
+      sequence_name: sequenceName,
+      sequence_code: match.SequenceCode
+    });
+    return match.SequenceCode;
+  } catch (error) {
+    logError("LEADLOVERS", "Sequence lookup request failed", {
+      error: error instanceof Error ? error.message : "unknown"
+    });
+    return null;
+  }
+}
+
+// Registra um contato numa sequência de "interesse" (ex.: "Interesse Premium").
+// Diferente de sendLeadLoversLead, não envia os campos do quiz — só cria o
+// contato na sequência certa pra ele receber os e-mails daquela automação.
+export async function sendLeadLoversInterest({
+  email,
+  name,
+  sequenceName
+}: {
+  email?: string | null;
+  name: string;
+  sequenceName: string;
+}): Promise<{ ok: boolean; reason?: string }> {
+  const token = process.env.LEADLOVERS_TOKEN?.trim();
+  if (!token) {
+    logWarn("LEADLOVERS", "Interest skipped", { reason: "missing_token", sequenceName });
+    return { ok: false, reason: "missing_token" };
+  }
+  if (!email) {
+    logWarn("LEADLOVERS", "Interest skipped", { reason: "missing_email", sequenceName });
+    return { ok: false, reason: "missing_email" };
+  }
+
+  const sequenceCode = await resolveLeadLoversSequenceCode(sequenceName);
+  if (sequenceCode === null) {
+    return { ok: false, reason: "sequence_not_found" };
+  }
+
+  const createBody = {
+    MachineCode: LEADLOVERS_MACHINE_CODE,
+    EmailSequenceCode: sequenceCode,
+    SequenceLevelCode: LEADLOVERS_SEQUENCE_LEVEL_CODE,
+    Email: email,
+    Name: name
+  };
+
+  const response = await sendLeadLoversRequest({
+    token,
+    method: "POST",
+    requestLabel: `LeadLovers interest (${sequenceName})`,
+    payload: createBody
+  });
+
+  return { ok: response.ok, reason: response.ok ? undefined : "create_failed" };
 }
 
 async function sendLeadLoversRequest({

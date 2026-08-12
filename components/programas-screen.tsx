@@ -80,6 +80,13 @@ export function ProgramasScreen() {
   function handleInterest(slug: string) {
     trackEvent("program_interest", null, { slug });
     setInterestedSlugs((prev) => (prev.includes(slug) ? prev : [...prev, slug]));
+    // Registra o interesse no LeadLovers (sequência "Interesse Programa").
+    // "fire-and-forget": não travamos a tela esperando a resposta.
+    void fetchWithAuth("/api/interest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "program", slug }),
+    }).catch(() => {});
   }
 
   async function handleBuy(slug: string) {
