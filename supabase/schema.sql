@@ -943,4 +943,36 @@ revoke all on function public.run_retention_cleanup(timestamptz, boolean) from a
 revoke all on function public.run_retention_cleanup(timestamptz, boolean) from authenticated;
 grant execute on function public.run_retention_cleanup(timestamptz, boolean) to service_role;
 
+-- Historico de medicoes corporais do usuario (evolucao). Ver migration
+-- 20260813_body_measurements.sql.
+create table if not exists public.body_measurements (
+  id             uuid         primary key default gen_random_uuid(),
+  user_id        uuid         not null references auth.users(id) on delete cascade,
+  measured_at    date         not null default current_date,
+  weight_kg      numeric(5,2) check (weight_kg     is null or (weight_kg     > 0   and weight_kg     < 500)),
+  body_fat_pct   numeric(4,1) check (body_fat_pct  is null or (body_fat_pct  >= 0  and body_fat_pct  <= 75)),
+  lean_mass_pct  numeric(4,1) check (lean_mass_pct is null or (lean_mass_pct >= 0  and lean_mass_pct <= 100)),
+  resting_hr     int          check (resting_hr    is null or (resting_hr    >= 30 and resting_hr    <= 150)),
+  neck_cm        numeric(4,1) check (neck_cm       is null or (neck_cm       > 0   and neck_cm       < 100)),
+  chest_cm       numeric(5,1) check (chest_cm      is null or (chest_cm      > 0   and chest_cm      < 200)),
+  waist_cm       numeric(5,1) check (waist_cm      is null or (waist_cm      > 0   and waist_cm      < 200)),
+  hip_cm         numeric(5,1) check (hip_cm        is null or (hip_cm        > 0   and hip_cm        < 200)),
+  arm_cm         numeric(4,1) check (arm_cm        is null or (arm_cm        > 0   and arm_cm        < 100)),
+  forearm_cm     numeric(4,1) check (forearm_cm    is null or (forearm_cm    > 0   and forearm_cm    < 100)),
+  thigh_cm       numeric(4,1) check (thigh_cm      is null or (thigh_cm      > 0   and thigh_cm      < 120)),
+  calf_cm        numeric(4,1) check (calf_cm       is null or (calf_cm       > 0   and calf_cm       < 100)),
+  notes          text         check (notes         is null or char_length(notes) <= 500),
+  created_at     timestamptz  not null default now()
+);
+
+create index if not exists idx_body_measurements_user on public.body_measurements (user_id, measured_at desc);
+
+alter table public.body_measurements enable row level security;
+
+create policy "users_manage_own_measurements"
+  on public.body_measurements
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 notify pgrst, 'reload schema';

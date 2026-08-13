@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { ShareButton } from "@/components/share-button";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
+import { BodyMeasurementsPanel } from "@/components/body-measurements-panel";
 import { computeAgeFromBirthDate } from "@/lib/age";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
@@ -895,19 +896,9 @@ export default function PerfilPage() {
         )}
 
         {editingSection === "physical" && (
+          <>
           <Card className="space-y-5 p-5">
-            <div className="space-y-2">
-              <p className="text-xs text-white/50">Peso (kg)</p>
-              <TextInput
-                type="number"
-                inputMode="decimal"
-                min={30}
-                max={200}
-                value={form.weight}
-                onChange={(value) => updateForm(setForm, "weight", value)}
-                placeholder="70"
-              />
-            </div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">Dados base</p>
             <div className="space-y-2">
               <p className="text-xs text-white/50">Altura (cm)</p>
               <TextInput
@@ -935,8 +926,14 @@ export default function PerfilPage() {
                 options={GENDER_OPTIONS}
                 onChange={(value) => updateForm(setForm, "gender", value)}
               />
+              <p className="text-[10px] leading-tight text-white/35">
+                Altura e gênero são usados para estimar seu % de gordura.
+              </p>
             </div>
           </Card>
+
+          <BodyMeasurementsPanel age={payload.answers.age ?? null} />
+          </>
         )}
 
         {editingSection === "training" && (

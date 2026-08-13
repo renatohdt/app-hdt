@@ -51,6 +51,24 @@ type ExportPayload = {
     expiresAt: string;
     updatedAt: string;
   }>;
+  bodyMeasurements: Array<{
+    id: string;
+    measuredAt: string;
+    weightKg: number | null;
+    bodyFatPct: number | null;
+    leanMassPct: number | null;
+    restingHr: number | null;
+    neckCm: number | null;
+    chestCm: number | null;
+    waistCm: number | null;
+    hipCm: number | null;
+    armCm: number | null;
+    forearmCm: number | null;
+    thighCm: number | null;
+    calfCm: number | null;
+    notes: string | null;
+    createdAt: string;
+  }>;
   metadata: {
     userId: string;
     exportFormat: "json";
@@ -79,7 +97,8 @@ export async function GET(request: Request) {
     workoutSessionLogsResult,
     consentsResult,
     analyticsEventsResult,
-    contentRecommendationsResult
+    contentRecommendationsResult,
+    bodyMeasurementsResult
   ] = await Promise.all([
     supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
     supabase.from("user_answers").select("answers").eq("user_id", userId).maybeSingle(),
@@ -103,7 +122,14 @@ export async function GET(request: Request) {
       .from("content_recommendations")
       .select("id, articles, generated_at, expires_at, updated_at")
       .eq("user_id", userId)
-      .order("generated_at", { ascending: false })
+      .order("generated_at", { ascending: false }),
+    supabase
+      .from("body_measurements")
+      .select(
+        "id, measured_at, weight_kg, body_fat_pct, lean_mass_pct, resting_hr, neck_cm, chest_cm, waist_cm, hip_cm, arm_cm, forearm_cm, thigh_cm, calf_cm, notes, created_at"
+      )
+      .eq("user_id", userId)
+      .order("measured_at", { ascending: false })
   ]);
 
   const errors = [
@@ -113,7 +139,8 @@ export async function GET(request: Request) {
     workoutSessionLogsResult.error,
     consentsResult.error,
     analyticsEventsResult.error,
-    contentRecommendationsResult.error
+    contentRecommendationsResult.error,
+    bodyMeasurementsResult.error
   ].filter(Boolean);
 
   if (errors.length) {
@@ -167,6 +194,24 @@ export async function GET(request: Request) {
       generatedAt: recommendation.generated_at,
       expiresAt: recommendation.expires_at,
       updatedAt: recommendation.updated_at
+    })),
+    bodyMeasurements: (bodyMeasurementsResult.data ?? []).map((m) => ({
+      id: m.id,
+      measuredAt: m.measured_at,
+      weightKg: m.weight_kg,
+      bodyFatPct: m.body_fat_pct,
+      leanMassPct: m.lean_mass_pct,
+      restingHr: m.resting_hr,
+      neckCm: m.neck_cm,
+      chestCm: m.chest_cm,
+      waistCm: m.waist_cm,
+      hipCm: m.hip_cm,
+      armCm: m.arm_cm,
+      forearmCm: m.forearm_cm,
+      thighCm: m.thigh_cm,
+      calfCm: m.calf_cm,
+      notes: m.notes,
+      createdAt: m.created_at
     })),
     metadata: {
       userId,
