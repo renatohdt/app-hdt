@@ -50,3 +50,38 @@ export async function POST(request: NextRequest) {
     return jsonError("Erro interno.", 500);
   }
 }
+
+// Remove o token de push nativo (quando o usuário desliga as notificações no
+// app). Se vier um token no corpo, remove só o deste aparelho; senão, remove
+// todos os tokens do usuário. Sempre com escopo pelo user_id logado.
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireAuthenticatedUser(request);
+    if (auth.response || !auth.user) {
+      return auth.response ?? jsonError("Não autenticado.", 401);
+    }
+
+    const body = (await request.json().catch(() => null)) as { token?: string } | null;
+    const token = body?.token;
+
+    const supabase = createSupabaseAdminClient();
+    if (!supabase) return jsonError("Serviço indisponível.", 500);
+
+    let query = supabase.from("native_push_tokens").delete().eq("user_id", auth.user.id);
+    if (token) {
+      query = query.eq("token", token);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      logError("PUSH", "Erro ao remover token nativo", { error: error.message });
+      return jsonError("Não foi possível remover o dispositivo.", 500);
+    }
+
+    return jsonSuccess({ removed: true });
+  } catch (error) {
+    logError("PUSH", "Erro inesperado em DELETE register-native", { error: String(error) });
+    return jsonError("Erro interno.", 500);
+  }
+}

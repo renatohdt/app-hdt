@@ -30,6 +30,10 @@ export function NativePushProvider() {
     const cap = w.Capacitor;
     if (!cap?.isNativePlatform?.()) return;
 
+    // Respeita a escolha do usuário: se ele desligou as notificações no perfil,
+    // não registramos o token de novo automaticamente. (Chave IGUAL à do perfil.)
+    if (window.localStorage.getItem("hdt:native-push-optout") === "1") return;
+
     const platform = cap.getPlatform?.() === "ios" ? "ios" : "android";
     const fm = cap.Plugins?.FirebaseMessaging;
     if (!fm?.getToken) return;

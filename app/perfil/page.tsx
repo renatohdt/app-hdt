@@ -171,14 +171,31 @@ export default function PerfilPage() {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [pushSubscription, setPushSubscription] = useState<PushSubscription | null>(null);
 
-  // Detecta estado real da permissão/subscription ao montar
+  // Detecta o estado real das notificações ao montar (web push OU push nativo).
   useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (typeof window === "undefined") return;
+
+    // App nativo: reflete a permissão do sistema (a menos que o usuário tenha desligado).
+    if (isNative) {
+      const fm = getFirebaseMessagingBridge();
+      const optedOut = window.localStorage.getItem(NATIVE_PUSH_OPTOUT_KEY) === "1";
+      if (!fm?.checkPermissions) {
+        setNotificationsEnabled(false);
+        return;
+      }
+      fm.checkPermissions()
+        .then((perm) => setNotificationsEnabled(perm?.receive === "granted" && !optedOut))
+        .catch(() => setNotificationsEnabled(false));
+      return;
+    }
+
+    // Navegador: reflete a subscription do service worker (web push).
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then((sub) => {
       setPushSubscription(sub);
       setNotificationsEnabled(Boolean(sub));
     }).catch(() => {});
-  }, []);
+  }, [isNative]);
   const [isSaving, setIsSaving] = useState(false);
   const [showPremiumStyleModal, setShowPremiumStyleModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -425,8 +442,78 @@ export default function PerfilPage() {
     }
   }
 
+  // App nativo (Android/iOS): liga/desliga o push NATIVO (FCM) via ponte do Capacitor.
+  async function handleToggleNativeNotifications() {
+    const fm = getFirebaseMessagingBridge();
+    if (!fm?.getToken) {
+      setFeedback({ tone: "error", text: "Notificações indisponíveis neste dispositivo." });
+      return;
+    }
+
+    setNotificationsLoading(true);
+    try {
+      // Desligar: remove o token e marca a preferência (pra não re-registrar sozinho).
+      if (notificationsEnabled) {
+        let token: string | undefined;
+        try {
+          token = (await fm.getToken?.())?.token;
+        } catch {
+          token = undefined;
+        }
+        await fetchWithAuth("/api/push/register-native", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: token ?? null })
+        });
+        window.localStorage.setItem(NATIVE_PUSH_OPTOUT_KEY, "1");
+        setNotificationsEnabled(false);
+        setFeedback({ tone: "info", text: "Notificações desativadas." });
+        return;
+      }
+
+      // Ligar: pede permissão do sistema; se negada, orienta a ativar nas Configurações.
+      const permission = (await fm.requestPermissions?.())?.receive;
+      if (permission !== "granted") {
+        setFeedback({
+          tone: "info",
+          text: "Permissão negada. Ative as notificações nas Configurações do seu celular."
+        });
+        return;
+      }
+
+      const token = (await fm.getToken?.())?.token;
+      if (!token) {
+        setFeedback({ tone: "error", text: "Não foi possível ativar as notificações. Tente novamente." });
+        return;
+      }
+
+      await fetchWithAuth("/api/push/register-native", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, platform: getNativePlatform() })
+      });
+
+      window.localStorage.removeItem(NATIVE_PUSH_OPTOUT_KEY);
+      setNotificationsEnabled(true);
+      setFeedback({ tone: "success", text: "Notificações ativadas com sucesso!" });
+    } catch {
+      setFeedback({ tone: "error", text: "Não foi possível configurar notificações. Tente novamente." });
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
   async function handleToggleNotifications() {
-    if (notificationsLoading || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (notificationsLoading) return;
+
+    // No app nativo, o botão controla o push nativo (FCM), não o web push.
+    if (isNative) {
+      await handleToggleNativeNotifications();
+      return;
+    }
+
+    // No navegador: web push (service worker).
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     setNotificationsLoading(true);
 
     try {
@@ -1486,6 +1573,36 @@ function getWorkoutLoadingStageIndex(progress: number) {
   if (progress >= 50) return 2;
   if (progress >= 25) return 1;
   return 0;
+}
+
+// Chave no localStorage que marca "o usuário desligou o push nativo".
+// Precisa ser IGUAL à usada em components/native-push-provider.tsx, para o
+// app não voltar a registrar sozinho depois que a pessoa desligou.
+const NATIVE_PUSH_OPTOUT_KEY = "hdt:native-push-optout";
+
+type FirebaseMessagingBridge = {
+  requestPermissions?: () => Promise<{ receive?: string }>;
+  checkPermissions?: () => Promise<{ receive?: string }>;
+  getToken?: () => Promise<{ token?: string }>;
+};
+
+// Acessa o plugin de push nativo pela ponte global do Capacitor.
+// Retorna null no navegador (onde usamos web push).
+function getFirebaseMessagingBridge(): FirebaseMessagingBridge | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      Plugins?: { FirebaseMessaging?: FirebaseMessagingBridge };
+    };
+  };
+  if (!w.Capacitor?.isNativePlatform?.()) return null;
+  return w.Capacitor.Plugins?.FirebaseMessaging ?? null;
+}
+
+function getNativePlatform(): "ios" | "android" {
+  const w = window as unknown as { Capacitor?: { getPlatform?: () => string } };
+  return w.Capacitor?.getPlatform?.() === "ios" ? "ios" : "android";
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
