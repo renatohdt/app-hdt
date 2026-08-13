@@ -33,6 +33,8 @@ export type QuizAnswers = {
   experience: Experience;
   gender: Gender;
   age: number;
+  // Data de nascimento (YYYY-MM-DD). Quando presente, a idade é derivada dela.
+  birth_date?: string;
   weight: number;
   height: number;
   profession?: string;

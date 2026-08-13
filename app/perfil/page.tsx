@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { ShareButton } from "@/components/share-button";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
+import { computeAgeFromBirthDate } from "@/lib/age";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
 import { NativeSubscriptionManager } from "@/components/native-subscription-manager";
@@ -32,6 +33,7 @@ type ProfilePayload = {
     body_type_raw?: string;
     body_type?: string;
     age?: number;
+    birth_date?: string;
     weight?: number;
     height?: number;
     profession?: string;
@@ -42,6 +44,7 @@ type ProfilePayload = {
     time?: number;
     equipment?: string[];
   };
+  memberSince?: string | null;
   excludedExercises?: Array<{ exerciseId: string; exerciseName: string }>;
   totalWorkoutsAllTime?: number;
   lastWorkoutGeneratedAt?: string | null;
@@ -54,6 +57,7 @@ type ProfileFormState = {
   email: string;
   profession: string;
   age: string;
+  birthDate: string;
   weight: string;
   height: string;
   goal: string;
@@ -143,6 +147,7 @@ const EMPTY_FORM_STATE: ProfileFormState = {
   email: "",
   profession: "",
   age: "",
+  birthDate: "",
   weight: "",
   height: "",
   goal: GOAL_OPTIONS[0]?.value ?? "",
@@ -197,6 +202,9 @@ export default function PerfilPage() {
     }).catch(() => {});
   }, [isNative]);
   const [isSaving, setIsSaving] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPremiumStyleModal, setShowPremiumStyleModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -406,6 +414,7 @@ export default function PerfilPage() {
           email: form.email,
           profession: form.profession,
           age: form.age,
+          birth_date: form.birthDate,
           weight: form.weight,
           height: form.height,
           goal: form.goal,
@@ -439,6 +448,47 @@ export default function PerfilPage() {
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  // Troca de senha dentro do perfil. O usuário já está logado, então usamos o
+  // mesmo updateUser do Supabase que a tela de redefinição de senha usa.
+  async function handleChangePassword() {
+    if (isChangingPassword) {
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setFeedback({ tone: "error", text: "A nova senha deve ter pelo menos 6 caracteres." });
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setFeedback({ tone: "error", text: "As senhas não coincidem." });
+      return;
+    }
+
+    if (!isSupabaseConfigured() || !supabase) {
+      setFeedback({ tone: "error", text: "Serviço de autenticação indisponível no momento." });
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setFeedback(null);
+
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) {
+        throw updateError;
+      }
+
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setFeedback({ tone: "success", text: "Senha atualizada com sucesso." });
+    } catch {
+      setFeedback({ tone: "error", text: "Não foi possível atualizar a senha. Tente novamente." });
+    } finally {
+      setIsChangingPassword(false);
     }
   }
 
@@ -728,7 +778,7 @@ export default function PerfilPage() {
 
   if (isEditing && editingSection) {
     const sectionTitle: Record<EditingSection, string> = {
-      personal: "Dados Pessoais",
+      personal: "Minha Conta",
       physical: "Dados Físicos",
       training: "Dados de Treino"
     };
@@ -757,6 +807,7 @@ export default function PerfilPage() {
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
         {editingSection === "personal" && (
+          <>
           <Card className="space-y-5 p-5">
             <div className="space-y-2">
               <p className="text-xs text-white/50">Nome</p>
@@ -775,23 +826,76 @@ export default function PerfilPage() {
                 placeholder="voce@exemplo.com"
               />
             </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Data de nascimento</p>
+              <TextInput
+                type="date"
+                value={form.birthDate}
+                onChange={(value) => updateForm(setForm, "birthDate", value)}
+                max={new Date().toISOString().slice(0, 10)}
+              />
+              <p className="text-[0.7rem] text-white/40">
+                Sua idade é calculada automaticamente. Sem a data, ela evolui a partir da data de cadastro.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <p className="text-xs text-white/50">Idade</p>
+                <div className="flex min-h-12 w-full items-center rounded-2xl border border-white/10 bg-white/[0.02] px-4 text-sm text-white/70">
+                  {(() => {
+                    const derived = form.birthDate ? computeAgeFromBirthDate(form.birthDate) : payload.answers.age;
+                    return derived ? `${derived} anos` : "—";
+                  })()}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs text-white/50">Membro desde</p>
+                <div className="flex min-h-12 w-full items-center rounded-2xl border border-white/10 bg-white/[0.02] px-4 text-sm text-white/70">
+                  {payload.memberSince ? formatMemberSince(payload.memberSince) : "—"}
+                </div>
+              </div>
+            </div>
           </Card>
+
+          <Card className="space-y-5 p-5">
+            <div className="flex items-center gap-2">
+              <Lock className="h-4 w-4 text-primary" />
+              <p className="text-sm font-semibold text-white">Alterar senha</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Nova senha</p>
+              <TextInput
+                type="password"
+                value={newPassword}
+                onChange={setNewPassword}
+                placeholder="Mínimo 6 caracteres"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Confirmar nova senha</p>
+              <TextInput
+                type="password"
+                value={confirmNewPassword}
+                onChange={setConfirmNewPassword}
+                placeholder="Repita a nova senha"
+                autoComplete="new-password"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => void handleChangePassword()}
+              disabled={isChangingPassword || !newPassword || !confirmNewPassword}
+              className="min-h-11 text-sm"
+            >
+              {isChangingPassword ? "Atualizando..." : "Atualizar senha"}
+            </Button>
+          </Card>
+          </>
         )}
 
         {editingSection === "physical" && (
           <Card className="space-y-5 p-5">
-            <div className="space-y-2">
-              <p className="text-xs text-white/50">Idade</p>
-              <TextInput
-                type="number"
-                inputMode="numeric"
-                min={12}
-                max={80}
-                value={form.age}
-                onChange={(value) => updateForm(setForm, "age", value)}
-                placeholder="25"
-              />
-            </div>
             <div className="space-y-2">
               <p className="text-xs text-white/50">Peso (kg)</p>
               <TextInput
@@ -1039,82 +1143,6 @@ export default function PerfilPage() {
         />
       </div>
 
-      {/* Assinatura */}
-      <Card className="p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Assinatura</p>
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-white/5">
-            <CreditCard className="h-3.5 w-3.5 text-white/30" />
-          </div>
-        </div>
-
-        {subscription?.isPremium ? (
-          isNative ? (
-            // ── Premium (app): gestão in-app, sem abrir o portal do Stripe ──
-            <NativeSubscriptionManager
-              plan={subscription.plan}
-              manageable={subscription.manageable}
-              initialCancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
-              initialCancelsAt={subscription.cancelsAt}
-              initialRenewsAt={subscription.renewsAt}
-              formatDate={formatSubscriptionDate}
-            />
-          ) : (
-            // ── Premium (web): badge + data de renovação + botão gerenciar (portal Stripe) ──
-            <div className="mt-3 space-y-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
-                <Sparkles className="h-3 w-3" />
-                {subscription.plan === "annual" ? "Premium Anual" : "Premium Mensal"}
-              </span>
-
-              {(subscription.cancelAtPeriodEnd && subscription.cancelsAt) || subscription.renewsAt ? (
-                <p className="text-[13px] text-white/50">
-                  {subscription.cancelAtPeriodEnd && subscription.cancelsAt
-                    ? `⚠️ Cancela em ${formatSubscriptionDate(subscription.cancelsAt)}`
-                    : `Renova em ${formatSubscriptionDate(subscription.renewsAt!)}`}
-                </p>
-              ) : null}
-
-              <button
-                type="button"
-                onClick={() => void handleManageSubscription()}
-                disabled={isManagingSubscription}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/8 hover:text-white disabled:opacity-50"
-              >
-                {isManagingSubscription ? (
-                  <>
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/20 border-t-white/70" />
-                    Redirecionando...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="h-3.5 w-3.5" />
-                    Gerenciar assinatura
-                  </>
-                )}
-              </button>
-            </div>
-          )
-        ) : (
-          // ── Free: badge e botão lado a lado ──
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[12px] font-semibold text-white/60">
-              Gratuito
-            </span>
-            {!isNative && (
-              <Link
-                href="/premium"
-                className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-2 text-[13px] font-bold text-black shadow-glow transition hover:opacity-95"
-              >
-                <Sparkles className="h-3 w-3" />
-                Fazer upgrade
-              </Link>
-            )}
-          </div>
-        )}
-      </Card>
-
       {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
       {/* Meus Dados */}
@@ -1123,7 +1151,7 @@ export default function PerfilPage() {
         <Card className="overflow-hidden p-0">
           <SettingsRow
             icon={<UserRound className="h-5 w-5 text-primary" />}
-            title="Dados Pessoais"
+            title="Minha Conta"
             subtitle={`${payload.user.name || "—"} · ${payload.user.email || "—"}`}
             onClick={() => openSection("personal")}
           />
@@ -1140,6 +1168,85 @@ export default function PerfilPage() {
             onClick={() => openSection("training")}
             isLast
           />
+        </Card>
+      </div>
+
+      {/* Plano Atual (antigo card de Assinatura) */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/36">Plano Atual</p>
+        <Card className="p-4">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Plano Atual</p>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-white/5">
+              <CreditCard className="h-3.5 w-3.5 text-white/30" />
+            </div>
+          </div>
+
+          {subscription?.isPremium ? (
+            isNative ? (
+              // ── Premium (app): gestão in-app, sem abrir o portal do Stripe ──
+              <NativeSubscriptionManager
+                plan={subscription.plan}
+                manageable={subscription.manageable}
+                initialCancelAtPeriodEnd={subscription.cancelAtPeriodEnd}
+                initialCancelsAt={subscription.cancelsAt}
+                initialRenewsAt={subscription.renewsAt}
+                formatDate={formatSubscriptionDate}
+              />
+            ) : (
+              // ── Premium (web): badge + data de renovação + botão gerenciar (portal Stripe) ──
+              <div className="mt-3 space-y-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[12px] font-semibold text-primary">
+                  <Sparkles className="h-3 w-3" />
+                  {subscription.plan === "annual" ? "Premium Anual" : "Premium Mensal"}
+                </span>
+
+                {(subscription.cancelAtPeriodEnd && subscription.cancelsAt) || subscription.renewsAt ? (
+                  <p className="text-[13px] text-white/50">
+                    {subscription.cancelAtPeriodEnd && subscription.cancelsAt
+                      ? `⚠️ Cancela em ${formatSubscriptionDate(subscription.cancelsAt)}`
+                      : `Renova em ${formatSubscriptionDate(subscription.renewsAt!)}`}
+                  </p>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => void handleManageSubscription()}
+                  disabled={isManagingSubscription}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/8 hover:text-white disabled:opacity-50"
+                >
+                  {isManagingSubscription ? (
+                    <>
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border border-white/20 border-t-white/70" />
+                      Redirecionando...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-3.5 w-3.5" />
+                      Gerenciar assinatura
+                    </>
+                  )}
+                </button>
+              </div>
+            )
+          ) : (
+            // ── Free: badge e botão lado a lado ──
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[12px] font-semibold text-white/60">
+                Gratuito
+              </span>
+              {!isNative && (
+                <Link
+                  href="/premium"
+                  className="inline-flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-2 text-[13px] font-bold text-black shadow-glow transition hover:opacity-95"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Fazer upgrade
+                </Link>
+              )}
+            </div>
+          )}
         </Card>
       </div>
 
@@ -1414,6 +1521,7 @@ function buildFormState(payload: ProfilePayload): ProfileFormState {
     email: payload.user.email ?? "",
     profession: payload.answers.profession ?? "",
     age: payload.answers.age ? String(payload.answers.age) : "",
+    birthDate: payload.answers.birth_date ?? "",
     weight: payload.answers.weight ? String(payload.answers.weight) : "",
     height: payload.answers.height ? String(payload.answers.height) : "",
     goal: payload.answers.goal ?? GOAL_OPTIONS[0].value,
@@ -1536,6 +1644,14 @@ function getLevelBadge(goal?: string) {
   if (goal === "gain_muscle" || goal === "body_recomposition") return "Intermediário";
   if (goal === "improve_conditioning") return "Avançado";
   return "Iniciante";
+}
+
+function formatMemberSince(isoDate: string) {
+  try {
+    return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(new Date(isoDate));
+  } catch {
+    return isoDate;
+  }
 }
 
 function formatSubscriptionDate(isoDate: string) {

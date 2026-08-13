@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkoutAge } from "@/lib/age";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { diagnoseUser } from "@/lib/diagnosis";
 import { jsonError } from "@/lib/server-response";
@@ -470,7 +471,8 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null) {
     goal: savedAnswers?.goal ?? "lose_weight",
     experience: savedAnswers?.experience ?? "no_training",
     gender: savedAnswers?.gender ?? "male",
-    age: toNumber(savedAnswers?.age),
+    // Idade calculada (data de nascimento primeiro; senão a idade base salva).
+    age: resolveWorkoutAge(savedAnswers),
     weight: toNumber(savedAnswers?.weight),
     height: toNumber(savedAnswers?.height),
     profession: typeof savedAnswers?.profession === "string" ? savedAnswers.profession : "",

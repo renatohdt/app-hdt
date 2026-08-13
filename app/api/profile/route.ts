@@ -1,3 +1,4 @@
+import { computeAgeFromBirthDate, computeEffectiveAge, parseBirthDate } from "@/lib/age";
 import { isValidEmail } from "@/lib/auth-errors";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { stripLegacyQuizFields } from "@/lib/quiz-answers";
@@ -45,6 +46,7 @@ type ProfilePayload = {
     body_type_raw?: string;
     body_type?: string;
     age?: number;
+    birth_date?: string;
     weight?: number;
     height?: number;
     profession?: string;
@@ -55,6 +57,7 @@ type ProfilePayload = {
     time?: number;
     equipment?: string[];
   };
+  memberSince?: string | null;
   excludedExercises: Array<{ exerciseId: string; exerciseName: string }>;
   totalWorkoutsAllTime?: number;
   lastWorkoutGeneratedAt?: string | null;
@@ -65,6 +68,7 @@ type ProfileUpdateBody = {
   email?: unknown;
   profession?: unknown;
   age?: unknown;
+  birth_date?: unknown;
   weight?: unknown;
   height?: unknown;
   goal?: unknown;
@@ -136,7 +140,8 @@ export async function GET(request: Request) {
         (excludedExercises ?? []).map((row) => ({
           exerciseId: row.exercise_id,
           exerciseName: row.exercise_name
-        }))
+        })),
+        currentAuthUser.user?.created_at ?? null
       ),
       totalWorkoutsAllTime,
       lastWorkoutGeneratedAt: typeof lastRegeneratedAt === "string" ? lastRegeneratedAt : null,
@@ -188,7 +193,16 @@ export async function PATCH(request: Request) {
     const nextGoal = parseEnumValue(body.goal, GOAL_OPTIONS, "Selecione um objetivo válido.");
     const nextGender = parseEnumValue(body.gender, GENDER_OPTIONS, "Selecione um gênero válido.");
     const nextBodyType = parseEnumValue(body.body_type, BODY_TYPE_OPTIONS, "Selecione um biotipo válido.");
-    const nextAge = parseNumber(body.age, 12, 80, "Informe uma idade válida.");
+    // Data de nascimento (opcional). Quando informada, a idade é derivada dela.
+    // Sem data de nascimento, mantemos a idade base já salva (ela "envelhece"
+    // sozinha na exibição, a partir da data de cadastro).
+    const nextBirthDate = parseBirthDate(body.birth_date);
+    const hasBirthDateInput = typeof body.birth_date === "string" && body.birth_date.trim() !== "";
+    if (hasBirthDateInput && !nextBirthDate) {
+      throw new ProfileValidationError("Informe uma data de nascimento válida.");
+    }
+    const baselineAge = typeof normalizedCurrentAnswers.age === "number" ? normalizedCurrentAnswers.age : undefined;
+    const nextAge = nextBirthDate ? computeAgeFromBirthDate(nextBirthDate) ?? baselineAge : baselineAge;
     const nextWeight = parseNumber(body.weight, 30, 200, "Informe um peso válido.");
     const nextHeight = parseNumber(body.height, 140, 210, "Informe uma altura válida.");
     const nextDays = parseNumber(body.days, 1, 7, "Informe uma frequência válida.");
@@ -232,6 +246,7 @@ export async function PATCH(request: Request) {
       goal: nextGoal,
       gender: nextGender,
       age: nextAge,
+      birth_date: nextBirthDate ?? undefined,
       weight: nextWeight,
       height: nextHeight,
       profession: nextProfession,
@@ -279,7 +294,9 @@ export async function PATCH(request: Request) {
           name: updatedUser.name,
           email: nextEmail
         },
-        nextAnswers
+        nextAnswers,
+        [],
+        currentAuthUser.user?.created_at ?? null
       )
     );
   } catch (error) {
@@ -294,19 +311,30 @@ export async function PATCH(request: Request) {
 function buildProfilePayload(
   user: { id: string; name: string; email: string },
   answers: Partial<QuizAnswers> | null,
-  excludedExercises: Array<{ exerciseId: string; exerciseName: string }> = []
+  excludedExercises: Array<{ exerciseId: string; exerciseName: string }> = [],
+  memberSince: string | null = null
 ): ProfilePayload {
   const normalizedAnswers = normalizeExistingAnswers(answers);
 
+  // Idade exibida: derivada da data de nascimento, ou a idade base "envelhecida"
+  // pela data de cadastro quando não há data de nascimento.
+  const effectiveAge = computeEffectiveAge({
+    birthDate: normalizedAnswers.birth_date,
+    storedAge: typeof normalizedAnswers.age === "number" ? normalizedAnswers.age : null,
+    createdAt: memberSince
+  });
+
   return {
     user,
+    memberSince,
     answers: {
       goal: normalizedAnswers.goal,
       gender: normalizedAnswers.gender,
       wrist: normalizedAnswers.wrist,
       body_type_raw: normalizedAnswers.body_type_raw,
       body_type: normalizedAnswers.body_type,
-      age: normalizedAnswers.age,
+      age: effectiveAge ?? normalizedAnswers.age,
+      birth_date: normalizedAnswers.birth_date,
       weight: normalizedAnswers.weight,
       height: normalizedAnswers.height,
       profession: normalizedAnswers.profession,

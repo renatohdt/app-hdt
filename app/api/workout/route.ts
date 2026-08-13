@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { resolveWorkoutAge } from "@/lib/age";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
 import { diagnoseUser } from "@/lib/diagnosis";
 import { normalizeExerciseRecord } from "@/lib/exercise-library";
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
       savedAnswers,
       exerciseLibrary
     ] = await Promise.all([
-      supabase.from("users").select("id, name").eq("id", userId).maybeSingle(),
+      supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
       fetchLatestWorkoutRecord(supabase, { userId, includeCreatedAt: true, scope: "WORKOUT" }),
       getUserAnswersByUserId(supabase, userId),
       getCachedExerciseCatalog()
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const answers = buildRuntimeQuizAnswers(savedAnswers);
+    const answers = buildRuntimeQuizAnswers(savedAnswers, (user as { created_at?: string | null }).created_at ?? null);
     const diagnosis = diagnoseUser(answers);
 
     if (!workoutRecord) {
@@ -403,7 +404,7 @@ export async function POST(request: Request) {
       return jsonError(RATE_LIMIT_ERROR_MESSAGE, 429);
     }
 
-    const { data: user, error: userError } = await supabase.from("users").select("id, name").eq("id", userId).maybeSingle();
+    const { data: user, error: userError } = await supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle();
 
     if (userError || !user) {
       return jsonError(SESSION_EXPIRED_MESSAGE, 404);
@@ -414,7 +415,7 @@ export async function POST(request: Request) {
       return jsonError(LOAD_ANSWERS_ERROR_MESSAGE, 404);
     }
 
-    const answers = buildRuntimeQuizAnswers(savedAnswers);
+    const answers = buildRuntimeQuizAnswers(savedAnswers, (user as { created_at?: string | null }).created_at ?? null);
 
     // ── Trava premium do multi-estilo ───────────────────────────────────────
     // Plano com 2+ estilos distintos é exclusivo Premium. Não-premium é
@@ -747,12 +748,14 @@ function overrideExperienceFromPhase(
   };
 }
 
-function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null) {
+function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null, createdAt?: string | null) {
   return normalizeBodyTypeFields({
     goal: savedAnswers?.goal ?? "lose_weight",
     experience: savedAnswers?.experience ?? "no_training",
     gender: savedAnswers?.gender ?? "male",
-    age: toNumber(savedAnswers?.age),
+    // Idade calculada: data de nascimento primeiro; sem ela, idade base
+    // "envelhecida" pela data de cadastro do usuário.
+    age: resolveWorkoutAge(savedAnswers, createdAt),
     weight: toNumber(savedAnswers?.weight),
     height: toNumber(savedAnswers?.height),
     profession: typeof savedAnswers?.profession === "string" ? savedAnswers.profession : "",

@@ -8,6 +8,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { isPremium } from "@/lib/subscription";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { ExerciseRecord, HomeEquipment, QuizAnswers } from "@/lib/types";
+import { resolveWorkoutAge } from "@/lib/age";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { generateExtraWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
@@ -323,7 +324,8 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null): QuizAnswers
     goal: savedAnswers?.goal ?? "gain_muscle",
     experience: savedAnswers?.experience ?? "6_to_12_months",
     gender: savedAnswers?.gender ?? "male",
-    age: Number(savedAnswers?.age) || 0,
+    // Idade calculada (data de nascimento primeiro; senão a idade base salva).
+    age: resolveWorkoutAge(savedAnswers),
     weight: Number(savedAnswers?.weight) || 0,
     height: Number(savedAnswers?.height) || 0,
     profession: typeof savedAnswers?.profession === "string" ? savedAnswers.profession : "",
