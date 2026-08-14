@@ -17,6 +17,38 @@ workflows:
         script: npm ci
       - name: Sincronizar Capacitor (iOS)
         script: npx cap sync ios
+      - name: Embutir Firebase e definir número de build
+        script: |
+          set -e
+          # 1) Coloca o arquivo de config do Firebase no lugar padrão do target.
+          cp ios/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+          # 2) Registra o arquivo no projeto Xcode (embute no app; sem isso o
+          #    Firebase crasha na abertura) e define um número de build único.
+          gem install xcodeproj --no-document
+          ruby <<'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/App/App.xcodeproj')
+          target = project.targets.find { |t| t.name == 'App' }
+          raise 'Target "App" nao encontrado' unless target
+
+          # 2a) Embute o GoogleService-Info.plist como recurso do target.
+          group = project.main_group['App']
+          raise "Grupo 'App' nao encontrado. Grupos: #{project.main_group.children.map(&:display_name)}" unless group
+          filename = 'GoogleService-Info.plist'
+          already = target.resources_build_phase.files.any? { |bf| bf.file_ref && bf.file_ref.display_name == filename }
+          unless already
+            ref = group.files.find { |f| f.display_name == filename } || group.new_reference(filename)
+            target.add_resources([ref])
+            puts "#{filename} embutido no target App."
+          end
+
+          # 2b) Número de build único e crescente (evita 'build ja existe' no upload).
+          bn = Time.now.to_i.to_s
+          target.build_configurations.each { |c| c.build_settings['CURRENT_PROJECT_VERSION'] = bn }
+          puts "CURRENT_PROJECT_VERSION = #{bn}"
+
+          project.save
+          RUBY
       - name: Inicializar keychain
         script: keychain initialize
       - name: Buscar/criar certificado e profile de assinatura
@@ -42,5 +74,7 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        # Envia automaticamente pro TestFlight após o build
-        submit_to_testflight: true
+        # Só faz upload pro App Store Connect (fica disponível p/ teste interno).
+        # submit_to_testflight fica desligado: envio p/ teste EXTERNO exige
+        # "beta app information" e passa por revisão — fazemos isso depois, se quiser.
+        submit_to_testflight: false
