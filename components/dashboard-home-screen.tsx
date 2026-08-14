@@ -28,6 +28,7 @@ import {
 import { getLastUnlockedAchievement, REFERRAL_REWARD_ACHIEVEMENT } from "@/lib/achievements";
 import { AchievementPopup } from "@/components/achievement-popup";
 import { trackEvent } from "@/lib/analytics-client";
+import { SHOW_PROGRAMS_HOME_ENTRY } from "@/lib/feature-flags";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
@@ -339,7 +340,8 @@ export function DashboardHomeScreen({
       {isFreePlan ? <TrainingInlineAd /> : null}
 
       {/* Entrada para os programas de treino (só para quem não está em um programa) */}
-      {!program && (
+      {/* Escondido temporariamente via SHOW_PROGRAMS_HOME_ENTRY até haver programas cadastrados. */}
+      {SHOW_PROGRAMS_HOME_ENTRY && !program && (
         <Link href="/programas" className="block">
           <Card className="flex items-center justify-between gap-3 p-4 transition hover:border-primary/30">
             <div>
