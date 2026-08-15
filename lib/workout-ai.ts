@@ -1324,11 +1324,50 @@ function selectLocalMobilityExercises(input: {
   return finalSelection;
 }
 
+// Regiões corporais usadas para manter a mobilidade coerente com o treino do dia.
+// O eixo central (abdômen/lombar) é "core": não define sozinho a região do treino
+// e é compatível tanto com dias de tronco quanto de perna.
+const UPPER_BODY_MUSCLES = new Set([
+  "chest",
+  "back",
+  "shoulders",
+  "biceps",
+  "triceps",
+  "lats",
+  "trapezius",
+  "forearms"
+]);
+const LOWER_BODY_MUSCLES = new Set([
+  "quadriceps",
+  "hamstrings",
+  "glutes",
+  "calves",
+  "adductors",
+  "abductors",
+  "hip_flexors",
+  "tibialis"
+]);
+
+function getMuscleRegion(muscle: string): "upper" | "lower" | "core" | null {
+  const normalized = normalizeWorkoutMuscle(muscle) ?? muscle;
+  if (UPPER_BODY_MUSCLES.has(normalized)) return "upper";
+  if (LOWER_BODY_MUSCLES.has(normalized)) return "lower";
+  if (normalized === "abs" || normalized === "lower_back") return "core";
+  return null;
+}
+
 function resolveMobilityTargetMuscles(exercises: SanitizedExercise[], blueprint: SessionBlueprint) {
+  // 1. Semear a partir dos músculos PRIMÁRIOS de cada exercício (o que o dia realmente
+  //    treina). Músculos estabilizadores que aparecem só como secundários — como a lombar
+  //    num exercício de braço — não devem definir a mobilidade do dia.
   const muscleCounts = new Map<string, number>();
 
   exercises.forEach((exercise) => {
-    [...(exercise.primaryMuscles ?? []), ...(exercise.muscleGroups ?? [])].forEach((muscle) => {
+    const primaryMuscles = exercise.primaryMuscles?.length
+      ? exercise.primaryMuscles
+      : exercise.muscleGroups ?? [];
+
+    primaryMuscles.forEach((muscle) => {
       if (!muscle || muscle === "full_body") {
         return;
       }
@@ -1343,8 +1382,21 @@ function resolveMobilityTargetMuscles(exercises: SanitizedExercise[], blueprint:
   const seedMuscles = directMuscles.length
     ? directMuscles
     : [...blueprint.primaryMuscles, ...blueprint.secondaryMuscles];
-  const expanded = new Set<string>();
 
+  // 2. Descobrir a região dominante do dia (superior x inferior) pelos músculos-semente.
+  //    Empate ou indefinido (ex.: full body) => não restringe, mantém o comportamento amplo.
+  let upperVotes = 0;
+  let lowerVotes = 0;
+  seedMuscles.forEach((muscle) => {
+    const region = getMuscleRegion(muscle);
+    if (region === "upper") upperVotes += 1;
+    else if (region === "lower") lowerVotes += 1;
+  });
+  const dominantRegion =
+    upperVotes === lowerVotes ? null : upperVotes > lowerVotes ? "upper" : "lower";
+
+  // 3. Expandir para os músculos relacionados.
+  const expanded = new Set<string>();
   seedMuscles.forEach((muscle) => {
     expandMobilityMuscles(muscle).forEach((item) => {
       if (item && item !== "full_body") {
@@ -1352,6 +1404,17 @@ function resolveMobilityTargetMuscles(exercises: SanitizedExercise[], blueprint:
       }
     });
   });
+
+  // 4. Remover músculos da região oposta ao treino, para uma perna/quadril não vazar num
+  //    dia de tronco (e vice-versa). O eixo central (core) permanece.
+  if (dominantRegion) {
+    const opposite = dominantRegion === "upper" ? "lower" : "upper";
+    Array.from(expanded).forEach((muscle) => {
+      if (getMuscleRegion(muscle) === opposite) {
+        expanded.delete(muscle);
+      }
+    });
+  }
 
   return Array.from(expanded);
 }
@@ -1368,8 +1431,8 @@ function expandMobilityMuscles(muscle: string) {
     hamstrings: ["hamstrings", "glutes", "adductors", "lower_back"],
     glutes: ["glutes", "hamstrings", "adductors", "abductors", "hip_flexors"],
     calves: ["calves", "tibialis", "quadriceps"],
-    abs: ["abs", "hip_flexors", "lower_back", "glutes"],
-    lower_back: ["lower_back", "back", "hamstrings", "glutes"],
+    abs: ["abs", "hip_flexors", "lower_back"],
+    lower_back: ["lower_back", "back"],
     adductors: ["adductors", "quadriceps", "glutes", "hamstrings"],
     abductors: ["abductors", "glutes", "quadriceps"],
     tibialis: ["tibialis", "calves", "quadriceps"],
@@ -1403,8 +1466,13 @@ function matchesMobilityTargets(profile: ExerciseLookup["profile"], targetMuscle
     return true;
   }
 
-  const candidateMuscles = new Set([...profile.primaryMuscles, ...profile.secondaryMuscles]);
-  return targetMuscles.some((muscle) => candidateMuscles.has(muscle));
+  const targetSet = new Set(targetMuscles);
+  // Prioriza o músculo PRIMÁRIO da mobilidade: assim uma mobilidade de perna não entra
+  // num dia de tronco só por compartilhar um músculo secundário (ex.: lombar).
+  const primaryMuscles = profile.primaryMuscles?.length
+    ? profile.primaryMuscles
+    : profile.secondaryMuscles;
+  return primaryMuscles.some((muscle) => targetSet.has(muscle));
 }
 
 function matchesMobilityLevel(
