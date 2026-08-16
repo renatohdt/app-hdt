@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useConsentPreferences } from "@/components/consent-provider";
+import { isNativeAppNow } from "@/lib/is-native-app";
 import { clientLogError, clientLogInfo, clientLogWarn } from "@/lib/client-logger";
 
 declare global {
@@ -204,9 +205,19 @@ export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: strin
       pushAttemptedRef.current = true;
 
       try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        const adsQueue = (window.adsbygoogle = window.adsbygoogle || []) as unknown[] & {
+          requestNonPersonalizedAds?: number;
+        };
+        // Dentro do app das lojas servimos anúncios NÃO personalizados (npa),
+        // ou seja, sem rastreamento — em conformidade com a Apple (sem ATT).
+        // No navegador, os anúncios seguem como antes (com consentimento).
+        if (isNativeAppNow()) {
+          adsQueue.requestNonPersonalizedAds = 1;
+        }
+        adsQueue.push({});
         clientLogInfo("ADS PUSH EXECUTED", {
-          pathname
+          pathname,
+          non_personalized: isNativeAppNow()
         });
 
         statusTimeoutId = window.setTimeout(() => {

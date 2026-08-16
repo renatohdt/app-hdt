@@ -66,7 +66,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Usamos para exibir anúncios mais relevantes e medir o desempenho deles. Você pode recusar sem afetar o uso do app.</string>
 </dict>
 </plist>
