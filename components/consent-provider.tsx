@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui";
 import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-tracker";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
+import { isNativeAppNow } from "@/lib/is-native-app";
 import {
   type ConsentPreferenceMap,
   type ConsentScope,
@@ -357,6 +358,11 @@ function ConsentManagedScripts({
   const isPixelPage = useIsPixelPage();
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const canShowAds = canUseAds && !subscriptionLoading && !subscription?.isPremium;
+  // No app das lojas NÃO carregamos o Meta Pixel (rastreamento de publicidade
+  // de terceiros), pra ficar coerente com a declaração "sem rastreamento" da
+  // Apple. No navegador segue normal (com consentimento). Anúncios AdSense no
+  // app continuam, porém não-personalizados (ver GoogleAd.tsx).
+  const canUseMarketingHere = canUseMarketing && !isNativeAppNow();
 
   return (
     <>
@@ -381,7 +387,7 @@ function ConsentManagedScripts({
         />
       ) : null}
 
-      {canUseMarketing && isPixelPage ? (
+      {canUseMarketingHere && isPixelPage ? (
         <>
           <Script id="facebook-pixel" strategy="afterInteractive">
             {`
