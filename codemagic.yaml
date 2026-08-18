@@ -74,6 +74,31 @@ workflows:
           xcode-project build-ipa \
             --workspace "App.xcworkspace" \
             --scheme "App"
+      - name: DIAGNOSTICO classes de plugin no binario
+        script: |
+          set +e
+          IPA=$(find "$PWD" -name "*.ipa" 2>/dev/null | head -1)
+          echo "IPA: $IPA"
+          WORK=$(mktemp -d); cd "$WORK"
+          unzip -o -q "$IPA" >/dev/null 2>&1
+          APP=$(ls -d Payload/*.app 2>/dev/null | head -1)
+          NAME=$(basename "$APP" .app)
+          echo "Binario principal: $APP/$NAME"
+          echo "===== PurchasesPlugin no binario principal? ====="
+          nm "$APP/$NAME" 2>/dev/null | grep -i "PurchasesPlugin" | head
+          echo "===== FirebaseMessagingPlugin no binario principal? ====="
+          nm "$APP/$NAME" 2>/dev/null | grep -i "FirebaseMessagingPlugin" | head
+          echo "===== Frameworks embutidos ====="
+          ls "$APP/Frameworks" 2>/dev/null
+          echo "===== procurando PurchasesPlugin dentro dos frameworks ====="
+          for f in "$APP/Frameworks"/*.framework; do
+            fn=$(basename "$f" .framework)
+            if nm "$f/$fn" 2>/dev/null | grep -qi "PurchasesPlugin"; then
+              echo "  ACHOU PurchasesPlugin em: $fn.framework"
+            fi
+          done
+          echo "===== FIM DIAGNOSTICO ====="
+          exit 0
     artifacts:
       - "**/*.ipa"
       - /tmp/xcodebuild_logs/*.log
