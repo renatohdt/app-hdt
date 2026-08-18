@@ -133,6 +133,17 @@ export function IosPremiumPurchase() {
 
   return (
     <>
+      {/* PAINEL DE DEBUG TEMPORÁRIO — remover depois que o IAP funcionar */}
+      {typeof window !== "undefined" && (
+        <div className="mb-4 break-words rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-[11px] leading-relaxed text-yellow-200">
+          <p className="font-bold">🔧 DEBUG (temporário)</p>
+          <p>platform: {String((window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.() ?? "?")}</p>
+          <p>Purchases disponível: {String((window as unknown as { Capacitor?: { isPluginAvailable?: (n: string) => boolean } }).Capacitor?.isPluginAvailable?.("Purchases") ?? false)}</p>
+          <p>Firebase disponível: {String((window as unknown as { Capacitor?: { isPluginAvailable?: (n: string) => boolean } }).Capacitor?.isPluginAvailable?.("FirebaseMessaging") ?? false)}</p>
+          <p>plugins: {(() => { const p = (window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor?.Plugins; return p ? Object.keys(p).join(", ") : "(nenhum)"; })()}</p>
+        </div>
+      )}
+
       <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">Escolha seu plano</p>
       <div className="mb-6 grid grid-cols-2 gap-3">
         {/* Anual */}
