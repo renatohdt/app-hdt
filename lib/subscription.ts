@@ -77,6 +77,19 @@ async function hasReferralPremium(userId: string, client: SupabaseClient): Promi
   return new Date(data.referral_premium_until) > new Date();
 }
 
+// Verifica premium via assinatura da Apple (IAP/RevenueCat).
+// O webhook do RevenueCat mantém `apple_premium_expires_at` atualizado.
+async function hasApplePremium(userId: string, client: SupabaseClient): Promise<boolean> {
+  const { data, error } = await client
+    .from("users")
+    .select("apple_premium_expires_at")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error || !data?.apple_premium_expires_at) return false;
+  return new Date(data.apple_premium_expires_at) > new Date();
+}
+
 /**
  * Busca a assinatura ativa de um usuário no banco.
  * Retorna null se o usuário for free ou não tiver assinatura.
@@ -114,13 +127,14 @@ export async function getUserSubscription(
 export async function isPremium(userId: string, userToken?: string | null): Promise<boolean> {
   const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  const [subscription, referralPremium, programPremium] = await Promise.all([
+  const [subscription, referralPremium, programPremium, applePremium] = await Promise.all([
     getUserSubscription(userId, userToken),
     hasReferralPremium(userId, client),
     hasActiveProgramEntitlement(client, userId),
+    hasApplePremium(userId, client),
   ]);
 
-  return subscription !== null || referralPremium || programPremium;
+  return subscription !== null || referralPremium || programPremium || applePremium;
 }
 
 /**
@@ -141,13 +155,14 @@ export async function getPlanType(userId: string, userToken?: string | null): Pr
 export async function getSubscriptionSummary(userId: string, userToken?: string | null) {
   const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  const [subscription, referralPremium, programPremium] = await Promise.all([
+  const [subscription, referralPremium, programPremium, applePremium] = await Promise.all([
     getUserSubscription(userId, userToken),
     hasReferralPremium(userId, client),
     hasActiveProgramEntitlement(client, userId),
+    hasApplePremium(userId, client),
   ]);
 
-  if (!subscription && !referralPremium && !programPremium) {
+  if (!subscription && !referralPremium && !programPremium && !applePremium) {
     return {
       plan: "free" as SubscriptionPlan,
       isPremium: false,
@@ -158,8 +173,10 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
     };
   }
 
-  if (!subscription && (referralPremium || programPremium)) {
-    // Premium sem assinatura Stripe: via indicação OU via programa comprado
+  if (!subscription && (referralPremium || programPremium || applePremium)) {
+    // Premium sem assinatura Stripe: via indicação, programa comprado OU Apple (IAP).
+    // Assinatura da Apple é gerenciada nos Ajustes da App Store, não pelo Stripe,
+    // por isso manageable = false aqui.
     return {
       plan: "monthly" as SubscriptionPlan,
       isPremium: true,

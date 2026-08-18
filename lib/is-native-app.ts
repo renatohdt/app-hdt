@@ -47,3 +47,32 @@ export function useIsNativeApp(): boolean {
 
   return isNative;
 }
+
+/**
+ * Diz em qual plataforma o app está rodando: "ios", "android" ou "web".
+ * Usado para escolher o fluxo de Premium certo:
+ *  - iOS  → compra nativa (Apple / RevenueCat)
+ *  - android → "Tenho interesse" (venda continua no site)
+ *  - web  → checkout do Stripe
+ */
+export function getNativePlatformNow(): "ios" | "android" | "web" {
+  if (typeof window === "undefined") return "web";
+
+  const w = window as unknown as {
+    Capacitor?: { getPlatform?: () => string; isNativePlatform?: () => boolean };
+  };
+
+  if (!w.Capacitor?.isNativePlatform?.()) return "web";
+  return w.Capacitor.getPlatform?.() === "ios" ? "ios" : "android";
+}
+
+/** Hook SSR-safe para a plataforma atual (começa como "web" e ajusta ao montar). */
+export function useNativePlatform(): "ios" | "android" | "web" {
+  const [platform, setPlatform] = useState<"ios" | "android" | "web">("web");
+
+  useEffect(() => {
+    setPlatform(getNativePlatformNow());
+  }, []);
+
+  return platform;
+}

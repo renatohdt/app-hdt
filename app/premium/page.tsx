@@ -8,8 +8,9 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackMetaInitiateCheckout } from "@/lib/facebook-pixel";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
-import { useIsNativeApp } from "@/lib/is-native-app";
+import { useNativePlatform } from "@/lib/is-native-app";
 import { BrandFooter } from "@/components/brand-footer";
+import { IosPremiumPurchase } from "@/components/ios-premium-purchase";
 
 type Plan = "annual" | "monthly";
 
@@ -43,7 +44,8 @@ function PremiumPageContent() {
   const router = useRouter();
   const canceled = searchParams.get("canceled") === "true";
 
-  const isNative = useIsNativeApp();
+  const platform = useNativePlatform();
+  const isNative = platform !== "web";
   const [selectedPlan, setSelectedPlan] = useState<Plan>("annual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -203,8 +205,11 @@ function PremiumPageContent() {
           ))}
         </div>
 
-        {isNative ? (
-          /* ───────── Dentro do app: sem checkout, apenas captura de interesse ───────── */
+        {platform === "ios" ? (
+          /* ───────── App iOS: compra nativa via RevenueCat (In-App Purchase) ───────── */
+          <IosPremiumPurchase />
+        ) : platform === "android" ? (
+          /* ───────── App Android: sem checkout, apenas captura de interesse ───────── */
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
             {!interested ? (
               <>

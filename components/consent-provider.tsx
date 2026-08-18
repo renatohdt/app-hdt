@@ -247,7 +247,10 @@ export function ConsentProvider({
       ready,
       hasInteracted,
       preferences,
-      canUseAds: ready && preferences.ads,
+      // No app nativo os anúncios são NÃO personalizados (sem rastreamento),
+      // então não precisam de consentimento — liberamos direto. No navegador,
+      // continua dependendo do consentimento do usuário.
+      canUseAds: ready && (isNativeAppNow() || preferences.ads),
       canUseMarketing: ready && preferences.marketing,
       savePreferences: (nextPreferences) => {
         persistPreferencesLocally(nextPreferences);
@@ -261,7 +264,10 @@ export function ConsentProvider({
     [hasInteracted, preferences, ready]
   );
 
-  const shouldShowBanner = ready && (!hasInteracted || isPanelOpen);
+  // No app nativo NÃO mostramos o banner de cookies: ele sugeria rastreamento
+  // (anúncios/marketing) e foi motivo de recusa da Apple. No app não rastreamos
+  // (anúncios não-personalizados, sem Meta Pixel), então o banner não se aplica.
+  const shouldShowBanner = ready && (!hasInteracted || isPanelOpen) && !isNativeAppNow();
 
   return (
     <ConsentContext.Provider value={contextValue}>
