@@ -42,10 +42,12 @@ workflows:
             puts "#{filename} embutido no target App."
           end
 
-          # 2b) Número de build único + flag de linker -ObjC.
-          #     O -ObjC força o linker a MANTER as classes dos plugins Capacitor
-          #     (Swift @objc) que vêm via SPM. Sem isso o iOS descarta essas classes
-          #     e o plugin não se registra em runtime ("plugin is not implemented on ios").
+          # 2b) Número de build único + flags de linker pra registrar os plugins.
+          #     Plugins Capacitor via SPM se auto-registram só se as classes deles
+          #     existirem no binário. Como nada no app as referencia diretamente, o
+          #     linker as descarta e dá "plugin is not implemented on ios".
+          #     -all_load força o linker a incluir TODAS as classes das bibliotecas
+          #     estáticas (mais forte que -ObjC, necessário p/ plugins Swift).
           bn = Time.now.to_i.to_s
           target.build_configurations.each do |c|
             c.build_settings['CURRENT_PROJECT_VERSION'] = bn
@@ -55,10 +57,10 @@ workflows:
                     when Array then existing.dup
                     else [existing]
                     end
-            flags << '-ObjC' unless flags.include?('-ObjC')
+            ['-ObjC', '-all_load'].each { |f| flags << f unless flags.include?(f) }
             c.build_settings['OTHER_LDFLAGS'] = flags
           end
-          puts "CURRENT_PROJECT_VERSION = #{bn} | OTHER_LDFLAGS += -ObjC"
+          puts "CURRENT_PROJECT_VERSION = #{bn} | OTHER_LDFLAGS += -ObjC -all_load"
 
           project.save
           RUBY
