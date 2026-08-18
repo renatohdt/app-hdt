@@ -46,12 +46,24 @@ workflows:
             puts "#{filename} embutido no target App."
           end
 
-          # 2b) Número de build único e crescente (evita 'build ja existe' no upload).
-          #     Com CocoaPods não precisa de flags de linker: os plugins registram
-          #     sozinhos.
+          # 2b) Número de build único + flag -ObjC.
+          #     O DIAGNOSTICO provou que as classes dos plugins NAO estavam no
+          #     binario (o linker descarta o que ninguem referencia). O -ObjC força
+          #     o linker a incluir todas as classes ObjC das libs estaticas do
+          #     CocoaPods -> os plugins passam a existir e se registram.
           bn = Time.now.to_i.to_s
-          target.build_configurations.each { |c| c.build_settings['CURRENT_PROJECT_VERSION'] = bn }
-          puts "CURRENT_PROJECT_VERSION = #{bn}"
+          target.build_configurations.each do |c|
+            c.build_settings['CURRENT_PROJECT_VERSION'] = bn
+            existing = c.build_settings['OTHER_LDFLAGS']
+            flags = case existing
+                    when nil then ['$(inherited)']
+                    when Array then existing.dup
+                    else [existing]
+                    end
+            flags << '-ObjC' unless flags.include?('-ObjC')
+            c.build_settings['OTHER_LDFLAGS'] = flags
+          end
+          puts "CURRENT_PROJECT_VERSION = #{bn} | OTHER_LDFLAGS += -ObjC"
 
           project.save
           RUBY
