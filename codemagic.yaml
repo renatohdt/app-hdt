@@ -17,6 +17,10 @@ workflows:
         script: npm ci
       - name: Sincronizar Capacitor (iOS)
         script: npx cap sync ios
+      - name: Instalar Pods (CocoaPods)
+        script: |
+          cd ios/App
+          pod install --repo-update
       - name: Embutir Firebase e definir número de build
         script: |
           set -e
@@ -42,25 +46,12 @@ workflows:
             puts "#{filename} embutido no target App."
           end
 
-          # 2b) Número de build único + flags de linker pra registrar os plugins.
-          #     Plugins Capacitor via SPM se auto-registram só se as classes deles
-          #     existirem no binário. Como nada no app as referencia diretamente, o
-          #     linker as descarta e dá "plugin is not implemented on ios".
-          #     -all_load força o linker a incluir TODAS as classes das bibliotecas
-          #     estáticas (mais forte que -ObjC, necessário p/ plugins Swift).
+          # 2b) Número de build único e crescente (evita 'build ja existe' no upload).
+          #     Com CocoaPods não precisa de flags de linker: os plugins registram
+          #     sozinhos.
           bn = Time.now.to_i.to_s
-          target.build_configurations.each do |c|
-            c.build_settings['CURRENT_PROJECT_VERSION'] = bn
-            existing = c.build_settings['OTHER_LDFLAGS']
-            flags = case existing
-                    when nil then ['$(inherited)']
-                    when Array then existing.dup
-                    else [existing]
-                    end
-            ['-ObjC', '-all_load'].each { |f| flags << f unless flags.include?(f) }
-            c.build_settings['OTHER_LDFLAGS'] = flags
-          end
-          puts "CURRENT_PROJECT_VERSION = #{bn} | OTHER_LDFLAGS += -ObjC -all_load"
+          target.build_configurations.each { |c| c.build_settings['CURRENT_PROJECT_VERSION'] = bn }
+          puts "CURRENT_PROJECT_VERSION = #{bn}"
 
           project.save
           RUBY
@@ -81,7 +72,7 @@ workflows:
         script: |
           cd ios/App
           xcode-project build-ipa \
-            --project "App.xcodeproj" \
+            --workspace "App.xcworkspace" \
             --scheme "App"
     artifacts:
       - "**/*.ipa"

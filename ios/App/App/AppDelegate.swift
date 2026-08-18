@@ -1,6 +1,5 @@
 import UIKit
 import Capacitor
-import RevenuecatPurchasesCapacitor
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,12 +7,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // IMPORTANTE (Capacitor + SPM): referenciamos a classe do plugin do
-        // RevenueCat aqui pra FORÇAR o app a incluir e registrar essa lib. Sem
-        // essa referência direta, o linker descarta o plugin e o JS recebe
-        // "Purchases plugin is not implemented on ios".
-        _ = PurchasesPlugin.self
-
         // Override point for customization after application launch.
         return true
     }
