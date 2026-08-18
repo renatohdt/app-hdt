@@ -1,10 +1,7 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
 platform :ios, '15.0'
-# Linkagem ESTÁTICA dos frameworks: coloca as classes dos plugins no binário
-# principal do app. Com frameworks dinâmicos (use_frameworks! puro), o Capacitor
-# às vezes não encontra a classe do plugin e dá "plugin is not implemented on ios".
-use_frameworks! :linkage => :static
+use_frameworks!
 
 # workaround to avoid Xcode caching of Pods that requires
 # Product -> Clean Build Folder after new Cordova plugins installed
