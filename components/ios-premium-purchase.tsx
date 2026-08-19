@@ -30,25 +30,36 @@ export function IosPremiumPurchase() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [dbg, setDbg] = useState("carregando...");
 
   useEffect(() => {
     let active = true;
 
     (async () => {
       try {
-        if (!supabase) return;
+        if (!supabase) {
+          if (active) setDbg("sem cliente supabase");
+          return;
+        }
         const { data } = await supabase.auth.getSession();
         const uid = data.session?.user?.id ?? null;
         if (!active) return;
         setUserId(uid);
 
-        if (uid) {
-          await configureRevenueCat(uid);
-          const pkgs = await getPremiumPackages();
-          if (active) setPackages(pkgs);
+        if (!uid) {
+          setDbg("sem login (userId nulo)");
+          return;
         }
-      } catch {
-        // silencioso: se falhar, os botões mostram "—" e a compra avisa o erro
+
+        const cfg = await configureRevenueCat(uid);
+        const pkgs = await getPremiumPackages();
+        if (!active) return;
+        setPackages(pkgs);
+        setDbg(
+          `configure=${cfg} | mensal=${pkgs.monthly?.product.priceString ?? "-"} anual=${pkgs.annual?.product.priceString ?? "-"}`
+        );
+      } catch (e) {
+        if (active) setDbg("erro: " + (e instanceof Error ? e.message : String(e)));
       } finally {
         if (active) setLoading(false);
       }
@@ -141,6 +152,7 @@ export function IosPremiumPurchase() {
           <p>Purchases disponível: {String((window as unknown as { Capacitor?: { isPluginAvailable?: (n: string) => boolean } }).Capacitor?.isPluginAvailable?.("Purchases") ?? false)}</p>
           <p>Firebase disponível: {String((window as unknown as { Capacitor?: { isPluginAvailable?: (n: string) => boolean } }).Capacitor?.isPluginAvailable?.("FirebaseMessaging") ?? false)}</p>
           <p>plugins: {(() => { const p = (window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor?.Plugins; return p ? Object.keys(p).join(", ") : "(nenhum)"; })()}</p>
+          <p className="mt-1 font-semibold">status: {dbg}</p>
         </div>
       )}
 
