@@ -45,7 +45,12 @@ export async function configureRevenueCat(appUserId: string): Promise<boolean> {
 export async function getPremiumPackages(): Promise<{ monthly?: RcPackage; annual?: RcPackage }> {
   try {
     const Purchases = await getPurchases();
-    const offerings = await Purchases.getOfferings();
+    // getOfferings pode travar se os produtos não estiverem disponíveis na
+    // App Store ainda. Limite de 12s pra não deixar a tela presa em "Carregando".
+    const offerings = await Promise.race([
+      Purchases.getOfferings(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout_offerings")), 12000)),
+    ]);
     const pkgs = offerings?.current?.availablePackages ?? [];
     const result: { monthly?: RcPackage; annual?: RcPackage } = {};
 
