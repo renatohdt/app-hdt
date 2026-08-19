@@ -53,7 +53,8 @@ export function IosPremiumPurchase() {
           return;
         }
 
-        setDbg("c) configurando RevenueCat...");
+        const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY ?? "";
+        setDbg("c) key=[" + (apiKey ? apiKey.slice(0, 10) : "VAZIA") + "] -> configurando...");
         const cfg = await configureRevenueCat(uid);
         if (!active) return;
         setDbg("d) configure=" + cfg + " -> buscando offerings...");
