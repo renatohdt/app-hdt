@@ -54,15 +54,18 @@ export function IosPremiumPurchase() {
         }
 
         const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY ?? "";
-        setDbg("c) key=[" + (apiKey ? apiKey.slice(0, 10) : "VAZIA") + "] -> configurando...");
-        const cfg = await configureRevenueCat(uid);
+        setDbg("c1) key=" + apiKey.slice(0, 10) + " importando plugin...");
+        const rc = await import("@revenuecat/purchases-capacitor");
         if (!active) return;
-        setDbg("d) configure=" + cfg + " -> buscando offerings...");
+        setDbg("c2) plugin importado -> chamando configure...");
+        await rc.Purchases.configure({ apiKey, appUserID: uid });
+        if (!active) return;
+        setDbg("d) configurado -> buscando offerings...");
         const pkgs = await getPremiumPackages();
         if (!active) return;
         setPackages(pkgs);
         setDbg(
-          `e) configure=${cfg} | mensal=${pkgs.monthly?.product.priceString ?? "-"} anual=${pkgs.annual?.product.priceString ?? "-"}`
+          `e) mensal=${pkgs.monthly?.product.priceString ?? "-"} anual=${pkgs.annual?.product.priceString ?? "-"}`
         );
       } catch (e) {
         if (active) setDbg("erro: " + (e instanceof Error ? e.message : String(e)));
