@@ -41,22 +41,27 @@ export function IosPremiumPurchase() {
           if (active) setDbg("sem cliente supabase");
           return;
         }
+        setDbg("a) buscando sessao...");
         const { data } = await supabase.auth.getSession();
         const uid = data.session?.user?.id ?? null;
         if (!active) return;
         setUserId(uid);
+        setDbg("b) uid=" + (uid ? uid.slice(0, 8) : "null"));
 
         if (!uid) {
           setDbg("sem login (userId nulo)");
           return;
         }
 
+        setDbg("c) configurando RevenueCat...");
         const cfg = await configureRevenueCat(uid);
+        if (!active) return;
+        setDbg("d) configure=" + cfg + " -> buscando offerings...");
         const pkgs = await getPremiumPackages();
         if (!active) return;
         setPackages(pkgs);
         setDbg(
-          `configure=${cfg} | mensal=${pkgs.monthly?.product.priceString ?? "-"} anual=${pkgs.annual?.product.priceString ?? "-"}`
+          `e) configure=${cfg} | mensal=${pkgs.monthly?.product.priceString ?? "-"} anual=${pkgs.annual?.product.priceString ?? "-"}`
         );
       } catch (e) {
         if (active) setDbg("erro: " + (e instanceof Error ? e.message : String(e)));
