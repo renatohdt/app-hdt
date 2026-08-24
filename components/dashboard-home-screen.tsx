@@ -33,6 +33,7 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
 import { RecommendationsCard } from "@/components/recommendations-card";
+import { useIsNativeApp } from "@/lib/is-native-app";
 
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
@@ -63,6 +64,7 @@ export function DashboardHomeScreen({
   const generatingAnimFrameRef = useRef(0);
   const generatingCardRef = useRef<HTMLDivElement | null>(null);
   const { subscription, loading: subscriptionLoading } = useSubscription();
+  const isNative = useIsNativeApp();
   const router = useRouter();
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
   const achievement = useMemo(() => getLastUnlockedAchievement(data.totalWorkoutsAllTime), [data.totalWorkoutsAllTime]);
@@ -494,7 +496,7 @@ export function DashboardHomeScreen({
                 Premium
               </p>
               <p className="text-[15px] font-bold leading-snug text-white">
-                Evolua sem limites por R$&nbsp;9,90/mês
+                {isNative ? "Evolua sem limites com o Premium" : <>Evolua sem limites por R$&nbsp;9,90/mês</>}
               </p>
               <p className="mt-1 text-[13px] text-white/50">
                 Programas e substituições ilimitados

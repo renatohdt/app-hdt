@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { BrandFooter } from "@/components/brand-footer";
+import { useIsNativeApp } from "@/lib/is-native-app";
 
 const FEATURES = [
   { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
@@ -27,6 +28,7 @@ function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: 
 
 export default function EscolherPlanoPage() {
   const router = useRouter();
+  const isNative = useIsNativeApp();
   const trackedRef = useRef(false);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export default function EscolherPlanoPage() {
               <span className="absolute top-1.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-black text-black whitespace-nowrap">
                 ✨ PREMIUM
               </span>
-              <span className="text-xs font-bold uppercase tracking-widest text-primary">R$ 9,90<span className="text-[10px] font-normal text-white/60">/mês</span></span>
+              <span className="text-xs font-bold uppercase tracking-widest text-primary">{isNative ? "Premium" : <>R$ 9,90<span className="text-[10px] font-normal text-white/60">/mês</span></>}</span>
             </div>
           </div>
 
@@ -109,11 +111,13 @@ export default function EscolherPlanoPage() {
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
           >
             <Zap size={16} strokeWidth={2.5} />
-            Assinar Premium — R$&nbsp;9,90/mês
+            {isNative ? "Assinar Premium" : <>Assinar Premium — R$&nbsp;9,90/mês</>}
           </button>
-          <p className="text-center text-[11px] text-white/60">
-            Plano anual · R$ 118,80/ano · Economize 33%
-          </p>
+          {!isNative && (
+            <p className="text-center text-[11px] text-white/60">
+              Plano anual · R$ 118,80/ano · Economize 33%
+            </p>
+          )}
 
           {/* Botão Grátis — secundário */}
           <button

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, X, Zap } from "lucide-react";
 import { trackEvent } from "@/lib/analytics-client";
+import { useIsNativeApp } from "@/lib/is-native-app";
 
 type UpsellReason =
   | "replacement_limit"   // Tentou substituir o 3º exercício
@@ -53,7 +54,13 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
 
 export function UpsellModal({ reason, onClose }: UpsellModalProps) {
   const router = useRouter();
+  const isNative = useIsNativeApp();
   const content = CONTENT[reason];
+  // No app (iOS/Android) não mostramos preços fixos de web; o valor real
+  // aparece só na tela Premium (via App Store / RevenueCat no iOS).
+  const description = isNative
+    ? content.description.replace(/Por menos de R\$(?:&nbsp;|\s)?10\/mês\.?/i, "").trim()
+    : content.description;
 
   // Bloqueia scroll do body enquanto modal está aberto
   useEffect(() => {
@@ -105,22 +112,24 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
         </h2>
         <p
           className="mb-6 text-sm leading-relaxed text-white/60"
-          dangerouslySetInnerHTML={{ __html: content.description }}
+          dangerouslySetInnerHTML={{ __html: description }}
         />
 
-        {/* Preços rápidos */}
-        <div className="mb-5 grid grid-cols-2 gap-2 text-center">
-          <div className="rounded-2xl border border-primary/20 bg-primary/8 px-3 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">Anual</p>
-            <p className="text-lg font-bold text-white">R$&nbsp;9,90<span className="text-xs font-normal text-white/40">/mês</span></p>
-            <p className="text-[10px] text-primary">Mais popular</p>
+        {/* Preços rápidos — só no navegador (no app o preço vem da loja) */}
+        {!isNative && (
+          <div className="mb-5 grid grid-cols-2 gap-2 text-center">
+            <div className="rounded-2xl border border-primary/20 bg-primary/8 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">Anual</p>
+              <p className="text-lg font-bold text-white">R$&nbsp;9,90<span className="text-xs font-normal text-white/40">/mês</span></p>
+              <p className="text-[10px] text-primary">Mais popular</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Mensal</p>
+              <p className="text-lg font-bold text-white">R$&nbsp;14,90<span className="text-xs font-normal text-white/40">/mês</span></p>
+              <p className="text-[10px] text-white/30">Cartão</p>
+            </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Mensal</p>
-            <p className="text-lg font-bold text-white">R$&nbsp;14,90<span className="text-xs font-normal text-white/40">/mês</span></p>
-            <p className="text-[10px] text-white/30">Cartão</p>
-          </div>
-        </div>
+        )}
 
         {/* CTA */}
         <button
