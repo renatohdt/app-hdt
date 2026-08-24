@@ -8,7 +8,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackMetaInitiateCheckout } from "@/lib/facebook-pixel";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
-import { useNativePlatform } from "@/lib/is-native-app";
+import { getNativePlatformNow, useNativePlatform } from "@/lib/is-native-app";
 import { BrandFooter } from "@/components/brand-footer";
 import { IosPremiumPurchase } from "@/components/ios-premium-purchase";
 
@@ -52,6 +52,19 @@ function PremiumPageContent() {
   const [interested, setInterested] = useState(false);
   const trackedRef = useRef(false);
   const autoCheckoutRef = useRef(false);
+
+  // DIAGNÓSTICO TEMPORÁRIO — remover depois de identificar a causa.
+  const [diag, setDiag] = useState<string>("");
+  useEffect(() => {
+    const w = window as unknown as {
+      Capacitor?: { getPlatform?: () => string; isNativePlatform?: () => boolean };
+    };
+    const hasCap = !!w.Capacitor;
+    const isNat = hasCap && w.Capacitor?.isNativePlatform?.() ? "true" : "false";
+    const capPlat = hasCap ? (w.Capacitor?.getPlatform?.() ?? "?") : "no-cap";
+    const uaTag = navigator.userAgent.includes("HoraDoTreinoApp") ? "SIM" : "NAO";
+    setDiag(`platform=${getNativePlatformNow()} | Capacitor=${hasCap} | isNative=${isNat} | getPlatform=${capPlat} | UA-tag=${uaTag}`);
+  }, []);
 
   useEffect(() => {
     if (!trackedRef.current) {
@@ -137,6 +150,13 @@ function PremiumPageContent() {
   return (
     <main className="min-h-screen min-h-[100dvh] bg-[#080808] px-4 py-8 text-white sm:px-6">
       <div className="mx-auto w-full max-w-lg">
+
+        {/* DIAGNÓSTICO TEMPORÁRIO — remover depois */}
+        {diag && (
+          <div className="mb-4 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-[11px] leading-relaxed text-yellow-200 break-all">
+            🔎 {diag}
+          </div>
+        )}
 
         {/* Voltar */}
         <Link
