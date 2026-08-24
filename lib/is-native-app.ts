@@ -62,8 +62,20 @@ export function getNativePlatformNow(): "ios" | "android" | "web" {
     Capacitor?: { getPlatform?: () => string; isNativePlatform?: () => boolean };
   };
 
-  if (!w.Capacitor?.isNativePlatform?.()) return "web";
-  return w.Capacitor.getPlatform?.() === "ios" ? "ios" : "android";
+  // 1) Fonte mais precisa: o objeto Capacitor injetado pelo app nativo.
+  if (w.Capacitor?.isNativePlatform?.()) {
+    return w.Capacitor.getPlatform?.() === "ios" ? "ios" : "android";
+  }
+
+  // 2) Reforço pelo user agent (marca "HoraDoTreinoApp" está presente desde o
+  //    primeiro instante, sem "corrida" de carregamento). Como só temos iOS e
+  //    Android como apps nativos, "é nativo e não é Android" => iOS.
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (ua.includes("HoraDoTreinoApp")) {
+    return /android/i.test(ua) ? "android" : "ios";
+  }
+
+  return "web";
 }
 
 /** Hook SSR-safe para a plataforma atual (começa como "web" e ajusta ao montar). */
