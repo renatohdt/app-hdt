@@ -31,8 +31,25 @@ export function IosPremiumPurchase() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  // Carrega os planos (configura o RevenueCat + busca os pacotes).
+  // Reutilizado pelo botão "Tentar novamente".
+  async function loadPackagesFor(uid: string) {
+    setLoading(true);
+    try {
+      await configureRevenueCat(uid);
+      const pkgs = await getPremiumPackages();
+      setPackages(pkgs);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
+    // Rede de segurança: nunca deixa a tela presa em "Carregando".
+    const safety = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 12000);
 
     (async () => {
       try {
@@ -48,16 +65,27 @@ export function IosPremiumPurchase() {
           if (active) setPackages(pkgs);
         }
       } catch {
-        // silencioso: se falhar, os botões mostram "—" e a compra avisa o erro
+        // silencioso: se falhar, mostramos a mensagem de "não carregou" abaixo
       } finally {
         if (active) setLoading(false);
+        clearTimeout(safety);
       }
     })();
 
     return () => {
       active = false;
+      clearTimeout(safety);
     };
   }, []);
+
+  async function handleRetry() {
+    if (!userId) {
+      router.push(`/login?next=${encodeURIComponent("/premium")}`);
+      return;
+    }
+    setError(null);
+    await loadPackagesFor(userId);
+  }
 
   async function handleBuy() {
     setError(null);
@@ -185,9 +213,23 @@ export function IosPremiumPurchase() {
         </div>
       )}
 
+      {/* Planos não carregaram (ex.: App Store ainda propagando): mensagem clara + tentar de novo */}
+      {!loading && !packages.annual && !packages.monthly && (
+        <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm text-white/70">
+          <p>Não foi possível carregar os planos agora.</p>
+          <button
+            onClick={handleRetry}
+            disabled={busy}
+            className="mt-3 w-full rounded-xl border border-primary/40 px-4 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 disabled:opacity-60"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       <button
         onClick={handleBuy}
-        disabled={busy || loading}
+        disabled={busy || loading || (!packages.annual && !packages.monthly)}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Zap size={16} strokeWidth={2.5} />

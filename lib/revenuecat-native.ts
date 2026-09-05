@@ -19,21 +19,31 @@ async function getPurchases(): Promise<any> {
   return mod.Purchases;
 }
 
+// Garante que uma promessa não trave a tela pra sempre: se passar do tempo,
+// rejeita para o fluxo seguir em frente.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(label)), ms)),
+  ]);
+}
+
 let configured = false;
 
 // Configura o RevenueCat e identifica o usuário (app_user_id = id do Supabase).
 // Assim o webhook sabe de quem é a compra.
+// Tem tempo-limite: se a chamada nativa travar, não deixa a tela presa em "Carregando".
 export async function configureRevenueCat(appUserId: string): Promise<boolean> {
   const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY;
   if (!apiKey) return false;
 
   try {
-    const Purchases = await getPurchases();
+    const Purchases = await withTimeout(getPurchases(), 8000, "timeout_import");
     if (!configured) {
-      await Purchases.configure({ apiKey, appUserID: appUserId });
+      await withTimeout(Purchases.configure({ apiKey, appUserID: appUserId }), 8000, "timeout_configure");
       configured = true;
     } else {
-      await Purchases.logIn({ appUserID: appUserId });
+      await withTimeout(Purchases.logIn({ appUserID: appUserId }), 8000, "timeout_login");
     }
     return true;
   } catch {
