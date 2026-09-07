@@ -415,6 +415,16 @@ function ConsentManagedScripts({
         </>
       ) : null}
 
+      {/* Pixel de conversão da OpenAI (anúncios do ChatGPT).
+          Mesmas regras do Meta Pixel: só na web (nunca no app nativo, pra não
+          reabrir rastreamento nas lojas) e só com consentimento de marketing.
+          Usa a variável global "oaiq", isolada do fbq e do AdSense. */}
+      {canUseMarketingHere ? (
+        <Script id="openai-pixel" strategy="afterInteractive">
+          {`!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"4W1Z71fNPpJ2cd7a4cUVXh",debug:true});`}
+        </Script>
+      ) : null}
+
     </>
   );
 }
