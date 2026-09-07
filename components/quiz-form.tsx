@@ -9,6 +9,7 @@ import { Button, Card } from "@/components/ui";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { trackMetaCompleteRegistration } from "@/lib/facebook-pixel";
+import { trackOpenAiRegistration } from "@/lib/openai-pixel";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
 import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib/supabase-browser";
@@ -361,6 +362,7 @@ export function QuizForm() {
             location: "home"
           });
           trackMetaCompleteRegistration();
+          trackOpenAiRegistration();
           trackAppEvent("workout_generated", payload.data.userId ?? null, {
             goal: answers.goal ?? null,
             source: "quiz_submit"

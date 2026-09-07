@@ -7,6 +7,7 @@ import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
 import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib/supabase-browser";
+import { trackOpenAiRegistration } from "@/lib/openai-pixel";
 
 type ApiEnvelope<T> = { success: boolean; data?: T; error?: string };
 
@@ -63,6 +64,9 @@ export function ProgramSignupForm({ slug }: { slug: string }) {
       if (!signupJson.success) {
         throw new Error(signupJson.error ?? "Não foi possível concluir o cadastro.");
       }
+
+      // Cadastro concluído — evento de conversão OpenAI (web only, no-op se ausente).
+      trackOpenAiRegistration();
 
       // Segue direto para o checkout do programa.
       const checkoutRes = await fetchWithAuth("/api/stripe/program-checkout", {

@@ -7,6 +7,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 import { trackEvent as trackGA4 } from "@/lib/analytics";
 import { BrandFooter } from "@/components/brand-footer";
+import { trackOpenAiPurchase } from "@/lib/openai-pixel";
 
 // Dispara eventos de conversão uma única vez após o pagamento.
 // Serve tanto para assinatura (plan mensal/anual) quanto para compra de programa.
@@ -16,6 +17,8 @@ function fireConversionEvents(plan: string | null, isProgram: boolean) {
     // dashboard de analytics; o valor monetário exato pode ser adicionado
     // futuramente via parâmetro na URL de sucesso.
     trackEvent("purchase", null, { type: "program" });
+    // OpenAI (anúncios do ChatGPT) — compra concluída (web only, no-op se ausente).
+    trackOpenAiPurchase({ currency: "BRL", contentName: "Programa" });
     return;
   }
 
@@ -46,6 +49,14 @@ function fireConversionEvents(plan: string | null, isProgram: boolean) {
       content_type: "product",
     });
   }
+
+  // OpenAI (anúncios do ChatGPT) — compra concluída. amount em CENTAVOS (inteiro).
+  // Web only: no-op se o pixel não estiver carregado (app nativo/sem consentimento).
+  trackOpenAiPurchase({
+    amountCents: Math.round(value * 100),
+    currency: "BRL",
+    contentName: `Premium ${isAnnual ? "Anual" : "Mensal"}`,
+  });
 }
 
 function SuccessContent() {
