@@ -1,5 +1,11 @@
 "use client";
 
+// Import estático: traz o módulo do RevenueCat junto com a página (que já
+// carrega normalmente). O import dinâmico ("preguiçoso") estava travando no
+// app (timeout_import), impedindo os planos de carregarem. registerPlugin do
+// Capacitor é seguro em SSR (só retorna um proxy; não acessa window ao importar).
+import { Purchases } from "@revenuecat/purchases-capacitor";
+
 // Wrapper do RevenueCat para o app iOS. Só é chamado DENTRO do app nativo.
 // Usa import dinâmico: o pacote só carrega quando as funções são chamadas
 // (e só chamamos no iOS), então o build web não quebra nem fica pesado.
@@ -15,8 +21,9 @@ export type RcPackage = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getPurchases(): Promise<any> {
-  const mod = await import("@revenuecat/purchases-capacitor");
-  return mod.Purchases;
+  // Antes: await import(...) — carregava sob demanda e travava no app.
+  // Agora: o módulo já veio no import estático do topo.
+  return Purchases;
 }
 
 // Garante que uma promessa não trave a tela pra sempre: se passar do tempo,
