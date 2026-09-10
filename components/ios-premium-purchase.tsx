@@ -98,7 +98,9 @@ export function IosPremiumPurchase() {
           ? await supabase.auth.getSession()
           : { data: { session: null } };
         const uid = data.session?.user?.id ?? null;
-        const result = await diagnoseRevenueCat(uid);
+        const result = await diagnoseRevenueCat(uid, (s) => {
+          if (active) setDiag(s);
+        });
         if (active) setDiag(result);
       } catch (e) {
         if (active) setDiag(`diag falhou: ${String(e)}`);

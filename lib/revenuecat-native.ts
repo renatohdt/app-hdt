@@ -109,60 +109,83 @@ export async function restorePremium(): Promise<{ ok: boolean }> {
 // DIAGNÓSTICO TEMPORÁRIO — revela por que os planos não carregam.
 // Chama getOfferings E getProducts (sem timeout artificial) e devolve tudo
 // numa string curta pra mostrar na tela. Remover depois de resolver.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function diagnoseRevenueCat(appUserId: string | null): Promise<string> {
+export async function diagnoseRevenueCat(
+  appUserId: string | null,
+  onStep?: (s: string) => void
+): Promise<string> {
   const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY;
   const parts: string[] = [];
-  parts.push(`key=${apiKey ? apiKey.slice(0, 10) + "…" : "FALTANDO"}`);
-  parts.push(`uid=${appUserId ? "sim" : "nao"}`);
+  const push = (s: string) => {
+    parts.push(s);
+    try {
+      onStep?.(parts.join(" | "));
+    } catch {
+      /* ignore */
+    }
+  };
+  const errText = (e: unknown) => {
+    const err = e as { code?: string; message?: string };
+    return `${err?.code ?? ""}:${err?.message ?? String(e)}`;
+  };
+
+  push(`key=${apiKey ? apiKey.slice(0, 10) + "…" : "FALTANDO"}`);
+  push(`uid=${appUserId ? "sim" : "nao"}`);
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Purchases: any = await getPurchases();
-    parts.push("sdk=ok");
+    const Purchases: any = await withTimeout(getPurchases(), 15000, "TIMEOUT_import");
+    push("sdk=ok");
 
     try {
       if (!configured) {
-        await Purchases.configure(appUserId ? { apiKey, appUserID: appUserId } : { apiKey });
+        await withTimeout(
+          Purchases.configure(appUserId ? { apiKey, appUserID: appUserId } : { apiKey }),
+          20000,
+          "TIMEOUT"
+        );
         configured = true;
       } else if (appUserId) {
-        await Purchases.logIn({ appUserID: appUserId });
+        await withTimeout(Purchases.logIn({ appUserID: appUserId }), 20000, "TIMEOUT");
       }
-      parts.push("configure=ok");
-    } catch (e: unknown) {
-      const err = e as { code?: string; message?: string };
-      parts.push(`configure ERRO=${err?.code ?? ""}:${err?.message ?? String(e)}`);
+      push("configure=ok");
+    } catch (e) {
+      push(`configure ERRO=${errText(e)}`);
     }
 
+    push("chamando getOfferings...");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const offs: any = await Purchases.getOfferings();
-      parts.push(`offerings.all=[${Object.keys(offs?.all ?? {}).join(",")}]`);
-      parts.push(`current=${offs?.current?.identifier ?? "NULL"}`);
-      parts.push(`pkgs=${offs?.current?.availablePackages?.length ?? 0}`);
-    } catch (e: unknown) {
-      const err = e as { code?: string; message?: string };
-      parts.push(`getOfferings ERRO=${err?.code ?? ""}:${err?.message ?? String(e)}`);
+      const offs: any = await withTimeout(Purchases.getOfferings(), 20000, "TIMEOUT");
+      push(
+        `offerings.all=[${Object.keys(offs?.all ?? {}).join(",")}] current=${
+          offs?.current?.identifier ?? "NULL"
+        } pkgs=${offs?.current?.availablePackages?.length ?? 0}`
+      );
+    } catch (e) {
+      push(`getOfferings ERRO=${errText(e)}`);
     }
 
+    push("chamando getProducts...");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res: any = await Purchases.getProducts({
-        productIdentifiers: [
-          "com.horadotreino.premium.monthly",
-          "com.horadotreino.premium.annual",
-        ],
-      });
+      const res: any = await withTimeout(
+        Purchases.getProducts({
+          productIdentifiers: [
+            "com.horadotreino.premium.monthly",
+            "com.horadotreino.premium.annual",
+          ],
+        }),
+        20000,
+        "TIMEOUT"
+      );
       const prods = res?.products ?? res ?? [];
       const ids = Array.isArray(prods) ? prods.map((p: { identifier?: string }) => p.identifier).join(",") : "";
-      parts.push(`getProducts=${Array.isArray(prods) ? prods.length : 0} [${ids}]`);
-    } catch (e: unknown) {
-      const err = e as { code?: string; message?: string };
-      parts.push(`getProducts ERRO=${err?.code ?? ""}:${err?.message ?? String(e)}`);
+      push(`getProducts=${Array.isArray(prods) ? prods.length : 0} [${ids}]`);
+    } catch (e) {
+      push(`getProducts ERRO=${errText(e)}`);
     }
-  } catch (e: unknown) {
-    const err = e as { message?: string };
-    parts.push(`sdk ERRO=${err?.message ?? String(e)}`);
+  } catch (e) {
+    push(`sdk ERRO=${errText(e)}`);
   }
 
   return parts.join(" | ");
