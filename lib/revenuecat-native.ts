@@ -105,3 +105,65 @@ export async function restorePremium(): Promise<{ ok: boolean }> {
     return { ok: false };
   }
 }
+
+// DIAGNÓSTICO TEMPORÁRIO — revela por que os planos não carregam.
+// Chama getOfferings E getProducts (sem timeout artificial) e devolve tudo
+// numa string curta pra mostrar na tela. Remover depois de resolver.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function diagnoseRevenueCat(appUserId: string | null): Promise<string> {
+  const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY;
+  const parts: string[] = [];
+  parts.push(`key=${apiKey ? apiKey.slice(0, 10) + "…" : "FALTANDO"}`);
+  parts.push(`uid=${appUserId ? "sim" : "nao"}`);
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Purchases: any = await getPurchases();
+    parts.push("sdk=ok");
+
+    try {
+      if (!configured) {
+        await Purchases.configure(appUserId ? { apiKey, appUserID: appUserId } : { apiKey });
+        configured = true;
+      } else if (appUserId) {
+        await Purchases.logIn({ appUserID: appUserId });
+      }
+      parts.push("configure=ok");
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      parts.push(`configure ERRO=${err?.code ?? ""}:${err?.message ?? String(e)}`);
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const offs: any = await Purchases.getOfferings();
+      parts.push(`offerings.all=[${Object.keys(offs?.all ?? {}).join(",")}]`);
+      parts.push(`current=${offs?.current?.identifier ?? "NULL"}`);
+      parts.push(`pkgs=${offs?.current?.availablePackages?.length ?? 0}`);
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      parts.push(`getOfferings ERRO=${err?.code ?? ""}:${err?.message ?? String(e)}`);
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res: any = await Purchases.getProducts({
+        productIdentifiers: [
+          "com.horadotreino.premium.monthly",
+          "com.horadotreino.premium.annual",
+        ],
+      });
+      const prods = res?.products ?? res ?? [];
+      const ids = Array.isArray(prods) ? prods.map((p: { identifier?: string }) => p.identifier).join(",") : "";
+      parts.push(`getProducts=${Array.isArray(prods) ? prods.length : 0} [${ids}]`);
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      parts.push(`getProducts ERRO=${err?.code ?? ""}:${err?.message ?? String(e)}`);
+    }
+  } catch (e: unknown) {
+    const err = e as { message?: string };
+    parts.push(`sdk ERRO=${err?.message ?? String(e)}`);
+  }
+
+  return parts.join(" | ");
+}

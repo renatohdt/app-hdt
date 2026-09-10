@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { trackEvent } from "@/lib/analytics-client";
 import {
   configureRevenueCat,
+  diagnoseRevenueCat,
   getPremiumPackages,
   purchasePremium,
   restorePremium,
@@ -30,6 +31,7 @@ export function IosPremiumPurchase() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [diag, setDiag] = useState<string>("verificando...");
 
   // Carrega os planos (configura o RevenueCat + busca os pacotes).
   // Reutilizado pelo botão "Tentar novamente".
@@ -86,6 +88,26 @@ export function IosPremiumPurchase() {
     setError(null);
     await loadPackagesFor(userId);
   }
+
+  // DIAGNÓSTICO TEMPORÁRIO — mostra por que os planos não carregam. Remover depois.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data } = supabase
+          ? await supabase.auth.getSession()
+          : { data: { session: null } };
+        const uid = data.session?.user?.id ?? null;
+        const result = await diagnoseRevenueCat(uid);
+        if (active) setDiag(result);
+      } catch (e) {
+        if (active) setDiag(`diag falhou: ${String(e)}`);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleBuy() {
     setError(null);
@@ -161,6 +183,11 @@ export function IosPremiumPurchase() {
 
   return (
     <>
+      {/* DIAGNÓSTICO TEMPORÁRIO — remover depois de resolver */}
+      <div className="mb-4 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-[11px] leading-relaxed text-yellow-200 break-all">
+        🔎 {diag}
+      </div>
+
       <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">Escolha seu plano</p>
       <div className="mb-6 grid grid-cols-2 gap-3">
         {/* Anual */}
