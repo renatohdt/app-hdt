@@ -19,10 +19,13 @@ export type RcPackage = {
   product: { identifier: string; priceString: string; title?: string };
 };
 
+// Retorna o plugin do RevenueCat (um Proxy do Capacitor).
+// IMPORTANTE: NUNCA usar `await` nem Promise.race no próprio objeto retornado —
+// o Proxy intercepta o acesso a ".then" (que o await faz) e TRAVA pra sempre.
+// Esse era o bug de fundo. Use os MÉTODOS (P.configure(), P.getOfferings()...),
+// que retornam Promises de verdade e podem ser aguardados normalmente.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getPurchases(): Promise<any> {
-  // Antes: await import(...) — carregava sob demanda e travava no app.
-  // Agora: o módulo já veio no import estático do topo.
+function getPurchases(): any {
   return Purchases;
 }
 
@@ -45,12 +48,12 @@ export async function configureRevenueCat(appUserId: string): Promise<boolean> {
   if (!apiKey) return false;
 
   try {
-    const Purchases = await withTimeout(getPurchases(), 8000, "timeout_import");
+    const P = getPurchases();
     if (!configured) {
-      await withTimeout(Purchases.configure({ apiKey, appUserID: appUserId }), 8000, "timeout_configure");
+      await withTimeout(P.configure({ apiKey, appUserID: appUserId }), 8000, "timeout_configure");
       configured = true;
     } else {
-      await withTimeout(Purchases.logIn({ appUserID: appUserId }), 8000, "timeout_login");
+      await withTimeout(P.logIn({ appUserID: appUserId }), 8000, "timeout_login");
     }
     return true;
   } catch {
@@ -61,11 +64,11 @@ export async function configureRevenueCat(appUserId: string): Promise<boolean> {
 // Busca os pacotes (mensal/anual) da oferta atual configurada no RevenueCat.
 export async function getPremiumPackages(): Promise<{ monthly?: RcPackage; annual?: RcPackage }> {
   try {
-    const Purchases = await getPurchases();
+    const P = getPurchases();
     // getOfferings pode travar se os produtos não estiverem disponíveis na
     // App Store ainda. Limite de 12s pra não deixar a tela presa em "Carregando".
     const offerings = await Promise.race([
-      Purchases.getOfferings(),
+      P.getOfferings(),
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout_offerings")), 12000)),
     ]);
     const pkgs = offerings?.current?.availablePackages ?? [];
@@ -88,8 +91,8 @@ export async function purchasePremium(
   pkg: RcPackage
 ): Promise<{ ok: boolean; canceled?: boolean; error?: string }> {
   try {
-    const Purchases = await getPurchases();
-    const res = await Purchases.purchasePackage({ aPackage: pkg });
+    const P = getPurchases();
+    const res = await P.purchasePackage({ aPackage: pkg });
     const active = Boolean(res?.customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID]);
     return { ok: active };
   } catch (e: unknown) {
@@ -104,8 +107,8 @@ export async function purchasePremium(
 // Restaura compras anteriores (a Apple EXIGE esse botão).
 export async function restorePremium(): Promise<{ ok: boolean }> {
   try {
-    const Purchases = await getPurchases();
-    const res = await Purchases.restorePurchases();
+    const P = getPurchases();
+    const res = await P.restorePurchases();
     const active = Boolean(res?.customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID]);
     return { ok: active };
   } catch {
@@ -135,25 +138,26 @@ export async function diagnoseRevenueCat(
     return `${err?.code ?? ""}:${err?.message ?? String(e)}`;
   };
 
-  push("BUILD=set11a");
+  push("BUILD=set11b");
   push(`key=${apiKey ? apiKey.slice(0, 10) + "…" : "FALTANDO"}`);
   push(`uid=${appUserId ? "sim" : "nao"}`);
 
   try {
+    // NÃO usar await/withTimeout no Proxy — só nos métodos dele.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Purchases: any = await withTimeout(getPurchases(), 15000, "TIMEOUT_import");
+    const P: any = getPurchases();
     push("sdk=ok");
 
     try {
       if (!configured) {
         await withTimeout(
-          Purchases.configure(appUserId ? { apiKey, appUserID: appUserId } : { apiKey }),
+          P.configure(appUserId ? { apiKey, appUserID: appUserId } : { apiKey }),
           20000,
           "TIMEOUT"
         );
         configured = true;
       } else if (appUserId) {
-        await withTimeout(Purchases.logIn({ appUserID: appUserId }), 20000, "TIMEOUT");
+        await withTimeout(P.logIn({ appUserID: appUserId }), 20000, "TIMEOUT");
       }
       push("configure=ok");
     } catch (e) {
@@ -163,7 +167,7 @@ export async function diagnoseRevenueCat(
     push("chamando getOfferings...");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const offs: any = await withTimeout(Purchases.getOfferings(), 20000, "TIMEOUT");
+      const offs: any = await withTimeout(P.getOfferings(), 20000, "TIMEOUT");
       push(
         `offerings.all=[${Object.keys(offs?.all ?? {}).join(",")}] current=${
           offs?.current?.identifier ?? "NULL"
@@ -177,7 +181,7 @@ export async function diagnoseRevenueCat(
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res: any = await withTimeout(
-        Purchases.getProducts({
+        P.getProducts({
           productIdentifiers: [
             "com.horadotreino.premium.monthly",
             "com.horadotreino.premium.annual",
