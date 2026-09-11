@@ -135,6 +135,7 @@ export async function diagnoseRevenueCat(
     return `${err?.code ?? ""}:${err?.message ?? String(e)}`;
   };
 
+  push("BUILD=set11a");
   push(`key=${apiKey ? apiKey.slice(0, 10) + "…" : "FALTANDO"}`);
   push(`uid=${appUserId ? "sim" : "nao"}`);
 

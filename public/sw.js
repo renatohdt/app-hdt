@@ -1,5 +1,5 @@
-const STATIC_CACHE = "hora-do-treino-static-v6";
-const PAGE_CACHE = "hora-do-treino-pages-v4";
+const STATIC_CACHE = "hora-do-treino-static-v7";
+const PAGE_CACHE = "hora-do-treino-pages-v5";
 const PRECACHE_URLS = [
   "/",
   "/login",
