@@ -1,0 +1,661 @@
+<div class="hdt-landing">
+
+  <!-- ===================== SPRITE DE ÍCONES (marca Hora do Treino) ===================== -->
+  <!-- Ícones vetoriais próprios, no verde da marca. Substituem os emojis para dar
+       identidade e não ter "cara de site padrão de IA". Não renderiza nada sozinho. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="hdt-i-question" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M9.3 9.2a2.8 2.8 0 1 1 4.2 2.4c-.9.6-1.5 1-1.5 2.2"/>
+        <circle cx="12" cy="16.9" r=".65" fill="currentColor" stroke="none"/>
+      </symbol>
+      <symbol id="hdt-i-robot" viewBox="0 0 24 24">
+        <rect x="4" y="8" width="16" height="11" rx="2.6"/>
+        <line x1="12" y1="4.3" x2="12" y2="8"/>
+        <circle cx="12" cy="3.3" r="1.2"/>
+        <circle cx="9" cy="13.2" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="15" cy="13.2" r="1.1" fill="currentColor" stroke="none"/>
+        <line x1="2.6" y1="12" x2="2.6" y2="15"/>
+        <line x1="21.4" y1="12" x2="21.4" y2="15"/>
+      </symbol>
+      <symbol id="hdt-i-target" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="5"/>
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+      </symbol>
+      <symbol id="hdt-i-chart" viewBox="0 0 24 24">
+        <line x1="4" y1="20" x2="20" y2="20"/>
+        <rect x="6" y="12" width="3" height="6" rx=".8"/>
+        <rect x="10.6" y="8" width="3" height="10" rx=".8"/>
+        <rect x="15.2" y="4.5" width="3" height="13.5" rx=".8"/>
+      </symbol>
+      <symbol id="hdt-i-ai" viewBox="0 0 24 24">
+        <rect x="7" y="7" width="10" height="10" rx="2.4"/>
+        <line x1="12" y1="3.2" x2="12" y2="7"/>
+        <line x1="12" y1="17" x2="12" y2="20.8"/>
+        <line x1="3.2" y1="12" x2="7" y2="12"/>
+        <line x1="17" y1="12" x2="20.8" y2="12"/>
+        <path d="M12 9.6l.8 1.6 1.6.8-1.6.8-.8 1.6-.8-1.6-1.6-.8 1.6-.8z" fill="currentColor" stroke="none"/>
+      </symbol>
+      <symbol id="hdt-i-dumbbell" viewBox="0 0 24 24">
+        <line x1="9" y1="12" x2="15" y2="12"/>
+        <rect x="4.6" y="8.6" width="2.8" height="6.8" rx="1"/>
+        <rect x="16.6" y="8.6" width="2.8" height="6.8" rx="1"/>
+        <line x1="3" y1="10.4" x2="3" y2="13.6"/>
+        <line x1="21" y1="10.4" x2="21" y2="13.6"/>
+      </symbol>
+      <symbol id="hdt-i-sliders" viewBox="0 0 24 24">
+        <line x1="4" y1="8.5" x2="20" y2="8.5"/>
+        <line x1="4" y1="15.5" x2="20" y2="15.5"/>
+        <circle cx="9" cy="8.5" r="2.5" fill="currentColor" stroke="none"/>
+        <circle cx="15" cy="15.5" r="2.5" fill="currentColor" stroke="none"/>
+      </symbol>
+      <symbol id="hdt-i-swap" viewBox="0 0 24 24">
+        <path d="M5 9h11"/>
+        <path d="M13 6l3 3-3 3"/>
+        <path d="M19 15H8"/>
+        <path d="M11 18l-3-3 3-3"/>
+      </symbol>
+      <symbol id="hdt-i-trend" viewBox="0 0 24 24">
+        <path d="M4 15l5-5 4 4 7-7"/>
+        <path d="M16 7h4v4"/>
+      </symbol>
+      <symbol id="hdt-i-bolt" viewBox="0 0 24 24">
+        <path d="M13 3L5 13.2h5.2L9.6 21 19 10.4h-5.4L13 3z"/>
+      </symbol>
+      <symbol id="hdt-i-crown" viewBox="0 0 24 24">
+        <path d="M4 8l3.6 3L12 5l4.4 6L20 8l-1.4 10H5.4L4 8z"/>
+        <line x1="6.6" y1="18" x2="17.4" y2="18"/>
+      </symbol>
+      <symbol id="hdt-i-check" viewBox="0 0 24 24">
+        <path d="M4.5 12.5l4.6 4.6L19.5 6.7"/>
+      </symbol>
+      <symbol id="hdt-i-play" viewBox="0 0 24 24">
+        <path d="M4.5 3.3v17.4c0 .6.65.98 1.17.66l14-8.7a.78.78 0 0 0 0-1.32l-14-8.7A.78.78 0 0 0 4.5 3.3z" fill="currentColor" stroke="none"/>
+      </symbol>
+      <symbol id="hdt-i-apple" viewBox="0 0 24 24">
+        <path d="M16.2 12.8c0-2.5 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.15-2.9.87-3.6.87-.75 0-1.9-.85-3.1-.83-1.6.02-3.05.93-3.87 2.36-1.65 2.86-.42 7.1 1.18 9.42.78 1.13 1.7 2.4 2.92 2.36 1.17-.05 1.62-.76 3.03-.76 1.4 0 1.8.76 3.03.73 1.25-.02 2.04-1.15 2.8-2.29.88-1.31 1.24-2.58 1.26-2.65-.03-.01-2.42-.93-2.44-3.69z" fill="currentColor" stroke="none"/>
+        <path d="M14.3 5.8c.65-.79 1.09-1.88.97-2.98-.94.04-2.07.63-2.74 1.41-.6.7-1.13 1.81-.99 2.88 1.05.08 2.11-.53 2.76-1.31z" fill="currentColor" stroke="none"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- ===================== HERO ===================== -->
+  <header class="hdt-hero">
+    <div class="hdt-container hdt-hero__grid">
+      <div class="hdt-hero__text">
+        <span class="hdt-badge">App de treino com IA</span>
+        <h1 class="hdt-h1">O app de <span class="hdt-accent">treino em casa</span> personalizado em poucos minutos</h1>
+        <p class="hdt-lead">O <strong>Hora do Treino</strong> é um app de treino que monta seu plano de <a href="https://horadotreino.com.br/exercicios-em-casa/">exercícios em casa</a> com IA e método de personal trainer — adaptado ao seu objetivo, nível, tempo e equipamentos.</p>
+        <div class="hdt-cta-row">
+          <a class="hdt-btn hdt-btn--primary" href="https://app.horadotreino.com.br/criar-conta">Criar Meu Treino</a>
+          <a class="hdt-btn hdt-btn--ghost" href="https://app.horadotreino.com.br/login">Entrar</a>
+        </div>
+        <p class="hdt-microcopy">Gratuito · Sem cartão · Pronto em menos de 2 minutos</p>
+
+        <!-- Baixe o app -->
+        <div class="hdt-store-row">
+          <a class="hdt-store-btn" href="https://play.google.com/store/apps/details?id=com.horadotreino.app" rel="noopener" target="_blank" aria-label="Baixar na Google Play">
+            <svg class="hdt-store-btn__ico" aria-hidden="true" focusable="false"><use href="#hdt-i-play"/></svg>
+            <span><small>Disponível na</small><strong>Google Play</strong></span>
+          </a>
+          <span class="hdt-store-btn hdt-store-btn--soon" aria-disabled="true">
+            <svg class="hdt-store-btn__ico" aria-hidden="true" focusable="false"><use href="#hdt-i-apple"/></svg>
+            <span><small>Em breve na</small><strong>App Store</strong></span>
+          </span>
+        </div>
+      </div>
+      <div class="hdt-hero__media">
+        <img
+          src="https://horadotreino.com.br/wp-content/uploads/2026/04/app-treino-em-casa.webp"
+          alt="App de treino Hora do Treino: tela de treino em casa personalizado por IA"
+          width="640" height="800" loading="eager" decoding="async" fetchpriority="high" />
+        <span class="hdt-hero__pill">✓ Treino gerado!</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== DORES ===================== -->
+  <section class="hdt-section hdt-section--light" id="hdt-dores" aria-labelledby="hdt-dores-title">
+    <div class="hdt-container">
+      <span class="hdt-eyebrow">Você se identifica?</span>
+      <h2 class="hdt-h2" id="hdt-dores-title">Treinando no improviso?</h2>
+      <p class="hdt-section-sub">Muita gente treina com esforço, mas sem direção. Isso muda agora.</p>
+      <div class="hdt-grid hdt-grid--4">
+        <article class="hdt-card">
+          <span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-question"/></svg></span>
+          <h3 class="hdt-h3">Treina, mas não sabe se está fazendo o certo?</h3>
+          <p>Sem orientação clara, o esforço pode não gerar os resultados que você espera.</p>
+        </article>
+        <article class="hdt-card">
+          <span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-robot"/></svg></span>
+          <h3 class="hdt-h3">Monta seus treinos com IA genérica?</h3>
+          <p>Recebe treinos sem direção, exercícios fora do seu nível e ainda precisa pesquisar como executar.</p>
+        </article>
+        <article class="hdt-card">
+          <span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-target"/></svg></span>
+          <h3 class="hdt-h3">Não sabe quais exercícios combinam com seu objetivo?</h3>
+          <p>Cada meta exige uma abordagem diferente. Sem isso, você pode estar treinando ao contrário.</p>
+        </article>
+        <article class="hdt-card">
+          <span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-chart"/></svg></span>
+          <h3 class="hdt-h3">Falta organização para evoluir?</h3>
+          <p>Sem estrutura, fica difícil medir progresso e manter a consistência ao longo do tempo.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== COMO FUNCIONA ===================== -->
+  <section class="hdt-section hdt-section--alt" id="hdt-como-funciona" aria-labelledby="hdt-como-title">
+    <div class="hdt-container">
+      <span class="hdt-eyebrow">Como funciona</span>
+      <h2 class="hdt-h2" id="hdt-como-title">O app de treino que monta tudo por você</h2>
+      <p class="hdt-section-sub">O Hora do Treino é um aplicativo de treino que usa inteligência artificial e método de personal trainer para montar seu plano. Chega de treino aleatório: em poucos minutos, você tem um treino de <strong>exercícios em casa</strong> alinhado ao seu objetivo, nível e realidade.</p>
+      <ol class="hdt-steps">
+        <li class="hdt-step">
+          <span class="hdt-step__num">1</span>
+          <h3 class="hdt-h3">Responda seu perfil</h3>
+          <p>Informe seu objetivo, nível de condicionamento, equipamentos disponíveis e tempo que você tem.</p>
+        </li>
+        <li class="hdt-step">
+          <span class="hdt-step__num">2</span>
+          <h3 class="hdt-h3">Receba seu treino personalizado</h3>
+          <p>O app monta um treino completo por dia, com exercícios, séries, repetições e descanso.</p>
+        </li>
+        <li class="hdt-step">
+          <span class="hdt-step__num">3</span>
+          <h3 class="hdt-h3">Treine com clareza e veja resultado</h3>
+          <p>Siga com confiança, acompanhe sua evolução e ajuste conforme avança. Sem improviso.</p>
+        </li>
+      </ol>
+      <div class="hdt-cta-row hdt-cta-row--center">
+        <a class="hdt-btn hdt-btn--primary" href="https://app.horadotreino.com.br/criar-conta">Criar meu treino grátis</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FUNCIONALIDADES ===================== -->
+  <section class="hdt-section hdt-section--light" id="hdt-funcionalidades" aria-labelledby="hdt-func-title">
+    <div class="hdt-container">
+      <span class="hdt-eyebrow">O que você encontra</span>
+      <h2 class="hdt-h2" id="hdt-func-title">Tudo que você precisa para exercícios em casa de verdade</h2>
+      <p class="hdt-section-sub">Módulos projetados para hipertrofia, emagrecimento ou condicionamento — com clareza do primeiro ao último exercício.</p>
+      <div class="hdt-grid hdt-grid--4">
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-ai"/></svg></span><h3 class="hdt-h3">Treino com apoio de IA</h3><p>Tecnologia que adapta o treino ao seu perfil, objetivo e disponibilidade.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-dumbbell"/></svg></span><h3 class="hdt-h3">Escolha seu método de treino</h3><p>Tradicional, Funcional, HIIT ou Calistenia. Ou deixe que escolhemos o melhor método para você.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-sliders"/></svg></span><h3 class="hdt-h3">Treine mais o que preferir</h3><p>Escolha qual músculo gostaria de dar mais ênfase ou deixe tudo equilibrado.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-swap"/></svg></span><h3 class="hdt-h3">Substituição de exercício</h3><p>Não tem o aparelho, achou fácil ou difícil demais? Faça a substituição inteligente na hora.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-target"/></svg></span><h3 class="hdt-h3">Todos os objetivos</h3><p>Hipertrofia, emagrecimento, definição e condicionamento físico.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-trend"/></svg></span><h3 class="hdt-h3">Evolução e conquistas</h3><p>Acompanhe seu progresso, bata metas e celebre cada conquista.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-bolt"/></svg></span><h3 class="hdt-h3">Treino Extra</h3><p>Viajando, treino em lugar diferente, sem tempo? Crie um treino extra sem perder o ritmo.</p></article>
+        <article class="hdt-card"><span class="hdt-card__icon"><svg class="hdt-ico" aria-hidden="true" focusable="false"><use href="#hdt-i-crown"/></svg></span><h3 class="hdt-h3">Gratuito e Premium</h3><p>Comece grátis e desbloqueie recursos avançados quando quiser evoluir mais.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== AVALIAÇÕES ===================== -->
+  <section class="hdt-section" id="hdt-avaliacoes" aria-labelledby="hdt-aval-title">
+    <div class="hdt-container">
+      <div class="hdt-center">
+        <span class="hdt-eyebrow hdt-eyebrow--pill">Avaliações reais</span>
+        <h2 class="hdt-h2" id="hdt-aval-title">O que dizem quem treina em casa com a <span class="hdt-accent">Hora do Treino</span></h2>
+      </div>
+      <div class="hdt-grid hdt-grid--4">
+        <article class="hdt-review">
+          <div class="hdt-stars" aria-label="4 de 5 estrelas">★★★★<span class="hdt-star--off">★</span></div>
+          <p class="hdt-review__text">“O app é bem organizado. Da pra seguir sem problemas”</p>
+          <p class="hdt-review__author">— Wanda</p>
+        </article>
+        <article class="hdt-review">
+          <div class="hdt-stars" aria-label="5 de 5 estrelas">★★★★★</div>
+          <p class="hdt-review__text">“Mt bom esta melhorando as minhas manhas”</p>
+          <p class="hdt-review__author">— Alisson</p>
+        </article>
+        <article class="hdt-review">
+          <div class="hdt-stars" aria-label="5 de 5 estrelas">★★★★★</div>
+          <p class="hdt-review__text">“Muito bom! Os treinos parecem fazer sentido e ter lógica! Os do chat GPT sempre me deixava em dúvidas”</p>
+          <p class="hdt-review__author">— Larissa</p>
+        </article>
+        <article class="hdt-review">
+          <div class="hdt-stars" aria-label="5 de 5 estrelas">★★★★★</div>
+          <p class="hdt-review__text">“Muito intuitivo, detalhado e com ótimas opções para treinar em casa/sozinha”</p>
+          <p class="hdt-review__author">— Giuliana</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FUNDADOR ===================== -->
+  <!--
+    ======================================================================
+    TROCAR A FOTO:
+    1) No WordPress vá em Mídia > Adicionar nova e suba sua foto.
+       Sugestão de nome do arquivo: renato-santiago-personal-trainer.webp
+       (a moldura é quadrada — foto proporção 1x1 fica perfeita).
+    2) Copie o "URL do arquivo" que o WordPress gera.
+    3) Cole esse URL no atributo src da imagem abaixo (onde está o placeholder).
+    Enquanto não trocar, aparece um espaço reservado com o texto "Sua foto aqui".
+    ======================================================================
+  -->
+  <section class="hdt-section hdt-section--founder" id="hdt-fundador" aria-labelledby="hdt-fundador-title">
+    <div class="hdt-container hdt-founder">
+      <div class="hdt-founder__media">
+        <div class="hdt-founder__frame">
+          <img
+            class="hdt-founder__img"
+            src="https://horadotreino.com.br/wp-content/uploads/2026/03/consultoria-de-treino-personal-trainer.webp"
+            alt="Renato Santiago, personal trainer e criador do app Hora do Treino"
+            width="480" height="600" loading="lazy" decoding="async"
+            onerror="this.style.display='none';this.parentNode.classList.add('is-empty');" />
+          <span class="hdt-founder__ph">Sua foto aqui</span>
+        </div>
+        <span class="hdt-founder__tag">15 anos de personal trainer</span>
+      </div>
+      <div class="hdt-founder__text">
+        <span class="hdt-eyebrow">Quem está por trás</span>
+        <h2 class="hdt-h2" id="hdt-fundador-title">Um método de personal trainer, dentro do app</h2>
+        <!-- EDITE O TEXTO ABAIXO À VONTADE, é a sua voz -->
+        <p>Prazer, eu sou o <strong>Renato Santiago</strong>. Sou <strong>personal trainer há 15 anos</strong> e é o meu método que está por trás do Hora do Treino. Criei o app porque via todo dia gente se esforçando de verdade e, mesmo assim, treinando no escuro: exercício aleatório, treino genérico de IA e aquela dúvida se aquilo levava a algum lugar.</p>
+        <p>Coloquei no app a mesma lógica que uso com meus alunos: montar um plano coerente com o seu objetivo, o seu nível e o seu tempo. A IA acelera e personaliza, mas quem definiu o método foi um profissional de verdade — e ele continua evoluindo com base em quem treina todo dia. Ao começar hoje, você tem 15 anos de experiência de personal trabalhando pelo seu resultado.</p>
+        <p class="hdt-founder__sign">
+          <span class="hdt-founder__name">Renato Santiago</span>
+          <span class="hdt-founder__role">Personal Trainer · CREF 0859033-G/SP</span>
+        </p>
+        <div class="hdt-social hdt-social--left">
+          <a href="https://instagram.com/horadotreino_oficial" rel="noopener" target="_blank">Instagram</a>
+          <a href="https://www.tiktok.com/@horadotreinooficial" rel="noopener" target="_blank">TikTok</a>
+          <a href="https://www.youtube.com/@HoradoTreino" rel="noopener" target="_blank">YouTube</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PLANOS / PREMIUM ===================== -->
+  <section class="hdt-section hdt-section--alt" id="hdt-premium" aria-labelledby="hdt-premium-title">
+    <div class="hdt-container">
+      <div class="hdt-center">
+        <span class="hdt-eyebrow hdt-eyebrow--pill">Planos</span>
+        <h2 class="hdt-h2" id="hdt-premium-title">Comece grátis. Evolua no <span class="hdt-accent">Premium</span>.</h2>
+        <p class="hdt-section-sub" style="margin-left:auto;margin-right:auto;">O essencial é grátis pra sempre. Se quiser destravar tudo e treinar sem limites, o Premium está a um clique.</p>
+      </div>
+
+      <div class="hdt-plans">
+        <article class="hdt-plan">
+          <h3 class="hdt-plan__name">Mensal</h3>
+          <div class="hdt-plan__price"><span class="hdt-plan__cur">R$</span>14,90<span class="hdt-plan__per">/mês</span></div>
+          <p class="hdt-plan__note">Flexível, cancele quando quiser.</p>
+          <a class="hdt-btn hdt-btn--ghost hdt-plan__btn" href="https://app.horadotreino.com.br/premium">Assinar mensal</a>
+        </article>
+
+        <article class="hdt-plan hdt-plan--featured">
+          <span class="hdt-plan__badge">Mais popular · economize 33%</span>
+          <h3 class="hdt-plan__name">Anual</h3>
+          <div class="hdt-plan__price"><span class="hdt-plan__cur">R$</span>9,90<span class="hdt-plan__per">/mês</span></div>
+          <p class="hdt-plan__note">Cobrado R$ 118,80 por ano.</p>
+          <a class="hdt-btn hdt-btn--primary hdt-plan__btn" href="https://app.horadotreino.com.br/premium">Começar como Premium</a>
+        </article>
+      </div>
+
+      <ul class="hdt-plan-features">
+        <li><svg class="hdt-ico hdt-ico--check" aria-hidden="true" focusable="false"><use href="#hdt-i-check"/></svg>Evolução do programa de treino com IA</li>
+        <li><svg class="hdt-ico hdt-ico--check" aria-hidden="true" focusable="false"><use href="#hdt-i-check"/></svg>Todos os métodos de treino liberados</li>
+        <li><svg class="hdt-ico hdt-ico--check" aria-hidden="true" focusable="false"><use href="#hdt-i-check"/></svg>Substituições de exercício ilimitadas</li>
+        <li><svg class="hdt-ico hdt-ico--check" aria-hidden="true" focusable="false"><use href="#hdt-i-check"/></svg>Treino Extra ilimitado</li>
+        <li><svg class="hdt-ico hdt-ico--check" aria-hidden="true" focusable="false"><use href="#hdt-i-check"/></svg>Experiência sem anúncios</li>
+        <li><svg class="hdt-ico hdt-ico--check" aria-hidden="true" focusable="false"><use href="#hdt-i-check"/></svg>Controle de carga e frequência</li>
+      </ul>
+
+      <p class="hdt-plan-microcopy">Pagamento seguro processado pelo Stripe · 7 dias de garantia · Cancele quando quiser</p>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section class="hdt-section hdt-section--light" id="hdt-faq" aria-labelledby="hdt-faq-title">
+    <div class="hdt-container hdt-container--narrow">
+      <span class="hdt-eyebrow">Dúvidas frequentes</span>
+      <h2 class="hdt-h2" id="hdt-faq-title">Perguntas sobre treino em casa</h2>
+      <div class="hdt-faq">
+        <details class="hdt-faq__item" open>
+          <summary>O que é o Hora do Treino?</summary>
+          <div class="hdt-faq__answer"><p>O Hora do Treino é um app de treino brasileiro que monta um plano de exercícios em casa personalizado com inteligência artificial e método de personal trainer. Você responde um questionário rápido sobre objetivo, nível, tempo e equipamentos, e recebe um treino completo com séries, repetições e descanso. É gratuito para começar, tem plano Premium opcional e está disponível na <a href="https://play.google.com/store/apps/details?id=com.horadotreino.app" rel="noopener" target="_blank">Google Play</a> e pelo navegador. Veja também nossa comparação dos <a href="https://horadotreino.com.br/quais-sao-os-melhores-aplicativos-para-treinar-em-casa/">melhores aplicativos para treinar em casa</a>.</p></div>
+        </details>
+        <details class="hdt-faq__item">
+          <summary>Preciso de equipamentos para treinar em casa?</summary>
+          <div class="hdt-faq__answer"><p>Não. O Hora do Treino monta seu plano com o que você tem — desde treinos só com o peso do corpo até treinos com halteres, elásticos ou outros acessórios. Você informa os equipamentos disponíveis e o app adapta os exercícios a eles.</p></div>
+        </details>
+        <details class="hdt-faq__item">
+          <summary>O app de treino é realmente gratuito?</summary>
+          <div class="hdt-faq__answer"><p>Sim. Você <a href="https://app.horadotreino.com.br/">cria sua conta</a> e gera um treino personalizado de graça, sem precisar de cartão de crédito. Existe um plano Premium opcional para quem quer recursos avançados, mas o uso essencial é gratuito.</p></div>
+        </details>
+        <details class="hdt-faq__item">
+          <summary>Funciona para iniciantes em exercícios em casa?</summary>
+          <div class="hdt-faq__answer"><p>Funciona muito bem. Você informa seu nível de condicionamento e o treino é ajustado para ser seguro e progressivo. Cada exercício vem com orientação de séries, repetições e descanso, para você treinar com clareza desde o primeiro dia.</p></div>
+        </details>
+        <details class="hdt-faq__item">
+          <summary>Consigo resultado treinando em casa sem academia?</summary>
+          <div class="hdt-faq__answer"><p>Sim. O que define o resultado é ter um plano alinhado ao seu objetivo e manter consistência. Com um treino estruturado por IA e acompanhamento da sua evolução, dá para conquistar hipertrofia, emagrecimento ou condicionamento sem sair de casa.</p></div>
+        </details>
+        <details class="hdt-faq__item">
+          <summary>Quanto tempo por dia preciso treinar?</summary>
+          <div class="hdt-faq__answer"><p>Você define. No questionário, informa quanto tempo tem disponível e o app monta um treino que cabe na sua rotina — seja 20, 30 ou 45 minutos por dia.</p></div>
+        </details>
+        <details class="hdt-faq__item">
+          <summary>O app está disponível para celular?</summary>
+          <div class="hdt-faq__answer"><p>Sim. O Hora do Treino já está na <a href="https://play.google.com/store/apps/details?id=com.horadotreino.app" rel="noopener" target="_blank">Google Play</a> para Android, e a versão para iPhone (App Store) chega em breve. Você também pode usar direto pelo navegador, sem instalar nada.</p></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CTA FINAL ===================== -->
+  <section class="hdt-final" aria-labelledby="hdt-final-title">
+    <div class="hdt-container">
+      <h2 class="hdt-h2" id="hdt-final-title">Chega de improvisar. Comece hoje.</h2>
+      <p class="hdt-section-sub">Seu treino em casa personalizado está a 2 minutos de distância.</p>
+      <div class="hdt-cta-row hdt-cta-row--center">
+        <a class="hdt-btn hdt-btn--primary hdt-btn--lg" href="https://app.horadotreino.com.br/criar-conta">Criar Meu Treino</a>
+      </div>
+      <div class="hdt-store-row hdt-store-row--center">
+        <a class="hdt-store-btn" href="https://play.google.com/store/apps/details?id=com.horadotreino.app" rel="noopener" target="_blank" aria-label="Baixar na Google Play">
+          <svg class="hdt-store-btn__ico" aria-hidden="true" focusable="false"><use href="#hdt-i-play"/></svg>
+          <span><small>Disponível na</small><strong>Google Play</strong></span>
+        </a>
+        <span class="hdt-store-btn hdt-store-btn--soon" aria-disabled="true">
+          <svg class="hdt-store-btn__ico" aria-hidden="true" focusable="false"><use href="#hdt-i-apple"/></svg>
+          <span><small>Em breve na</small><strong>App Store</strong></span>
+        </span>
+      </div>
+      <div class="hdt-social">
+        <a href="https://instagram.com/horadotreino_oficial" rel="noopener" target="_blank">Instagram</a>
+        <a href="https://www.tiktok.com/@horadotreinooficial" rel="noopener" target="_blank">TikTok</a>
+        <a href="https://www.youtube.com/@HoradoTreino" rel="noopener" target="_blank">YouTube</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== ESTILOS ===================== -->
+<style>
+  .hdt-landing{
+    --hdt-bg:#050705;
+    --hdt-surface:#0e120e;
+    --hdt-surface-2:#141a14;
+    --hdt-border:#1f271f;
+    --hdt-accent:#2ee06a;
+    --hdt-accent-2:#16a34a;
+    --hdt-text:#f4f7f4;
+    --hdt-muted:#9aa39a;
+    --hdt-radius:18px;
+    --hdt-maxw:1120px;
+    background:var(--hdt-bg);
+    color:var(--hdt-text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    margin:0;
+  }
+  .hdt-landing *{box-sizing:border-box;}
+  .hdt-container{max-width:var(--hdt-maxw);margin:0 auto;padding:0 20px;}
+  .hdt-container--narrow{max-width:760px;}
+  .hdt-h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.1;font-weight:800;margin:.4em 0;letter-spacing:-.02em;}
+  .hdt-h2{font-size:clamp(1.6rem,3.5vw,2.4rem);line-height:1.15;font-weight:800;margin:.2em 0 .3em;letter-spacing:-.01em;}
+  .hdt-h3{font-size:1.12rem;font-weight:700;margin:.6em 0 .35em;}
+  .hdt-accent{color:var(--hdt-accent);}
+  .hdt-lead{font-size:clamp(1.05rem,2vw,1.25rem);color:var(--hdt-muted);max-width:34ch;}
+  .hdt-eyebrow{display:inline-block;color:var(--hdt-accent);font-weight:700;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;margin-bottom:.4em;}
+  .hdt-section-sub{color:var(--hdt-muted);font-size:1.05rem;max-width:60ch;margin:0 0 2.2em;}
+
+  /* ÍCONES DA MARCA */
+  .hdt-ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;}
+
+  /* HERO */
+  .hdt-hero{padding:72px 0 48px;border-bottom:1px solid var(--hdt-border);}
+  .hdt-hero__grid{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center;}
+  .hdt-badge{display:inline-block;padding:6px 14px;border:1px solid var(--hdt-border);border-radius:999px;font-size:.82rem;color:var(--hdt-accent);background:var(--hdt-surface);}
+  .hdt-microcopy{color:var(--hdt-muted);font-size:.9rem;margin-top:14px;}
+  .hdt-hero__media{position:relative;display:flex;justify-content:center;}
+  .hdt-hero__media img{width:100%;max-width:360px;height:auto;border-radius:24px;border:1px solid var(--hdt-border);box-shadow:0 30px 80px rgba(0,0,0,.5);}
+  .hdt-hero__pill{position:absolute;top:18px;right:8px;background:var(--hdt-accent);color:#04210f;font-weight:700;font-size:.85rem;padding:8px 14px;border-radius:999px;box-shadow:0 8px 24px rgba(46,224,106,.35);}
+
+  /* BOTÕES DE LOJA */
+  .hdt-store-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px;}
+  .hdt-store-row--center{justify-content:center;margin-top:26px;}
+  .hdt-store-btn{display:inline-flex;align-items:center;gap:12px;padding:10px 18px;border-radius:14px;border:1px solid var(--hdt-border);background:var(--hdt-surface);color:var(--hdt-text);text-decoration:none;transition:transform .15s ease,border-color .15s ease;}
+  .hdt-store-btn:hover{border-color:var(--hdt-accent);transform:translateY(-2px);}
+  .hdt-store-btn__ico{width:26px;height:26px;color:var(--hdt-accent);flex-shrink:0;}
+  .hdt-store-btn small{display:block;font-size:.68rem;color:var(--hdt-muted);letter-spacing:.03em;text-transform:uppercase;}
+  .hdt-store-btn strong{display:block;font-size:1.02rem;font-weight:700;line-height:1.15;}
+  .hdt-store-btn--soon{opacity:.5;cursor:default;}
+  .hdt-store-btn--soon:hover{transform:none;border-color:var(--hdt-border);}
+
+  /* BOTÕES */
+  .hdt-cta-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px;}
+  .hdt-cta-row--center{justify-content:center;}
+  .hdt-btn{display:inline-block;padding:14px 26px;border-radius:999px;font-weight:700;text-decoration:none;font-size:1rem;transition:transform .15s ease,box-shadow .15s ease,background .15s ease;cursor:pointer;}
+  .hdt-btn--primary{background:var(--hdt-accent);color:#04210f;box-shadow:0 10px 30px rgba(46,224,106,.3);}
+  .hdt-btn--primary:hover{background:#37f077;transform:translateY(-2px);}
+  .hdt-btn--ghost{background:transparent;color:var(--hdt-text);border:1px solid var(--hdt-border);}
+  .hdt-btn--ghost:hover{border-color:var(--hdt-accent);color:var(--hdt-accent);}
+  .hdt-btn--lg{padding:18px 38px;font-size:1.1rem;}
+
+  /* SEÇÕES */
+  .hdt-section{padding:72px 0;}
+  .hdt-section--alt{background:var(--hdt-surface);border-top:1px solid var(--hdt-border);border-bottom:1px solid var(--hdt-border);}
+
+  /* GRID DE CARDS */
+  .hdt-grid{display:grid;gap:20px;}
+  .hdt-grid--4{grid-template-columns:repeat(4,1fr);}
+  .hdt-card{background:var(--hdt-surface-2);border:1px solid var(--hdt-border);border-radius:var(--hdt-radius);padding:24px;}
+  .hdt-card__icon{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;background:rgba(46,224,106,.12);border:1px solid rgba(46,224,106,.25);color:var(--hdt-accent);margin-bottom:14px;}
+  .hdt-card p{color:var(--hdt-muted);font-size:.95rem;margin:0;}
+
+  /* PASSOS */
+  .hdt-steps{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:24px;counter-reset:none;}
+  .hdt-step{background:var(--hdt-surface-2);border:1px solid var(--hdt-border);border-radius:var(--hdt-radius);padding:28px 24px;}
+  .hdt-step__num{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:12px;background:var(--hdt-accent);color:#04210f;font-weight:800;font-size:1.2rem;margin-bottom:6px;}
+  .hdt-step p{color:var(--hdt-muted);margin:0;}
+
+  /* FUNDADOR */
+  .hdt-section--founder{background:radial-gradient(circle at 15% 20%,rgba(46,224,106,.10),transparent 55%),var(--hdt-bg);}
+  .hdt-founder{display:grid;grid-template-columns:.85fr 1.15fr;gap:48px;align-items:center;}
+  .hdt-founder__media{position:relative;display:flex;flex-direction:column;align-items:center;}
+  .hdt-founder__frame{position:relative;width:100%;max-width:360px;aspect-ratio:1/1;border-radius:24px;border:1px solid var(--hdt-border);background:var(--hdt-surface-2);overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 30px 80px rgba(0,0,0,.5);}
+  .hdt-founder__img{position:relative;z-index:1;width:100%;height:100%;object-fit:cover;display:block;}
+  .hdt-founder__ph{position:absolute;z-index:0;color:var(--hdt-muted);font-size:.95rem;font-weight:600;letter-spacing:.02em;text-align:center;}
+  .hdt-founder__tag{margin-top:16px;display:inline-block;padding:8px 16px;border-radius:999px;background:var(--hdt-accent);color:#04210f;font-weight:700;font-size:.82rem;box-shadow:0 8px 24px rgba(46,224,106,.3);}
+  .hdt-founder__text p{color:#d7ded7;margin:0 0 1em;}
+  .hdt-founder__sign{display:flex;flex-direction:column;margin:1.4em 0 .4em !important;}
+  .hdt-founder__name{font-weight:800;font-size:1.15rem;color:var(--hdt-text);}
+  .hdt-founder__role{color:var(--hdt-accent);font-weight:600;font-size:.95rem;}
+  .hdt-social--left{justify-content:flex-start;margin-top:18px;}
+
+  /* PLANOS */
+  .hdt-plans{display:grid;grid-template-columns:repeat(2,minmax(0,340px));gap:22px;justify-content:center;margin:0 auto 34px;}
+  .hdt-plan{position:relative;background:var(--hdt-surface-2);border:1px solid var(--hdt-border);border-radius:var(--hdt-radius);padding:32px 26px;text-align:center;display:flex;flex-direction:column;}
+  .hdt-plan--featured{border-color:var(--hdt-accent);box-shadow:0 20px 60px rgba(46,224,106,.18);}
+  .hdt-plan__badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--hdt-accent);color:#04210f;font-weight:700;font-size:.74rem;padding:6px 14px;border-radius:999px;box-shadow:0 8px 20px rgba(46,224,106,.35);}
+  .hdt-plan__name{font-size:1.05rem;font-weight:700;color:var(--hdt-muted);letter-spacing:.04em;text-transform:uppercase;margin:.2em 0 .5em;}
+  .hdt-plan__price{font-size:2.8rem;font-weight:800;line-height:1;letter-spacing:-.02em;color:var(--hdt-text);}
+  .hdt-plan__cur{font-size:1.3rem;font-weight:700;vertical-align:super;margin-right:2px;}
+  .hdt-plan__per{font-size:1rem;font-weight:600;color:var(--hdt-muted);}
+  .hdt-plan__note{color:var(--hdt-muted);font-size:.9rem;margin:.7em 0 1.6em;}
+  .hdt-plan__btn{margin-top:auto;width:100%;text-align:center;}
+  .hdt-plan-features{list-style:none;padding:0;margin:0 auto 22px;max-width:620px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px 26px;}
+  .hdt-plan-features li{display:flex;align-items:flex-start;gap:10px;color:#d7ded7;font-size:.98rem;}
+  .hdt-ico--check{width:20px;height:20px;color:var(--hdt-accent);stroke-width:2.2;flex-shrink:0;margin-top:2px;}
+  .hdt-plan-microcopy{text-align:center;color:var(--hdt-muted);font-size:.9rem;margin:0;}
+
+  /* FAQ */
+  .hdt-faq{display:flex;flex-direction:column;gap:12px;}
+  .hdt-faq__item{background:var(--hdt-surface-2);border:1px solid var(--hdt-border);border-radius:14px;overflow:hidden;}
+  .hdt-faq__item summary{cursor:pointer;padding:18px 22px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+  .hdt-faq__item summary::-webkit-details-marker{display:none;}
+  .hdt-faq__item summary::after{content:"+";color:var(--hdt-accent);font-size:1.4rem;font-weight:700;line-height:1;}
+  .hdt-faq__item[open] summary::after{content:"–";}
+  .hdt-faq__answer{padding:0 22px 18px;color:var(--hdt-muted);}
+  .hdt-faq__answer p{margin:0;}
+  .hdt-faq__answer a{color:var(--hdt-accent-2);font-weight:600;text-decoration:underline;text-underline-offset:2px;}
+  .hdt-lead a{color:var(--hdt-accent);text-decoration:underline;text-underline-offset:2px;}
+  .hdt-section--light .hdt-faq__answer a:hover,.hdt-lead a:hover{opacity:.85;}
+
+  /* CTA FINAL */
+  .hdt-final{padding:80px 0;text-align:center;background:radial-gradient(circle at 50% 0%,rgba(46,224,106,.12),transparent 60%),var(--hdt-bg);}
+  .hdt-final .hdt-section-sub{margin-left:auto;margin-right:auto;}
+  .hdt-social{display:flex;gap:24px;justify-content:center;margin-top:34px;}
+  .hdt-social a{color:var(--hdt-muted);text-decoration:none;font-weight:600;}
+  .hdt-social a:hover{color:var(--hdt-accent);}
+
+  /* SEÇÕES CLARAS (fundo branco) */
+  .hdt-section--light{background:#ffffff;border-top:1px solid #e6eae6;border-bottom:1px solid #e6eae6;}
+  .hdt-section--light .hdt-h2{color:#0c120c;}
+  .hdt-section--light .hdt-section-sub{color:#5b645b;}
+  .hdt-section--light .hdt-card{background:#f6f8f6;border-color:#e6eae6;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .hdt-section--light .hdt-card .hdt-h3{color:#0c120c;}
+  .hdt-section--light .hdt-card p{color:#5b645b;}
+  .hdt-section--light .hdt-card__icon{background:rgba(22,163,74,.10);border-color:rgba(22,163,74,.22);color:var(--hdt-accent-2);}
+
+  /* AVALIAÇÕES */
+  .hdt-center{text-align:center;max-width:760px;margin:0 auto 2.6em;}
+  .hdt-eyebrow--pill{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border:1px solid var(--hdt-border);border-radius:999px;background:var(--hdt-surface);margin-bottom:1em;}
+  .hdt-eyebrow--pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--hdt-accent);}
+  .hdt-review{background:var(--hdt-surface-2);border:1px solid var(--hdt-border);border-radius:var(--hdt-radius);padding:24px;display:flex;flex-direction:column;}
+  .hdt-stars{color:var(--hdt-accent);letter-spacing:3px;font-size:1rem;margin-bottom:14px;}
+  .hdt-stars .hdt-star--off{color:#39433a;}
+  .hdt-review__text{color:#d7ded7;font-size:.98rem;margin:0 0 22px;flex:1;}
+  .hdt-review__author{color:var(--hdt-muted);font-weight:600;margin:0;}
+
+  /* RESPONSIVO */
+  @media (max-width:900px){
+    .hdt-hero__grid{grid-template-columns:1fr;text-align:center;gap:32px;}
+    .hdt-hero__text .hdt-lead{margin-left:auto;margin-right:auto;}
+    .hdt-cta-row{justify-content:center;}
+    .hdt-store-row{justify-content:center;}
+    .hdt-grid--4{grid-template-columns:repeat(2,1fr);}
+    .hdt-steps{grid-template-columns:1fr;}
+    .hdt-hero__text{order:1;}
+    .hdt-hero__media{order:2;}
+    .hdt-founder{grid-template-columns:1fr;text-align:center;gap:28px;}
+    .hdt-founder__media{order:1;}
+    .hdt-founder__text{order:2;}
+    .hdt-social--left{justify-content:center;}
+    .hdt-plan-features{max-width:420px;}
+  }
+  @media (max-width:560px){
+    .hdt-grid--4{grid-template-columns:1fr;}
+    .hdt-section,.hdt-hero{padding:48px 0;}
+    .hdt-hero{padding-top:32px;}
+    .hdt-container{padding:0 16px;}
+    .hdt-hero__media img{max-width:240px;}
+    .hdt-lead{max-width:none;}
+    .hdt-section-sub{font-size:1rem;}
+    .hdt-cta-row{flex-direction:column;align-items:stretch;}
+    .hdt-btn{width:100%;text-align:center;padding:16px 24px;}
+    .hdt-store-row{flex-direction:column;align-items:stretch;}
+    .hdt-store-btn{justify-content:flex-start;}
+    .hdt-social{gap:18px;flex-wrap:wrap;}
+    .hdt-plans{grid-template-columns:1fr;}
+    .hdt-plan-features{grid-template-columns:1fr;max-width:320px;text-align:left;}
+  }
+</style>
+
+<!-- ===================== DADOS ESTRUTURADOS (SEO) ===================== -->
+<!-- Ajuda o Google a entender o app e a exibir o FAQ direto na busca.   -->
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"SoftwareApplication",
+  "name":"Hora do Treino",
+  "operatingSystem":"Android, iOS, Web",
+  "applicationCategory":"HealthApplication",
+  "description":"Hora do Treino é um app de treino que monta um plano de exercícios em casa personalizado com inteligência artificial e método de personal trainer. Comece grátis.",
+  "url":"https://app.horadotreino.com.br/",
+  "inLanguage":"pt-BR",
+  "downloadUrl":"https://play.google.com/store/apps/details?id=com.horadotreino.app",
+  "installUrl":"https://play.google.com/store/apps/details?id=com.horadotreino.app",
+  "keywords":"app de treino, aplicativo de treino, treino em casa, treino personalizado, app de musculação, exercícios em casa, personal trainer",
+  "featureList":["Treino personalizado com IA","Métodos: tradicional, funcional, HIIT e calistenia","Substituição inteligente de exercícios","Acompanhamento de evolução e conquistas","Treino Extra","Plano gratuito e Premium"],
+  "author":{
+    "@type":"Person",
+    "name":"Renato Santiago",
+    "jobTitle":"Personal Trainer",
+    "identifier":"CREF 0859033-G/SP",
+    "sameAs":["https://instagram.com/horadotreino_oficial","https://www.youtube.com/@HoradoTreino"]
+  },
+  "creator":{
+    "@type":"Organization",
+    "name":"HDT Tecnologia em Esportes LTDA",
+    "alternateName":"Hora do Treino",
+    "url":"https://horadotreino.com.br/"
+  },
+  "offers":[
+    {"@type":"Offer","name":"Gratuito","price":"0","priceCurrency":"BRL"},
+    {"@type":"Offer","name":"Premium Mensal","price":"14.90","priceCurrency":"BRL","category":"subscription"},
+    {"@type":"Offer","name":"Premium Anual","price":"118.80","priceCurrency":"BRL","category":"subscription"}
+  ],
+  "aggregateRating":{
+    "@type":"AggregateRating",
+    "ratingValue":"4.8",
+    "reviewCount":"4"
+  },
+  "review":[
+    {"@type":"Review","author":{"@type":"Person","name":"Wanda"},"reviewRating":{"@type":"Rating","ratingValue":"4","bestRating":"5"},"reviewBody":"O app é bem organizado. Da pra seguir sem problemas"},
+    {"@type":"Review","author":{"@type":"Person","name":"Alisson"},"reviewRating":{"@type":"Rating","ratingValue":"5","bestRating":"5"},"reviewBody":"Mt bom esta melhorando as minhas manhas"},
+    {"@type":"Review","author":{"@type":"Person","name":"Larissa"},"reviewRating":{"@type":"Rating","ratingValue":"5","bestRating":"5"},"reviewBody":"Muito bom! Os treinos parecem fazer sentido e ter lógica! Os do chat GPT sempre me deixava em dúvidas"},
+    {"@type":"Review","author":{"@type":"Person","name":"Giuliana"},"reviewRating":{"@type":"Rating","ratingValue":"5","bestRating":"5"},"reviewBody":"Muito intuitivo, detalhado e com ótimas opções para treinar em casa/sozinha"}
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"FAQPage",
+  "mainEntity":[
+    {"@type":"Question","name":"O que é o Hora do Treino?","acceptedAnswer":{"@type":"Answer","text":"O Hora do Treino é um app de treino brasileiro que monta um plano de exercícios em casa personalizado com inteligência artificial e método de personal trainer. Você responde um questionário rápido sobre objetivo, nível, tempo e equipamentos e recebe um treino completo com séries, repetições e descanso. É gratuito para começar, tem plano Premium opcional e está disponível na Google Play e pelo navegador."}},
+    {"@type":"Question","name":"Preciso de equipamentos para treinar em casa?","acceptedAnswer":{"@type":"Answer","text":"Não. O Hora do Treino monta seu plano com o que você tem — desde treinos só com o peso do corpo até treinos com halteres, elásticos ou outros acessórios. Você informa os equipamentos disponíveis e o app adapta os exercícios a eles."}},
+    {"@type":"Question","name":"O app de treino é realmente gratuito?","acceptedAnswer":{"@type":"Answer","text":"Sim. Você cria sua conta e gera um treino personalizado de graça, sem precisar de cartão de crédito. Existe um plano Premium opcional para quem quer recursos avançados, mas o uso essencial é gratuito."}},
+    {"@type":"Question","name":"Funciona para iniciantes em exercícios em casa?","acceptedAnswer":{"@type":"Answer","text":"Funciona muito bem. Você informa seu nível de condicionamento e o treino é ajustado para ser seguro e progressivo. Cada exercício vem com orientação de séries, repetições e descanso."}},
+    {"@type":"Question","name":"Consigo resultado treinando em casa sem academia?","acceptedAnswer":{"@type":"Answer","text":"Sim. O que define o resultado é ter um plano alinhado ao seu objetivo e manter consistência. Com um treino estruturado por IA e acompanhamento da evolução, dá para conquistar hipertrofia, emagrecimento ou condicionamento sem sair de casa."}},
+    {"@type":"Question","name":"Quanto tempo por dia preciso treinar?","acceptedAnswer":{"@type":"Answer","text":"Você define. No questionário, informa quanto tempo tem disponível e o app monta um treino que cabe na sua rotina — seja 20, 30 ou 45 minutos por dia."}},
+    {"@type":"Question","name":"O app está disponível para celular?","acceptedAnswer":{"@type":"Answer","text":"Sim. O Hora do Treino já está na Google Play para Android, e a versão para iPhone (App Store) chega em breve. Você também pode usar direto pelo navegador, sem instalar nada."}}
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"HowTo",
+  "name":"Como montar seu treino em casa no app Hora do Treino",
+  "description":"Em 3 passos você recebe um treino em casa personalizado por IA com método de personal trainer.",
+  "totalTime":"PT2M",
+  "step":[
+    {"@type":"HowToStep","position":1,"name":"Responda seu perfil","text":"Informe seu objetivo, nível de condicionamento, equipamentos disponíveis e o tempo que você tem.","url":"https://app.horadotreino.com.br/criar-conta"},
+    {"@type":"HowToStep","position":2,"name":"Receba seu treino personalizado","text":"O app monta um treino completo por dia, com exercícios, séries, repetições e descanso."},
+    {"@type":"HowToStep","position":3,"name":"Treine com clareza e evolua","text":"Siga o plano, acompanhe sua evolução e ajuste conforme avança. Sem improviso."}
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"Organization",
+  "name":"Hora do Treino",
+  "legalName":"HDT Tecnologia em Esportes LTDA",
+  "url":"https://horadotreino.com.br/",
+  "logo":"https://horadotreino.com.br/wp-content/uploads/2026/03/logo-app.png",
+  "description":"App de treino em casa personalizado por IA com método de personal trainer.",
+  "founder":{
+    "@type":"Person",
+    "name":"Renato Santiago",
+    "jobTitle":"Personal Trainer",
+    "identifier":"CREF 0859033-G/SP"
+  },
+  "sameAs":[
+    "https://instagram.com/horadotreino_oficial",
+    "https://www.tiktok.com/@horadotreinooficial",
+    "https://www.youtube.com/@HoradoTreino",
+    "https://play.google.com/store/apps/details?id=com.horadotreino.app"
+  ]
+}
+</script>

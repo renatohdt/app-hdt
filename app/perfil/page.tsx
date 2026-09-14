@@ -13,6 +13,7 @@ import { computeAgeFromBirthDate } from "@/lib/age";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
 import { NativeSubscriptionManager } from "@/components/native-subscription-manager";
+import { RateAppCard } from "@/components/rate-app-card";
 import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
@@ -1383,6 +1384,9 @@ export default function PerfilPage() {
           Entrar em contato →
         </a>
       </Card>
+
+      {/* Avalie o app (aparece só no app Android; iOS quando publicado) */}
+      <RateAppCard />
 
       {/* Sair da conta */}
       <div className="pt-1">

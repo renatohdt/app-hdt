@@ -24,6 +24,7 @@
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capawesome/capacitor-app-review": "^8.0.2",
     "@revenuecat/purchases-capacitor": "^13.4.0",
     "@sentry/nextjs": "^10.53.1",
     "@supabase/supabase-js": "^2.57.4",

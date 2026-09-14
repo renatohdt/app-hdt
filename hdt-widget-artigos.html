@@ -1,0 +1,252 @@
+<!-- ============================================================
+     HORA DO TREINO — Widget interativo para artigos
+     WPCode → Add Snippet → HTML Snippet
+     Location: Insert After Post Content
+     Conditional: Post Type = Post (para aparecer só nos artigos)
+     ============================================================ -->
+
+<div class="hdt-widget" id="hdtWidget">
+
+  <!-- STEP 1 — Objetivo -->
+  <div class="hdt-w-step active" id="hw1">
+    <div class="hdt-w-header">
+      <span class="hdt-w-badge">Treino com IA</span>
+      <p class="hdt-w-author">montado por <strong>Renato Santiago</strong> · Personal Trainer</p>
+    </div>
+    <p class="hdt-w-intro">Preencha as perguntas abaixo e receba um treino personalizado montado com IA — gratuito, sem cartão.</p>
+    <div class="hdt-w-dots">
+      <span class="hdt-w-dot on"></span><span class="hdt-w-dot"></span><span class="hdt-w-dot"></span><span class="hdt-w-dot"></span>
+    </div>
+    <p class="hdt-w-question">Qual é o seu <em>objetivo</em>?</p>
+    <div class="hdt-w-opts">
+      <div class="hdt-w-opt" data-key="objetivo" data-val="Emagrecer"    data-next="hw2">Emagrecer</div>
+      <div class="hdt-w-opt" data-key="objetivo" data-val="Ganhar massa" data-next="hw2">Ganhar massa</div>
+      <div class="hdt-w-opt" data-key="objetivo" data-val="Definir"      data-next="hw2">Definir</div>
+      <div class="hdt-w-opt" data-key="objetivo" data-val="Condicionar"  data-next="hw2">Condicionamento</div>
+    </div>
+  </div>
+
+  <!-- STEP 2 — Nível -->
+  <div class="hdt-w-step" id="hw2">
+    <div class="hdt-w-header">
+      <span class="hdt-w-badge">Treino com IA</span>
+      <p class="hdt-w-author">montado por <strong>Renato Santiago</strong> · Personal Trainer</p>
+    </div>
+    <div class="hdt-w-dots">
+      <span class="hdt-w-dot on"></span><span class="hdt-w-dot on"></span><span class="hdt-w-dot"></span><span class="hdt-w-dot"></span>
+    </div>
+    <p class="hdt-w-question">Qual é o seu <em>nível</em> atual?</p>
+    <div class="hdt-w-opts">
+      <div class="hdt-w-opt" data-key="nivel" data-val="Iniciante"    data-next="hw3">Iniciante</div>
+      <div class="hdt-w-opt" data-key="nivel" data-val="Intermediário" data-next="hw3">Intermediário</div>
+      <div class="hdt-w-opt" data-key="nivel" data-val="Avançado"      data-next="hw3">Avançado</div>
+      <div class="hdt-w-opt" data-key="nivel" data-val="Voltando"      data-next="hw3">Voltando ao treino</div>
+    </div>
+  </div>
+
+  <!-- STEP 3 — Equipamentos -->
+  <div class="hdt-w-step" id="hw3">
+    <div class="hdt-w-header">
+      <span class="hdt-w-badge">Treino com IA</span>
+      <p class="hdt-w-author">montado por <strong>Renato Santiago</strong> · Personal Trainer</p>
+    </div>
+    <div class="hdt-w-dots">
+      <span class="hdt-w-dot on"></span><span class="hdt-w-dot on"></span><span class="hdt-w-dot on"></span><span class="hdt-w-dot"></span>
+    </div>
+    <p class="hdt-w-question">O que você tem <em>disponível</em>?</p>
+    <div class="hdt-w-opts">
+      <div class="hdt-w-opt" data-key="local" data-val="em casa sem equipamento"     data-next="hw4">Sem equipamento</div>
+      <div class="hdt-w-opt" data-key="local" data-val="em casa com halteres"         data-next="hw4">Halteres</div>
+      <div class="hdt-w-opt" data-key="local" data-val="na academia do condomínio"   data-next="hw4">Academia do prédio</div>
+      <div class="hdt-w-opt" data-key="local" data-val="na academia"                 data-next="hw4">Academia completa</div>
+    </div>
+  </div>
+
+  <!-- STEP 4 — Tempo -->
+  <div class="hdt-w-step" id="hw4">
+    <div class="hdt-w-header">
+      <span class="hdt-w-badge">Treino com IA</span>
+      <p class="hdt-w-author">montado por <strong>Renato Santiago</strong> · Personal Trainer</p>
+    </div>
+    <div class="hdt-w-dots">
+      <span class="hdt-w-dot on"></span><span class="hdt-w-dot on"></span><span class="hdt-w-dot on"></span><span class="hdt-w-dot on"></span>
+    </div>
+    <p class="hdt-w-question">Quanto tempo por <em>dia</em>?</p>
+    <div class="hdt-w-opts">
+      <div class="hdt-w-opt" data-key="tempo" data-val="20 minutos" data-next="hwcta">20 minutos</div>
+      <div class="hdt-w-opt" data-key="tempo" data-val="30 minutos" data-next="hwcta">30 minutos</div>
+      <div class="hdt-w-opt" data-key="tempo" data-val="45 minutos" data-next="hwcta">45 minutos</div>
+      <div class="hdt-w-opt" data-key="tempo" data-val="1 hora"     data-next="hwcta">1 hora</div>
+    </div>
+  </div>
+
+  <!-- STEP CTA — personalizado com as respostas -->
+  <div class="hdt-w-step hdt-w-cta" id="hwcta">
+    <div class="hdt-w-check">✓</div>
+    <p class="hdt-w-cta-title">Seu treino está <em>pronto</em></p>
+    <p class="hdt-w-cta-desc" id="hdtDesc">Treino personalizado montado por IA com método de personal trainer.</p>
+    <div class="hdt-w-btns">
+      <a class="hdt-w-btn" href="https://play.google.com/store/apps/details?id=com.horadotreino.app" target="_blank" rel="noopener">
+        Android — Baixar
+      </a>
+      <a class="hdt-w-btn hdt-w-btn-ios" href="https://apps.apple.com/br/app/hora-do-treino/id6743547013" target="_blank" rel="noopener">
+        iPhone — Baixar
+      </a>
+    </div>
+    <p class="hdt-w-micro">Sem cartão de crédito</p>
+    <p class="hdt-w-cref">Renato Santiago · CREF 0859033-G/SP</p>
+  </div>
+
+</div>
+
+<style>
+.hdt-widget{
+  --hg:#2ee06a;--hbg:#050705;--hsurf:#0e120e;--hborder:#1f271f;
+  --htext:#f4f7f4;--hmuted:#9aa39a;--hradius:16px;
+  background:var(--hbg);border-radius:var(--hradius);
+  border:1px solid var(--hborder);
+  padding:32px 28px;margin:40px 0;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  position:relative;overflow:hidden;
+}
+.hdt-widget::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--hg),#16a34a);
+}
+/* Steps */
+.hdt-w-step{display:none;}
+.hdt-w-step.active{display:block;animation:hdtIn .35s ease both;}
+@keyframes hdtIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+/* Header */
+.hdt-w-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.hdt-w-badge{
+  background:var(--hg);color:#04210f;
+  font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 12px;border-radius:999px;
+}
+.hdt-w-author{color:var(--hmuted);font-size:12px;margin:0;}
+.hdt-w-author strong{color:var(--htext);}
+/* Dots */
+.hdt-w-dots{display:flex;gap:6px;margin-bottom:14px;}
+.hdt-w-dot{width:6px;height:6px;border-radius:50%;background:var(--hborder);display:inline-block;transition:background .3s;}
+.hdt-w-dot.on{background:var(--hg);}
+/* Intro */
+.hdt-w-intro{
+  color:var(--hmuted);font-size:13px;line-height:1.5;
+  margin:0 0 14px;
+}
+/* Question */
+.hdt-w-question{
+  font-size:clamp(16px,3vw,20px);font-weight:800;
+  color:var(--htext);margin:0 0 18px;line-height:1.3;
+}
+.hdt-w-question em{color:var(--hg);font-style:normal;}
+/* Options */
+.hdt-w-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.hdt-w-opt{
+  background:var(--hsurf);border:1px solid var(--hborder);
+  border-radius:12px;padding:14px 12px;
+  font-size:14px;font-weight:600;color:var(--htext);
+  cursor:pointer;text-align:center;
+  transition:border-color .2s,background .2s,color .2s,transform .15s;
+  user-select:none;line-height:1.4;
+}
+.hdt-w-opt:hover{border-color:var(--hg);background:#0a160a;transform:translateY(-1px);}
+.hdt-w-opt.selected{border-color:var(--hg);background:rgba(46,224,106,.1);color:var(--hg);}
+/* CTA */
+.hdt-w-cta{text-align:center;}
+.hdt-w-check{
+  width:52px;height:52px;border-radius:50%;
+  background:var(--hg);color:#04210f;
+  font-size:24px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 16px;
+}
+.hdt-w-cta-title{
+  font-size:clamp(20px,4vw,26px);font-weight:800;
+  color:var(--htext);margin:0 0 8px;
+}
+.hdt-w-cta-title em{color:var(--hg);font-style:normal;}
+.hdt-w-cta-desc{
+  color:var(--hmuted);font-size:14px;
+  margin:0 0 22px;line-height:1.5;
+  max-width:420px;margin-left:auto;margin-right:auto;
+}
+.hdt-w-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:0;}
+.hdt-w-btn{
+  display:inline-block;
+  background:var(--hg);color:#04210f;
+  font-weight:800;font-size:14px;
+  padding:13px 26px;border-radius:999px;
+  text-decoration:none;
+  box-shadow:0 10px 30px rgba(46,224,106,.3);
+  transition:transform .15s,box-shadow .15s;
+}
+.hdt-w-btn:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(46,224,106,.4);}
+.hdt-w-btn-ios{
+  background:transparent;color:var(--hg);
+  border:1.5px solid var(--hg);
+  box-shadow:none;
+}
+.hdt-w-btn-ios:hover{background:rgba(46,224,106,.08);box-shadow:none;}
+.hdt-w-micro{color:var(--hmuted);font-size:12px;margin:12px 0 4px;}
+.hdt-w-cref{color:#39433a;font-size:11px;margin:0;}
+@media(max-width:480px){
+  .hdt-widget{padding:24px 16px;}
+  .hdt-w-opts{grid-template-columns:1fr;}
+}
+</style>
+
+<script>
+(function(){
+  var answers = {};
+
+  // Mapa de mensagens personalizadas
+  function buildDesc(a){
+    var obj = {
+      'Emagrecer':   'emagrecimento',
+      'Ganhar massa':'hipertrofia',
+      'Definir':     'definição muscular',
+      'Condicionar': 'condicionamento físico'
+    }[a.objetivo] || 'seu objetivo';
+
+    var local = a.local || 'onde você estiver';
+    var tempo = a.tempo || '';
+    var nivel = a.nivel || '';
+
+    return 'Treino de ' + obj + ' ' + local +
+           (tempo ? ', ' + tempo + ' por dia' : '') +
+           (nivel ? ', nível ' + nivel.toLowerCase() : '') +
+           '. Montado por IA com método de personal trainer.';
+  }
+
+  function goTo(nextId){
+    var cur = document.querySelector('#hdtWidget .hdt-w-step.active');
+    if(cur) cur.classList.remove('active');
+    var nxt = document.getElementById(nextId);
+    if(nxt){
+      nxt.classList.add('active');
+      // Personaliza o CTA
+      if(nextId === 'hwcta'){
+        var desc = document.getElementById('hdtDesc');
+        if(desc) desc.textContent = buildDesc(answers);
+      }
+    }
+  }
+
+  document.querySelectorAll('.hdt-w-opt').forEach(function(el){
+    el.addEventListener('click', function(){
+      // Guarda resposta
+      answers[el.getAttribute('data-key')] = el.getAttribute('data-val');
+      // Marca selecionado
+      var parent = el.closest('.hdt-w-opts');
+      parent.querySelectorAll('.hdt-w-opt').forEach(function(o){ o.classList.remove('selected'); });
+      el.classList.add('selected');
+      // Avança
+      var next = el.getAttribute('data-next');
+      setTimeout(function(){ goTo(next); }, 350);
+    });
+  });
+})();
+</script>

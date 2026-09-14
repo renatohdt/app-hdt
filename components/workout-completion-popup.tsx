@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ShareButton } from "@/components/share-button";
 import GoogleAd from "@/components/GoogleAd";
+import { registerWorkoutAndMaybeAskReview } from "@/lib/app-review";
 
 const TRAINING_AD_SLOT = "2572593951";
 
@@ -72,6 +73,16 @@ export function WorkoutCompletionPopup({ onClose, showAd = false }: { onClose: (
   });
 
   const [particles] = useState<Particle[]>(() => generateParticles(30));
+
+  // Ao concluir um treino, conta +1 e, no momento certo (a partir do 3º treino),
+  // mostra o card de avaliação da loja — só dentro do app Android; no navegador
+  // não faz nada. O pequeno atraso deixa a comemoração aparecer primeiro.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void registerWorkoutAndMaybeAskReview();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <>
