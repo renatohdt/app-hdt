@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card } from "@/components/ui";
 import { getFriendlyAuthErrorMessage, isValidEmail } from "@/lib/auth-errors";
@@ -16,6 +16,15 @@ export function LoginForm() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  // Preserva a intencao (ex.: ?next=/premium?checkout=annual) no link "Criar conta",
+  // para quem caiu no login sem ter conta nao perder o plano escolhido.
+  const [criarContaHref, setCriarContaHref] = useState("/");
+  useEffect(() => {
+    const nextParam = new URLSearchParams(window.location.search).get("next");
+    if (nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")) {
+      setCriarContaHref(`/criar-conta?next=${encodeURIComponent(nextParam)}`);
+    }
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -167,7 +176,7 @@ export function LoginForm() {
 
       <p className="mt-4 text-sm text-white/60">
         Não tem conta?{" "}
-        <Link href="/" className="font-semibold text-primary">
+        <Link href={criarContaHref} className="font-semibold text-primary">
           Criar conta
         </Link>
       </p>

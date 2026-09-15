@@ -390,7 +390,12 @@ export function QuizForm() {
 
           await completeLoadingProgress();
           setSuccessMessage("Conta criada com sucesso.");
-          router.push("/escolher-plano");
+          const nextParam = new URLSearchParams(window.location.search).get("next");
+          const destination =
+            nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")
+              ? nextParam
+              : "/escolher-plano";
+          router.push(destination);
           router.refresh();
         } catch (submissionError) {
           clientLogError("QUIZ SIGN UP FLOW ERROR", submissionError);

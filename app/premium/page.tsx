@@ -110,7 +110,7 @@ function PremiumPageContent() {
       if (response.status === 401) {
         const alreadyReturnedFromLogin = Boolean(searchParams.get("checkout"));
         if (!alreadyReturnedFromLogin) {
-          router.push(`/login?next=${encodeURIComponent(`/premium?checkout=${plan}`)}`);
+          router.push(`/criar-conta?next=${encodeURIComponent(`/premium?checkout=${plan}`)}`);
           return;
         }
         // Já voltou do login e ainda deu 401: cai no erro normal (evita loop).
