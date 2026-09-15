@@ -105,15 +105,17 @@ function PremiumPageContent() {
         body: JSON.stringify({ plan }),
       });
 
-      // Não logado: manda pro login guardando o plano, e retoma o checkout do
+      // Não logado: manda pro cadastro guardando o plano, e retoma o checkout do
       // MESMO plano assim que a pessoa voltar (via ?checkout=<plano>).
+      // A trava anti-loop usa ?auth=1 (só adicionado por nós ao redirecionar),
+      // e NÃO o ?checkout=, que também vem direto da landing.
       if (response.status === 401) {
-        const alreadyReturnedFromLogin = Boolean(searchParams.get("checkout"));
-        if (!alreadyReturnedFromLogin) {
-          router.push(`/criar-conta?next=${encodeURIComponent(`/premium?checkout=${plan}`)}`);
+        const alreadyReturnedFromAuth = Boolean(searchParams.get("auth"));
+        if (!alreadyReturnedFromAuth) {
+          router.push(`/criar-conta?next=${encodeURIComponent(`/premium?checkout=${plan}&auth=1`)}`);
           return;
         }
-        // Já voltou do login e ainda deu 401: cai no erro normal (evita loop).
+        // Já voltou da autenticação e ainda deu 401: cai no erro normal (evita loop).
       }
 
       let data: { data?: { url?: string }; error?: string } | null = null;
