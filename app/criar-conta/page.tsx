@@ -34,13 +34,8 @@ export default function CriarContaPage() {
             />
           </Link>
 
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            Gratuito · Sem cartão
-          </div>
-
           <h1 className="text-[clamp(24px,5vw,34px)] font-black leading-tight tracking-tight text-white">
-            Crie seu <span className="text-primary">treino em casa</span> grátis
+            Responda para ter um <span className="text-primary">treino personalizado</span>
           </h1>
           <p className="mt-2 max-w-md text-sm text-white/60">
             Leva menos de 2 minutos. Seu treino personalizado fica pronto na hora.
