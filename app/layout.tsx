@@ -24,26 +24,26 @@ const jakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   applicationName: "Hora do Treino",
-  title: "Treino personalizado online gratis | Hora do Treino",
+  title: "App de Treino - Com IA - Hora do Treino",
   description:
-    "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!",
+    "Com esse app de treino você terá um treino personalizado com IA para treinar em qualquer lugar, seu personal trainer no seu bolso.",
   manifest: "/manifest.webmanifest",
   verification: {
     google: "beawZ799WTCV5sDrsrKLuIIAY1-EZDVqC1YH3bvHAXs"
   },
   openGraph: {
-    title: "Treino personalizado online gratis | Hora do Treino",
+    title: "App de Treino - Com IA - Hora do Treino",
     description:
-      "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!",
+      "Com esse app de treino você terá um treino personalizado com IA para treinar em qualquer lugar, seu personal trainer no seu bolso.",
     siteName: "Hora do Treino",
     locale: "pt_BR",
     type: "website"
   },
   twitter: {
     card: "summary_large_image",
-    title: "Treino personalizado online gratis | Hora do Treino",
+    title: "App de Treino - Com IA - Hora do Treino",
     description:
-      "Tenha um treino personalizado com metodo de um personal trainer e montado por uma IA, comece agora mesmo gratis!"
+      "Com esse app de treino você terá um treino personalizado com IA para treinar em qualquer lugar, seu personal trainer no seu bolso."
   },
   appleWebApp: {
     capable: true,

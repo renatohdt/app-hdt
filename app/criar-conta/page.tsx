@@ -10,7 +10,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 export const metadata: Metadata = {
   title: "Crie sua conta | Hora do Treino",
   description:
-    "Responda algumas perguntas e receba seu treino em casa personalizado montado por IA. Comece grátis, sem cartão.",
+    "Responda algumas perguntas e receba um treino personalizado com IA e método de personal trainer para treinar em qualquer lugar.",
   robots: {
     index: false,
     follow: false
