@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Preview — Seção de funcionalidades (mockups)</title>
+<style>
+  /* ==== Tokens da marca (iguais aos da sua landing) ==== */
+  :root{
+    --hdt-accent:#2ee06a; --hdt-accent-2:#16a34a;
+    --hdt-maxw:1120px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#ffffff;color:#0c120c;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;}
+
+  .hdt-container{max-width:var(--hdt-maxw);margin:0 auto;padding:0 20px;}
+  .hdt-section{padding:72px 0;}
+  .hdt-section--light{background:#ffffff;border-top:1px solid #e6eae6;border-bottom:1px solid #e6eae6;}
+  .hdt-eyebrow{display:inline-block;color:var(--hdt-accent-2);font-weight:700;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;margin-bottom:.4em;}
+  .hdt-h2{font-size:clamp(1.6rem,3.5vw,2.4rem);line-height:1.15;font-weight:800;margin:.2em 0 .3em;letter-spacing:-.01em;color:#0c120c;}
+  .hdt-h3{font-size:1.25rem;font-weight:800;margin:.5em 0 .35em;color:#0c120c;letter-spacing:-.01em;}
+  .hdt-accent{color:var(--hdt-accent-2);}
+  .hdt-section-sub{color:#5b645b;font-size:1.05rem;max-width:60ch;margin:0 0 2.6em;}
+  .hdt-btn{display:inline-block;padding:14px 26px;border-radius:999px;font-weight:700;text-decoration:none;font-size:1rem;background:var(--hdt-accent);color:#04210f;box-shadow:0 10px 30px rgba(46,224,106,.3);}
+
+  /* ==== Showcase (mockups alternando imagem/texto) ==== */
+  .hdt-show{display:flex;flex-direction:column;gap:64px;}
+  .hdt-show__row{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;}
+  .hdt-show__row:nth-child(even) .hdt-show__media{order:2;}
+  .hdt-show__media{display:flex;justify-content:center;}
+  .hdt-show__text{max-width:44ch;}
+  .hdt-show__tag{display:inline-block;padding:6px 14px;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hdt-accent-2);background:rgba(22,163,74,.10);border:1px solid rgba(22,163,74,.22);margin-bottom:14px;}
+  .hdt-show__text p{color:#5b645b;font-size:1.02rem;margin:0;}
+
+  /* Moldura de celular (o print entra dentro) */
+  .hdt-phone{position:relative;width:100%;max-width:270px;aspect-ratio:9/19.5;border-radius:38px;background:#0b0f0b;border:1px solid #d8ddd8;padding:10px;box-shadow:0 30px 70px rgba(0,0,0,.22);}
+  .hdt-phone::before{content:"";position:absolute;top:14px;left:50%;transform:translateX(-50%);width:44%;height:20px;background:#0b0f0b;border-radius:0 0 14px 14px;z-index:2;}
+  .hdt-phone__screen{width:100%;height:100%;border-radius:29px;overflow:hidden;background:#080808;display:block;}
+  .hdt-phone__screen img{width:100%;height:100%;object-fit:cover;display:block;}
+
+  /* Placeholder só do preview (no WordPress vira o print real) */
+  .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:#8fe3ad;background:
+      radial-gradient(circle at 50% 30%,rgba(46,224,106,.14),transparent 60%),#0b120d;
+      font-size:.82rem;font-weight:600;letter-spacing:.02em;border:1px dashed rgba(46,224,106,.35);border-radius:29px;}
+
+  .hdt-cta-row--center{display:flex;justify-content:center;margin-top:56px;}
+
+  @media (max-width:820px){
+    .hdt-show__row{grid-template-columns:1fr;gap:22px;text-align:center;}
+    .hdt-show__row:nth-child(even) .hdt-show__media{order:0;}
+    .hdt-show__text{max-width:none;margin:0 auto;}
+    .hdt-show{gap:48px;}
+  }
+</style>
+</head>
+<body>
+
+  <section class="hdt-section hdt-section--light">
+    <div class="hdt-container">
+      <span class="hdt-eyebrow">Por dentro do app</span>
+      <h2 class="hdt-h2">Veja o Hora do Treino <span class="hdt-accent">por dentro</span></h2>
+      <p class="hdt-section-sub">Menos promessa, mais prova: as telas reais que montam, adaptam e acompanham o seu treino — onde você estiver.</p>
+
+      <div class="hdt-show">
+
+        <!-- 1 -->
+        <article class="hdt-show__row">
+          <div class="hdt-show__media">
+            <div class="hdt-phone"><div class="hdt-phone__screen"><div class="ph">PRINT 1<br>Tela do treino gerado</div></div></div>
+          </div>
+          <div class="hdt-show__text">
+            <span class="hdt-show__tag">IA + método de personal</span>
+            <h3 class="hdt-h3">Seu treino montado em minutos</h3>
+            <p>Responda seu perfil e a IA monta um plano completo com o método de um personal de 15 anos: exercícios, séries, repetições e descanso — do jeito certo pra você.</p>
+          </div>
+        </article>
+
+        <!-- 2 -->
+        <article class="hdt-show__row">
+          <div class="hdt-show__media">
+            <div class="hdt-phone"><div class="hdt-phone__screen"><div class="ph">PRINT 2<br>Escolha do método de treino</div></div></div>
+          </div>
+          <div class="hdt-show__text">
+            <span class="hdt-show__tag">Métodos de treino</span>
+            <h3 class="hdt-h3">Treine do seu jeito</h3>
+            <p>Tradicional, Funcional, HIIT ou Calistenia. Combine os métodos no mesmo programa ou deixe a IA escolher o ideal para o seu objetivo.</p>
+          </div>
+        </article>
+
+        <!-- 3 -->
+        <article class="hdt-show__row">
+          <div class="hdt-show__media">
+            <div class="hdt-phone"><div class="hdt-phone__screen"><div class="ph">PRINT 3<br>Substituição de exercício</div></div></div>
+          </div>
+          <div class="hdt-show__text">
+            <span class="hdt-show__tag">Substituição inteligente</span>
+            <h3 class="hdt-h3">Trocou, continuou</h3>
+            <p>Não tem o aparelho ou achou o exercício difícil demais? Substitua na hora por um equivalente, sem quebrar a lógica do seu treino.</p>
+          </div>
+        </article>
+
+        <!-- 4 -->
+        <article class="hdt-show__row">
+          <div class="hdt-show__media">
+            <div class="hdt-phone"><div class="hdt-phone__screen"><div class="ph">PRINT 4<br>Evolução e conquistas</div></div></div>
+          </div>
+          <div class="hdt-show__text">
+            <span class="hdt-show__tag">Evolução e conquistas</span>
+            <h3 class="hdt-h3">Veja seu progresso de verdade</h3>
+            <p>Acompanhe conquistas e metas batidas. Cada treino registrado vira prova de que o seu esforço está levando a algum lugar.</p>
+          </div>
+        </article>
+
+        <!-- 5 -->
+        <article class="hdt-show__row">
+          <div class="hdt-show__media">
+            <div class="hdt-phone"><div class="hdt-phone__screen"><div class="ph">PRINT 5<br>Cronômetro / controle de carga</div></div></div>
+          </div>
+          <div class="hdt-show__text">
+            <span class="hdt-show__tag">Foco na execução</span>
+            <h3 class="hdt-h3">Treine no ritmo certo</h3>
+            <p>Controle de carga e frequência com cronômetro de descanso integrado — tudo pra você executar cada série com foco, sem olhar o relógio.</p>
+          </div>
+        </article>
+
+      </div>
+
+      <div class="hdt-cta-row--center">
+        <a class="hdt-btn" href="https://app.horadotreino.com.br/criar-conta">Começar meu treino</a>
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>
