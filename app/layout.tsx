@@ -8,6 +8,7 @@ import { AppVersionFooter } from "@/components/app-version-footer";
 import { ConsentProvider } from "@/components/consent-provider";
 import { SubscriptionProvider } from "@/components/subscription-provider";
 import { ClarityScript } from "@/components/clarity-script";
+import { PostHogIdentify } from "@/components/posthog-identify";
 import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { NativePushProvider } from "@/components/native-push-provider";
@@ -109,6 +110,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <GoogleTag />
             </Suspense>
             <ClarityScript />
+            <PostHogIdentify />
             <div className="flex min-h-screen flex-col">
               <PwaRegistration />
               <NativePushProvider />

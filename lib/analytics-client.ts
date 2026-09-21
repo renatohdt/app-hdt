@@ -4,6 +4,7 @@ import { type AnalyticsEventName } from "@/lib/analytics-events";
 import { trackEvent as trackGoogleAnalyticsEvent } from "@/lib/analytics";
 import { getAccessToken } from "@/lib/authenticated-fetch";
 import { clientLogError } from "@/lib/client-logger";
+import { capturePostHog } from "@/lib/posthog-client";
 
 const TRACKING_VISITOR_STORAGE_KEY = "hora-do-treino-visitor-id";
 const LEGACY_TRACKING_STORAGE_KEY = "hora-do-treino-tracking-id";
@@ -66,6 +67,7 @@ export function trackEvent(
   metadata?: AnalyticsEventMetadata
 ) {
   forwardEventToGoogleAnalytics(event_name, metadata);
+  forwardEventToPostHog(event_name, metadata);
 
   if (typeof window === "undefined") {
     return;
@@ -178,6 +180,10 @@ function forwardEventToGoogleAnalytics(eventName: AnalyticsEventName, metadata?:
     ...metadata,
     source_event: eventName === canonicalEventName ? undefined : eventName
   });
+}
+
+function forwardEventToPostHog(eventName: AnalyticsEventName, metadata?: AnalyticsEventMetadata) {
+  capturePostHog(eventName, metadata);
 }
 
 function getGoogleAnalyticsEventName(eventName: AnalyticsEventName) {
