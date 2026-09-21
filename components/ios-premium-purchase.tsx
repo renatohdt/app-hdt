@@ -14,6 +14,7 @@ import {
   restorePremium,
   type RcPackage,
 } from "@/lib/revenuecat-native";
+import { useSubscription } from "@/components/use-subscription";
 
 type Plan = "annual" | "monthly";
 
@@ -23,6 +24,7 @@ type Plan = "annual" | "monthly";
  */
 export function IosPremiumPurchase() {
   const router = useRouter();
+  const { refresh } = useSubscription();
   const [userId, setUserId] = useState<string | null>(null);
   const [packages, setPackages] = useState<{ monthly?: RcPackage; annual?: RcPackage }>({});
   const [selected, setSelected] = useState<Plan>("annual");
@@ -111,6 +113,8 @@ export function IosPremiumPurchase() {
     if (res.ok) {
       trackEvent("purchase", null, { plan: selected, source: "ios_iap" });
       setDone(true);
+      // Atualiza o status premium no app (com re-tentativas p/ o webhook do RevenueCat).
+      void refresh();
     } else if (res.canceled) {
       // usuário fechou o pop-up da Apple: não é erro
     } else {
@@ -131,6 +135,8 @@ export function IosPremiumPurchase() {
 
     if (res.ok) {
       setDone(true);
+      // Atualiza o status premium no app (com re-tentativas p/ o webhook do RevenueCat).
+      void refresh();
     } else {
       setError("Nenhuma assinatura anterior encontrada nesta conta Apple.");
     }
