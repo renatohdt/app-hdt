@@ -1,4 +1,5 @@
 import posthog from "posthog-js";
+import { getNativePlatformNow, isNativeAppNow } from "@/lib/is-native-app";
 
 // Chave e host vem das variaveis de ambiente (NEXT_PUBLIC_*, expostas ao client).
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim() ?? "";
@@ -27,6 +28,17 @@ export function initPostHog() {
     // Ja gravamos sessao com Microsoft Clarity e Sentry - nao duplicar aqui.
     disable_session_recording: true,
   });
+
+  // Carimba todo evento com a plataforma (ios/android/web) e se e app nativo,
+  // para segmentar funil/retencao por plataforma no PostHog.
+  try {
+    posthog.register({
+      platform: getNativePlatformNow(),
+      is_native_app: isNativeAppNow(),
+    });
+  } catch {
+    // registro de super properties e best-effort; nunca deve quebrar o app.
+  }
 }
 
 // Associa os eventos a um usuario conhecido (chamado no login).
