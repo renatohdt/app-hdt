@@ -215,6 +215,70 @@ export async function fetchAvailableWorkoutLocations(
   return Array.from(locations);
 }
 
+// Treinos padrão (não-extra) do usuário, com id e created_at. Usado para a
+// contagem UNIFICADA de sessões do programa (soma de todos os locais).
+export async function fetchUserStandardWorkouts(
+  supabase: SupabaseLike,
+  userId: string
+): Promise<{ id: string; created_at: string | null }[]> {
+  const result = await supabase
+    .from("workouts")
+    .select("id, created_at")
+    .eq("user_id", userId)
+    .neq("type", "extra");
+
+  if (result.error || !Array.isArray(result.data)) {
+    return [];
+  }
+  return result.data
+    .map((row: unknown) => {
+      const r = row as { id?: unknown; created_at?: unknown };
+      return {
+        id: typeof r.id === "string" ? r.id : "",
+        created_at: typeof r.created_at === "string" ? r.created_at : null
+      };
+    })
+    .filter((w: { id: string; created_at: string | null }) => Boolean(w.id));
+}
+
+// Início do ciclo do programa (nível usuário). Usa o valor persistido em answers;
+// no fallback (usuário antigo, ainda sem o campo) usa o created_at MAIS ANTIGO
+// entre os treinos padrão — estável ao trocar/adicionar local.
+export function resolveProgramCycleStart(
+  programCycleStartedAt: string | null | undefined,
+  standardWorkouts: { created_at: string | null }[]
+): string {
+  if (typeof programCycleStartedAt === "string" && programCycleStartedAt.trim()) {
+    return programCycleStartedAt;
+  }
+  const createdAts = standardWorkouts
+    .map((w) => w.created_at)
+    .filter((c): c is string => Boolean(c));
+  if (createdAts.length) {
+    return createdAts.reduce((min, c) => (c < min ? c : min));
+  }
+  return new Date(0).toISOString();
+}
+
+// Conta as sessões de PROGRAMA concluídas em TODOS os locais desde o início do
+// ciclo unificado (>= cycleStartIso). Exclui Treino Extra (só treinos padrão).
+export async function getUnifiedProgramCompletedCount(
+  supabase: SupabaseLike,
+  userId: string,
+  cycleStartIso: string,
+  standardWorkoutIds: string[]
+): Promise<number> {
+  if (!standardWorkoutIds.length) return 0;
+  const result = await supabase
+    .from("workout_session_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .in("workout_id", standardWorkoutIds)
+    .gte("completed_at", cycleStartIso);
+  if (result.error) return 0;
+  return typeof result.count === "number" ? result.count : 0;
+}
+
 function buildWorkoutFields(options: FetchWorkoutOptions) {
   const fields = ["id", "hash", "exercises", "total_sessions"] as string[];
 

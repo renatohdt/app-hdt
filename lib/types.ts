@@ -47,6 +47,9 @@ export type QuizAnswers = {
   // Locais marcados pelo usuário (premium pode ter >1). O local ATIVO é `location`.
   // Um local marcado sem treino ainda é "pendente de geração".
   locations?: Location[];
+  // Início do CICLO do programa (nível usuário). A contagem de sessões soma todos
+  // os locais desde essa data; reseta quando um programa é regenerado.
+  programCycleStartedAt?: string;
   equipment: HomeEquipment[];
   days: number;
   time: number;

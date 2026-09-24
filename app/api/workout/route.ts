@@ -19,7 +19,7 @@ import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
-import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
+import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, fetchUserStandardWorkouts, resolveProgramCycleStart, getUnifiedProgramCompletedCount, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
@@ -213,9 +213,22 @@ export async function GET(request: NextRequest) {
         .eq("id", user.id)
         .maybeSingle(),
     ]);
+    // Contagem UNIFICADA do programa: soma as sessões de todos os locais desde o
+    // início do ciclo. Total continua o do local ativo. Local único = igual a antes.
+    const standardWorkoutsGet = await fetchUserStandardWorkouts(supabase, user.id);
+    const cycleStartGet = resolveProgramCycleStart(
+      (savedAnswers as { programCycleStartedAt?: string } | null)?.programCycleStartedAt,
+      standardWorkoutsGet
+    );
+    const unifiedCompletedGet = await getUnifiedProgramCompletedCount(
+      supabase,
+      user.id,
+      cycleStartGet,
+      standardWorkoutsGet.map((w) => w.id)
+    );
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions: workoutState.sessionConfig.totalSessions,
-      completedSessions: sessionStats.completedSessions,
+      completedSessions: Math.max(unifiedCompletedGet, sessionStats.completedSessions),
       lastCompletedAt: sessionStats.lastLog?.completedAt ?? null,
       lastCompletedWorkoutKey: sessionStats.lastLog?.workoutKey ?? null,
       lastCompletedSessionNumber: sessionStats.lastLog?.sessionNumber ?? null
@@ -530,10 +543,23 @@ export async function POST(request: Request) {
     const existingSessionStats = existingWorkoutState
       ? await getWorkoutSessionStats(supabase, existingWorkoutState.sessionFilter)
       : null;
+    // Contagem UNIFICADA (soma de todos os locais desde o início do ciclo) para
+    // decidir se o ciclo terminou (dispara a regeneração automática abaixo).
+    const standardWorkoutsPost = await fetchUserStandardWorkouts(supabase, user.id);
+    const cycleStartPost = resolveProgramCycleStart(
+      (savedAnswers as { programCycleStartedAt?: string })?.programCycleStartedAt,
+      standardWorkoutsPost
+    );
+    const unifiedCompletedPost = await getUnifiedProgramCompletedCount(
+      supabase,
+      user.id,
+      cycleStartPost,
+      standardWorkoutsPost.map((w) => w.id)
+    );
     const existingSessionProgress = existingWorkoutState
       ? buildWorkoutSessionProgress({
           totalSessions: existingWorkoutState.sessionConfig.totalSessions,
-          completedSessions: existingSessionStats?.completedSessions ?? 0,
+          completedSessions: Math.max(unifiedCompletedPost, existingSessionStats?.completedSessions ?? 0),
           lastCompletedAt: existingSessionStats?.lastLog?.completedAt ?? null,
           lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
           lastCompletedSessionNumber: existingSessionStats?.lastLog?.sessionNumber ?? null
@@ -683,11 +709,14 @@ export async function POST(request: Request) {
       return jsonError(SAVE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    // Quando o usuário regenerou manualmente pelo perfil, registra o timestamp
-    // para controlar o limite de 1x a cada 30 dias no plano free.
-    // Também persiste o local ATIVO usado na geração (importante para o fluxo
-    // "+ Local", que gera para um novo local) e o marca no conjunto `locations`.
-    if (forceRegenerate) {
+    // Persistência pós-geração. Reúne num único save:
+    //  - local ativo + marca no conjunto `locations` (importante para "+ Local");
+    //  - lastRegeneratedAt (limite de 1x/30 dias no free) quando foi regeneração manual;
+    //  - programCycleStartedAt = agora QUANDO regenerou um programa EXISTENTE (força,
+    //    mudança de perfil ou ciclo concluído) — reinicia a contagem unificada. Ao
+    //    gerar o 1º treino de um NOVO local (+ Local), NÃO reseta (preserva o progresso).
+    const regeneratedExisting = Boolean(existingWorkout);
+    if (forceRegenerate || regeneratedExisting) {
       const savedLocations = Array.isArray((savedAnswers as { locations?: unknown }).locations)
         ? ((savedAnswers as { locations?: Location[] }).locations as Location[])
         : [];
@@ -696,8 +725,9 @@ export async function POST(request: Request) {
         ...savedAnswers,
         location: effectiveAnswers.location,
         locations: nextLocations,
-        lastRegeneratedAt: new Date().toISOString()
-      } as QuizAnswers & { lastRegeneratedAt: string });
+        ...(forceRegenerate ? { lastRegeneratedAt: new Date().toISOString() } : {}),
+        ...(regeneratedExisting ? { programCycleStartedAt: new Date().toISOString() } : {})
+      } as QuizAnswers & { lastRegeneratedAt?: string; programCycleStartedAt?: string });
     }
 
     return NextResponse.json({

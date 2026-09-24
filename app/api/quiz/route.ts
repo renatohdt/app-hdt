@@ -100,7 +100,9 @@ export async function POST(request: Request) {
       body_type: bodyTypeFields.body_type,
       location: (["home", "condo_gym", "gym"].includes(body.location as string)
         ? (body.location as QuizAnswers["location"])
-        : "home")
+        : "home"),
+      // Início do ciclo do programa (contagem unificada de sessões).
+      programCycleStartedAt: new Date().toISOString()
     } as QuizAnswers;
 
     logInfo("PROFILE", "Body type normalized", {

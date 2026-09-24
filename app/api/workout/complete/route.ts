@@ -17,7 +17,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { normalizeWorkoutPayload } from "@/lib/workout-payload";
-import { fetchLatestWorkoutRecord, type WorkoutRecordRow } from "@/lib/workout-record-store";
+import { fetchLatestWorkoutRecord, fetchUserStandardWorkouts, resolveProgramCycleStart, getUnifiedProgramCompletedCount, type WorkoutRecordRow } from "@/lib/workout-record-store";
 import {
   createWorkoutSessionLog,
   getAllTimeWorkoutCount,
@@ -171,6 +171,21 @@ export async function POST(request: NextRequest) {
       }),
       getAllTimeWorkoutCount(supabase, auth.user.id)
     ]);
+
+    // Contagem UNIFICADA (soma de todos os locais desde o início do ciclo), ANTES
+    // desta sessão. A conclusão do PROGRAMA e o número exibido usam essa soma;
+    // o número da sessão (A/B/C) e os logs continuam por local.
+    const standardWorkoutsC = await fetchUserStandardWorkouts(supabase, auth.user.id);
+    const cycleStartC = resolveProgramCycleStart(
+      (savedAnswers as { programCycleStartedAt?: string })?.programCycleStartedAt,
+      standardWorkoutsC
+    );
+    const unifiedCompletedBefore = await getUnifiedProgramCompletedCount(
+      supabase,
+      auth.user.id,
+      cycleStartC,
+      standardWorkoutsC.map((w) => w.id)
+    );
 
     if (todayCompletion.log) {
       return buildAlreadyCompletedTodayResponse({
@@ -440,7 +455,12 @@ export async function POST(request: NextRequest) {
     }).catch(() => null); // não deixa o XP derrubar o fluxo principal
 
     // Detecta se o programa foi concluído nesta sessão
-    const programCompleted = updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
+    // O bloco do programa termina quando a SOMA das sessões (todos os locais)
+    // atinge o total. unifiedAfter = contagem antes + esta sessão recém-concluída.
+    const unifiedCompletedAfter = unifiedCompletedBefore + 1;
+    const programCompleted =
+      unifiedCompletedAfter >= workoutState.sessionConfig.totalSessions ||
+      updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
 
     // Busca o plano apenas quando o programa for concluído (evita chamada desnecessária no fluxo normal)
     const userPlan = programCompleted ? await getPlanType(auth.user.id, userToken).catch(() => null) : null;
@@ -448,6 +468,7 @@ export async function POST(request: NextRequest) {
     return buildWorkoutCompletionSuccessResponse({
       totalSessions: workoutState.sessionConfig.totalSessions,
       sessionStats: updatedStats,
+      unifiedCompletedSessions: unifiedCompletedAfter,
       completion: completionResult.data,
       workoutKeys: validWorkoutKeys,
       prevTotalWorkouts,
@@ -574,6 +595,8 @@ function buildWorkoutCompletionSuccessResponse(input: {
     completedSessions: number;
     lastLog: WorkoutSessionLogEntry | null;
   };
+  // Contagem unificada (soma dos locais) para EXIBIR; se ausente, usa a do local.
+  unifiedCompletedSessions?: number;
   completion: WorkoutSessionLogEntry;
   workoutKeys: string[];
   prevTotalWorkouts: number;
@@ -589,7 +612,10 @@ function buildWorkoutCompletionSuccessResponse(input: {
     data: {
       sessionProgress: buildWorkoutSessionProgress({
         totalSessions: input.totalSessions,
-        completedSessions: input.sessionStats.completedSessions,
+        completedSessions: Math.max(
+          input.unifiedCompletedSessions ?? 0,
+          input.sessionStats.completedSessions
+        ),
         lastCompletedAt: input.sessionStats.lastLog?.completedAt ?? input.completion.completedAt,
         lastCompletedWorkoutKey: input.sessionStats.lastLog?.workoutKey ?? input.completion.workoutKey,
         lastCompletedSessionNumber: input.sessionStats.lastLog?.sessionNumber ?? input.completion.sessionNumber
