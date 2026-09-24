@@ -46,9 +46,16 @@ export function QuizForm() {
   const shouldScrollToStepRef = useRef(false);
   const isSubmittingRef = useRef(false);
 
-  const safeStepIndex = Math.min(stepIndex, quizSteps.length - 1);
-  const step = quizSteps[safeStepIndex];
-  const progress = useMemo(() => Math.round(((safeStepIndex + 1) / quizSteps.length) * 100), [safeStepIndex]);
+  // Passos visíveis: o passo de materiais ("equipment") só aparece quando o
+  // local é "casa". No condomínio os exercícios/equipamentos vêm do que foi
+  // cadastrado pelo personal, então não faz sentido perguntar os materiais.
+  const visibleSteps = useMemo(
+    () => quizSteps.filter((s) => s.key !== "equipment" || (answers.location ?? "home") === "home"),
+    [answers.location]
+  );
+  const safeStepIndex = Math.min(stepIndex, visibleSteps.length - 1);
+  const step = visibleSteps[safeStepIndex];
+  const progress = useMemo(() => Math.round(((safeStepIndex + 1) / visibleSteps.length) * 100), [safeStepIndex, visibleSteps.length]);
 
   useEffect(() => {
     trackAppEvent("home_view", null, { source: "landing_page" });
@@ -128,8 +135,8 @@ export function QuizForm() {
   }, [isPending]);
 
   useEffect(() => {
-    if (stepIndex > quizSteps.length - 1) {
-      setStepIndex(Math.max(0, quizSteps.length - 1));
+    if (stepIndex > visibleSteps.length - 1) {
+      setStepIndex(Math.max(0, visibleSteps.length - 1));
     }
   }, [stepIndex]);
 
@@ -273,7 +280,7 @@ export function QuizForm() {
       return;
     }
 
-    if (safeStepIndex === quizSteps.length - 1) {
+    if (safeStepIndex === visibleSteps.length - 1) {
       if (isSubmittingRef.current) {
         return;
       }
@@ -410,7 +417,7 @@ export function QuizForm() {
     }
 
     shouldScrollToStepRef.current = true;
-    setStepIndex((current) => Math.min(current + 1, quizSteps.length - 1));
+    setStepIndex((current) => Math.min(current + 1, visibleSteps.length - 1));
   }
 
   return (
@@ -421,7 +428,7 @@ export function QuizForm() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Formulário</p>
             <p className="mt-2 text-sm text-white/60">
-              Etapa {safeStepIndex + 1} de {quizSteps.length}
+              Etapa {safeStepIndex + 1} de {visibleSteps.length}
             </p>
           </div>
           <p className="text-sm font-semibold text-primary">{progress}%</p>
@@ -614,7 +621,7 @@ export function QuizForm() {
         ) : null}
       </div>
 
-      {safeStepIndex === quizSteps.length - 1 && (
+      {safeStepIndex === visibleSteps.length - 1 && (
         <label className="mt-6 flex cursor-pointer items-start gap-3 text-sm leading-6 text-white/76">
           <input
             type="checkbox"
@@ -644,14 +651,14 @@ export function QuizForm() {
           <Button onClick={goNext} disabled={isPending || !canContinue}>
             {isPending
               ? "Montando seu treino..."
-              : safeStepIndex === quizSteps.length - 1
+              : safeStepIndex === visibleSteps.length - 1
                 ? "Criar conta e ver meu treino"
                 : "Continuar"}
           </Button>
         </div>
       </div>
 
-      {safeStepIndex === quizSteps.length - 1 && (
+      {safeStepIndex === visibleSteps.length - 1 && (
         <p className="mt-3 text-sm text-white/60">
           Ao continuar, você pode consultar nossa{" "}
           <Link href="/politica-de-privacidade" className="font-semibold text-primary transition hover:text-primaryStrong">

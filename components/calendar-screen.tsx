@@ -27,6 +27,12 @@ type PlannedWorkoutDay = {
   workoutLabel: string;
 };
 
+const CALENDAR_LOCATION_LABELS: Record<string, string> = {
+  home: "Casa",
+  condo_gym: "Condomínio",
+  gym: "Academia"
+};
+
 type RecordedSessionItem = {
   id: string;
   date: Date;
@@ -37,6 +43,7 @@ type RecordedSessionItem = {
   sessionNumber: number | null;
   liked: boolean | null;
   intensityLevel: number | null;
+  location: string | null;
 };
 
 type CalendarDayCell = {
@@ -135,6 +142,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           sessionNumber: entry.sessionNumber > 0 ? entry.sessionNumber : null,
           liked: entry.liked ?? null,
           intensityLevel: entry.intensityLevel ?? null,
+          location: entry.location ?? null,
         } satisfies RecordedSessionItem;
       })
       .filter((entry): entry is RecordedSessionItem => Boolean(entry))
@@ -301,7 +309,13 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
                 </div>
 
                 <div className="min-w-0 flex flex-1 items-center justify-between gap-3">
-                  <div className="min-w-0 flex items-center gap-2">
+                  <div className="min-w-0">
+                    {session.location ? (
+                      <p className="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-primary/70">
+                        {CALENDAR_LOCATION_LABELS[session.location] ?? session.location}
+                      </p>
+                    ) : null}
+                    <div className="min-w-0 flex items-center gap-2">
                     {session.isExtra && (
                       <Zap className="h-3.5 w-3.5 shrink-0 text-yellow-400" />
                     )}
@@ -320,6 +334,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
                         style={{ backgroundColor: session.liked ? "#22c55e" : "#f97316" }}
                       />
                     ) : null}
+                    </div>
                   </div>
 
                   <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary">

@@ -1,6 +1,6 @@
 # Regras de Negócio — Hora do Treino
 > App: [app.horadotreino.com.br](https://app.horadotreino.com.br)  
-> Última atualização: abril de 2026
+> Última atualização: setembro de 2026
 
 ---
 
@@ -30,6 +30,7 @@ Funcionalidades com limite de uso:
   - Programa 1: gerado no cadastro
   - Programa 2: gerado automaticamente ao concluir o Programa 1
   - Ao concluir o Programa 2: exibir upsell para o premium (ver Seção 8)
+- Local de treino: **um único local** (Casa **ou** Condomínio) — ver Seção 3
 
 Funcionalidades **não disponíveis** no plano gratuito:
 - Geração de novos programas de treino após o 2º
@@ -43,6 +44,7 @@ Inclui tudo do plano gratuito, mais:
 - Substituição de exercício 2 por treino e não por programa de treino.
 - Geração de novos programas de treino **ilimitada** (novo programa gerado automaticamente ao concluir o atual)
 - Evolução de treino com IA
+- **Treinos para mais de um local** (Casa **e** Condomínio), com programa próprio em cada e alternância entre eles — ver Seção 3
 - **Experiência sem anúncios** (anúncios do Google AdSense são exibidos apenas no plano gratuito)
 
 **Preços:**
@@ -58,7 +60,7 @@ Inclui tudo do plano gratuito, mais:
 - O treino é gerado com base nas respostas do formulário inicial do usuário
 - A IA utiliza apenas os exercícios cadastrados pelo administrador
 - A IA segue as regras de treino definidas pelo administrador
-- O treino gerado é personalizado por: objetivo, nível, equipamentos disponíveis, frequência semanal, tempo disponível, exercícios excluídos, intensidade muscular
+- O treino gerado é personalizado por: objetivo, nível, **local de treino (casa/condomínio)**, equipamentos disponíveis, frequência semanal, tempo disponível, exercícios excluídos, intensidade muscular, estilo de treino
 
 ### Ciclo de um programa de treino
 
@@ -72,6 +74,20 @@ Inclui tudo do plano gratuito, mais:
 - Usuários **premium**: ciclo de geração é **ilimitado** — sempre receberão um novo programa ao concluir o atual
 - Usuários **freemium**: recebem **até 2 programas** (1 no cadastro + 1 após concluir o primeiro)
   - Ao concluir o 2º programa, ao invés de gerar um novo, o app exibe o gatilho de upsell (ver Seção 8)
+
+### Locais de treino (Casa e Condomínio)
+
+- Cada treino é gerado para um **local**: **Casa** ou **Condomínio** (academia do condomínio). O local define quais exercícios a IA pode usar.
+  - **Casa:** exercícios de peso corporal + os materiais que o usuário informou ter. Máquinas/aparelhos ficam de fora.
+  - **Condomínio:** usa **estritamente** os exercícios que o administrador cadastrou com a opção "condomínio" (aparelhos, halteres, máquinas etc. da academia do prédio). No condomínio o usuário **não escolhe materiais** — o catálogo do local já define o que está disponível.
+- **Free:** treina em **um único local** (o escolhido no cadastro/perfil).
+- **Premium:** pode ter **treinos para mais de um local ao mesmo tempo** — por exemplo, um programa para a Casa (A/B) e outro para o Condomínio (A/B/C) — e **alterna** entre eles pelas abas na tela de treino. O **objetivo e a meta são compartilhados** entre os locais.
+- **Adicionar um local ("+ Local"):** na tela de treino, o premium usa o botão **"+ Local"** → escolhe um local que ainda não tem treino → o app **gera** o programa daquele local e a aba passa a aparecer. O usuário free que clicar vê o convite: *"Seja Premium e tenha treinos para diferentes locais."*
+- **Perfil › Dados de Treino:** para o premium, o campo **Local é de múltipla escolha** — ele apenas **marca** os locais desejados; a geração do treino de cada local acontece depois, ao clicar em **"Gerar Novo Treino"** na Dashboard (que gera um treino para **cada** local marcado) ou pelo botão "+ Local". Salvar o perfil **não** gera treino sozinho.
+- **Treino Extra (premium):** também considera o local — o usuário escolhe onde será o treino extra, e no condomínio os materiais não aparecem.
+- **Registro / Calendário:** cada sessão concluída exibe o **local** do treino (ex.: "Casa — Treino B").
+- **Usuários já existentes:** assumem o local **Casa** por padrão, sem alteração no treino atual.
+- **Academia (fora de condomínio):** já suportada no código como evolução futura, porém **oculta na interface** por enquanto.
 
 ---
 
@@ -145,7 +161,10 @@ Os momentos em que o usuário free verá o incentivo para assinar o premium:
 
 3. **Perfil / Gerar novo treino** — o botão de gerar novo treino ficará visível mas bloqueado para usuários free, com CTA para o premium
 
-4. **Conclusão do 2º programa de treino** — gatilho de maior intenção de conversão: usuário está motivado, acabou de completar um ciclo. Exibir:
+4. **Adicionar local de treino ("+ Local")** — ao tentar adicionar um segundo local de treino, o usuário free vê:
+   > *"Seja Premium e tenha treinos para diferentes locais."*
+
+5. **Conclusão do 2º programa de treino** — gatilho de maior intenção de conversão: usuário está motivado, acabou de completar um ciclo. Exibir:
    > *"Parabéns, você completou seu programa de treino! 🎉 Para continuar evoluindo com um novo treino personalizado, assine o Premium."*
    
    Este é o gatilho de **maior potencial de conversão** pois ocorre no pico de motivação do usuário.
@@ -188,6 +207,7 @@ Os momentos em que o usuário free verá o incentivo para assinar o premium:
 - O administrador pode cadastrar, editar e remover exercícios do banco
 - O administrador pode atualizar as regras de treino utilizadas pela IA
 - Alterações no banco de exercícios afetam apenas os **novos treinos gerados**, não os treinos já existentes dos usuários
+- O painel admin acompanha uma métrica de **Local de treino** (quantos usuários treinam em Casa vs. Condomínio)
 - Atualmente somente o fundador Renato Santiago, pode ter acesso administrativo.
 
 ---

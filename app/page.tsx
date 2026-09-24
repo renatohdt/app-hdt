@@ -96,7 +96,7 @@ export default function HomePage() {
           className="w-48 max-w-[62vw] drop-shadow-[0_0_40px_rgba(34,197,94,0.25)] sm:w-56"
         />
         <h1 className="mt-8 text-[clamp(26px,7vw,40px)] font-black leading-[1.1] tracking-tight">
-          Seu <span className="text-primary">treino em casa</span>
+          Seu <span className="text-primary">treino onde você estiver</span>
           <br />
           começa aqui
         </h1>

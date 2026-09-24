@@ -91,6 +91,14 @@ const faqSchema = {
     },
     {
       "@type": "Question",
+      name: "Posso treinar na academia do meu condomínio?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Sim! Além do treino em casa, o Hora do Treino monta um plano específico para a academia do condomínio, usando os aparelhos e equipamentos disponíveis lá. No Premium você pode ter um programa para casa e outro para o condomínio e alternar entre eles.",
+      },
+    },
+    {
+      "@type": "Question",
       name: "Quanto tempo por dia preciso treinar?",
       acceptedAnswer: {
         "@type": "Answer",
@@ -111,7 +119,7 @@ export async function SchemaOrg() {
     applicationCategory: "HealthAndFitnessApplication",
     operatingSystem: "Web, Android, iOS",
     description:
-      "Treino personalizado online com método de personal trainer e montado por IA. Crie seu plano de treino em casa grátis.",
+      "Treino personalizado online com método de personal trainer e montado por IA. Treine em casa ou na academia do condomínio — crie seu plano de treino grátis.",
     offers: {
       "@type": "Offer",
       price: "0",

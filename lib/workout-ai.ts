@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { resolveBodyType } from "@/lib/body-type";
 import { createHmac } from "node:crypto";
 import {
+  EXERCISE_EQUIPMENT_OPTIONS,
   formatExerciseMuscleLabel,
   getExerciseLevels,
   getExerciseMuscleGroups,
@@ -379,7 +380,7 @@ function selectExercisesForAiCatalog(
   }
 ) {
   const strategy = buildWorkoutStrategy(answers);
-  const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+  const allowedEquipment = buildAllowedEquipment(answers);
   const excludedIds = new Set(options.excludedExerciseIds ?? []);
 
   // Filtros base (independentes do estilo de treino).
@@ -585,7 +586,7 @@ export async function generateWorkoutWithAI(
   const availableExercisesBeforeMobilityFilter = catalogBeforeMobilityFilter.map(buildAiCatalogExercise);
 
   // Aquecimentos: separados do catálogo principal, enviados como lista opcional ao prompt
-  const allowedEquipmentForWarmup = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+  const allowedEquipmentForWarmup = buildAllowedEquipment(answers);
   const warmupExercises = exerciseLibrary
     .filter((ex) => normalizeStoredExerciseType(ex.type ?? ex.metadata?.type) === "warmup")
     .filter((ex) => matchesLocation(ex, answers.location))
@@ -1215,7 +1216,7 @@ function selectLocalMobilityExercises(input: {
   const desiredCount = getMobilityExerciseTargetCount(input.strategy.timeBudget.availableTimeMinutes);
   const targetMuscles = resolveMobilityTargetMuscles(input.sectionExercises, input.blueprint);
   const previousMobilityNames = getPreviousMobilityNames(input.previousWorkout, input.lastCompletedWorkoutKey);
-  const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(input.answers.equipment)]);
+  const allowedEquipment = buildAllowedEquipment(input.answers);
   const allMobilityLookups = Array.from(input.exerciseMap.values()).filter((lookup) => lookup.profile.movementType === "mobility");
   const strictMobilityLookups = allMobilityLookups
     .filter((lookup) => matchesLocation(lookup.source, input.answers.location))
@@ -3796,6 +3797,20 @@ function normalizeEquipmentList(values?: string[] | null) {
   return Array.from(new Set((values ?? []).map(normalizeEquipment))).sort();
 }
 
+// Locais equipados pelo ambiente (academia e academia de condomínio): o próprio
+// local fornece os equipamentos, então liberamos todo o kit — inclusive "machine".
+// O filtro de LOCAL (matchesLocation) já restringe aos exercícios cadastrados para
+// aquele local. Em "casa" mantém o comportamento atual: só peso corporal + materiais
+// que o usuário marcou (portanto "machine" continua barrado em casa).
+const VENUE_EQUIPPED_LOCATIONS = new Set<QuizAnswers["location"]>(["gym", "condo_gym"]);
+
+function buildAllowedEquipment(answers: Pick<QuizAnswers, "location" | "equipment">) {
+  if (VENUE_EQUIPPED_LOCATIONS.has(answers.location)) {
+    return new Set<string>(["bodyweight", ...EXERCISE_EQUIPMENT_OPTIONS.map((option) => option.value)]);
+  }
+  return new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+}
+
 function mobilityNameByFocus(focus: string) {
   const labels: Record<string, string> = {
     chest: "Mobilidade torácica",
@@ -3841,7 +3856,7 @@ export function filterReplacementCandidates(
   excludedExerciseIds: string[] = []
 ) {
   const primaryMuscle = getPrimaryExerciseMuscle(originalExercise);
-  const allowedEquipment = new Set(["bodyweight", ...normalizeEquipmentList(answers.equipment)]);
+  const allowedEquipment = buildAllowedEquipment(answers);
   const daySet = new Set(exercisesInWorkoutDay);
   // Exercícios já descartados pelo usuário (lista user_excluded_exercises).
   // Nunca devem voltar como substitutos até o usuário removê-los da lista.
@@ -3890,7 +3905,7 @@ export async function callAIForReplacement(
   };
 
   const level = levelByExperience[answers.experience] ?? "Iniciante";
-  const location = answers.location === "gym" ? "Academia" : "Casa";
+  const location = answers.location === "gym" ? "Academia" : answers.location === "condo_gym" ? "Academia do condomínio" : "Casa";
   const reasonPt = reasonLabel[reason] ?? reason;
 
   const prompt = `Você é um seletor de exercícios. Sua única tarefa é escolher um exercício substituto a partir da lista de candidatos fornecida.
@@ -4019,9 +4034,13 @@ export async function generateExtraWorkoutWithAI(
     "INSTRUÇÕES PARA TREINO EXTRA:",
     "Este é um treino EXTRA avulso, fora do programa regular. Deve ser COMPLETO e independente (única sessão, apenas 1 Treino A).",
     `Duração: ${extraContext.availableMinutes} minutos. Respeite rigorosamente esse tempo.`,
-    extraContext.availableEquipment.length > 0 && !extraContext.availableEquipment.includes("nenhum")
-      ? `Equipamentos disponíveis AGORA: ${extraContext.availableEquipment.join(", ")}. Use APENAS esses equipamentos.`
-      : "Equipamentos disponíveis AGORA: apenas peso corporal (bodyweight). Use APENAS exercícios sem equipamento.",
+    // Em locais equipados (condomínio/academia) o catálogo já vem filtrado para os
+    // exercícios cadastrados do local — não restringe a "peso corporal".
+    VENUE_EQUIPPED_LOCATIONS.has(answers.location)
+      ? `Local do treino: ${answers.location === "condo_gym" ? "academia do condomínio" : "academia"}. Use os equipamentos e exercícios disponíveis nesse local (o catálogo já está filtrado para ele).`
+      : extraContext.availableEquipment.length > 0 && !extraContext.availableEquipment.includes("nenhum")
+        ? `Equipamentos disponíveis AGORA: ${extraContext.availableEquipment.join(", ")}. Use APENAS esses equipamentos.`
+        : "Equipamentos disponíveis AGORA: apenas peso corporal (bodyweight). Use APENAS exercícios sem equipamento.",
     hasFocus
       ? `Intensificar grupo muscular: ${extraContext.focusMuscleGroup}. Priorize exercícios para este grupo.`
       : "Treino equilibrado, sem foco específico em grupo muscular.",

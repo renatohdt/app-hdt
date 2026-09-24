@@ -12,7 +12,8 @@ type UpsellReason =
   | "generate_workout"    // Tentou gerar novo treino sem ser premium
   | "combine_styles"         // Tentou combinar 2+ estilos de treino sem ser premium
   | "combine_styles_locked"  // Clicou em estilo bloqueado no perfil
-  | "home_banner";        // Banner da home
+  | "home_banner"         // Banner da home
+  | "unlock_location";    // Free tentou trocar para outro local de treino
 
 type UpsellModalProps = {
   reason: UpsellReason;
@@ -49,6 +50,11 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
     title: "Leve seus treinos ao próximo nível",
     description: "Desbloqueie substituições ilimitadas, programas sem fim, evolução com IA e experiência sem anúncios. Por menos de R$&nbsp;10/mês.",
     cta: "Ver planos",
+  },
+  unlock_location: {
+    title: "Seja Premium e treine em diferentes locais",
+    description: "No Premium você tem treinos para diferentes locais — um para casa e outro para o condomínio — e alterna entre eles quando quiser. No plano gratuito você escolhe um local.",
+    cta: "Assinar Premium",
   },
 };
 

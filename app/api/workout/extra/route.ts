@@ -7,7 +7,7 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { isPremium } from "@/lib/subscription";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { ExerciseRecord, HomeEquipment, QuizAnswers } from "@/lib/types";
+import type { ExerciseRecord, HomeEquipment, Location, QuizAnswers } from "@/lib/types";
 import { resolveWorkoutAge } from "@/lib/age";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { generateExtraWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
       equipment?: unknown;
       focusMuscleGroup?: unknown;
       trainingStyle?: unknown;
+      location?: unknown;
     };
 
     const availableMinutes = validateAvailableMinutes(body.availableMinutes);
@@ -165,6 +166,13 @@ export async function POST(request: NextRequest) {
     const trainingStyle = (typeof body.trainingStyle === "string" && VALID_STYLES.includes(body.trainingStyle as (typeof VALID_STYLES)[number])
       ? body.trainingStyle
       : "personal") as (typeof VALID_STYLES)[number];
+    // Local do Treino Extra (premium). O Treino Extra é exclusivo premium, então
+    // aceita o local escolhido. Não persiste o local ativo — é avulso.
+    const VALID_EXTRA_LOCATIONS: Location[] = ["home", "condo_gym", "gym"];
+    const requestedLocation =
+      typeof body.location === "string" && VALID_EXTRA_LOCATIONS.includes(body.location as Location)
+        ? (body.location as Location)
+        : null;
 
     const [savedAnswers, exercisesResult, excludedResult, regularWorkoutResult] = await Promise.all([
       getUserAnswersByUserId(supabase, userId),
@@ -174,6 +182,9 @@ export async function POST(request: NextRequest) {
     ]);
 
     const answers = buildRuntimeQuizAnswers(savedAnswers);
+    if (requestedLocation) {
+      answers.location = requestedLocation;
+    }
     const diagnosis = diagnoseUser(answers);
     const exercises = ((exercisesResult.data ?? []) as ExerciseRecord[]).map(normalizeExerciseRecord);
     const excludedIds = (excludedResult.data ?? []).map((r) => r.exercise_id);
@@ -242,6 +253,7 @@ export async function POST(request: NextRequest) {
         exercises: workout,
         total_sessions: 1,
         type: "extra",
+        location: answers.location,
         expires_at: expiresAt
       })
       .select("id")

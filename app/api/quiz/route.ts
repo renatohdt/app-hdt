@@ -98,7 +98,9 @@ export async function POST(request: Request) {
       wrist: bodyTypeFields.wrist,
       body_type_raw: bodyTypeFields.body_type_raw,
       body_type: bodyTypeFields.body_type,
-      location: "home"
+      location: (["home", "condo_gym", "gym"].includes(body.location as string)
+        ? (body.location as QuizAnswers["location"])
+        : "home")
     } as QuizAnswers;
 
     logInfo("PROFILE", "Body type normalized", {
@@ -312,6 +314,7 @@ export async function POST(request: Request) {
         hash: workoutHash,
         exercises: workout,
         totalSessions: currentWorkoutConfig.totalSessions,
+        location: answers.location,
         createdAt: canReuseCurrentPlan ? undefined : new Date().toISOString(),
         scope: "AI"
       });

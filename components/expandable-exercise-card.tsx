@@ -640,7 +640,11 @@ export function ExpandableExerciseCard({
             </div>
 
             <div className="space-y-2">
-              {REPLACE_REASONS.map((option) => (
+              {REPLACE_REASONS.filter(
+                (option) =>
+                  option.value !== "no_equipment" ||
+                  ((data.answers as { location?: string } | undefined)?.location ?? "home") !== "condo_gym"
+              ).map((option) => (
                 <button
                   key={option.value}
                   type="button"

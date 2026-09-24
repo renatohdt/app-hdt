@@ -24,6 +24,7 @@ type AppWorkoutAnswers = {
   height?: number;
   profession?: string;
   location?: QuizAnswers["location"];
+  locations?: string[];
   equipment?: string[];
   time?: number;
   days?: number;
@@ -59,6 +60,9 @@ export type AppWorkoutPayload = {
     workoutsDone: number;
   } | null;
   user: { id: string; name: string };
+  // Locais (home/condo_gym/gym) para os quais o usuário já tem um treino padrão.
+  // Vazio/ausente em respostas antigas — a tela assume [location atual].
+  availableLocations?: string[];
   answers: AppWorkoutAnswers;
   workout: WorkoutPlan | null;
   sessionProgress?: WorkoutSessionProgress | null;
@@ -92,6 +96,8 @@ export type AppWorkoutData = {
   answers: AppWorkoutAnswers;
   workouts: Record<string, WorkoutSection & { day: string }>;
   workoutOrder: string[];
+  // Locais que já possuem treino — dirige as abas de local na tela de treino.
+  availableLocations: string[];
   featuredWorkoutKey: string | null;
   featuredWorkoutLabel: string;
   plan: {
@@ -238,6 +244,13 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     answers: payload.answers,
     workouts,
     workoutOrder,
+    availableLocations: (() => {
+      const set = new Set<string>(
+        Array.isArray(payload.availableLocations) ? payload.availableLocations : []
+      );
+      set.add(payload.answers.location ?? "home");
+      return Array.from(set);
+    })(),
     featuredWorkoutKey,
     featuredWorkoutLabel,
     plan: {

@@ -73,6 +73,7 @@ export type AdminDashboardData = {
   durationDistribution: DistributionDatum[];
   trainingStyleDistribution: DistributionDatum[];
   focusRegionDistribution: DistributionDatum[];
+  locationDistribution: DistributionDatum[];
   premiumPotentialCount: number;
 };
 
@@ -109,6 +110,17 @@ export function getLevelLabel(experience?: QuizAnswers["experience"]) {
   };
 
   return experience ? labels[experience] : "-";
+}
+
+export function getLocationLabel(value?: string) {
+  const labels: Record<string, string> = {
+    home: "Casa",
+    condo_gym: "Condomínio",
+    gym: "Academia"
+  };
+  if (!value) return "-";
+  const normalized = value === "condo gym" ? "condo_gym" : value;
+  return labels[normalized] ?? normalized;
 }
 
 export function formatDate(value?: string) {

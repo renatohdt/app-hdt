@@ -36,6 +36,21 @@ const TRAINING_STYLE_LABELS: Record<string, string> = {
   calistenia: "Calistenia"
 };
 
+const LOCATION_LABELS: Record<string, string> = {
+  home: "Casa",
+  condo_gym: "Condomínio",
+  gym: "Academia"
+};
+
+// Locais que o usuário pode adicionar pelo botão "+ Local". "gym" fica oculto
+// por ora (evolução futura), embora seja suportado no back-end e nas abas.
+const SELECTABLE_LOCATIONS = ["home", "condo_gym"] as const;
+
+function formatLocationLabel(value?: string | null) {
+  if (!value) return "";
+  return LOCATION_LABELS[value] ?? value;
+}
+
 function formatTrainingStyleLabel(value?: string) {
   if (!value) return "";
   return TRAINING_STYLE_LABELS[value] ?? "";
@@ -94,6 +109,11 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [sessionLiked, setSessionLiked] = useState<boolean | null>(null);
   const [sessionIntensity, setSessionIntensity] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [switchingLocation, setSwitchingLocation] = useState(false);
+  const [showLocationUpsell, setShowLocationUpsell] = useState(false);
+  // "+ Local": abre o seletor de novos locais e gera o treino do local escolhido.
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [generatingLocation, setGeneratingLocation] = useState<string | null>(null);
   const [replacementCount, setReplacementCount] = useState(data.replacementCount);
   // Mapa de nome normalizado → último peso registrado, carregado em batch ao abrir a tela
   const [lastWeightsMap, setLastWeightsMap] = useState<Record<string, number>>({});
@@ -234,6 +254,65 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     }
   }
 
+  // Troca o local ATIVO do treino (casa/condomínio). Exclusivo Premium — o Free
+  // vê o convite. Depois de trocar, recarrega o treino do novo local (ou, se ainda
+  // não existir programa para ele, o back-end mantém o treino mais recente).
+  async function handleSwitchLocation(nextLocation: string) {
+    const current = (data.answers.location as string | undefined) ?? "home";
+    if (nextLocation === current || switchingLocation) return;
+    if (!isPremiumUser) {
+      setShowLocationUpsell(true);
+      return;
+    }
+    setSwitchingLocation(true);
+    try {
+      const response = await fetchWithAuth("/api/workout/location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location: nextLocation })
+      });
+      const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Não foi possível trocar o local.");
+      }
+      await reloadWorkout();
+    } catch {
+      // v1: em caso de erro, mantém o local atual (sem toast).
+    } finally {
+      setSwitchingLocation(false);
+    }
+  }
+
+  // "+ Local": gera um treino para um local que o usuário ainda não tem. Uma única
+  // ação persiste o novo local e gera o programa (exclusivo Premium). Depois de
+  // gerar, recarrega para o novo local aparecer como aba.
+  async function handleGenerateForLocation(nextLocation: string) {
+    if (generatingLocation) return;
+    if (!isPremiumUser) {
+      setShowLocationPicker(false);
+      setShowLocationUpsell(true);
+      return;
+    }
+    setGeneratingLocation(nextLocation);
+    try {
+      const response = await fetchWithAuth("/api/workout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: data.user.id, location: nextLocation })
+      });
+      const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "Não foi possível gerar o treino.");
+      }
+      setShowLocationPicker(false);
+      await reloadWorkout();
+    } catch {
+      // v1: mantém o estado atual em caso de erro (sem toast).
+    } finally {
+      setGeneratingLocation(null);
+    }
+  }
+
   if (!workout) {
     return (
       <AppShell>
@@ -369,6 +448,83 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           </div>
         </div>
 
+        {!isProgram ? (() => {
+          const activeLocation = (data.answers.location as string | undefined) ?? "home";
+          const locationTabs = Array.isArray(data.availableLocations) && data.availableLocations.length
+            ? data.availableLocations
+            : [activeLocation];
+          const missingLocations = SELECTABLE_LOCATIONS.filter((loc) => !locationTabs.includes(loc));
+          const showAddButton = missingLocations.length > 0;
+          const showTabs = locationTabs.length > 1;
+          if (!showTabs && !showAddButton) return null;
+          return (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {showTabs
+                  ? locationTabs.map((loc) => {
+                      const isActive = loc === activeLocation;
+                      return (
+                        <button
+                          key={loc}
+                          type="button"
+                          disabled={switchingLocation || Boolean(generatingLocation)}
+                          onClick={() => handleSwitchLocation(loc)}
+                          className={clsx(
+                            "inline-flex min-h-9 items-center justify-center gap-1 rounded-full border px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:opacity-60",
+                            isActive
+                              ? "border-primary/20 bg-primary text-white shadow-[0_16px_30px_rgba(34,197,94,0.22)]"
+                              : "border-white/10 bg-white/[0.04] text-white/60 hover:text-white"
+                          )}
+                        >
+                          {formatLocationLabel(loc)}
+                        </button>
+                      );
+                    })
+                  : null}
+                {showAddButton ? (
+                  <button
+                    type="button"
+                    disabled={Boolean(generatingLocation)}
+                    onClick={() =>
+                      isPremiumUser ? setShowLocationPicker((prev) => !prev) : setShowLocationUpsell(true)
+                    }
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/[0.06] px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-primary transition hover:bg-primary/10 disabled:opacity-60"
+                  >
+                    {generatingLocation ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Gerando…
+                      </>
+                    ) : (
+                      "+ Local"
+                    )}
+                  </button>
+                ) : null}
+              </div>
+
+              {isPremiumUser && showLocationPicker && !generatingLocation ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="text-xs font-semibold text-white/70">Onde será o treino?</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {missingLocations.map((loc) => (
+                      <button
+                        key={loc}
+                        type="button"
+                        onClick={() => handleGenerateForLocation(loc)}
+                        className="inline-flex min-h-9 items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-primary/[0.16]"
+                      >
+                        {formatLocationLabel(loc)}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[0.7rem] leading-snug text-white/45">
+                    Vamos gerar um treino novo para esse local. Depois você alterna entre os locais nas abas.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          );
+        })() : null}
+
         <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
           {data.workoutOrder.map((workoutKey) => {
             const currentWorkout = data.workouts[workoutKey];
@@ -394,6 +550,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
             <ExtraWorkoutButton
               userId={data.user.id}
               defaultEquipment={Array.isArray(data.answers.equipment) ? data.answers.equipment as import("@/lib/types").HomeEquipment[] : []}
+              defaultLocation={(data.answers.location as string | undefined) ?? "home"}
+              availableLocations={data.availableLocations}
             />
           )}
         </div>
@@ -631,6 +789,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       {showProgramContinuation ? (
         <PremiumContinuationCard sessionCount={sessionProgress.completedSessions} />
+      ) : null}
+
+      {showLocationUpsell ? (
+        <UpsellModal reason="unlock_location" onClose={() => setShowLocationUpsell(false)} />
       ) : null}
     </AppShell>
   );

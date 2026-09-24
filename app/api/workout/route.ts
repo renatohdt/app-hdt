@@ -12,14 +12,14 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { getSupabaseErrorCode } from "@/lib/supabase-errors";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
-import type { Experience, ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
+import type { Experience, ExerciseRecord, Location, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { isPremium } from "@/lib/subscription";
 import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
-import { fetchLatestWorkoutRecord, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
+import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     // pois o userId já está disponível desde o passo de autenticação acima.
     const [
       { data: user, error: userError },
-      { data: workoutRecord, error: workoutError },
+      { data: workoutRecordInitial, error: workoutError },
       savedAnswers,
       exerciseLibrary
     ] = await Promise.all([
@@ -102,6 +102,27 @@ export async function GET(request: NextRequest) {
 
     const answers = buildRuntimeQuizAnswers(savedAnswers, (user as { created_at?: string | null }).created_at ?? null);
     const diagnosis = diagnoseUser(answers);
+
+    // Premium tem um programa por local (casa/condomínio). Busca o treino do
+    // local ATIVO (answers.location). Free continua com um único programa (o
+    // mais recente), então não filtra por local.
+    let workoutRecord = workoutRecordInitial;
+    const workoutUserToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+    const isPremiumUser = await isPremium(user.id, workoutUserToken);
+    if (isPremiumUser) {
+      const scopedWorkout = await fetchLatestWorkoutRecord(supabase, {
+        userId: user.id,
+        includeCreatedAt: true,
+        scope: "WORKOUT",
+        location: answers.location
+      });
+      // Só adota o treino do local ativo quando ele EXISTE. Se o premium ainda
+      // não tem programa para esse local, mantém o treino mais recente (não quebra
+      // a tela). A geração explícita para o local vazio vem pelas abas (Fase 5b).
+      if (!scopedWorkout.error && scopedWorkout.data) {
+        workoutRecord = scopedWorkout.data;
+      }
+    }
 
     if (!workoutRecord) {
       logInfo("WORKOUT", "Workout not found", { user_id: user.id });
@@ -221,11 +242,19 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    // Locais que já têm treino (para as abas de local na tela de treino). Só
+    // premium pode ter mais de um; garante que o local ativo apareça sempre.
+    const rawAvailableLocations = await fetchAvailableWorkoutLocations(supabase, user.id);
+    const availableLocationsSet = new Set<string>(rawAvailableLocations);
+    availableLocationsSet.add(answers.location ?? "home");
+    const availableLocations = Array.from(availableLocationsSet);
+
     return NextResponse.json({
       success: true,
       data: {
         hasWorkout: true,
         workoutId: workoutRecord.id,
+        availableLocations,
         replacementCount: replacementCountResult.count ?? 0,
         totalWorkoutsAllTime,
         totalWeightIncreasesAllTime,
@@ -387,9 +416,9 @@ export async function POST(request: Request) {
       return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    const body = (await request.json().catch(() => ({}))) as { userId?: string; force?: boolean };
+    const body = (await request.json().catch(() => ({}))) as { userId?: string; force?: boolean; location?: unknown };
     const userId = auth.user.id;
-    const forceRegenerate = body.force === true;
+    let forceRegenerate = body.force === true;
 
     if (body.userId && body.userId !== userId) {
       logWarn("AUTH", "Workout generation denied", { user_id: userId });
@@ -417,6 +446,22 @@ export async function POST(request: Request) {
 
     const answers = buildRuntimeQuizAnswers(savedAnswers, (user as { created_at?: string | null }).created_at ?? null);
 
+    const workoutUserToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+    const isPremiumUser = await isPremium(userId, workoutUserToken);
+
+    // "+ Local": geração para um local específico (casa/condomínio). Exclusivo
+    // premium. Ajusta o local ATIVO em memória para que catálogo, hash e busca do
+    // treino usem esse local, e força a geração (o local novo não tem programa).
+    const VALID_GENERATE_LOCATIONS: Location[] = ["home", "condo_gym", "gym"];
+    const requestedLocation =
+      typeof body.location === "string" && VALID_GENERATE_LOCATIONS.includes(body.location as Location)
+        ? (body.location as Location)
+        : null;
+    if (requestedLocation && isPremiumUser && requestedLocation !== answers.location) {
+      answers.location = requestedLocation;
+      forceRegenerate = true;
+    }
+
     // ── Trava premium do multi-estilo ───────────────────────────────────────
     // Plano com 2+ estilos distintos é exclusivo Premium. Não-premium é
     // rebaixado para 1 estilo (o primeiro). A trava real fica aqui no backend.
@@ -424,9 +469,7 @@ export async function POST(request: Request) {
       new Set((answers.trainingStyles ?? []).filter((style) => style && style !== "personal"))
     );
     if (requestedStyles.length >= 2) {
-      const userToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
-      const premium = await isPremium(userId, userToken);
-      if (!premium) {
+      if (!isPremiumUser) {
         answers.trainingStyles = [requestedStyles[0]];
         logWarn("AI", "Multi-estilo negado (não premium); rebaixado para 1 estilo", {
           user_id: userId,
@@ -463,7 +506,10 @@ export async function POST(request: Request) {
     const { data: existingWorkout, error: existingWorkoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: user.id,
       includeCreatedAt: true,
-      scope: "AI"
+      scope: "AI",
+      // Premium tem um programa por local: busca o existente DO LOCAL ATIVO, para
+      // não sobrescrever o programa de outro local ao gerar/regenerar.
+      location: isPremiumUser ? effectiveAnswers.location : undefined
     });
 
     if (existingWorkoutError) {
@@ -514,6 +560,7 @@ export async function POST(request: Request) {
           hash: workoutHash,
           exercises: existingWorkoutState.workout,
           totalSessions: existingWorkoutState.sessionConfig.totalSessions,
+          location: effectiveAnswers.location,
           scope: "AI"
         });
 
@@ -623,6 +670,7 @@ export async function POST(request: Request) {
       hash: workoutHash,
       exercises: persistedWorkout,
       totalSessions: nextWorkoutConfig.totalSessions,
+      location: effectiveAnswers.location,
       createdAt: new Date().toISOString(),
       scope: "AI"
     });
@@ -637,9 +685,17 @@ export async function POST(request: Request) {
 
     // Quando o usuário regenerou manualmente pelo perfil, registra o timestamp
     // para controlar o limite de 1x a cada 30 dias no plano free.
+    // Também persiste o local ATIVO usado na geração (importante para o fluxo
+    // "+ Local", que gera para um novo local) e o marca no conjunto `locations`.
     if (forceRegenerate) {
+      const savedLocations = Array.isArray((savedAnswers as { locations?: unknown }).locations)
+        ? ((savedAnswers as { locations?: Location[] }).locations as Location[])
+        : [];
+      const nextLocations = Array.from(new Set<Location>([...savedLocations, effectiveAnswers.location]));
       await saveUserAnswers(supabase, user.id, {
         ...savedAnswers,
+        location: effectiveAnswers.location,
+        locations: nextLocations,
         lastRegeneratedAt: new Date().toISOString()
       } as QuizAnswers & { lastRegeneratedAt: string });
     }
@@ -769,6 +825,7 @@ function buildRuntimeQuizAnswers(savedAnswers?: QuizAnswers | null, createdAt?: 
     body_type_raw: savedAnswers?.body_type_raw,
     body_type: savedAnswers?.body_type,
     location: savedAnswers?.location ?? "home",
+    locations: Array.isArray(savedAnswers?.locations) ? savedAnswers.locations : undefined,
     focusRegion: savedAnswers?.focusRegion ?? "balanced",
     trainingStyle: savedAnswers?.trainingStyle ?? "personal",
     trainingStyles: Array.isArray(savedAnswers?.trainingStyles) ? savedAnswers.trainingStyles : undefined
@@ -787,6 +844,7 @@ function serializeAnswersForResponse(answers: QuizAnswers) {
     height: answers.height,
     profession: answers.profession,
     location: answers.location,
+    locations: answers.locations,
     equipment: answers.equipment,
     time: answers.time,
     days: answers.days,

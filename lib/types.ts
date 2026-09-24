@@ -44,6 +44,9 @@ export type QuizAnswers = {
   body_type_raw?: Wrist | string;
   body_type?: BodyType | string;
   location: Location;
+  // Locais marcados pelo usuário (premium pode ter >1). O local ATIVO é `location`.
+  // Um local marcado sem treino ainda é "pendente de geração".
+  locations?: Location[];
   equipment: HomeEquipment[];
   days: number;
   time: number;

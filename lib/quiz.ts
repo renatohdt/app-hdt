@@ -53,6 +53,16 @@ export const quizSteps = [
     ]
   },
   {
+    key: "location",
+    title: "Onde você vai treinar?",
+    description: "Isso define os exercícios do seu treino. No Premium você pode ter treino em casa E no condomínio.",
+    type: "choice",
+    options: [
+      { label: "Em casa", value: "home" },
+      { label: "Na academia do condomínio", value: "condo_gym" }
+    ]
+  },
+  {
     key: "equipment",
     title: "Quais desses materiais você possui na sua casa?",
     description: "Você pode marcar mais de uma opção.",

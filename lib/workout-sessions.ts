@@ -12,6 +12,8 @@ export type WorkoutSessionLogEntry = {
   createdAt?: string | null;
   liked?: boolean | null;
   intensityLevel?: number | null;
+  // Local do treino da sessão (home/condo_gym/gym) — anexado pela API de histórico.
+  location?: string | null;
 };
 
 export type WorkoutSessionProgress = {

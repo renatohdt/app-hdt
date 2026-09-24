@@ -191,16 +191,30 @@ export function DashboardHomeScreen({
     setGenerateError(null);
 
     try {
-      const response = await fetchWithAuth("/api/workout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: data.user.id, force: true })
-      });
+      // Premium com mais de um local marcado gera um treino para CADA local.
+      // O local ativo é gerado por último, para permanecer como local ativo ao fim.
+      const activeLocation = (data.answers.location as string | undefined) ?? "home";
+      const markedLocations =
+        subscription?.isPremium && Array.isArray(data.answers.locations) && data.answers.locations.length
+          ? Array.from(new Set<string>([...(data.answers.locations as string[]), activeLocation]))
+          : [activeLocation];
+      const orderedLocations = [
+        ...markedLocations.filter((loc) => loc !== activeLocation),
+        activeLocation
+      ];
 
-      const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
+      for (const loc of orderedLocations) {
+        const response = await fetchWithAuth("/api/workout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: data.user.id, force: true, location: loc })
+        });
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Não foi possível gerar seu treino agora.");
+        const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error ?? "Não foi possível gerar seu treino agora.");
+        }
       }
 
       trackEvent("workout_generated", data.user.id, {
@@ -482,6 +496,7 @@ export function DashboardHomeScreen({
         goal={data.user.goal}
         level={data.user.level}
         equipment={data.answers.equipment}
+        location={data.answers.location}
       />
 
       {/* Banner Premium — exibido apenas para usuários do plano free */}

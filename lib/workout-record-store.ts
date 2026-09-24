@@ -19,6 +19,7 @@ type FetchWorkoutOptions = {
   includeCreatedAt?: boolean;
   includeUserId?: boolean;
   scope?: string;
+  location?: string;
 };
 
 type SaveWorkoutOptions = {
@@ -31,12 +32,17 @@ type SaveWorkoutOptions = {
   scope?: string;
   type?: "standard" | "extra";
   expiresAt?: string | null;
+  location?: string;
 };
 
 export async function fetchLatestWorkoutRecord(supabase: SupabaseLike, options: FetchWorkoutOptions) {
   const scope = options.scope ?? "WORKOUT";
   const fields = buildWorkoutFields(options);
-  const currentResult = await runWorkoutLookup(supabase, options.userId, fields, { excludeExtra: true });
+  let currentResult = await runWorkoutLookup(supabase, options.userId, fields, { excludeExtra: true, location: options.location });
+
+  if (currentResult.error && options.location && isSupabaseMissingColumnError(currentResult.error, "location")) {
+    currentResult = await runWorkoutLookup(supabase, options.userId, fields, { excludeExtra: true });
+  }
 
   if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "total_sessions")) {
     logWarn(scope, "Workout query fallback without total_sessions", {
@@ -108,7 +114,8 @@ export async function saveWorkoutRecord(supabase: SupabaseLike, options: SaveWor
     hash: options.hash,
     exercises: options.exercises,
     total_sessions: options.totalSessions,
-    type: options.type ?? "standard"
+    type: options.type ?? "standard",
+    location: options.location ?? "home"
   };
 
   if (typeof options.createdAt === "string" && options.createdAt.trim()) {
@@ -119,7 +126,16 @@ export async function saveWorkoutRecord(supabase: SupabaseLike, options: SaveWor
     fullPayload.expires_at = options.expiresAt;
   }
 
-  const currentResult = await runWorkoutSave(supabase, options, fullPayload);
+  let currentResult = await runWorkoutSave(supabase, options, fullPayload);
+
+  if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "location")) {
+    logWarn(scope, "Workout save fallback without location", {
+      user_id: options.userId,
+      error_code: getSupabaseErrorCode(currentResult.error)
+    });
+    delete fullPayload.location;
+    currentResult = await runWorkoutSave(supabase, options, fullPayload);
+  }
 
   if (currentResult.error && isSupabaseMissingColumnError(currentResult.error, "type")) {
     logWarn(scope, "Workout save fallback without type", {
@@ -170,6 +186,35 @@ export async function saveWorkoutRecord(supabase: SupabaseLike, options: SaveWor
   };
 }
 
+// Retorna os locais distintos (home/condo_gym/gym) para os quais o usuário já
+// tem um treino padrão (type != extra). Usado para renderizar as abas de local
+// na tela de treino — só aparecem abas para locais que já têm programa.
+// Em produção pré-migração (coluna `location` ausente) retorna lista vazia e o
+// chamador assume o comportamento legado de local único.
+export async function fetchAvailableWorkoutLocations(
+  supabase: SupabaseLike,
+  userId: string
+): Promise<string[]> {
+  const result = await supabase
+    .from("workouts")
+    .select("location")
+    .eq("user_id", userId)
+    .neq("type", "extra");
+
+  if (result.error || !Array.isArray(result.data)) {
+    return [];
+  }
+
+  const locations = new Set<string>();
+  for (const row of result.data) {
+    const loc = (row as { location?: unknown }).location;
+    if (typeof loc === "string" && loc.trim()) {
+      locations.add(loc);
+    }
+  }
+  return Array.from(locations);
+}
+
 function buildWorkoutFields(options: FetchWorkoutOptions) {
   const fields = ["id", "hash", "exercises", "total_sessions"] as string[];
 
@@ -206,7 +251,7 @@ async function runWorkoutLookup(
   supabase: SupabaseLike,
   userId: string,
   fields: string[],
-  options: { excludeExtra: boolean }
+  options: { excludeExtra: boolean; location?: string }
 ) {
   let query = supabase
     .from("workouts")
@@ -215,6 +260,10 @@ async function runWorkoutLookup(
 
   if (options.excludeExtra) {
     query = query.neq("type", "extra");
+  }
+
+  if (options.location) {
+    query = query.eq("location", options.location);
   }
 
   return query

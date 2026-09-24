@@ -42,6 +42,8 @@ type ProfilePayload = {
     focusRegion?: string;
     trainingStyle?: string;
     trainingStyles?: string[];
+    location?: string;
+    locations?: string[];
     days?: number;
     time?: number;
     equipment?: string[];
@@ -67,6 +69,8 @@ type ProfileFormState = {
   body_type: string;
   days: string;
   time: string;
+  location: string;
+  locations: string[];
   equipment: string[];
   focusRegion: string;
   trainingStyle: string;
@@ -144,6 +148,11 @@ const EQUIPMENT_OPTIONS = [
   { value: "nenhum", label: "Nenhum" }
 ];
 
+const LOCATION_OPTIONS = [
+  { value: "home", label: "Em casa" },
+  { value: "condo_gym", label: "Na academia do condomínio" }
+];
+
 const EMPTY_FORM_STATE: ProfileFormState = {
   name: "",
   email: "",
@@ -157,6 +166,8 @@ const EMPTY_FORM_STATE: ProfileFormState = {
   body_type: BODY_TYPE_OPTIONS[0]?.value ?? "",
   days: "3",
   time: "45",
+  location: "home",
+  locations: ["home"],
   equipment: ["nenhum"],
   focusRegion: "balanced",
   trainingStyle: "personal",
@@ -424,6 +435,10 @@ export default function PerfilPage() {
           body_type: form.body_type,
           days: form.days,
           time: form.time,
+          location: form.location,
+          // Conjunto de locais marcados (premium pode ter >1). Só MARCA — a geração
+          // do treino de cada local acontece depois (botão "+ Local" na tela de treino).
+          locations: form.locations,
           equipment: form.equipment,
           focusRegion: form.focusRegion,
           trainingStyle: form.trainingStyle,
@@ -1002,6 +1017,49 @@ export default function PerfilPage() {
                 onChange={(value) => updateForm(setForm, "focusRegion", value)}
               />
             </div>
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Local de treino</p>
+              {isPremiumUser ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {LOCATION_OPTIONS.map((option) => {
+                      const selected = form.locations.includes(option.value);
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => toggleLocation(setForm, option.value)}
+                          className={clsx(
+                            "inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition",
+                            selected
+                              ? "border-primary/40 bg-primary/12 text-white"
+                              : "border-white/10 bg-white/[0.04] text-white/72 hover:bg-white/[0.08] hover:text-white"
+                          )}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[0.7rem] text-white/40">
+                    Marque os locais onde você treina. Ao clicar em “Gerar Novo Treino” na Dashboard, criamos um treino para cada local marcado.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <SelectField
+                    value={form.location}
+                    options={LOCATION_OPTIONS}
+                    onChange={(value) => updateForm(setForm, "location", value)}
+                  />
+                  <p className="text-[0.7rem] text-white/40">
+                    No Premium você pode ter treino em casa e no condomínio.
+                  </p>
+                </>
+              )}
+            </div>
+
+            {(isPremiumUser ? form.locations.includes("home") : form.location === "home") ? (
             <div className="space-y-3">
               <p className="text-xs text-white/50">Equipamentos</p>
               <div className="flex flex-wrap gap-2">
@@ -1025,6 +1083,7 @@ export default function PerfilPage() {
                 })}
               </div>
             </div>
+            ) : null}
 
             <div className="space-y-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/50">
@@ -1533,6 +1592,11 @@ function buildFormState(payload: ProfilePayload): ProfileFormState {
       BODY_TYPE_OPTIONS[0].value,
     days: payload.answers.days ? String(payload.answers.days) : "3",
     time: payload.answers.time ? String(payload.answers.time) : "45",
+    location: payload.answers.location ?? "home",
+    locations:
+      Array.isArray(payload.answers.locations) && payload.answers.locations.length
+        ? payload.answers.locations
+        : [payload.answers.location ?? "home"],
     equipment: normalizeEquipment(payload.answers.equipment),
     focusRegion: payload.answers.focusRegion ?? "balanced",
     trainingStyle: payload.answers.trainingStyle ?? "personal",
@@ -1557,6 +1621,21 @@ function toggleEquipment(setForm: Dispatch<SetStateAction<ProfileFormState>>, va
     const nextEquipment = exists ? withoutNone.filter((item) => item !== value) : [...withoutNone, value];
 
     return { ...current, equipment: nextEquipment.length ? nextEquipment : ["nenhum"] };
+  });
+}
+
+function toggleLocation(setForm: Dispatch<SetStateAction<ProfileFormState>>, value: string) {
+  setForm((current) => {
+    const currentLocations = current.locations.length ? current.locations : [current.location || "home"];
+    const exists = currentLocations.includes(value);
+    // Não deixa desmarcar o último local — sempre ao menos um marcado.
+    const nextLocations = exists
+      ? currentLocations.filter((item) => item !== value)
+      : [...currentLocations, value];
+    const safeLocations = nextLocations.length ? nextLocations : [value];
+    // Mantém o local ATIVO válido dentro do conjunto marcado.
+    const nextActive = safeLocations.includes(current.location) ? current.location : safeLocations[0];
+    return { ...current, locations: safeLocations, location: nextActive };
   });
 }
 

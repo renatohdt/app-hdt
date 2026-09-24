@@ -66,9 +66,17 @@ const LOADING_MESSAGES = [
   "Finalizando seu treino personalizado..."
 ];
 
-export function ExtraWorkoutButton({ userId, defaultEquipment }: {
+const EXTRA_LOCATION_LABELS: Record<string, string> = {
+  home: "Casa",
+  condo_gym: "Condomínio",
+  gym: "Academia"
+};
+
+export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, availableLocations }: {
   userId: string;
   defaultEquipment?: HomeEquipment[];
+  defaultLocation?: string;
+  availableLocations?: string[];
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<ExtraStatus | null>(null);
@@ -78,6 +86,13 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
   const [selectedEquipment, setSelectedEquipment] = useState<HomeEquipment[]>(defaultEquipment ?? []);
   const [selectedFocus, setSelectedFocus] = useState("Sem preferência");
   const [selectedStyle, setSelectedStyle] = useState("personal");
+  // Locais que o usuário pode escolher para o Treino Extra (os que têm programa).
+  const locationOptions = Array.isArray(availableLocations) && availableLocations.length
+    ? Array.from(new Set(availableLocations))
+    : [defaultLocation ?? "home"];
+  const [selectedLocation, setSelectedLocation] = useState<string>(
+    defaultLocation && locationOptions.includes(defaultLocation) ? defaultLocation : locationOptions[0]
+  );
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
@@ -171,7 +186,8 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
           availableMinutes: selectedMinutes,
           equipment: selectedEquipment,
           focusMuscleGroup: selectedFocus,
-          trainingStyle: selectedStyle
+          trainingStyle: selectedStyle,
+          location: selectedLocation
         })
       });
 
@@ -298,6 +314,9 @@ export function ExtraWorkoutButton({ userId, defaultEquipment }: {
                 selectedEquipment={selectedEquipment}
                 selectedFocus={selectedFocus}
                 selectedStyle={selectedStyle}
+                selectedLocation={selectedLocation}
+                locationOptions={locationOptions}
+                onSelectLocation={setSelectedLocation}
                 generateError={generateError}
                 onSelectMinutes={setSelectedMinutes}
                 onToggleEquipment={(eq) => {
@@ -411,18 +430,21 @@ function ModalIntro({ usedThisMonth, monthlyLimit, onClose, onStart }: {
 }
 
 function ModalQuestionnaire({
-  selectedMinutes, selectedEquipment, selectedFocus, selectedStyle, generateError,
-  onSelectMinutes, onToggleEquipment, onSelectFocus, onSelectStyle, onGenerate, onBack, onClose
+  selectedMinutes, selectedEquipment, selectedFocus, selectedStyle, selectedLocation, locationOptions, generateError,
+  onSelectMinutes, onToggleEquipment, onSelectFocus, onSelectStyle, onSelectLocation, onGenerate, onBack, onClose
 }: {
   selectedMinutes: 20 | 30 | 45 | 60;
   selectedEquipment: HomeEquipment[];
   selectedFocus: string;
   selectedStyle: string;
+  selectedLocation: string;
+  locationOptions: string[];
   generateError: string | null;
   onSelectMinutes: (v: 20 | 30 | 45 | 60) => void;
   onToggleEquipment: (eq: HomeEquipment) => void;
   onSelectFocus: (f: string) => void;
   onSelectStyle: (s: string) => void;
+  onSelectLocation: (loc: string) => void;
   onGenerate: () => void;
   onBack: () => void;
   onClose: () => void;
@@ -459,7 +481,33 @@ function ModalQuestionnaire({
         </div>
       </div>
 
-      {/* Equipamentos */}
+      {/* Local do treino */}
+      {locationOptions.length > 1 ? (
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/52">Onde será o treino?</p>
+          <div className="flex flex-wrap gap-2">
+            {locationOptions.map((loc) => (
+              <button
+                key={loc}
+                type="button"
+                onClick={() => onSelectLocation(loc)}
+                className={clsx(
+                  "rounded-full border px-3 py-1.5 text-[12px] font-semibold transition",
+                  selectedLocation === loc
+                    ? "border-yellow-500/40 bg-yellow-500/18 text-yellow-300"
+                    : "border-white/10 bg-white/[0.04] text-white/56 hover:text-white"
+                )}
+              >
+                {EXTRA_LOCATION_LABELS[loc] ?? loc}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Equipamentos — só para treino em casa. No condomínio/academia o catálogo
+          já usa os exercícios cadastrados do local. */}
+      {selectedLocation === "home" ? (
       <div className="space-y-2">
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/52">Que equipamentos você tem agora?</p>
         <div className="flex flex-wrap gap-2">
@@ -480,6 +528,7 @@ function ModalQuestionnaire({
           ))}
         </div>
       </div>
+      ) : null}
 
       {/* Foco muscular */}
       <div className="space-y-2">

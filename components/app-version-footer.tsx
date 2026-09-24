@@ -149,7 +149,7 @@ export function AppVersionFooter() {
                         <h3 className="text-[15px] font-semibold text-white">Compartilhe o app</h3>
                       </div>
                       <p className="max-w-[32ch] text-sm leading-5 text-white/58">
-                        Envie para quem quer treinar em casa com método.
+                        Envie para quem quer treinar com método — em casa ou no condomínio.
                       </p>
                     </div>
 

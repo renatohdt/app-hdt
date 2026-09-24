@@ -37,10 +37,34 @@ export async function GET(request: NextRequest) {
       : { data: [] };
 
     const fbMap = new Map((fbRows ?? []).map((f) => [f.session_log_id, f]));
+
+    // Anexa o local (home/condo_gym/gym) de cada sessão, buscando pelo workout.
+    // Tolerante a produção pré-migração (coluna `location` ausente → sem local).
+    const workoutIds = Array.from(
+      new Set(sessionLogs.map((l) => l.workoutId).filter((id): id is string => Boolean(id)))
+    );
+    const locationMap = new Map<string, string>();
+    if (workoutIds.length) {
+      const { data: workoutRows, error: workoutRowsError } = await supabase
+        .from("workouts")
+        .select("id, location")
+        .in("id", workoutIds);
+      if (!workoutRowsError && Array.isArray(workoutRows)) {
+        for (const row of workoutRows) {
+          const loc = (row as { location?: unknown }).location;
+          const id = (row as { id?: unknown }).id;
+          if (typeof id === "string" && typeof loc === "string" && loc.trim()) {
+            locationMap.set(id, loc);
+          }
+        }
+      }
+    }
+
     const sessionLogsWithFeedback = sessionLogs.map((log) => ({
       ...log,
       liked: fbMap.get(log.id)?.liked ?? null,
       intensityLevel: fbMap.get(log.id)?.intensity_level ?? null,
+      location: locationMap.get(log.workoutId) ?? null,
     }));
 
     return NextResponse.json({

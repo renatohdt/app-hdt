@@ -251,7 +251,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
             emptyLabel="Sem dados de duração registrados."
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <DistributionBarCard
             title="Método de treino"
             data={data.trainingStyleDistribution}
@@ -263,6 +263,12 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
             data={data.focusRegionDistribution}
             baseCount={totalUsers}
             emptyLabel="Sem dados de ênfase muscular registrados."
+          />
+          <DistributionBarCard
+            title="Local de treino"
+            data={data.locationDistribution}
+            baseCount={totalUsers}
+            emptyLabel="Sem dados de local de treino registrados."
           />
         </div>
       </section>

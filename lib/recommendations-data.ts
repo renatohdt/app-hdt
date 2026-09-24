@@ -10,6 +10,7 @@
  *  - levels:     para quais níveis mostrar (vazio = todos)
  *  - equipment:  mostrar SE o usuário TEM esse equipamento (para dicas de uso)
  *  - missingEquipment: mostrar SE o usuário NÃO TEM (para recomendação de compra)
+ *  - locations:  em quais locais mostrar (vazio/ausente = todos). Ex.: ["home"]
  *
  * Valores possíveis:
  *  goals:     "lose_weight" | "gain_muscle" | "body_recomposition" | "improve_conditioning"
@@ -20,7 +21,7 @@
 
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
 
-import type { Goal, Experience, HomeEquipment } from "@/lib/types";
+import type { Goal, Experience, HomeEquipment, Location } from "@/lib/types";
 
 export type RecommendationCard = {
   id: string;
@@ -40,6 +41,8 @@ export type RecommendationCard = {
   equipment: HomeEquipment[];
   /** Mostrar se o usuário NÃO TEM este equipamento (usado na aba de materiais) */
   missingEquipment: HomeEquipment[];
+  /** Locais (casa/condomínio/academia) em que o card faz sentido. Vazio/ausente = todos. */
+  locations?: Location[];
 };
 
 export type RecommendationsData = {

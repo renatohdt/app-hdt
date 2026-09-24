@@ -185,6 +185,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       durationDistribution: [],
       trainingStyleDistribution: [],
       focusRegionDistribution: [],
+      locationDistribution: [],
       premiumPotentialCount: 0
     };
   }
@@ -291,6 +292,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         durationDistribution: [],
         trainingStyleDistribution: [],
         focusRegionDistribution: [],
+        locationDistribution: [],
         premiumPotentialCount: 0
       };
     }
@@ -428,6 +430,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       focusRegionDistribution: toDistribution(
         dashboardAnswerList.map((a) => getFocusRegionLabel(a.focusRegion as QuizAnswers["focusRegion"]))
       ),
+      locationDistribution: toLocationDistribution(dashboardAnswerList),
       premiumPotentialCount: featureCounts.premium_potential_count
     };
   }
@@ -490,6 +493,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       durationDistribution: [],
       trainingStyleDistribution: [],
       focusRegionDistribution: [],
+      locationDistribution: [],
       premiumPotentialCount: 0
     };
   }
@@ -558,6 +562,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     ),
     trainingStyleDistribution: [],
     focusRegionDistribution: [],
+    locationDistribution: toLocationDistribution(answersList),
     premiumPotentialCount: 0
   };
 }
@@ -1410,6 +1415,46 @@ function getFocusRegionLabel(region?: QuizAnswers["focusRegion"]): string {
     balanced: "Equilibrado"
   };
   return region ? (labels[region] ?? region) : "";
+}
+
+function toLocationDistribution(
+  answersList: Array<Partial<QuizAnswers> & Record<string, unknown>>
+): DistributionDatum[] {
+  const total = answersList.length;
+  if (!total) return [];
+
+  const LABELS: Record<string, string> = {
+    home: "Casa",
+    condo_gym: "Condomínio",
+    gym: "Academia"
+  };
+  const normalize = (v: string) => (v === "condo gym" ? "condo_gym" : v);
+
+  // Multi-contagem: premium pode treinar em mais de um local (answers.locations).
+  // Sem esse campo, usa o local ativo (answers.location); sem nada, assume "home".
+  const counts = new Map<string, number>();
+  for (const answers of answersList) {
+    const rawLocations = Array.isArray((answers as { locations?: unknown }).locations)
+      && ((answers as { locations?: unknown[] }).locations as unknown[]).length
+      ? ((answers as { locations?: string[] }).locations as string[])
+      : [typeof answers.location === "string" && answers.location ? answers.location : "home"];
+    const seen = new Set<string>();
+    for (const item of rawLocations) {
+      if (typeof item !== "string" || !item) continue;
+      const key = normalize(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, value]) => ({
+      label: LABELS[key] ?? key,
+      value,
+      percentage: Math.round((value / total) * 100)
+    }));
 }
 
 function toEquipmentDistribution(

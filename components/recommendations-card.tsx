@@ -15,17 +15,21 @@ type Props = {
   goal?: Goal;
   level?: string;
   equipment?: string[];
+  location?: string;
 };
 
 function filterCards(
   cards: RecommendationCard[],
   goal: Goal | undefined,
   level: Experience | undefined,
-  userEquipment: HomeEquipment[]
+  userEquipment: HomeEquipment[],
+  location: string | undefined
 ): RecommendationCard[] {
   return cards.filter((card) => {
     if (card.goals.length > 0 && goal && !card.goals.includes(goal)) return false;
     if (card.levels.length > 0 && level && !card.levels.includes(level)) return false;
+    // Local: se o card é restrito a certos locais, só mostra no local do usuário.
+    if (card.locations && card.locations.length > 0 && location && !card.locations.includes(location as (typeof card.locations)[number])) return false;
     if (card.equipment.length > 0) {
       const hasAll = card.equipment.every((e) => userEquipment.includes(e));
       if (!hasAll) return false;
@@ -38,24 +42,34 @@ function filterCards(
   });
 }
 
-export function RecommendationsCard({ goal, level, equipment = [] }: Props) {
+export function RecommendationsCard({ goal, level, equipment = [], location }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("training");
 
   const userLevel = level as Experience | undefined;
   const userEquipment = equipment as HomeEquipment[];
+  // Materiais só fazem sentido para quem treina em casa. No condomínio/academia
+  // os aparelhos são do local, então não mostramos a aba de compra de equipamento.
+  const isHome = (location ?? "home") === "home";
 
-  const trainingCards = filterCards(RECOMMENDATIONS_DATA.training, goal, userLevel, userEquipment);
-  const nutritionCards = filterCards(RECOMMENDATIONS_DATA.nutrition, goal, userLevel, userEquipment);
-  const equipmentCards = filterCards(RECOMMENDATIONS_DATA.equipment, goal, userLevel, userEquipment);
+  const trainingCards = filterCards(RECOMMENDATIONS_DATA.training, goal, userLevel, userEquipment, location);
+  const nutritionCards = filterCards(RECOMMENDATIONS_DATA.nutrition, goal, userLevel, userEquipment, location);
+  const equipmentCards = isHome
+    ? filterCards(RECOMMENDATIONS_DATA.equipment, goal, userLevel, userEquipment, location)
+    : [];
 
   const tabs: { id: Tab; label: string; icon: typeof Dumbbell; cards: RecommendationCard[] }[] = [
     { id: "training", label: "Treino", icon: Dumbbell, cards: trainingCards },
     { id: "nutrition", label: "Nutrição", icon: Salad, cards: nutritionCards },
-    { id: "equipment", label: "Materiais", icon: ShoppingBag, cards: equipmentCards },
+    ...(isHome
+      ? [{ id: "equipment" as Tab, label: "Materiais", icon: ShoppingBag, cards: equipmentCards }]
+      : []),
   ];
 
+  // Se o local ativo esconder a aba atual, volta para a primeira aba visível.
+  const visibleTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
+
   const MAX_CARDS = 3;
-  const activeCards = (tabs.find((t) => t.id === activeTab)?.cards ?? []).slice(0, MAX_CARDS);
+  const activeCards = (tabs.find((t) => t.id === visibleTab)?.cards ?? []).slice(0, MAX_CARDS);
 
   return (
     <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
@@ -69,7 +83,7 @@ export function RecommendationsCard({ goal, level, equipment = [] }: Props) {
       {/* Abas */}
       <div className="mb-4 flex gap-2">
         {tabs.map(({ id, label, icon: Icon }) => {
-          const isActive = activeTab === id;
+          const isActive = visibleTab === id;
           return (
             <button
               key={id}
