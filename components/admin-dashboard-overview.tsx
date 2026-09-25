@@ -78,7 +78,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         <SummaryMetricCard
           label="Usuários premium"
           value={String(premiumUsers)}
-          description="Assinaturas ativas."
+          description={`Assinaturas ativas · Stripe: ${data.premiumByStore?.stripe ?? 0} · Apple: ${data.premiumByStore?.apple ?? 0}`}
         />
       </section>
 

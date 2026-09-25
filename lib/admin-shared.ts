@@ -42,6 +42,8 @@ export type AdminDashboardData = {
   totalUsers: number;
   deletedUsers: number;
   premiumUsers: number;
+  // Origem das assinaturas premium (uma pessoa pode ter as duas; o total não duplica)
+  premiumByStore: { stripe: number; apple: number };
   activeUsers: Record<DashboardWindowKey, number>;
   // Retenção calculada via RPC no banco (valores precisos)
   activeUsersLast7d: number;

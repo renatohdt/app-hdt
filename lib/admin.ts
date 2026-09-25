@@ -148,6 +148,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers: 0,
       deletedUsers: 0,
       premiumUsers: 0,
+      premiumByStore: { stripe: 0, apple: 0 },
       activeUsers: { daily: 0, weekly: 0 },
       activeUsersLast7d: 0,
       activeUsersLast30d: 0,
@@ -259,6 +260,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         totalUsers: 0,
         deletedUsers: 0,
         premiumUsers: 0,
+        premiumByStore: { stripe: 0, apple: 0 },
         activeUsers: {
           daily: 0,
           weekly: 0
@@ -318,7 +320,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const completionRate = null;
 
     // RPCs paralelos: engajamento, retenção precisa (banco), premium
-    const [featureUsageRpcQuery, retentionRpcQuery, premiumSubscriptionsQuery] = await Promise.all([
+    const [featureUsageRpcQuery, retentionRpcQuery, premiumSubscriptionsQuery, applePremiumQuery] = await Promise.all([
       supabase.rpc("get_feature_usage_counts"),
       // Ativos 7d e 30d calculados direto no banco → elimina bug de 7d = 30d
       // causado pelo limite de linhas no client-side filtering anterior.
@@ -327,7 +329,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       supabase
         .from("subscriptions")
         .select("user_id")
-        .in("status", ["active", "past_due"])
+        .in("status", ["active", "past_due"]),
+      // Assinantes da Apple (IAP via RevenueCat): o webhook grava a data de expiração em users
+      supabase
+        .from("users")
+        .select("id")
+        .gt("apple_premium_expires_at", new Date().toISOString())
     ]);
 
     type FeatureUsageCounts = {
@@ -356,8 +363,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       active_30d: retentionRaw.active_30d ?? 0
     };
 
-    // Usuários premium: assinaturas ativas ou em período de graça
-    const premiumUsers = (premiumSubscriptionsQuery.data ?? []).length;
+    // Usuários premium: Stripe (ativa ou em período de graça) + Apple (expiração no futuro).
+    // Usamos um Set para não contar duas vezes quem tiver assinatura nas duas lojas.
+    const stripePremiumIds = new Set(
+      ((premiumSubscriptionsQuery.data ?? []) as { user_id: string }[]).map((row) => row.user_id)
+    );
+    const applePremiumIds = new Set(((applePremiumQuery.data ?? []) as { id: string }[]).map((row) => row.id));
+    const premiumUsers = new Set([...stripePremiumIds, ...applePremiumIds]).size;
+    const premiumByStore = { stripe: stripePremiumIds.size, apple: applePremiumIds.size };
 
     // Total = count exato do banco, sem sofrer com o limite de 1000 linhas do PostgREST.
     // Fallback para dashboardUsers.length caso a query de count falhe.
@@ -367,6 +380,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers,
       deletedUsers,
       premiumUsers,
+      premiumByStore,
       activeUsers: {
         daily: buildActiveUsersForWindow(dashboardUsers, dashboardAnswers, dashboardEvents, {
           from: startOfToday(),
@@ -463,6 +477,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers: 0,
       deletedUsers: 0,
       premiumUsers: 0,
+      premiumByStore: { stripe: 0, apple: 0 },
       activeUsers: { daily: 0, weekly: 0 },
       activeUsersLast7d: 0,
       activeUsersLast30d: 0,
@@ -515,6 +530,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     totalUsers: users.length,
     deletedUsers,
     premiumUsers: 0,
+    premiumByStore: { stripe: 0, apple: 0 },
     activeUsers: {
       daily: activeUsers,
       weekly: activeUsers

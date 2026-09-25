@@ -40,13 +40,21 @@ export async function dispatchPushToAudience(
     nativeTokens = (tokensRes.data ?? []).map((r) => r.token);
 
   } else if (audience === "premium") {
-    const { data: premiumUsers, error } = await supabase
-      .from("subscriptions")
-      .select("user_id")
-      .eq("status", "active");
-    if (error) throw new Error(error.message);
+    // Premium = assinatura Stripe ativa OU assinatura Apple (IAP) ainda válida.
+    const [stripeRes, appleRes] = await Promise.all([
+      supabase.from("subscriptions").select("user_id").eq("status", "active"),
+      supabase.from("users").select("id").gt("apple_premium_expires_at", new Date().toISOString()),
+    ]);
+    if (stripeRes.error || appleRes.error) {
+      throw new Error(stripeRes.error?.message ?? appleRes.error?.message);
+    }
 
-    const premiumIds = (premiumUsers ?? []).map((r) => r.user_id);
+    const premiumIds = Array.from(
+      new Set([
+        ...(stripeRes.data ?? []).map((r) => r.user_id as string),
+        ...(appleRes.data ?? []).map((r) => r.id as string),
+      ])
+    );
     if (premiumIds.length === 0) return { sent: 0, failed: 0, total: 0 };
 
     const [subsRes, tokensRes] = await Promise.all([
