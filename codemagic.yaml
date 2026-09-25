@@ -47,6 +47,11 @@ workflows:
           target.build_configurations.each { |c| c.build_settings['CURRENT_PROJECT_VERSION'] = bn }
           puts "CURRENT_PROJECT_VERSION = #{bn}"
 
+          # 2c) Liga o arquivo de permissões (entitlements) ao target: é ele que
+          #     declara "este app recebe push" (aps-environment) para a Apple.
+          target.build_configurations.each { |c| c.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'App/App.entitlements' }
+          puts "CODE_SIGN_ENTITLEMENTS = App/App.entitlements"
+
           project.save
           RUBY
       - name: Instalar Pods (CocoaPods)
@@ -86,6 +91,8 @@ workflows:
           nm "$APP/$NAME" 2>/dev/null | grep -i "PurchasesPlugin" | head
           echo "===== FirebaseMessagingPlugin no binario principal? ====="
           nm "$APP/$NAME" 2>/dev/null | grep -i "FirebaseMessagingPlugin" | head
+          echo "===== Permissao de push (aps-environment) assinada no app? ====="
+          codesign -d --entitlements :- "$APP" 2>/dev/null | grep -A1 "aps-environment" || echo "  NAO ENCONTRADA - push no iOS nao vai funcionar"
           echo "===== Frameworks embutidos ====="
           ls "$APP/Frameworks" 2>/dev/null
           echo "===== procurando PurchasesPlugin dentro dos frameworks ====="

@@ -21,12 +21,63 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
   return view;
 }
 
+// Mesma chave usada no perfil e no NativePushProvider ("usuário desligou o push nativo").
+const NATIVE_PUSH_OPTOUT_KEY = "hdt:native-push-optout";
+
+type FirebaseMessagingBridge = {
+  checkPermissions?: () => Promise<{ receive?: string }>;
+  requestPermissions?: () => Promise<{ receive?: string }>;
+  getToken?: () => Promise<{ token?: string }>;
+};
+
+// No app nativo (iOS/Android) o push é o do Firebase, acessado pela ponte do
+// Capacitor. Retorna null no navegador (lá usamos web push).
+function getNativePush(): { fm: FirebaseMessagingBridge; platform: "ios" | "android" } | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      getPlatform?: () => string;
+      Plugins?: { FirebaseMessaging?: FirebaseMessagingBridge };
+    };
+  };
+  if (!w.Capacitor?.isNativePlatform?.()) return null;
+  const fm = w.Capacitor.Plugins?.FirebaseMessaging;
+  if (!fm?.getToken) return null;
+  return { fm, platform: w.Capacitor.getPlatform?.() === "ios" ? "ios" : "android" };
+}
+
 export function PushPromptModal() {
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Só mostra se: suporta push, permissão ainda não foi decidida, e nunca mostrou
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(STORAGE_KEY)) return;
+    if (getScreenCount() < MIN_SCREENS_BEFORE_PROMPT) return;
+
+    // App nativo (iOS/Android): só mostra se o sistema ainda não perguntou.
+    // Se a pessoa já permitiu ou já negou, o popup não serve pra nada.
+    const native = getNativePush();
+    if (native) {
+      if (localStorage.getItem(NATIVE_PUSH_OPTOUT_KEY) === "1") return;
+      let timer: number | undefined;
+      let cancelled = false;
+      native.fm
+        .checkPermissions?.()
+        .then((perm) => {
+          const state = perm?.receive;
+          if (cancelled || (state !== "prompt" && state !== "prompt-with-rationale")) return;
+          timer = window.setTimeout(() => setVisible(true), 1200);
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+        if (timer) window.clearTimeout(timer);
+      };
+    }
+
+    // Navegador: só mostra se suporta push, permissão ainda não foi decidida, e nunca mostrou
     if (
       typeof window === "undefined" ||
       !("serviceWorker" in navigator) ||
@@ -35,12 +86,6 @@ export function PushPromptModal() {
     ) return;
 
     if (Notification.permission !== "default") return;
-
-    const alreadyShown = localStorage.getItem(STORAGE_KEY);
-    if (alreadyShown) return;
-
-    // Só mostra após o usuário ter visitado pelo menos 5 telas
-    if (getScreenCount() < MIN_SCREENS_BEFORE_PROMPT) return;
 
     // Pequeno delay para não aparecer antes da página carregar
     const timer = window.setTimeout(() => setVisible(true), 1200);
@@ -57,6 +102,22 @@ export function PushPromptModal() {
     setLoading(true);
 
     try {
+      // App nativo: abre o pedido de permissão do sistema e registra o aparelho.
+      const native = getNativePush();
+      if (native) {
+        const perm = await native.fm.requestPermissions?.();
+        if (perm?.receive !== "granted") return;
+        const token = (await native.fm.getToken?.())?.token;
+        if (!token) return;
+        await fetchWithAuth("/api/push/register-native", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, platform: native.platform })
+        });
+        localStorage.removeItem(NATIVE_PUSH_OPTOUT_KEY);
+        return;
+      }
+
       const permission = await Notification.requestPermission();
 
       if (permission !== "granted") {

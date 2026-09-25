@@ -7,6 +7,11 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
  * Registra o token de push NATIVO (FCM) do aparelho no backend.
  * Só age no app nativo (iOS/Android). No navegador não faz nada.
  *
+ * NÃO pede permissão: só registra (ou atualiza) o token se a pessoa JÁ permitiu.
+ * O pedido de permissão acontece no popup (components/push-prompt-modal.tsx),
+ * com contexto, ou no botão do perfil. No iOS o sistema só pergunta UMA vez —
+ * perguntar logo na abertura, sem explicação, desperdiça essa chance.
+ *
  * Chama o plugin pela ponte global (window.Capacitor.Plugins.FirebaseMessaging)
  * em vez de importar @capacitor-firebase/messaging. Isso evita que o webpack
  * empacote a implementação WEB do plugin (que depende do SDK firebase/messaging),
@@ -20,7 +25,7 @@ export function NativePushProvider() {
         getPlatform?: () => string;
         Plugins?: {
           FirebaseMessaging?: {
-            requestPermissions?: () => Promise<{ receive?: string }>;
+            checkPermissions?: () => Promise<{ receive?: string }>;
             getToken?: () => Promise<{ token?: string }>;
           };
         };
@@ -41,7 +46,7 @@ export function NativePushProvider() {
     let cancelled = false;
     (async () => {
       try {
-        const perm = await fm.requestPermissions?.();
+        const perm = await fm.checkPermissions?.();
         if (perm?.receive !== "granted") return;
 
         const res = await fm.getToken?.();
