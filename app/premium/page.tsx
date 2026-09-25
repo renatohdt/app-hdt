@@ -21,6 +21,7 @@ const COMPARISON = [
   { label: "Treino Extra",                                   free: false,         premium: "5 por mês"   },
   { label: "Substituições de exercício",                    free: "2 por plano", premium: "2 por treino" },
   { label: "Gerador de treino",                             free: "1 programa",  premium: "Ilimitados"  },
+  { label: "Locais de treino", free: "1 local", premium: "2 ou mais" },
   { label: "Experiência sem anúncios",                      free: false,         premium: true          },
   { label: "Treino completo com IA",                        free: true,          premium: true          },
   { label: "Controle de carga e frequência de treino",      free: true,          premium: true          },
