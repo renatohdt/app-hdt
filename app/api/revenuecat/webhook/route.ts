@@ -5,7 +5,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 
 export const dynamic = "force-dynamic";
 
-// Webhook do RevenueCat: mantém o premium da Apple (IAP) atualizado no Supabase.
+// Webhook do RevenueCat: mantém o premium das lojas (Apple e Google Play) atualizado no Supabase.
 // O RevenueCat chama esta rota quando a assinatura é comprada, renovada,
 // cancelada, expira ou é reembolsada. Protegido por um segredo configurado
 // tanto aqui (env REVENUECAT_WEBHOOK_SECRET) quanto no painel do RevenueCat
@@ -19,7 +19,18 @@ type RevenueCatEvent = {
   app_user_id?: string;
   expiration_at_ms?: number | null;
   entitlement_ids?: string[] | null;
+  // Loja de origem: "APP_STORE", "PLAY_STORE", etc.
+  store?: string | null;
+  // "SANDBOX" (compra de teste) ou "PRODUCTION" (venda real).
+  environment?: string | null;
 };
+
+// Converte o campo `store` do RevenueCat para o valor salvo no banco.
+function mapStore(store?: string | null): string | null {
+  if (store === "APP_STORE" || store === "MAC_APP_STORE") return "app_store";
+  if (store === "PLAY_STORE") return "play_store";
+  return store ? store.toLowerCase() : null;
+}
 
 // Eventos que REVOGAM o acesso imediatamente.
 const REVOKE_TYPES = new Set(["EXPIRATION", "REFUND", "SUBSCRIPTION_PAUSED"]);
@@ -59,7 +70,7 @@ export async function POST(request: NextRequest) {
       return jsonSuccess({ ok: true, skipped: "no_user" });
     }
 
-    // Decide a nova data de expiração do premium da Apple.
+    // Decide a nova data de expiração do premium da loja.
     let expiresAt: string | null;
     if (REVOKE_TYPES.has(type)) {
       expiresAt = null; // revoga agora
@@ -76,15 +87,26 @@ export async function POST(request: NextRequest) {
 
     const { error } = await supabase
       .from("users")
-      .update({ apple_premium_expires_at: expiresAt })
+      .update({
+        apple_premium_expires_at: expiresAt,
+        // De qual loja veio e se é compra de teste (usado só pelo admin).
+        store_premium_source: mapStore(event?.store),
+        store_premium_sandbox: event?.environment ? event.environment === "SANDBOX" : null,
+      })
       .eq("id", appUserId);
 
     if (error) {
-      logError("REVENUECAT", "Erro ao atualizar premium Apple", { error: error.message, type });
+      logError("REVENUECAT", "Erro ao atualizar premium da loja", { error: error.message, type });
       return jsonError("Erro ao processar.", 500);
     }
 
-    logInfo("REVENUECAT", "Premium Apple atualizado", { type, user_id: appUserId, expires_at: expiresAt });
+    logInfo("REVENUECAT", "Premium da loja atualizado", {
+      type,
+      user_id: appUserId,
+      expires_at: expiresAt,
+      store: event?.store ?? null,
+      environment: event?.environment ?? null,
+    });
     return jsonSuccess({ ok: true });
   } catch (error) {
     logError("REVENUECAT", "Erro inesperado no webhook", { error: String(error) });

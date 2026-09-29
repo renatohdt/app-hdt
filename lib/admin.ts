@@ -148,7 +148,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers: 0,
       deletedUsers: 0,
       premiumUsers: 0,
-      premiumByStore: { stripe: 0, apple: 0 },
+      premiumByStore: { stripe: 0, apple: 0, google: 0, test: 0 },
       activeUsers: { daily: 0, weekly: 0 },
       activeUsersLast7d: 0,
       activeUsersLast30d: 0,
@@ -260,7 +260,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         totalUsers: 0,
         deletedUsers: 0,
         premiumUsers: 0,
-        premiumByStore: { stripe: 0, apple: 0 },
+        premiumByStore: { stripe: 0, apple: 0, google: 0, test: 0 },
         activeUsers: {
           daily: 0,
           weekly: 0
@@ -330,10 +330,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         .from("subscriptions")
         .select("user_id")
         .in("status", ["active", "past_due"]),
-      // Assinantes da Apple (IAP via RevenueCat): o webhook grava a data de expiração em users
+      // Assinantes das lojas (Apple e Google Play via RevenueCat): o webhook grava a
+      // data de expiração em users.apple_premium_expires_at (nome histórico) e a loja
+      // de origem em store_premium_source.
       supabase
         .from("users")
-        .select("id")
+        .select("id, store_premium_source, store_premium_sandbox")
         .gt("apple_premium_expires_at", new Date().toISOString())
     ]);
 
@@ -363,14 +365,30 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       active_30d: retentionRaw.active_30d ?? 0
     };
 
-    // Usuários premium: Stripe (ativa ou em período de graça) + Apple (expiração no futuro).
-    // Usamos um Set para não contar duas vezes quem tiver assinatura nas duas lojas.
+    // Usuários premium: Stripe (ativa ou em período de graça) + lojas (expiração no futuro).
+    // Compras de TESTE das lojas (sandbox) não entram no total nem nas lojas.
+    // Usamos um Set para não contar duas vezes quem tiver assinatura em mais de um lugar.
     const stripePremiumIds = new Set(
       ((premiumSubscriptionsQuery.data ?? []) as { user_id: string }[]).map((row) => row.user_id)
     );
-    const applePremiumIds = new Set(((applePremiumQuery.data ?? []) as { id: string }[]).map((row) => row.id));
-    const premiumUsers = new Set([...stripePremiumIds, ...applePremiumIds]).size;
-    const premiumByStore = { stripe: stripePremiumIds.size, apple: applePremiumIds.size };
+    type StoreRow = { id: string; store_premium_source: string | null; store_premium_sandbox: boolean | null };
+    const storeRows = (applePremiumQuery.data ?? []) as StoreRow[];
+    const testStoreIds = new Set(storeRows.filter((r) => r.store_premium_sandbox === true).map((r) => r.id));
+    const realStoreRows = storeRows.filter((r) => r.store_premium_sandbox !== true);
+    const googlePremiumIds = new Set(
+      realStoreRows.filter((r) => r.store_premium_source === "play_store").map((r) => r.id)
+    );
+    // Sem loja registrada (assinaturas antigas) = Apple, que era a única loja antes.
+    const applePremiumIds = new Set(
+      realStoreRows.filter((r) => r.store_premium_source !== "play_store").map((r) => r.id)
+    );
+    const premiumUsers = new Set([...stripePremiumIds, ...applePremiumIds, ...googlePremiumIds]).size;
+    const premiumByStore = {
+      stripe: stripePremiumIds.size,
+      apple: applePremiumIds.size,
+      google: googlePremiumIds.size,
+      test: testStoreIds.size,
+    };
 
     // Total = count exato do banco, sem sofrer com o limite de 1000 linhas do PostgREST.
     // Fallback para dashboardUsers.length caso a query de count falhe.
@@ -477,7 +495,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       totalUsers: 0,
       deletedUsers: 0,
       premiumUsers: 0,
-      premiumByStore: { stripe: 0, apple: 0 },
+      premiumByStore: { stripe: 0, apple: 0, google: 0, test: 0 },
       activeUsers: { daily: 0, weekly: 0 },
       activeUsersLast7d: 0,
       activeUsersLast30d: 0,
@@ -530,7 +548,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     totalUsers: users.length,
     deletedUsers,
     premiumUsers: 0,
-    premiumByStore: { stripe: 0, apple: 0 },
+    premiumByStore: { stripe: 0, apple: 0, google: 0, test: 0 },
     activeUsers: {
       daily: activeUsers,
       weekly: activeUsers
