@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { Check, RotateCcw, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { trackEvent } from "@/lib/analytics-client";
 import {
@@ -15,15 +15,23 @@ import {
   type RcPackage,
 } from "@/lib/revenuecat-native";
 import { useSubscription } from "@/components/use-subscription";
+import { getNativePlatformNow, useNativePlatform } from "@/lib/is-native-app";
 
 type Plan = "annual" | "monthly";
 
 /**
- * Tela de assinatura Premium DENTRO do app iOS (compra nativa via RevenueCat).
- * Os preços vêm da App Store (não são fixos no código).
+ * Tela de assinatura Premium DENTRO do app nativo (iOS e Android), com compra
+ * nativa via RevenueCat. Os preços vêm da loja (App Store / Google Play), não
+ * são fixos no código.
+ *
+ * `fallback`: se informado, é mostrado no lugar da tela de compra quando os
+ * planos não carregam (ex.: chave do Android ainda não cadastrada). No Android
+ * usamos o antigo "Tenho interesse" — assim ninguém vê um botão quebrado.
  */
-export function IosPremiumPurchase() {
+export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) {
   const router = useRouter();
+  const platform = useNativePlatform();
+  const isAndroid = platform === "android";
   const { refresh } = useSubscription();
   const [userId, setUserId] = useState<string | null>(null);
   const [packages, setPackages] = useState<{ monthly?: RcPackage; annual?: RcPackage }>({});
@@ -106,17 +114,18 @@ export function IosPremiumPurchase() {
     }
 
     setBusy(true);
-    trackEvent("checkout_started", null, { plan: selected, source: "ios_iap" });
+    const source = getNativePlatformNow() === "android" ? "android_iap" : "ios_iap";
+    trackEvent("checkout_started", null, { plan: selected, source });
     const res = await purchasePremium(pkg);
     setBusy(false);
 
     if (res.ok) {
-      trackEvent("purchase", null, { plan: selected, source: "ios_iap" });
+      trackEvent("purchase", null, { plan: selected, source });
       setDone(true);
       // Atualiza o status premium no app (com re-tentativas p/ o webhook do RevenueCat).
       void refresh();
     } else if (res.canceled) {
-      // usuário fechou o pop-up da Apple: não é erro
+      // usuário fechou o pop-up da loja: não é erro
     } else {
       setError("Não foi possível concluir a assinatura. Tente novamente.");
     }
@@ -138,7 +147,11 @@ export function IosPremiumPurchase() {
       // Atualiza o status premium no app (com re-tentativas p/ o webhook do RevenueCat).
       void refresh();
     } else {
-      setError("Nenhuma assinatura anterior encontrada nesta conta Apple.");
+      setError(
+        isAndroid
+          ? "Nenhuma assinatura anterior encontrada nesta conta Google."
+          : "Nenhuma assinatura anterior encontrada nesta conta Apple."
+      );
     }
   }
 
@@ -158,6 +171,11 @@ export function IosPremiumPurchase() {
         </button>
       </div>
     );
+  }
+
+  // Planos não carregaram e há um fallback (Android): mostra o fallback.
+  if (fallback && !loading && !packages.annual && !packages.monthly) {
+    return <>{fallback}</>;
   }
 
   const annualPrice = packages.annual?.product.priceString;
@@ -251,12 +269,14 @@ export function IosPremiumPurchase() {
         Restaurar compras
       </button>
 
-      {/* Texto obrigatório de assinatura (Apple 3.1.2) */}
+      {/* Texto obrigatório de assinatura (Apple 3.1.2 / Google Play) */}
       <p className="mt-4 text-center text-[11px] leading-relaxed text-white/40">
         {selectedPrice
           ? `Assinatura ${selected === "annual" ? "anual" : "mensal"} de ${selectedPrice}/${selectedPeriod}. `
           : ""}
-        A assinatura renova automaticamente por igual período, a menos que seja cancelada até 24h antes do fim do período atual, nos Ajustes da App Store. O pagamento é processado pela Apple.{" "}
+        {isAndroid
+          ? "A assinatura renova automaticamente por igual período, a menos que seja cancelada antes do fim do período atual, em Google Play › Pagamentos e assinaturas. O pagamento é processado pelo Google Play."
+          : "A assinatura renova automaticamente por igual período, a menos que seja cancelada até 24h antes do fim do período atual, nos Ajustes da App Store. O pagamento é processado pela Apple."}{" "}
         <Link href="/termos-de-uso" className="underline hover:text-white/60">
           Termos de Uso
         </Link>{" "}
