@@ -172,9 +172,9 @@ export function AdminFeedbacksList() {
                     ? IMPROVEMENT_LABELS[fb.improvement_reason] ?? fb.improvement_reason
                     : <span className="text-white/30">—</span>}
                 </td>
-                <td className="max-w-xs px-5 py-4 text-sm text-white/72">
+                <td className="min-w-[280px] max-w-md px-5 py-4 text-sm text-white/72">
                   {fb.comment
-                    ? <span className="line-clamp-2">{fb.comment}</span>
+                    ? <p className="whitespace-pre-wrap break-words leading-relaxed">{fb.comment}</p>
                     : <span className="text-white/30">—</span>}
                 </td>
                 <td className="px-5 py-4 text-sm text-white/50">
