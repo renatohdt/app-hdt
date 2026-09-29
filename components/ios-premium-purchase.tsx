@@ -40,6 +40,20 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Após pagar: esperando o servidor confirmar o premium (webhook do RevenueCat).
+  const [activating, setActivating] = useState(false);
+  // O servidor confirmou o premium? (false = pagamento ok, mas ainda propagando)
+  const [confirmed, setConfirmed] = useState(false);
+
+  // Espera o servidor confirmar o premium antes de liberar o "Continuar".
+  // No Android o aviso da loja levou ~1 min para chegar; esperamos até ~90s.
+  async function waitForPremium() {
+    setActivating(true);
+    const ok = await refresh();
+    setConfirmed(ok);
+    setActivating(false);
+    setDone(true);
+  }
 
   // Carrega os planos (configura o RevenueCat + busca os pacotes).
   // Reutilizado pelo botão "Tentar novamente".
@@ -121,9 +135,7 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
 
     if (res.ok) {
       trackEvent("purchase", null, { plan: selected, source });
-      setDone(true);
-      // Atualiza o status premium no app (com re-tentativas p/ o webhook do RevenueCat).
-      void refresh();
+      await waitForPremium();
     } else if (res.canceled) {
       // usuário fechou o pop-up da loja: não é erro
     } else {
@@ -143,9 +155,7 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
     setBusy(false);
 
     if (res.ok) {
-      setDone(true);
-      // Atualiza o status premium no app (com re-tentativas p/ o webhook do RevenueCat).
-      void refresh();
+      await waitForPremium();
     } else {
       setError(
         isAndroid
@@ -155,11 +165,29 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
     }
   }
 
+  if (activating) {
+    return (
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
+        <span className="mx-auto mb-3 block h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+        <p className="text-sm font-semibold text-primary">Ativando seu Premium...</p>
+        <p className="mt-1 text-sm text-white/70">
+          Pagamento aprovado! Estamos liberando seus recursos. Isso pode levar até 1 minuto.
+        </p>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
-        <p className="text-sm font-semibold text-primary">Premium ativado! ✨</p>
-        <p className="mt-1 text-sm text-white/70">Aproveite todos os recursos do Hora do Treino.</p>
+        <p className="text-sm font-semibold text-primary">
+          {confirmed ? "Premium ativado! ✨" : "Pagamento confirmado! ✨"}
+        </p>
+        <p className="mt-1 text-sm text-white/70">
+          {confirmed
+            ? "Aproveite todos os recursos do Hora do Treino."
+            : "Seu Premium será liberado em instantes. Se ainda aparecer o plano gratuito, feche e abra o app."}
+        </p>
         <button
           onClick={() => {
             router.push("/dashboard");

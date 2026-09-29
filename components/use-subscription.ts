@@ -16,8 +16,9 @@ type SubscriptionSummary = {
 type UseSubscriptionResult = {
   subscription: SubscriptionSummary | null;
   loading: boolean;
-  // Re-consulta o status da assinatura (usado após uma compra).
-  refresh: () => Promise<void>;
+  // Re-consulta o status da assinatura (usado após uma compra), tentando de novo
+  // até o premium aparecer. Retorna true se confirmou o premium no servidor.
+  refresh: (opts?: { attempts?: number; intervalMs?: number }) => Promise<boolean>;
 };
 
 const DEFAULT: SubscriptionSummary = {
@@ -34,7 +35,7 @@ const DEFAULT: SubscriptionSummary = {
 const SubscriptionContext = createContext<UseSubscriptionResult>({
   subscription: null,
   loading: true,
-  refresh: async () => {},
+  refresh: async () => false,
 });
 
 export { SubscriptionContext };
@@ -82,14 +83,45 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
   }, []);
 
   // Atualiza o status apos uma compra. O premium so e gravado no banco quando o
-  // webhook do RevenueCat chega (alguns segundos depois), entao refazemos a busca
-  // algumas vezes ate o premium aparecer -- sem o usuario precisar reabrir o app.
-  const refresh = useCallback(async () => {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const summary = await fetchSubscription();
-      if (summary.isPremium) return;
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
+  // webhook do RevenueCat chega -- no Android isso levou ~1 minuto (Google ->
+  // RevenueCat -> nosso servidor). Entao refazemos a busca varias vezes ate o
+  // premium aparecer, sem o usuario precisar reabrir o app.
+  // Padrao: 30 tentativas a cada 3s (~90s). Retorna true se confirmou.
+  const refresh = useCallback(
+    async (opts?: { attempts?: number; intervalMs?: number }) => {
+      const attempts = opts?.attempts ?? 30;
+      const intervalMs = opts?.intervalMs ?? 3000;
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const summary = await fetchSubscription();
+        if (summary.isPremium) return true;
+        if (attempt < attempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+      }
+      return false;
+    },
+    [fetchSubscription]
+  );
+
+  // Quando o app/aba volta para a tela (ex.: reabrir o app, voltar de outro app,
+  // voltar da Play Store/App Store), consulta o plano de novo. Assim o status
+  // nunca fica "preso" em um valor antigo (compra, renovação ou cancelamento).
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let last = 0;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - last < 5000) return; // evita consultas repetidas em sequência
+      last = now;
+      void fetchSubscription();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [fetchSubscription]);
 
   useEffect(() => {
