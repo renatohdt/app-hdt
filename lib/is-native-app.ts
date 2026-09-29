@@ -52,7 +52,7 @@ export function useIsNativeApp(): boolean {
  * Diz em qual plataforma o app está rodando: "ios", "android" ou "web".
  * Usado para escolher o fluxo de Premium certo:
  *  - iOS  → compra nativa (Apple / RevenueCat)
- *  - android → "Tenho interesse" (venda continua no site)
+ *  - android → compra nativa (Google Play / RevenueCat)
  *  - web  → checkout do Stripe
  */
 export function getNativePlatformNow(): "ios" | "android" | "web" {

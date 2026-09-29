@@ -214,29 +214,34 @@ function PremiumPageContent() {
           /* ───────── App iOS: compra nativa via RevenueCat (In-App Purchase) ───────── */
           <IosPremiumPurchase />
         ) : platform === "android" ? (
-          /* ───────── App Android: sem checkout, apenas captura de interesse ───────── */
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
-            {!interested ? (
-              <>
-                <p className="text-sm leading-relaxed text-white/70">
-                  A ativação do Premium é feita pela nossa equipe. Deixe seu
-                  interesse e enviamos por e-mail as novidades e como desbloquear
-                  todos os recursos.
-                </p>
-                <button
-                  onClick={handleInterest}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
-                >
-                  <Zap size={16} strokeWidth={2.5} />
-                  Tenho interesse no Premium
-                </button>
-              </>
-            ) : (
-              <p className="py-2 text-sm font-semibold text-primary">
-                Recebemos seu interesse! ✨ Em breve entramos em contato por e-mail.
-              </p>
-            )}
-          </div>
+          /* ───────── App Android: compra nativa via RevenueCat (Google Play Billing).
+             Se os planos não carregarem, cai no antigo "Tenho interesse". ───────── */
+          <IosPremiumPurchase
+            fallback={
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
+                {!interested ? (
+                  <>
+                    <p className="text-sm leading-relaxed text-white/70">
+                      A ativação do Premium é feita pela nossa equipe. Deixe seu
+                      interesse e enviamos por e-mail as novidades e como desbloquear
+                      todos os recursos.
+                    </p>
+                    <button
+                      onClick={handleInterest}
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
+                    >
+                      <Zap size={16} strokeWidth={2.5} />
+                      Tenho interesse no Premium
+                    </button>
+                  </>
+                ) : (
+                  <p className="py-2 text-sm font-semibold text-primary">
+                    Recebemos seu interesse! ✨ Em breve entramos em contato por e-mail.
+                  </p>
+                )}
+              </div>
+            }
+          />
         ) : (
           /* ───────── No navegador: fluxo de assinatura normal ───────── */
           <>

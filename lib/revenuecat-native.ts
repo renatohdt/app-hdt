@@ -5,8 +5,9 @@
 // app (timeout_import), impedindo os planos de carregarem. registerPlugin do
 // Capacitor é seguro em SSR (só retorna um proxy; não acessa window ao importar).
 import { Purchases } from "@revenuecat/purchases-capacitor";
+import { getNativePlatformNow } from "@/lib/is-native-app";
 
-// Wrapper do RevenueCat para o app iOS. Só é chamado DENTRO do app nativo.
+// Wrapper do RevenueCat para os apps iOS e Android. Só é chamado DENTRO do app nativo.
 // Usa import dinâmico: o pacote só carrega quando as funções são chamadas
 // (e só chamamos no iOS), então o build web não quebra nem fica pesado.
 
@@ -38,13 +39,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+// Chave pública do RevenueCat de cada loja: "appl_..." (iOS) ou "goog_..." (Android).
+// Se a chave da plataforma não estiver cadastrada, retorna undefined e a tela
+// mostra o fallback (ex.: "Tenho interesse" no Android).
+function getRevenueCatApiKey(): string | undefined {
+  return getNativePlatformNow() === "android"
+    ? process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY
+    : process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY;
+}
+
 let configured = false;
 
 // Configura o RevenueCat e identifica o usuário (app_user_id = id do Supabase).
 // Assim o webhook sabe de quem é a compra.
 // Tem tempo-limite: se a chamada nativa travar, não deixa a tela presa em "Carregando".
 export async function configureRevenueCat(appUserId: string): Promise<boolean> {
-  const apiKey = process.env.NEXT_PUBLIC_REVENUECAT_IOS_KEY;
+  const apiKey = getRevenueCatApiKey();
   if (!apiKey) return false;
 
   try {
