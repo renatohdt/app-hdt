@@ -64,16 +64,21 @@ Inclui tudo do plano gratuito, mais:
 
 ### Ciclo de um programa de treino
 
-1. Usuário conclui todas as sessões do programa atual
-2. O app exibe: *"Programa de treino concluído! Parabéns! Um novo treino será montado para novos estímulos!"*
-3. Um novo programa é gerado automaticamente pela IA
-4. O contador de substituições de exercício é zerado
+1. Usuário conclui a última sessão do programa atual
+2. O app abre a **tela cheia de celebração** "Programa concluído!" com o resumo do ciclo: sessões, semanas, exercícios com aumento de carga, situação do nível (fase + pontinhos / "falta pouco" / "subiu de fase") e conquistas desbloqueadas no ciclo (`GET /api/workout/cycle-summary`). XP em número não é exibido de propósito
+3. O usuário toca em **"Montar meu próximo programa"** e a IA gera o novo programa (partindo do anterior). Há também o atalho "Revisar meus dados antes" (perfil)
+4. Enquanto o próximo programa não é montado, Home e Treino mostram o card de destaque "Programa concluído! 🏆" com o mesmo botão
+5. O contador de sessões do ciclo recomeça (`programCycleStartedAt`) e o de substituições é zerado
+
+Implementação: `components/cycle-complete.tsx`, regra em `lib/cycle-renewal.ts`, trava no `POST /api/workout`.
 
 ### Regras por plano
 
 - Usuários **premium**: ciclo de geração é **ilimitado** — sempre receberão um novo programa ao concluir o atual
 - Usuários **freemium**: recebem **até 2 programas** (1 no cadastro + 1 após concluir o primeiro)
   - Ao concluir o 2º programa, ao invés de gerar um novo, o app exibe o gatilho de upsell (ver Seção 8)
+  - Controle: `cycleRenewalsCount` em `user_answers` (free pode renovar 1 vez). O servidor bloqueia com `403 free_cycle_limit`
+  - A regeneração manual (ícone ↻ / perfil, 1x a cada 30 dias no free) é separada e serve para mudança de perfil no meio do ciclo
 
 ### Locais de treino (Casa e Condomínio)
 

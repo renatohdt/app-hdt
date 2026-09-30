@@ -15,6 +15,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { Experience, ExerciseRecord, Location, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { isPremium } from "@/lib/subscription";
+import { FREE_CYCLE_LIMIT_ERROR_CODE, getCycleRenewalsUsed, hasCompletedCycleBefore, hasFreeCycleRenewalAvailable } from "@/lib/cycle-renewal";
 import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
@@ -282,6 +283,10 @@ export async function GET(request: NextRequest) {
         diagnosis,
         workout: workoutState.workout,
         sessionProgress,
+        // Free: ainda pode montar o 2º programa ao concluir o ciclo? (premium ignora)
+        freeCycleRenewalAvailable: hasFreeCycleRenewalAvailable(savedAnswers),
+        // Já fechou algum ciclo antes (mantém a conquista "Plano Concluído" após renovar)
+        hasCompletedCycleBefore: hasCompletedCycleBefore(savedAnswers),
         // Dados de nível/XP — inclui decay aplicado se havia inatividade
         levelData: userLevelSummary
           ? {
@@ -566,6 +571,22 @@ export async function POST(request: Request) {
         })
       : null;
 
+    // ── Renovação de ciclo no Free (até 2 programas) ─────────────────────────
+    // Ciclo concluído + free sem renovação disponível → não gera; o app mostra
+    // o upsell. Vale também para `force`, senão o limite seria contornável.
+    const isRenewingCompletedCycle = Boolean(existingWorkout && existingSessionProgress?.cycleCompleted);
+    if (isRenewingCompletedCycle && !isPremiumUser && !hasFreeCycleRenewalAvailable(savedAnswers)) {
+      logInfo("AI", "Free cycle renewal limit reached", { user_id: userId });
+      return NextResponse.json(
+        {
+          success: false,
+          code: FREE_CYCLE_LIMIT_ERROR_CODE,
+          error: "Você já concluiu seus 2 programas gratuitos. Assine o Premium para montar o próximo."
+        },
+        { status: 403 }
+      );
+    }
+
     if (
       !forceRegenerate &&
       existingWorkout &&
@@ -726,8 +747,20 @@ export async function POST(request: Request) {
         location: effectiveAnswers.location,
         locations: nextLocations,
         ...(forceRegenerate ? { lastRegeneratedAt: new Date().toISOString() } : {}),
-        ...(regeneratedExisting ? { programCycleStartedAt: new Date().toISOString() } : {})
-      } as QuizAnswers & { lastRegeneratedAt?: string; programCycleStartedAt?: string });
+        ...(regeneratedExisting ? { programCycleStartedAt: new Date().toISOString() } : {}),
+        // Fase no início do ciclo → a celebração sabe se a pessoa subiu de fase no ciclo
+        ...(regeneratedExisting && levelRow ? { cycleStartPhase: levelRow.currentPhase } : {}),
+        // Conta renovações de ciclo concluído (limite do free: FREE_MAX_CYCLE_RENEWALS)
+        ...(isRenewingCompletedCycle
+          ? { cycleRenewalsCount: getCycleRenewalsUsed(savedAnswers) + 1, lastCycleCompletedAt: new Date().toISOString() }
+          : {})
+      } as QuizAnswers & {
+        lastRegeneratedAt?: string;
+        programCycleStartedAt?: string;
+        cycleRenewalsCount?: number;
+        lastCycleCompletedAt?: string;
+        cycleStartPhase?: string;
+      });
     }
 
     return NextResponse.json({

@@ -1,9 +1,8 @@
 ﻿"use client";
 
 import clsx from "clsx";
-import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, Sparkles } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
@@ -12,6 +11,7 @@ import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import { Badge, Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
+import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { useSubscription } from "@/components/use-subscription";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
@@ -123,8 +123,9 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [totalWorkoutsAllTime, setTotalWorkoutsAllTime] = useState(data.totalWorkoutsAllTime);
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
   const [phaseUpPopup, setPhaseUpPopup] = useState<{ title: string; phrase: string } | null>(null);
-  const [showProgramUpsell, setShowProgramUpsell] = useState(false);
-  const [showProgramContinuation, setShowProgramContinuation] = useState(false);
+  // Tela cheia de "Programa concluído" (fim de ciclo) — abre sozinha ao finalizar
+  // a última sessão e também pelo card de destaque.
+  const [showCycleCelebration, setShowCycleCelebration] = useState(false);
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   // Popup "Você já treinou hoje" — exibido antes da confirmação quando a pessoa
   // tenta finalizar um treino tendo já concluído uma sessão no mesmo dia.
@@ -226,6 +227,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
   const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
   const isPremiumUser = subscription?.isPremium ?? false;
+  const cycleCompleteMode = resolveCycleCompleteMode(isPremiumUser, data.freeCycleRenewalAvailable);
   // Para exibir anúncios, só consideramos "free" depois que a assinatura carregou.
   // Evita anúncio piscar para premium durante o carregamento.
   const showAds = !subscriptionLoading && !isPremiumUser;
@@ -373,12 +375,20 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         setActiveWorkoutKey(nextWorkoutKey);
       }
 
+      // Última sessão do ciclo: a celebração de fim de programa substitui o popup
+      // comum de treino concluído (modo programa comprado segue o fluxo normal).
+      const cycleJustCompleted = Boolean(result.data.program_completed) && !isProgram;
+
       setConfirmCompletion(false);
-      setShowCompletionPopup(true);
-      setFeedback({
-        tone: "success",
-        text: `Próximo em destaque: ${nextWorkoutLabel}.`
-      });
+      if (cycleJustCompleted) {
+        setShowCycleCelebration(true);
+      } else {
+        setShowCompletionPopup(true);
+        setFeedback({
+          tone: "success",
+          text: `Próximo em destaque: ${nextWorkoutLabel}.`
+        });
+      }
 
       const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
       const next = result.data.newTotalWorkouts ?? totalWorkoutsAllTime + 1;
@@ -404,17 +414,6 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         session_number: result.data.completion?.sessionNumber ?? null
       });
 
-      // Exibe upsell se o programa foi concluído e o usuário é free
-      if (result.data.program_completed && result.data.user_plan === "free") {
-        setShowProgramUpsell(true);
-      }
-
-      if (result.data.program_completed && result.data.user_plan === "premium") {
-        setShowProgramContinuation(true);
-        setTimeout(() => {
-          void reloadWorkout().finally(() => setShowProgramContinuation(false));
-        }, 1500);
-      }
     } catch (requestError) {
       setFeedback({
         tone: "error",
@@ -638,30 +637,20 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
         {isCycleComplete ? (
-          isPremiumUser ? (
+          isProgram ? (
+            // Modo programa comprado: a navegação de semanas fica na Home.
             <div className="rounded-[24px] border border-primary/18 bg-primary/10 p-4">
-              <p className="text-sm font-semibold text-white">🏁 Ciclo concluído!</p>
+              <p className="text-sm font-semibold text-white">🏁 Semana concluída!</p>
               <p className="mt-1 text-sm text-white/62">
-                Você completou todas as sessões do ciclo atual. Quando renovar o programa, os treinos serão atualizados e o ciclo recomeça.
+                Você completou todas as sessões desta semana do programa.
               </p>
             </div>
-          ) : (
-            <div className="rounded-[24px] border border-primary/30 bg-primary/10 p-5 space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-primary shrink-0" />
-                <p className="text-sm font-bold text-white">Ciclo concluído!</p>
-              </div>
-              <p className="text-sm text-white/70 leading-relaxed">
-                Você completou todas as sessões. Que tal um programa que evolui junto com você — gerado pela IA, adaptado ao seu ritmo?
-              </p>
-              <Link
-                href="/premium"
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-3 text-sm font-bold text-black transition hover:opacity-90 active:scale-[0.99]"
-              >
-                <Sparkles size={14} />
-                Conheça o Premium
-              </Link>
-            </div>
+          ) : subscriptionLoading ? null : (
+            <CycleCompleteCard
+              mode={cycleCompleteMode}
+              completedSessions={sessionProgress.completedSessions}
+              onOpen={() => setShowCycleCelebration(true)}
+            />
           )
         ) : (
           // Botão "domo" (semicírculo) fixo, centralizado, saindo de trás do menu inferior.
@@ -783,12 +772,17 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         <AlreadyTrainedTodayPopup onClose={() => setShowAlreadyTrainedPopup(false)} />
       ) : null}
 
-      {showProgramUpsell ? (
-        <UpsellModal reason="program_completed" onClose={() => setShowProgramUpsell(false)} />
-      ) : null}
-
-      {showProgramContinuation ? (
-        <PremiumContinuationCard sessionCount={sessionProgress.completedSessions} />
+      {showCycleCelebration ? (
+        <CycleCompleteCelebration
+          userId={data.user.id}
+          isPremium={isPremiumUser}
+          freeRenewalAvailable={data.freeCycleRenewalAvailable}
+          completedSessions={sessionProgress.completedSessions}
+          weeks={data.plan.blockDurationWeeks}
+          source="training_auto"
+          onClose={() => setShowCycleCelebration(false)}
+          onRenewed={reloadWorkout}
+        />
       ) : null}
 
       {showLocationUpsell ? (
@@ -831,25 +825,6 @@ function collectExerciseWeights(
     }
   });
 }
-function PremiumContinuationCard({ sessionCount }: { sessionCount: number }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-6">
-      <div className="w-full max-w-sm rounded-[24px] border border-primary/20 bg-[#111] p-6 text-center shadow-2xl">
-        <p className="text-3xl">🎉</p>
-        <p className="mt-3 text-lg font-bold text-white">Programa concluído!</p>
-        <p className="mt-3 text-lg font-bold text-white">Programa concluído!</p>
-        <p className="mt-1 text-sm text-white/60">{sessionCount} sessões realizadas</p>
-        <p className="mt-4 text-sm leading-relaxed text-white/72">
-          Estamos gerando seu próximo plano personalizado com base na sua evolução...
-        </p>
-        <div className="mt-5 flex justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Verifica se a última sessão concluída aconteceu "hoje" no fuso de São Paulo,
 // o mesmo usado pelo back-end para o limite diário. Evita erro na virada do dia.
 function isCompletedTodaySaoPaulo(lastCompletedAt: string | null): boolean {

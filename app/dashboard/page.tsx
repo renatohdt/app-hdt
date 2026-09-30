@@ -26,7 +26,8 @@ function DashboardContent() {
     changingWeek,
     data,
     handleGenerateWorkoutNow,
-    changeProgramWeek
+    changeProgramWeek,
+    reloadWorkout
   } = useWorkoutAppState({
     searchUserId: searchParams.get("userId")
   });
@@ -52,7 +53,12 @@ function DashboardContent() {
   return (
     <>
       <AppSessionTracker userId={currentUserId} source="dashboard" />
-      <DashboardHomeScreen data={data} onChangeProgramWeek={changeProgramWeek} changingWeek={changingWeek} />
+      <DashboardHomeScreen
+        data={data}
+        onChangeProgramWeek={changeProgramWeek}
+        changingWeek={changingWeek}
+        onReloadWorkout={reloadWorkout}
+      />
     </>
   );
 }

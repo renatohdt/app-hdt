@@ -15,6 +15,7 @@ import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
+import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { ReferralRewardPopup } from "@/components/referral-reward-popup";
 import { ReferralExpiryPopup } from "@/components/referral-expiry-popup";
 import { useSubscription } from "@/components/use-subscription";
@@ -40,11 +41,14 @@ const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/lo
 export function DashboardHomeScreen({
   data,
   onChangeProgramWeek,
-  changingWeek = false
+  changingWeek = false,
+  onReloadWorkout
 }: {
   data: AppWorkoutData;
   onChangeProgramWeek?: (week: number) => void;
   changingWeek?: boolean;
+  // Recarrega o treino (usado após montar o próximo programa no fim do ciclo).
+  onReloadWorkout?: () => Promise<void>;
 }) {
   // Modo programa: presente apenas quando o usuário tem um programa comprado ativo.
   const program = data.raw.program ?? null;
@@ -56,6 +60,7 @@ export function DashboardHomeScreen({
   const [savingGoal, setSavingGoal] = useState(false);
   const [activeGoal, setActiveGoal] = useState<ActiveGoalShape>(data.activeGoal ?? null);
   const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [showCycleCelebration, setShowCycleCelebration] = useState(false);
   const [showFreeLimitPopup, setShowFreeLimitPopup] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
@@ -173,6 +178,8 @@ export function DashboardHomeScreen({
   }, []);
 
   const remainingSessions = Math.max(coverage.totalSessions - coverage.coveredSessions, 0);
+  // Ciclo concluído no fluxo de IA (programa comprado tem navegação própria de semanas).
+  const isCycleCompleteAi = !program && Boolean(data.sessionProgress?.cycleCompleted);
   const progressBarWidth = Math.max(Math.min(coverage.percentage, 100), 0);
 
   function handleGenerateWorkoutClick() {
@@ -401,6 +408,16 @@ export function DashboardHomeScreen({
         }}
       />
 
+      {/* Fim de ciclo (fluxo de IA): destaque para montar o próximo programa. */}
+      {isCycleCompleteAi ? (
+        subscriptionLoading ? null : (
+          <CycleCompleteCard
+            mode={resolveCycleCompleteMode(Boolean(subscription?.isPremium), data.freeCycleRenewalAvailable)}
+            completedSessions={coverage.coveredSessions}
+            onOpen={() => setShowCycleCelebration(true)}
+          />
+        )
+      ) : (
       <Link href="/treino" className="block">
         <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none transition duration-200 hover:border-primary/20 sm:p-[18px]">
           <p className="mb-[10px] text-xs font-bold uppercase tracking-[0.12em] text-primary/88">Ciclo do plano</p>
@@ -426,6 +443,26 @@ export function DashboardHomeScreen({
           </div>
         </Card>
       </Link>
+      )}
+
+      {showCycleCelebration ? (
+        <CycleCompleteCelebration
+          userId={data.user.id}
+          isPremium={Boolean(subscription?.isPremium)}
+          freeRenewalAvailable={data.freeCycleRenewalAvailable}
+          completedSessions={coverage.coveredSessions}
+          weeks={data.plan.blockDurationWeeks}
+          source="dashboard_card"
+          onClose={() => setShowCycleCelebration(false)}
+          onRenewed={async () => {
+            if (onReloadWorkout) {
+              await onReloadWorkout();
+            } else {
+              router.refresh();
+            }
+          }}
+        />
+      ) : null}
 
       {/* Card de progresso — geração em andamento */}
       {isGenerating ? (

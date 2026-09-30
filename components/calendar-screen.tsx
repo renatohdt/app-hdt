@@ -109,10 +109,11 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
     );
   }, [data]);
 
-  const consistencyStats = useMemo(
-    () => calcConsistencyStats(sessionLogs, data.weeklyTarget, data.sessionProgress.completedSessions, data.sessionProgress.totalSessions),
-    [sessionLogs, data.weeklyTarget, data.sessionProgress.completedSessions, data.sessionProgress.totalSessions]
-  );
+  const consistencyStats = useMemo(() => {
+    const stats = calcConsistencyStats(sessionLogs, data.weeklyTarget, data.sessionProgress.completedSessions, data.sessionProgress.totalSessions);
+    // "Plano Concluído" continua desbloqueado depois que o próximo ciclo começa.
+    return { ...stats, planCompleted: stats.planCompleted || data.hasCompletedCycleBefore };
+  }, [sessionLogs, data.weeklyTarget, data.sessionProgress.completedSessions, data.sessionProgress.totalSessions, data.hasCompletedCycleBefore]);
 
   const recordedSessions = useMemo(() => {
     return sessionLogs

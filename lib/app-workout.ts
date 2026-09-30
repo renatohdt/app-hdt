@@ -68,6 +68,9 @@ export type AppWorkoutPayload = {
   sessionProgress?: WorkoutSessionProgress | null;
   sessionLogs?: WorkoutSessionLogEntry[] | null;
   levelData?: AppLevelData | null;
+  // Free: ainda tem direito a montar o 2º programa ao concluir o ciclo.
+  freeCycleRenewalAvailable?: boolean | null;
+  hasCompletedCycleBefore?: boolean | null;
   // Presente apenas no "modo programa" (compra de programa). Null/ausente no fluxo de IA.
   program?: {
     id: string;
@@ -131,6 +134,8 @@ export type AppWorkoutData = {
     workoutsDone: number;
   } | null;
   levelData: AppLevelData | null;
+  freeCycleRenewalAvailable: boolean;
+  hasCompletedCycleBefore: boolean;
 };
 
 export type TrainingExerciseRow = {
@@ -271,16 +276,23 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     totalExercises,
     totalWorkoutsAllTime: typeof payload.totalWorkoutsAllTime === "number" ? payload.totalWorkoutsAllTime : 0,
     totalWeightIncreasesAllTime: typeof payload.totalWeightIncreasesAllTime === "number" ? payload.totalWeightIncreasesAllTime : 0,
-    consistencyStats: calcConsistencyStats(
-      sessionLogs,
-      weeklyTarget,
-      sessionProgress.completedSessions,
-      sessionProgress.totalSessions
-    ),
+    consistencyStats: (() => {
+      const stats = calcConsistencyStats(
+        sessionLogs,
+        weeklyTarget,
+        sessionProgress.completedSessions,
+        sessionProgress.totalSessions
+      );
+      // "Plano Concluído" continua desbloqueado depois que o próximo ciclo começa.
+      return { ...stats, planCompleted: stats.planCompleted || payload.hasCompletedCycleBefore === true };
+    })(),
     totalGoalsCompleted: typeof payload.totalGoalsCompleted === "number" ? payload.totalGoalsCompleted : 0,
     referralAchievementUnlocked: payload.referralAchievementUnlocked === true,
     activeGoal: payload.activeGoal ?? null,
     levelData: payload.levelData ?? null,
+    // Ausente em respostas antigas → assume disponível (o servidor é quem trava).
+    freeCycleRenewalAvailable: payload.freeCycleRenewalAvailable !== false,
+    hasCompletedCycleBefore: payload.hasCompletedCycleBefore === true,
   } satisfies AppWorkoutData;
 }
 
