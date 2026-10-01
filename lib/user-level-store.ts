@@ -209,9 +209,11 @@ export async function applySessionXp(
  */
 export async function applyInactivityDecay(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  // Linha já lida pelo chamador (evita uma ida extra ao banco).
+  preloadedRow?: UserLevelRow | null
 ): Promise<DecayResult | null> {
-  const row = await getUserLevelRow(supabase, userId);
+  const row = preloadedRow !== undefined ? preloadedRow : await getUserLevelRow(supabase, userId);
   if (!row?.last_activity_at) return null;
 
   const now          = new Date();
@@ -307,11 +309,20 @@ export async function getUserLevelSummary(
   userId: string,
   quizExperience?: string | null
 ): Promise<UserLevelSummary> {
-  // Aplica decaimento (no-op se não for necessário)
-  const decayResult = await applyInactivityDecay(supabase, userId);
-
-  // Lê estado atual (pós-decay)
+  // Lê o estado UMA vez e aplica decaimento em cima dele (no-op se não for
+  // necessário). Antes eram duas leituras em fila (decay + releitura).
   let row = await getUserLevelRow(supabase, userId);
+  const decayResult = await applyInactivityDecay(supabase, userId, row);
+
+  // Se houve decaimento, reflete os novos valores sem reler do banco.
+  if (row && decayResult) {
+    row = {
+      ...row,
+      xp_points: decayResult.newXp,
+      current_phase: decayResult.newPhase,
+      ...(decayResult.regressedPhase ? { phase_started_at: new Date().toISOString() } : {}),
+    };
+  }
 
   // ── Inicialização pela experiência do quiz ────────────────────────────────
   // Se o usuário nunca teve XP (novo no sistema) e o quiz indica nível maior

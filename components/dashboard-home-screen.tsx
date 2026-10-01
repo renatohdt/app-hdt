@@ -175,8 +175,14 @@ export function DashboardHomeScreen({
       .catch(() => {});
   }, []);
 
-  // Busca lastWorkoutGeneratedAt para verificar cooldown do plano free
+  // lastWorkoutGeneratedAt (cooldown do plano free) agora vem no próprio
+  // payload do treino. Só busca em /api/profile se o dado veio de uma versão
+  // antiga salva no aparelho (sem o campo).
   useEffect(() => {
+    if (data.lastWorkoutGeneratedAt !== undefined) {
+      setLastWorkoutGeneratedAt(data.lastWorkoutGeneratedAt);
+      return;
+    }
     fetchWithAuth("/api/profile")
       .then((res) => res.json())
       .then((payload: { success?: boolean; data?: { lastWorkoutGeneratedAt?: string | null } }) => {
@@ -187,7 +193,7 @@ export function DashboardHomeScreen({
         }
       })
       .catch(() => setLastWorkoutGeneratedAt(null));
-  }, []);
+  }, [data.lastWorkoutGeneratedAt]);
 
   const remainingSessions = Math.max(coverage.totalSessions - coverage.coveredSessions, 0);
   // Ciclo concluído no fluxo de IA (programa comprado tem navegação própria de semanas).

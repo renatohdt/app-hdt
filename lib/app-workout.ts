@@ -70,6 +70,7 @@ export type AppWorkoutPayload = {
   levelData?: AppLevelData | null;
   // Free: ainda tem direito a montar o 2º programa ao concluir o ciclo.
   freeCycleRenewalAvailable?: boolean | null;
+  lastWorkoutGeneratedAt?: string | null;
   hasCompletedCycleBefore?: boolean | null;
   weeklyPlanDays?: number[] | null;
   // Presente apenas no "modo programa" (compra de programa). Null/ausente no fluxo de IA.
@@ -136,6 +137,8 @@ export type AppWorkoutData = {
   } | null;
   levelData: AppLevelData | null;
   freeCycleRenewalAvailable: boolean;
+  // undefined = resposta antiga (cache) sem o campo.
+  lastWorkoutGeneratedAt: string | null | undefined;
   hasCompletedCycleBefore: boolean;
   weeklyPlanDays: number[] | null;
 };
@@ -294,6 +297,7 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     levelData: payload.levelData ?? null,
     // Ausente em respostas antigas → assume disponível (o servidor é quem trava).
     freeCycleRenewalAvailable: payload.freeCycleRenewalAvailable !== false,
+    lastWorkoutGeneratedAt: payload.lastWorkoutGeneratedAt,
     hasCompletedCycleBefore: payload.hasCompletedCycleBefore === true,
     weeklyPlanDays: Array.isArray(payload.weeklyPlanDays) && payload.weeklyPlanDays.length ? payload.weeklyPlanDays : null,
   } satisfies AppWorkoutData;

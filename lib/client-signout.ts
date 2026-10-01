@@ -19,6 +19,7 @@ export async function signOutAndRedirect(options: {
   try {
     window.localStorage.removeItem("hdt_workout_cache_v1");
     window.localStorage.removeItem("hdt_session_logs_cache_v1");
+    window.localStorage.removeItem("hdt_profile_cache_v1");
   } catch {
     // ignora
   }

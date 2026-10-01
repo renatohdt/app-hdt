@@ -16,6 +16,7 @@ import { useSubscription } from "@/components/use-subscription";
 import { NativeSubscriptionManager } from "@/components/native-subscription-manager";
 import { RateAppCard } from "@/components/rate-app-card";
 import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
+import { readProfileCache, writeProfileCache } from "@/lib/profile-cache";
 import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
@@ -191,6 +192,12 @@ export default function PerfilPage() {
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const isNative = useIsNativeApp();
   const [isEditing, setIsEditing] = useState(false);
+  // Espelho de isEditing para o carregamento em segundo plano não apagar o que
+  // a pessoa já começou a digitar.
+  const isEditingRef = useRef(false);
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
   const [editingSection, setEditingSection] = useState<EditingSection | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -325,14 +332,29 @@ export default function PerfilPage() {
         return;
       }
 
+      let showedCached = false;
+
       try {
+        // Sessão salva no aparelho (sem ida à rede). O servidor valida o token
+        // em /api/profile e responde 401 se ele não valer mais.
         const {
-          data: { user }
-        } = await supabase.auth.getUser();
+          data: { session }
+        } = await supabase.auth.getSession();
+        const user = session?.user;
 
         if (!user?.id) {
           router.replace("/");
           return;
+        }
+
+        // Mostra na hora a última versão salva e atualiza logo em seguida.
+        const cached = readProfileCache<ProfilePayload>(user.id);
+        if (cached && active) {
+          setPayload(cached);
+          setForm(buildFormState(cached));
+          setExcludedExercises(cached.excludedExercises ?? []);
+          setLoading(false);
+          showedCached = true;
         }
 
         const response = await fetchWithAuth("/api/profile");
@@ -348,14 +370,17 @@ export default function PerfilPage() {
 
         const result = await parseJsonResponse<{ success: true; data: ProfilePayload }>(response);
 
-        if (active) {
+        writeProfileCache(user.id, result.data);
+
+        if (active && !isEditingRef.current) {
           setPayload(result.data);
           setForm(buildFormState(result.data));
           setExcludedExercises(result.data.excludedExercises ?? []);
           setFeedback(null);
         }
       } catch (requestError) {
-        if (active) {
+        // Já tem perfil na tela: falha do refresh em segundo plano é silenciosa.
+        if (active && !showedCached) {
           setError(requestError instanceof Error ? requestError.message : "Não foi possível carregar seu perfil.");
         }
       } finally {
@@ -461,6 +486,7 @@ export default function PerfilPage() {
       }
 
       invalidateWorkoutCache();
+      writeProfileCache(result.data.user.id, result.data);
       setPayload(result.data);
       setForm(buildFormState(result.data));
       setIsEditing(false);

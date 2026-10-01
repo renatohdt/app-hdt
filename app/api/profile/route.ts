@@ -110,17 +110,14 @@ export async function GET(request: Request) {
     }
 
     const userId = auth.user.id;
-    const { data: userRow, error: userError } = await supabase.from("users").select("id, name").eq("id", userId).maybeSingle();
 
-    if (userError || !userRow) {
-      logWarn("PROFILE", "Profile load denied", { user_id: userId, reason: "missing_user_row" });
-      return jsonError("Não foi possível carregar seu perfil.", 404);
-    }
-
-    const [savedAnswers, { data: currentAuthUser }, { data: excludedExercises }, totalWorkoutsAllTime, levelSummary] =
+    // Tudo em UMA etapa paralela (antes: usuário → depois o resto, e ainda uma
+    // ida ao servidor de Auth só para pegar e-mail e data de cadastro).
+    // E-mail vem do token já validado; "membro desde" vem de users.created_at.
+    const [{ data: userRow, error: userError }, savedAnswers, { data: excludedExercises }, totalWorkoutsAllTime, levelSummary] =
       await Promise.all([
+        supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
         getUserAnswersByUserId(supabase, userId),
-        supabase.auth.getUser(),
         supabase
           .from("user_excluded_exercises")
           .select("exercise_id, exercise_name")
@@ -129,6 +126,11 @@ export async function GET(request: Request) {
         getAllTimeWorkoutCount(supabase, userId),
         getUserLevelSummary(supabase, userId, null).catch(() => null),
       ]);
+
+    if (userError || !userRow) {
+      logWarn("PROFILE", "Profile load denied", { user_id: userId, reason: "missing_user_row" });
+      return jsonError("Não foi possível carregar seu perfil.", 404);
+    }
 
     // lastRegeneratedAt é salvo nos answers somente quando o usuário
     // regenera pelo perfil — treino inicial do quiz não conta.
@@ -139,14 +141,14 @@ export async function GET(request: Request) {
         {
           id: userRow.id,
           name: userRow.name,
-          email: currentAuthUser.user?.email ?? auth.user.email ?? ""
+          email: auth.user.email ?? ""
         },
         savedAnswers,
         (excludedExercises ?? []).map((row) => ({
           exerciseId: row.exercise_id,
           exerciseName: row.exercise_name
         })),
-        currentAuthUser.user?.created_at ?? null
+        (userRow as { created_at?: string | null }).created_at ?? null
       ),
       totalWorkoutsAllTime,
       lastWorkoutGeneratedAt: typeof lastRegeneratedAt === "string" ? lastRegeneratedAt : null,

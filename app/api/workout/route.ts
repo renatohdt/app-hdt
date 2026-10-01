@@ -308,6 +308,12 @@ export async function GET(request: NextRequest) {
         sessionProgress,
         // Free: ainda pode montar o 2º programa ao concluir o ciclo? (premium ignora)
         freeCycleRenewalAvailable: hasFreeCycleRenewalAvailable(savedAnswers),
+        // Última regeneração pelo perfil (cooldown do plano free na dashboard).
+        // Vem junto aqui para a dashboard não precisar chamar /api/profile.
+        lastWorkoutGeneratedAt: (() => {
+          const value = (savedAnswers as Record<string, unknown> | null)?.lastRegeneratedAt;
+          return typeof value === "string" ? value : null;
+        })(),
         // Já fechou algum ciclo antes (mantém a conquista "Plano Concluído" após renovar)
         hasCompletedCycleBefore: hasCompletedCycleBefore(savedAnswers),
         // "Minha semana" (Premium): dias escolhidos para treinar (0 = seg … 6 = dom)
