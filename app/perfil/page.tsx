@@ -453,6 +453,7 @@ export default function PerfilPage() {
         throw new Error(result.error ?? "Não foi possível salvar seu perfil.");
       }
 
+      invalidateWorkoutCache();
       setPayload(result.data);
       setForm(buildFormState(result.data));
       setIsEditing(false);

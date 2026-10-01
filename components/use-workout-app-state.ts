@@ -9,18 +9,29 @@ import { signOutAndRedirect } from "@/lib/client-signout";
 import { buildAppWorkoutData, type AppWorkoutPayload } from "@/lib/app-workout";
 import { getSupabaseConfigError, isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-// Cache em memória do payload do treino, compartilhado entre as páginas
-// (dashboard, treino, calendário...). Em navegação SPA o módulo continua
-// vivo, então trocar de página dentro do TTL não refaz o GET /api/workout —
-// navegação instantânea e menos invocações de função no Vercel.
+// Cache do payload do treino, compartilhado entre as páginas (dashboard,
+// treino, calendário...).
+// - Memória: navegação SPA dentro do TTL não refaz o GET /api/workout.
+// - localStorage: ao REABRIR o app, a última versão aparece na hora e uma
+//   versão nova é buscada em segundo plano (stale-while-revalidate).
 const WORKOUT_CACHE_TTL_MS = 60_000;
+const WORKOUT_CACHE_STORAGE_KEY = "hdt_workout_cache_v1";
+// Não mostra cópia salva mais velha que isso (evita dado muito defasado).
+const WORKOUT_CACHE_MAX_STALE_MS = 3 * 24 * 60 * 60 * 1000;
 
-let workoutCache: { userId: string; payload: AppWorkoutPayload; fetchedAt: number } | null = null;
+type WorkoutCacheEntry = { userId: string; payload: AppWorkoutPayload; fetchedAt: number };
 
-// Chame após qualquer ação que mude o treino fora deste hook
-// (ex.: regenerar treino na página de perfil).
+let workoutCache: WorkoutCacheEntry | null = null;
+
+// Chame após qualquer ação que mude o treino/progresso fora deste hook
+// (ex.: concluir treino, regenerar treino no perfil, salvar "Minha semana").
 export function invalidateWorkoutCache() {
   workoutCache = null;
+  try {
+    window.localStorage.removeItem(WORKOUT_CACHE_STORAGE_KEY);
+  } catch {
+    // localStorage indisponível: só a memória é limpa.
+  }
 }
 
 function readWorkoutCache(userId: string): AppWorkoutPayload | null {
@@ -29,15 +40,38 @@ function readWorkoutCache(userId: string): AppWorkoutPayload | null {
   }
 
   if (Date.now() - workoutCache.fetchedAt > WORKOUT_CACHE_TTL_MS) {
-    workoutCache = null;
     return null;
   }
 
   return workoutCache.payload;
 }
 
+// Última cópia salva no aparelho (pode estar "velha"; serve para mostrar na
+// hora enquanto a versão nova chega).
+function readStoredWorkoutCache(userId: string): AppWorkoutPayload | null {
+  if (workoutCache && workoutCache.userId === userId) {
+    return workoutCache.payload;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(WORKOUT_CACHE_STORAGE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as WorkoutCacheEntry;
+    if (!entry || entry.userId !== userId || !entry.payload) return null;
+    if (Date.now() - entry.fetchedAt > WORKOUT_CACHE_MAX_STALE_MS) return null;
+    return entry.payload;
+  } catch {
+    return null;
+  }
+}
+
 function writeWorkoutCache(userId: string, payload: AppWorkoutPayload) {
   workoutCache = { userId, payload, fetchedAt: Date.now() };
+  try {
+    window.localStorage.setItem(WORKOUT_CACHE_STORAGE_KEY, JSON.stringify(workoutCache));
+  } catch {
+    // Sem espaço/bloqueado: segue só com o cache em memória.
+  }
 }
 
 export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | null } = {}) {
@@ -159,6 +193,14 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
         const result = await parseJsonResponse<{ success: false; error?: string }>(response);
         const normalizedError = normalizeText(result.error);
 
+        // Sessão salva no aparelho não vale mais (ex.: senha trocada em outro
+        // aparelho): sai e manda para o login, como o getUser() fazia antes.
+        if (response.status === 401) {
+          invalidateWorkoutCache();
+          await logoutAndRedirectLogin();
+          return null;
+        }
+
         if (response.status === 404 && normalizedError.includes("usuario nao encontrado")) {
           await logoutAndRedirectLogin();
           return null;
@@ -184,16 +226,19 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
         let userId = searchUserId ?? undefined;
 
         if (!userId) {
+          // getSession() lê a sessão salva no aparelho (sem ida à rede, renova o
+          // token sozinho se precisar). Quem valida de verdade é o servidor em
+          // /api/workout — se o token for inválido ele responde 401.
           const {
-            data: { user }
-          } = await supabase.auth.getUser();
+            data: { session }
+          } = await supabase.auth.getSession();
 
-          if (!user?.id) {
+          if (!session?.user?.id) {
             router.replace("/login");
             return;
           }
 
-          userId = user.id;
+          userId = session.user.id;
         }
 
         if (active) {
@@ -212,7 +257,27 @@ export function useWorkoutAppState({ searchUserId }: { searchUserId?: string | n
           return;
         }
 
-        const data = await fetchWorkoutInitial(userId);
+        // Reabertura do app: mostra na hora a última versão salva e busca a
+        // nova em segundo plano (a tela atualiza sozinha quando chegar).
+        const stored = readStoredWorkoutCache(userId);
+        if (stored && active) {
+          setPayload(stored);
+          setNoWorkout(stored.hasWorkout === false || !stored.workout);
+          setError(null);
+          setLoading(false);
+        }
+
+        let data: AppWorkoutPayload | null;
+        try {
+          data = await fetchWorkoutInitial(userId);
+        } catch (fetchError) {
+          // Já há algo na tela: falha silenciosa do refresh em segundo plano.
+          if (stored) {
+            clientLogError("WORKOUT_BACKGROUND_REFRESH_ERROR", fetchError);
+            return;
+          }
+          throw fetchError;
+        }
         if (!data) {
           return;
         }

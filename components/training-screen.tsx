@@ -24,6 +24,7 @@ import {
   type AppWorkoutData
 } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
@@ -377,6 +378,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       }
 
       setSessionProgress(result.data.sessionProgress);
+      // Progresso mudou: dashboard/calendário devem buscar a versão nova.
+      invalidateWorkoutCache();
       const plannedNextKey = followsWeeklyPlan
         ? getPlannedNext({ data, sessionProgress: result.data.sessionProgress })?.workoutKey ?? null
         : null;

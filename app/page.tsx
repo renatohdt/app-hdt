@@ -12,6 +12,20 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 // O QuizForm (tela /criar-conta) lê essa mesma chave.
 const REFERRAL_STORAGE_KEY = "hdt_referral_code";
 
+// Script inline (sem dependências) que detecta a sessão salva do Supabase
+// (chave "sb-<projeto>-auth-token" no localStorage) antes do React carregar.
+const SESSION_REDIRECT_SCRIPT = `(function(){try{
+  if (new URLSearchParams(location.search).get("ref")) return;
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i) || "";
+    if (k.indexOf("sb-") === 0 && k.slice(-11) === "-auth-token" && localStorage.getItem(k)) {
+      document.documentElement.setAttribute("data-hdt-session", "1");
+      location.replace("/dashboard");
+      return;
+    }
+  }
+}catch(e){}})();`;
+
 export default function HomePage() {
   const router = useRouter();
   const [referralCode, setReferralCode] = useState("");
@@ -58,7 +72,12 @@ export default function HomePage() {
           data: { session }
         } = await supabase.auth.getSession();
         if (!active) return;
-        if (session) router.replace("/dashboard");
+        if (session) {
+          router.replace("/dashboard");
+        } else {
+          // Token salvo era inválido/vencido: volta a mostrar Entrar/Criar conta.
+          document.documentElement.removeAttribute("data-hdt-session");
+        }
       } catch (error) {
         clientLogError("SESSION CHECK ERROR", error);
       }
@@ -71,7 +90,19 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <main className="relative flex min-h-screen min-h-[100dvh] flex-col items-center justify-between overflow-hidden bg-[#050705] px-6 py-10 text-white">
+    <>
+      {/*
+        Abertura rápida: roda ANTES do React carregar. Se já existe sessão salva
+        do Supabase neste aparelho, marca a página e vai direto para a dashboard,
+        sem desenhar os botões Entrar/Criar conta (evita o "flash" de login).
+        Se a sessão estiver vencida, a dashboard manda para /login normalmente.
+      */}
+      <style>{`html[data-hdt-session] .hdt-welcome{display:none!important}.hdt-splash{display:none}html[data-hdt-session] .hdt-splash{display:flex}`}</style>
+      <script dangerouslySetInnerHTML={{ __html: SESSION_REDIRECT_SCRIPT }} />
+      <div className="hdt-splash fixed inset-0 z-50 items-center justify-center bg-[#050705]">
+        <Image src="/logo-app.png" alt="Hora do Treino" width={300} height={300} priority className="w-40 max-w-[50vw] animate-pulse" />
+      </div>
+    <main className="hdt-welcome relative flex min-h-screen min-h-[100dvh] flex-col items-center justify-between overflow-hidden bg-[#050705] px-6 py-10 text-white">
       {/* Brilho verde da marca (decorativo) */}
       <div
         aria-hidden
@@ -126,5 +157,6 @@ export default function HomePage() {
         <BrandFooter className="mt-9" />
       </div>
     </main>
+    </>
   );
 }

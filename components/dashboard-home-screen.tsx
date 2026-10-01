@@ -33,6 +33,7 @@ import { AchievementPopup } from "@/components/achievement-popup";
 import { trackEvent } from "@/lib/analytics-client";
 import { SHOW_PROGRAMS_HOME_ENTRY } from "@/lib/feature-flags";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
 import { RecommendationsCard } from "@/components/recommendations-card";
@@ -416,6 +417,7 @@ export function DashboardHomeScreen({
             });
             const json = await res.json();
             if (json.success) {
+              invalidateWorkoutCache();
               setActiveGoal(json.data);
               setShowGoalForm(false);
             }

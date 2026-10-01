@@ -23,6 +23,7 @@ import {
   type AppWorkoutData
 } from "@/lib/app-workout";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { buildSuggestedDays, buildWeekProgress, toLocalDateKey } from "@/lib/evolution";
 import { buildWeeklyPlan } from "@/lib/weekly-plan";
 import type { WorkoutSessionLogEntry } from "@/lib/workout-sessions";
@@ -82,7 +83,9 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
   const [visitedTabs, setVisitedTabs] = useState<Set<number>>(() => new Set([0]));
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [showAchievements, setShowAchievements] = useState(false);
-  const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLogEntry[]>([]);
+  // Registro de treinos: começa com a última cópia salva no aparelho (aparece
+  // na hora) e é atualizado pela busca logo abaixo.
+  const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLogEntry[]>(() => readSessionLogsCache(data.user.id));
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const { subscription, loading: subscriptionLoading } = useSubscription();
   // Só trata como free depois que a assinatura carregou (evita anúncio piscar para premium).
@@ -108,6 +111,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         body: JSON.stringify({ days })
       });
       if (!response.ok) throw new Error("save failed");
+      invalidateWorkoutCache();
     } catch {
       setChosenDays(previous);
     } finally {
@@ -133,7 +137,10 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       fetchWithAuth("/api/workout/session-logs")
         .then((r) => (r.ok ? r.json() : null))
         .then((json) => {
-          if (json?.success && Array.isArray(json.data)) setSessionLogs(json.data);
+          if (json?.success && Array.isArray(json.data)) {
+            setSessionLogs(json.data);
+            writeSessionLogsCache(data.user.id, json.data);
+          }
         })
         .catch(() => {
           /* falha silenciosa */
@@ -608,4 +615,26 @@ function isSameDay(left: Date, right: Date) {
 }
 function capitalizeLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+const SESSION_LOGS_CACHE_KEY = "hdt_session_logs_cache_v1";
+
+function readSessionLogsCache(userId: string): WorkoutSessionLogEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SESSION_LOGS_CACHE_KEY);
+    if (!raw) return [];
+    const entry = JSON.parse(raw) as { userId?: string; logs?: WorkoutSessionLogEntry[] };
+    return entry?.userId === userId && Array.isArray(entry.logs) ? entry.logs : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSessionLogsCache(userId: string, logs: WorkoutSessionLogEntry[]) {
+  try {
+    window.localStorage.setItem(SESSION_LOGS_CACHE_KEY, JSON.stringify({ userId, logs }));
+  } catch {
+    // sem espaço/bloqueado: segue sem cache
+  }
 }

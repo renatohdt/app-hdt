@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Zap, X, ChevronRight, Clock, CheckCircle2, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
 import { buildTrainingExerciseRows } from "@/lib/app-workout";
@@ -235,6 +236,7 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
       });
 
       if (res.ok) {
+        invalidateWorkoutCache();
         setCompleted(true);
         trackEvent("extra_workout_completed", userId, {});
         setTimeout(() => {
