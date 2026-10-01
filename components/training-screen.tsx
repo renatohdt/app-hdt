@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import clsx from "clsx";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
@@ -28,6 +28,7 @@ import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Ac
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
 import { normalizeExerciseName } from "@/lib/exercise-weight-store";
+import { getPlannedNext } from "@/lib/weekly-plan-app";
 
 const TRAINING_STYLE_LABELS: Record<string, string> = {
   musculacao: "Tradicional",
@@ -143,6 +144,16 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   useEffect(() => {
     setSessionProgress(data.sessionProgress);
   }, [data.sessionProgress]);
+
+  // Premium: o treino em destaque segue a "Minha semana" (regras de descanso e
+  // de grupo muscular). Só ajusta enquanto a pessoa não escolheu outra aba.
+  const userPickedTabRef = useRef(false);
+  const followsWeeklyPlan = !subscriptionLoading && Boolean(subscription?.isPremium) && !isProgram;
+  useEffect(() => {
+    if (!followsWeeklyPlan || userPickedTabRef.current) return;
+    const planned = getPlannedNext({ data })?.workoutKey;
+    if (planned && data.workouts[planned]) setActiveWorkoutKey(planned);
+  }, [followsWeeklyPlan, data]);
 
   useEffect(() => {
     if (!data.workouts[activeWorkoutKey]) {
@@ -366,7 +377,11 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       }
 
       setSessionProgress(result.data.sessionProgress);
+      const plannedNextKey = followsWeeklyPlan
+        ? getPlannedNext({ data, sessionProgress: result.data.sessionProgress })?.workoutKey ?? null
+        : null;
       const nextWorkoutKey =
+        plannedNextKey ??
         result.data.nextWorkoutKey ??
         getFeaturedWorkoutKey(data.workoutOrder, result.data.sessionProgress.lastCompletedWorkoutKey);
       const nextWorkoutLabel = formatWorkoutDisplayTitle(data.workouts[nextWorkoutKey ?? ""]?.title, nextWorkoutKey);
@@ -425,6 +440,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   }
 
   function handleWorkoutTabChange(workoutKey: string) {
+    userPickedTabRef.current = true;
     setActiveWorkoutKey(workoutKey);
     setOpenExerciseId(null);
     setConfirmCompletion(false);
@@ -769,12 +785,21 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       ) : null}
 
       {showAlreadyTrainedPopup ? (
-        <AlreadyTrainedTodayPopup onClose={() => setShowAlreadyTrainedPopup(false)} />
+        <AlreadyTrainedTodayPopup
+          showExtraOption={!isProgram}
+          onClose={() => setShowAlreadyTrainedPopup(false)}
+          onOpenExtra={() => {
+            setShowAlreadyTrainedPopup(false);
+            window.dispatchEvent(new Event("hdt-open-extra-workout"));
+          }}
+        />
       ) : null}
 
       {showCycleCelebration ? (
         <CycleCompleteCelebration
           userId={data.user.id}
+          locations={data.availableLocations}
+          activeLocation={(data.answers.location as string | undefined) ?? null}
           isPremium={isPremiumUser}
           freeRenewalAvailable={data.freeCycleRenewalAvailable}
           completedSessions={sessionProgress.completedSessions}
@@ -840,18 +865,42 @@ function isCompletedTodaySaoPaulo(lastCompletedAt: string | null): boolean {
   return formatter.format(new Date()) === formatter.format(last);
 }
 
-function AlreadyTrainedTodayPopup({ onClose }: { onClose: () => void }) {
+// O programa conta 1 treino por dia (em qualquer local). Quem quiser treinar de
+// novo no mesmo dia faz um Treino Extra, que não entra na sequência do programa.
+function AlreadyTrainedTodayPopup({
+  onClose,
+  onOpenExtra,
+  showExtraOption
+}: {
+  onClose: () => void;
+  onOpenExtra: () => void;
+  showExtraOption: boolean;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
       <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#111] px-8 pb-8 pt-7 text-center shadow-2xl">
         <p className="text-4xl">💪</p>
         <p className="mt-4 text-lg font-bold text-white">Você já treinou hoje!</p>
         <p className="mt-2 text-sm leading-relaxed text-white/70">
-          Agora é descansar e voltar amanhã. A recuperação também faz parte do treino.
+          Seu programa conta 1 treino por dia, em qualquer local. Agora é descansar e voltar amanhã: a recuperação também faz parte do treino.
         </p>
+        {showExtraOption ? (
+          <p className="mt-3 text-xs leading-relaxed text-white/50">
+            Ainda com energia? Faça um Treino Extra. Ele fica registrado, mas não altera a sequência do seu programa.
+          </p>
+        ) : null}
         <Button onClick={onClose} className="mt-6 w-full">
           Entendi
         </Button>
+        {showExtraOption ? (
+          <button
+            type="button"
+            onClick={onOpenExtra}
+            className="mt-2 w-full rounded-2xl px-4 py-2.5 text-sm font-semibold text-yellow-300/90 transition hover:text-yellow-200"
+          >
+            ⚡ Fazer um Treino Extra
+          </button>
+        ) : null}
       </div>
     </div>
   );

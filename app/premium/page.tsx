@@ -22,6 +22,8 @@ const COMPARISON = [
   { label: "Substituições de exercício",                    free: "2 por plano", premium: "2 por treino" },
   { label: "Gerador de treino",                             free: "1 programa",  premium: "Ilimitados"  },
   { label: "Locais de treino", free: "1 local", premium: "2 ou mais" },
+  { label: "Planejamento semanal com day off",               free: "Básico",      premium: "Personalizado" },
+  { label: "Evolução de carga por exercício",               free: "Destaque",    premium: "Gráficos"    },
   { label: "Experiência sem anúncios",                      free: false,         premium: true          },
   { label: "Treino completo com IA",                        free: true,          premium: true          },
   { label: "Controle de carga e frequência de treino",      free: true,          premium: true          },

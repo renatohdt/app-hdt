@@ -12,7 +12,7 @@ import {
 
 // ── Cores por fase ──────────────────────────────────────────────────────────
 
-const PHASE_COLORS: Record<UserPhase, { ring: string; dot: string; badge: string; text: string }> = {
+export const PHASE_COLORS: Record<UserPhase, { ring: string; dot: string; badge: string; text: string }> = {
   iniciante:         { ring: "border-zinc-500",   dot: "bg-zinc-400",   badge: "bg-zinc-800",    text: "text-zinc-300" },
   pre_intermediario: { ring: "border-blue-500",   dot: "bg-blue-400",   badge: "bg-blue-900/40", text: "text-blue-300" },
   intermediario:     { ring: "border-yellow-400", dot: "bg-yellow-400", badge: "bg-yellow-900/30", text: "text-yellow-300" },
@@ -101,7 +101,7 @@ export function LevelBadge({ data }: LevelBadgeProps) {
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 
-function LevelModal({
+export function LevelModal({
   phase,
   xpPoints,
   dotProgress,
@@ -186,11 +186,14 @@ function LevelModal({
           <p className="text-center text-xs font-semibold text-yellow-400">
             🏆 Nível máximo alcançado!
           </p>
-        ) : isReadyButWaiting ? (
-          <p className="rounded-xl border border-green-500/30 bg-white/5 px-3 py-2 text-center text-xs text-green-400">
+        ) : null}
+        {!isMax && isReadyButWaiting ? (
+          <p className="mb-3 rounded-xl border border-green-500/30 bg-white/5 px-3 py-2 text-center text-xs text-green-400">
             ✅ {ALMOST_THERE_MESSAGE}
           </p>
-        ) : (
+        ) : null}
+        {/* "Como evoluir" sempre visível: quem acabou de chegar entende o sistema. */}
+        {isMax ? null : (
           <div>
             <p className="mb-1.5 text-center text-[10px] font-semibold uppercase tracking-widest text-white/30">Como evoluir</p>
             <ul className="space-y-1 text-xs text-white/60">
@@ -202,6 +205,9 @@ function LevelModal({
             </ul>
             <p className="mt-2 text-center text-[10px] text-white/30">
               Avanço liberado após 6 meses na fase + 250 XP
+            </p>
+            <p className="mt-1 text-center text-[10px] text-white/30">
+              Mais de 14 dias sem treinar faz perder XP
             </p>
           </div>
         )}

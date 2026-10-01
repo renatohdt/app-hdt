@@ -4,6 +4,8 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError } from "@/lib/server-logger";
 import { createSupabaseUserClient } from "@/lib/supabase-user";
 import { listAllUserSessionLogs } from "@/lib/workout-session-store";
+import { getUserAnswersByUserId } from "@/lib/user-answers";
+import { fetchUserStandardWorkouts, resolveProgramCycleStart } from "@/lib/workout-record-store";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +62,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Um programa, vários locais: no ciclo atual, o número da sessão é contado
+    // em TODOS os locais, em ordem cronológica (o número salvo é por local).
+    const [savedAnswers, standardWorkouts] = await Promise.all([
+      getUserAnswersByUserId(supabase, userId),
+      fetchUserStandardWorkouts(supabase, userId)
+    ]);
+    const standardIds = new Set(standardWorkouts.map((w) => w.id));
+    const cycleStart = new Date(
+      resolveProgramCycleStart(
+        (savedAnswers as { programCycleStartedAt?: string } | null)?.programCycleStartedAt,
+        standardWorkouts
+      )
+    ).getTime();
+    const unifiedNumbers = new Map<string, number>();
+    [...sessionLogs]
+      .filter((log) => standardIds.has(log.workoutId) && new Date(log.completedAt).getTime() >= cycleStart)
+      .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime())
+      .forEach((log, index) => unifiedNumbers.set(log.id, index + 1));
+
     const sessionLogsWithFeedback = sessionLogs.map((log) => ({
       ...log,
+      sessionNumber: unifiedNumbers.get(log.id) ?? log.sessionNumber,
       liked: fbMap.get(log.id)?.liked ?? null,
       intensityLevel: fbMap.get(log.id)?.intensity_level ?? null,
       location: locationMap.get(log.workoutId) ?? null,

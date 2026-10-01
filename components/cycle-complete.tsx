@@ -37,6 +37,10 @@ type CycleStats = {
 
 type CelebrationProps = CycleStats & {
   userId: string;
+  // Locais com programa (Premium com mais de um). Renovar gera todos juntos,
+  // com o local ativo por último (ele continua ativo ao fim).
+  locations?: string[];
+  activeLocation?: string | null;
   isPremium: boolean;
   freeRenewalAvailable: boolean;
   source: "training_auto" | "training_card" | "dashboard_card";
@@ -47,6 +51,8 @@ type CelebrationProps = CycleStats & {
 
 export function CycleCompleteCelebration({
   userId,
+  locations,
+  activeLocation,
   isPremium,
   freeRenewalAvailable,
   completedSessions,
@@ -103,20 +109,34 @@ export function CycleCompleteCelebration({
     setError(null);
     trackEvent("cta_click", userId, { source: `cycle_complete_renew_${source}`, plan: isPremium ? "premium" : "free" });
 
-    try {
-      const response = await fetchWithAuth("/api/workout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId })
-      });
-      const result = await parseJsonResponse<{ success: boolean; error?: string; code?: string }>(response);
+    // Um programa, vários locais: renova todos os locais com programa (outros
+    // primeiro, o ativo por último). Depois da 1ª chamada o ciclo já recomeçou,
+    // então as seguintes vão com `force` para gerar de fato.
+    const active = activeLocation ?? null;
+    const others = isPremium ? (locations ?? []).filter((loc) => loc && loc !== active) : [];
+    const order: Array<string | null> = [...others, active];
 
-      if (result.code === FREE_CYCLE_LIMIT_ERROR_CODE) {
-        setMode("upsell");
-        return;
-      }
-      if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Não foi possível montar seu próximo programa agora.");
+    try {
+      for (let index = 0; index < order.length; index++) {
+        const location = order[index];
+        const response = await fetchWithAuth("/api/workout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            ...(location && order.length > 1 ? { location } : {}),
+            ...(index > 0 ? { force: true } : {})
+          })
+        });
+        const result = await parseJsonResponse<{ success: boolean; error?: string; code?: string }>(response);
+
+        if (result.code === FREE_CYCLE_LIMIT_ERROR_CODE) {
+          setMode("upsell");
+          return;
+        }
+        if (!response.ok || !result.success) {
+          throw new Error(result.error ?? "Não foi possível montar seu próximo programa agora.");
+        }
       }
 
       trackEvent("workout_generated", userId, { source: "cycle_renewal" });
@@ -144,7 +164,9 @@ export function CycleCompleteCelebration({
         {renewing ? (
           <div className="relative flex flex-col items-center px-6 pb-12 pt-14 text-center">
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="mt-6 text-xl font-bold text-white">Montando seu próximo programa…</p>
+            <p className="mt-6 text-xl font-bold text-white">
+              {isPremium && (locations?.length ?? 0) > 1 ? "Montando seus próximos programas…" : "Montando seu próximo programa…"}
+            </p>
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/65">
               Usando a sua evolução deste ciclo para criar novos estímulos. Leva só alguns segundos.
             </p>

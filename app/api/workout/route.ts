@@ -15,12 +15,13 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import type { Experience, ExerciseRecord, Location, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { isPremium } from "@/lib/subscription";
+import { sanitizeWeekdays } from "@/lib/weekly-plan";
 import { FREE_CYCLE_LIMIT_ERROR_CODE, getCycleRenewalsUsed, hasCompletedCycleBefore, hasFreeCycleRenewalAvailable } from "@/lib/cycle-renewal";
 import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
 import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
-import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, fetchUserStandardWorkouts, resolveProgramCycleStart, getUnifiedProgramCompletedCount, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
+import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, fetchUserStandardWorkouts, resolveProgramCycleStart, getUnifiedProgramCompletedCount, getUnifiedLastProgramSession, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
@@ -221,18 +222,20 @@ export async function GET(request: NextRequest) {
       (savedAnswers as { programCycleStartedAt?: string } | null)?.programCycleStartedAt,
       standardWorkoutsGet
     );
-    const unifiedCompletedGet = await getUnifiedProgramCompletedCount(
-      supabase,
-      user.id,
-      cycleStartGet,
-      standardWorkoutsGet.map((w) => w.id)
-    );
+    const standardIdsGet = standardWorkoutsGet.map((w) => w.id);
+    const [unifiedCompletedGet, unifiedLastGet] = await Promise.all([
+      getUnifiedProgramCompletedCount(supabase, user.id, cycleStartGet, standardIdsGet),
+      getUnifiedLastProgramSession(supabase, user.id, cycleStartGet, standardIdsGet)
+    ]);
+    // Um programa, vários locais: contagem, último treino e próxima letra valem
+    // para TODOS os locais (fez A no condomínio → o próximo é B em qualquer local).
+    const hasUnified = standardIdsGet.length > 0;
     const sessionProgress = buildWorkoutSessionProgress({
       totalSessions: workoutState.sessionConfig.totalSessions,
-      completedSessions: Math.max(unifiedCompletedGet, sessionStats.completedSessions),
-      lastCompletedAt: sessionStats.lastLog?.completedAt ?? null,
-      lastCompletedWorkoutKey: sessionStats.lastLog?.workoutKey ?? null,
-      lastCompletedSessionNumber: sessionStats.lastLog?.sessionNumber ?? null
+      completedSessions: hasUnified ? unifiedCompletedGet : sessionStats.completedSessions,
+      lastCompletedAt: hasUnified ? unifiedLastGet?.completedAt ?? null : sessionStats.lastLog?.completedAt ?? null,
+      lastCompletedWorkoutKey: hasUnified ? unifiedLastGet?.workoutKey ?? null : sessionStats.lastLog?.workoutKey ?? null,
+      lastCompletedSessionNumber: hasUnified ? (unifiedLastGet ? unifiedCompletedGet : null) : sessionStats.lastLog?.sessionNumber ?? null
     });
 
     // Processar meta ativa
@@ -287,6 +290,8 @@ export async function GET(request: NextRequest) {
         freeCycleRenewalAvailable: hasFreeCycleRenewalAvailable(savedAnswers),
         // Já fechou algum ciclo antes (mantém a conquista "Plano Concluído" após renovar)
         hasCompletedCycleBefore: hasCompletedCycleBefore(savedAnswers),
+        // "Minha semana" (Premium): dias escolhidos para treinar (0 = seg … 6 = dom)
+        weeklyPlanDays: sanitizeWeekdays((savedAnswers as { weeklyPlanDays?: unknown } | null)?.weeklyPlanDays),
         // Dados de nível/XP — inclui decay aplicado se havia inatividade
         levelData: userLevelSummary
           ? {
@@ -564,7 +569,8 @@ export async function POST(request: Request) {
     const existingSessionProgress = existingWorkoutState
       ? buildWorkoutSessionProgress({
           totalSessions: existingWorkoutState.sessionConfig.totalSessions,
-          completedSessions: Math.max(unifiedCompletedPost, existingSessionStats?.completedSessions ?? 0),
+          // Contagem unificada (todos os locais desde o início do ciclo).
+          completedSessions: standardWorkoutsPost.length ? unifiedCompletedPost : existingSessionStats?.completedSessions ?? 0,
           lastCompletedAt: existingSessionStats?.lastLog?.completedAt ?? null,
           lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
           lastCompletedSessionNumber: existingSessionStats?.lastLog?.sessionNumber ?? null

@@ -80,6 +80,17 @@ Implementação: `components/cycle-complete.tsx`, regra em `lib/cycle-renewal.ts
   - Controle: `cycleRenewalsCount` em `user_answers` (free pode renovar 1 vez). O servidor bloqueia com `403 free_cycle_limit`
   - A regeneração manual (ícone ↻ / perfil, 1x a cada 30 dias no free) é separada e serve para mudança de perfil no meio do ciclo
 
+### Minha semana (Premium) — página Evolução
+
+- A pessoa escolhe os dias da semana em que vai treinar (`user_answers.weeklyPlanDays`, 0 = seg … 6 = dom). Os demais dias são day off
+- O app distribui os treinos do programa (A, B, C…) nos dias escolhidos, a partir de hoje, com as regras:
+  1. Depois de um treino de corpo inteiro (full body), o dia seguinte é day off
+  2. Não repete o mesmo grupo muscular em dias seguidos (ex.: peito → costas); se não houver opção, o dia vira descanso
+  3. Cada treino acontece 1x por rodada antes de repetir
+  4. Perdeu um dia? A fila continua de onde parou — a semana se reorganiza sozinha
+- Free: vê o card bloqueado (prévia borrada) com convite ao Premium; o calendário usa a distribuição padrão pela frequência
+- Implementação: `lib/weekly-plan.ts`, `components/evolution/weekly-plan-card.tsx`, `POST /api/evolution/weekly-plan`
+
 ### Locais de treino (Casa e Condomínio)
 
 - Cada treino é gerado para um **local**: **Casa** ou **Condomínio** (academia do condomínio). O local define quais exercícios a IA pode usar.
@@ -93,6 +104,12 @@ Implementação: `components/cycle-complete.tsx`, regra em `lib/cycle-renewal.ts
 - **Registro / Calendário:** cada sessão concluída exibe o **local** do treino (ex.: "Casa — Treino B").
 - **Usuários já existentes:** assumem o local **Casa** por padrão, sem alteração no treino atual.
 - **Academia (fora de condomínio):** já suportada no código como evolução futura, porém **oculta na interface** por enquanto.
+- **Um programa, vários locais (out/2026):** a pessoa tem **uma jornada**; o local é só *onde* ela treina hoje.
+  - A **letra é global**: o Treino A tem o mesmo foco em qualquer local (a divisão vem do perfil; o local muda só os exercícios). Fez A no condomínio → o próximo é **B**, em casa ou no condomínio.
+  - **Contagem do ciclo, número da sessão, próximo treino, Minha semana e conclusão do ciclo** somam os treinos de **todos os locais** desde o início do ciclo.
+  - Ao finalizar, a sessão é gravada no programa do **local ativo** (o que está na tela).
+  - **Renovar o ciclo** gera o programa novo para **todos os locais** de uma vez (os outros primeiro, o ativo por último).
+  - **1 treino por dia** no programa, em qualquer local. Para treinar de novo no mesmo dia: **Treino Extra** (registrado, mas fora da sequência). O aviso "Você já treinou hoje" oferece o atalho.
 
 ---
 

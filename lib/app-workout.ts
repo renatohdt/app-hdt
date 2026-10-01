@@ -71,6 +71,7 @@ export type AppWorkoutPayload = {
   // Free: ainda tem direito a montar o 2º programa ao concluir o ciclo.
   freeCycleRenewalAvailable?: boolean | null;
   hasCompletedCycleBefore?: boolean | null;
+  weeklyPlanDays?: number[] | null;
   // Presente apenas no "modo programa" (compra de programa). Null/ausente no fluxo de IA.
   program?: {
     id: string;
@@ -136,6 +137,7 @@ export type AppWorkoutData = {
   levelData: AppLevelData | null;
   freeCycleRenewalAvailable: boolean;
   hasCompletedCycleBefore: boolean;
+  weeklyPlanDays: number[] | null;
 };
 
 export type TrainingExerciseRow = {
@@ -293,6 +295,7 @@ export function buildAppWorkoutData(payload: AppWorkoutPayload | null) {
     // Ausente em respostas antigas → assume disponível (o servidor é quem trava).
     freeCycleRenewalAvailable: payload.freeCycleRenewalAvailable !== false,
     hasCompletedCycleBefore: payload.hasCompletedCycleBefore === true,
+    weeklyPlanDays: Array.isArray(payload.weeklyPlanDays) && payload.weeklyPlanDays.length ? payload.weeklyPlanDays : null,
   } satisfies AppWorkoutData;
 }
 

@@ -173,6 +173,14 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
     setModalState("intro");
   };
 
+  // Outras telas podem abrir o Treino Extra (ex.: popup "Você já treinou hoje").
+  useEffect(() => {
+    const open = () => handleButtonClick();
+    window.addEventListener("hdt-open-extra-workout", open);
+    return () => window.removeEventListener("hdt-open-extra-workout", open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   const handleGenerate = async () => {
     setGenerateError(null);
     setGenerating(true);

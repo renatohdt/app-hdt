@@ -204,6 +204,18 @@ function monthsDiff(start: Date, end: Date): number {
   return Math.max(0, y * 12 + m + (d < 0 ? -1 : 0));
 }
 
+/**
+ * Chave da semana começando no DOMINGO, no horário de Brasília (UTC-3, sem
+ * horário de verão desde 2019): data do domingo, ex. "2026-09-27".
+ * Usada na "Semana perfeita" (XP e conquista) — mesma semana do calendário do app.
+ * Independe do fuso de quem executa (servidor em UTC ou celular).
+ */
+export function getWeekKey(date: Date): string {
+  const sp = new Date(date.getTime() - 3 * 3_600_000);
+  sp.setUTCDate(sp.getUTCDate() - sp.getUTCDay());
+  return sp.toISOString().slice(0, 10);
+}
+
 /** Chave ISO da semana: "2026-W18" */
 export function getISOWeekKey(date: Date): string {
   const d = new Date(date);

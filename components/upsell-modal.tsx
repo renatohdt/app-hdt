@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Sparkles, X, Zap } from "lucide-react";
 import { trackEvent } from "@/lib/analytics-client";
@@ -13,7 +14,9 @@ type UpsellReason =
   | "combine_styles"         // Tentou combinar 2+ estilos de treino sem ser premium
   | "combine_styles_locked"  // Clicou em estilo bloqueado no perfil
   | "home_banner"         // Banner da home
-  | "unlock_location";    // Free tentou trocar para outro local de treino
+  | "unlock_location"     // Free tentou trocar para outro local de treino
+  | "load_evolution"      // Free tocou na evolução de cargas (página Evolução)
+  | "weekly_plan";        // Free tocou na "Minha semana" (página Evolução)
 
 type UpsellModalProps = {
   reason: UpsellReason;
@@ -51,6 +54,16 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
     description: "Desbloqueie substituições ilimitadas, programas sem fim, evolução com IA e experiência sem anúncios. Por menos de R$&nbsp;10/mês.",
     cta: "Ver planos",
   },
+  weekly_plan: {
+    title: "Monte sua semana como um personal",
+    description: "No Premium você escolhe os dias em que vai treinar e o app organiza a ordem ideal dos treinos, com day off na hora certa. Perdeu um dia? A semana se reorganiza sozinha.",
+    cta: "Assinar Premium",
+  },
+  load_evolution: {
+    title: "Veja sua força crescer",
+    description: "No Premium você acompanha a evolução de carga de cada exercício em gráfico e descobre onde mais evoluiu. A prova de que o treino está funcionando.",
+    cta: "Assinar Premium",
+  },
   unlock_location: {
     title: "Seja Premium e treine em diferentes locais",
     description: "No Premium você tem treinos para diferentes locais — um para casa e outro para o condomínio — e alterna entre eles quando quiser. No plano gratuito você escolhe um local.",
@@ -83,7 +96,10 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
     onClose();
   }
 
-  return (
+  // Portal no <body>: dentro de cards com desfoque (.glass / backdrop-filter) um
+  // "fixed" fica preso ao card. No body a janela sempre cobre a tela inteira.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
       role="dialog"
@@ -150,6 +166,7 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
           Cancele quando quiser · Garantia de 7 dias
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

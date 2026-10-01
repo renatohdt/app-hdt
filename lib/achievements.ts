@@ -1,3 +1,4 @@
+import { getWeekKey } from "@/lib/user-level";
 export type AchievementCategory = "workout" | "weight" | "consistency" | "goal";
 
 export type Achievement = {
@@ -277,7 +278,8 @@ function checkHasPerfectWeek(dates: Date[], weeklyTarget: number): boolean {
   if (weeklyTarget <= 0 || dates.length === 0) return false;
   const weekMap = new Map<string, number>();
   for (const d of dates) {
-    const key = getISOWeekKey(d);
+    // Semana de domingo a sábado (horário de Brasília), igual ao calendário do app.
+    const key = getWeekKey(d);
     weekMap.set(key, (weekMap.get(key) ?? 0) + 1);
   }
   for (const count of weekMap.values()) {

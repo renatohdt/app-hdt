@@ -8,7 +8,7 @@ import {
   canAdvancePhase,
   checkStreak7Days,
   getDotProgress,
-  getISOWeekKey,
+  getWeekKey,
   getMonthKey,
   isReadyButWaiting,
   nextPhase,
@@ -123,11 +123,12 @@ export async function applySessionXp(
   }
 
   // Bônus de semana perfeita (+5)
-  const currentWeekKey  = getISOWeekKey(now);
-  const lastWeekKey     = row?.last_perfect_week_at ? getISOWeekKey(new Date(row.last_perfect_week_at)) : null;
+  // Semana de domingo a sábado (horário de Brasília), igual ao calendário do app.
+  const currentWeekKey  = getWeekKey(now);
+  const lastWeekKey     = row?.last_perfect_week_at ? getWeekKey(new Date(row.last_perfect_week_at)) : null;
   if (lastWeekKey !== currentWeekKey && opts.weeklyTarget > 0) {
     const sessionsThisWeek =
-      opts.recentSessionDates.filter((d) => getISOWeekKey(new Date(d)) === currentWeekKey).length + 1;
+      opts.recentSessionDates.filter((d) => getWeekKey(new Date(d)) === currentWeekKey).length + 1;
     if (sessionsThisWeek >= opts.weeklyTarget) {
       xpGained += XP_GAINS.PERFECT_WEEK;
       bonusUpdates.last_perfect_week_at = now.toISOString();

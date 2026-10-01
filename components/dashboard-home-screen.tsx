@@ -15,6 +15,7 @@ import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
+import { getPlannedNext } from "@/lib/weekly-plan-app";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { ReferralRewardPopup } from "@/components/referral-reward-popup";
 import { ReferralExpiryPopup } from "@/components/referral-expiry-popup";
@@ -23,6 +24,7 @@ import { LevelBadge, LevelPopup } from "@/components/level-badge";
 import { REGRESSION_MESSAGE } from "@/lib/user-level";
 import {
   formatSessionCounter,
+  formatWorkoutDisplayTitle,
   getPlanCoverage,
   type AppWorkoutData
 } from "@/lib/app-workout";
@@ -88,10 +90,19 @@ export function DashboardHomeScreen({
   // Mostra popup se houve regressão de nível ao carregar o dashboard
   const showRegressionPopup = !phasePopupDismissed && (levelData?.decayRegressed ?? false);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
-  const featuredWorkoutText = data.featuredWorkoutLabel || "Treino";
   // Só trata como free depois que a assinatura terminou de carregar.
   // Evita mostrar anúncio/banner premium para quem é premium durante o carregamento.
   const isFreePlan = !subscriptionLoading && !subscription?.isPremium;
+  // Premium segue a "Minha semana" (dias escolhidos + regras de descanso).
+  const plannedNext = useMemo(
+    () => (!subscriptionLoading && subscription?.isPremium && !program ? getPlannedNext({ data }) : null),
+    [data, program, subscription?.isPremium, subscriptionLoading]
+  );
+  const featuredWorkoutText = plannedNext
+    ? formatWorkoutDisplayTitle(data.workouts[plannedNext.workoutKey]?.title, plannedNext.workoutKey)
+    : data.featuredWorkoutLabel || "Treino";
+  const plannedNextDayLabel =
+    plannedNext && !plannedNext.isToday ? formatPlannedDay(plannedNext.dateKey) : null;
 
   // Animação da barra de progresso durante geração do treino
   useEffect(() => {
@@ -305,9 +316,15 @@ export function DashboardHomeScreen({
               </div>
             </div>
           )}
+          {plannedNext?.todayIsRest ? (
+            <p className="mx-auto mb-1.5 text-center text-[13px] font-semibold text-white/60">
+              Hoje é day off 😌 A recuperação também faz parte do treino.
+            </p>
+          ) : null}
           <p className="mx-auto mb-[18px] max-w-[18rem] text-center text-[18px] font-bold leading-[1.15]">
             <span className="text-primary/86">Próximo: </span>
             <span className="text-white">{featuredWorkoutText}</span>
+            {plannedNextDayLabel ? <span className="text-white/60"> ({plannedNextDayLabel})</span> : null}
             {data.averageDurationMinutes > 0 && (
               <span className="text-white/46"> · ⏱ {data.averageDurationMinutes} min</span>
             )}
@@ -448,6 +465,8 @@ export function DashboardHomeScreen({
       {showCycleCelebration ? (
         <CycleCompleteCelebration
           userId={data.user.id}
+          locations={data.availableLocations}
+          activeLocation={(data.answers.location as string | undefined) ?? null}
           isPremium={Boolean(subscription?.isPremium)}
           freeRenewalAvailable={data.freeCycleRenewalAvailable}
           completedSessions={coverage.coveredSessions}
@@ -739,4 +758,16 @@ function daysUntilNextFreeGeneration(lastGeneratedAt: string | null | undefined)
   const now = Date.now();
   const diffDays = Math.ceil((last + 30 * 24 * 60 * 60 * 1000 - now) / (24 * 60 * 60 * 1000));
   return diffDays > 0 ? diffDays : 0;
+}
+
+// "qua, 08/10" para o próximo treino planejado (quando não é hoje).
+function formatPlannedDay(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(y!, (m ?? 1) - 1, d ?? 1);
+  const tomorrow = new Date();
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (date.getTime() === tomorrow.getTime()) return "amanhã";
+  const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(date).replace(".", "");
+  return `${weekday}, ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
 }

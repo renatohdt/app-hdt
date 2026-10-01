@@ -4,7 +4,7 @@ import clsx from "clsx";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Dumbbell, House, Timer, UserRound } from "lucide-react";
+import { ChartLine, Dumbbell, House, Timer, UserRound } from "lucide-react";
 import { RestTimer } from "@/components/rest-timer";
 
 const NAV_ITEMS = [
@@ -17,8 +17,8 @@ const NAV_ITEMS = [
   {
     key: "calendar",
     href: "/calendario",
-    label: "Calendário",
-    icon: CalendarDays
+    label: "Evolução",
+    icon: ChartLine
   },
   {
     key: "training",

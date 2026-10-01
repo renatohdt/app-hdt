@@ -5,7 +5,7 @@ import { diagnoseUser } from "@/lib/diagnosis";
 import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
-import { getPlanType } from "@/lib/subscription";
+import { getPlanType, isPremium } from "@/lib/subscription";
 import {
   getSupabaseErrorCode,
   getSupabaseErrorMessage,
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: workoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
+    const { data: latestWorkoutRecord, error: workoutError } = await fetchLatestWorkoutRecord(supabase, {
       userId: auth.user.id,
       includeCreatedAt: true,
       scope: "WORKOUT"
@@ -134,11 +134,26 @@ export async function POST(request: NextRequest) {
       return jsonError(LOAD_CURRENT_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    if (!workoutRecord) {
+    if (!latestWorkoutRecord) {
       return jsonError(WORKOUT_NOT_FOUND_MESSAGE, 404);
     }
 
     const savedAnswers = await getUserAnswersByUserId(supabase, auth.user.id);
+
+    // Premium com mais de um local: a sessão vai para o programa do LOCAL ATIVO —
+    // o mesmo que o GET /api/workout mostra na tela. (Antes ia para o programa
+    // criado por último, que podia ser de outro local.) Free: um único programa.
+    let workoutRecord = latestWorkoutRecord;
+    const activeLocation = (savedAnswers as { location?: string } | null)?.location;
+    if (activeLocation && (await isPremium(auth.user.id, request.headers.get("authorization")?.replace("Bearer ", "") ?? null).catch(() => false))) {
+      const scoped = await fetchLatestWorkoutRecord(supabase, {
+        userId: auth.user.id,
+        includeCreatedAt: true,
+        scope: "WORKOUT",
+        location: activeLocation
+      });
+      if (scoped.data) workoutRecord = scoped.data;
+    }
     const answers = buildRuntimeQuizAnswers(savedAnswers);
     const diagnosis = diagnoseUser(answers);
     const normalizedWorkout = normalizeWorkoutSafely(workoutRecord.exercises, {
@@ -196,7 +211,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (sessionStats.completedSessions >= workoutState.sessionConfig.totalSessions) {
+    // Ciclo concluído = soma das sessões de todos os locais desde o início do ciclo.
+    const unifiedBeforeForCheck = standardWorkoutsC.length ? unifiedCompletedBefore : sessionStats.completedSessions;
+    if (unifiedBeforeForCheck >= workoutState.sessionConfig.totalSessions) {
       return jsonError(PLAN_ALREADY_COMPLETED_MESSAGE, 409);
     }
 
@@ -458,9 +475,9 @@ export async function POST(request: NextRequest) {
     // O bloco do programa termina quando a SOMA das sessões (todos os locais)
     // atinge o total. unifiedAfter = contagem antes + esta sessão recém-concluída.
     const unifiedCompletedAfter = unifiedCompletedBefore + 1;
-    const programCompleted =
-      unifiedCompletedAfter >= workoutState.sessionConfig.totalSessions ||
-      updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
+    const programCompleted = standardWorkoutsC.length
+      ? unifiedCompletedAfter >= workoutState.sessionConfig.totalSessions
+      : updatedStats.completedSessions >= workoutState.sessionConfig.totalSessions;
 
     // Busca o plano apenas quando o programa for concluído (evita chamada desnecessária no fluxo normal)
     const userPlan = programCompleted ? await getPlanType(auth.user.id, userToken).catch(() => null) : null;
@@ -612,13 +629,10 @@ function buildWorkoutCompletionSuccessResponse(input: {
     data: {
       sessionProgress: buildWorkoutSessionProgress({
         totalSessions: input.totalSessions,
-        completedSessions: Math.max(
-          input.unifiedCompletedSessions ?? 0,
-          input.sessionStats.completedSessions
-        ),
+        completedSessions: input.unifiedCompletedSessions ?? input.sessionStats.completedSessions,
         lastCompletedAt: input.sessionStats.lastLog?.completedAt ?? input.completion.completedAt,
         lastCompletedWorkoutKey: input.sessionStats.lastLog?.workoutKey ?? input.completion.workoutKey,
-        lastCompletedSessionNumber: input.sessionStats.lastLog?.sessionNumber ?? input.completion.sessionNumber
+        lastCompletedSessionNumber: input.unifiedCompletedSessions ?? input.sessionStats.lastLog?.sessionNumber ?? input.completion.sessionNumber
       }),
       completion: serializeWorkoutCompletion(input.completion),
       nextWorkoutKey: resolveNextWorkoutKey(

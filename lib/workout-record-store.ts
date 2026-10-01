@@ -279,6 +279,31 @@ export async function getUnifiedProgramCompletedCount(
   return typeof result.count === "number" ? result.count : 0;
 }
 
+/**
+ * Último treino do PROGRAMA (qualquer local) desde o início do ciclo.
+ * A letra (A, B, C…) é global entre locais: fez A no condomínio → o próximo é B,
+ * em casa ou no condomínio. Treinos extras não entram (só ids de treinos padrão).
+ */
+export async function getUnifiedLastProgramSession(
+  supabase: SupabaseLike,
+  userId: string,
+  cycleStartIso: string,
+  standardWorkoutIds: string[]
+): Promise<{ completedAt: string; workoutKey: string | null } | null> {
+  if (!standardWorkoutIds.length) return null;
+  const result = await supabase
+    .from("workout_session_logs")
+    .select("completed_at, workout_key")
+    .eq("user_id", userId)
+    .in("workout_id", standardWorkoutIds)
+    .gte("completed_at", cycleStartIso)
+    .order("completed_at", { ascending: false })
+    .limit(1);
+  if (result.error || !Array.isArray(result.data) || !result.data.length) return null;
+  const row = result.data[0] as { completed_at?: string | null; workout_key?: string | null };
+  return row.completed_at ? { completedAt: row.completed_at, workoutKey: row.workout_key ?? null } : null;
+}
+
 function buildWorkoutFields(options: FetchWorkoutOptions) {
   const fields = ["id", "hash", "exercises", "total_sessions"] as string[];
 
