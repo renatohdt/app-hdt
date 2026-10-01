@@ -22,23 +22,40 @@ function getBearerToken(request: Request) {
   return token.trim();
 }
 
+// Cliente reaproveitado entre requisições (a função "quente" na Vercel guarda
+// o módulo em memória). As chaves públicas do Supabase (JWKS) ficam em cache.
+let authClient: ReturnType<typeof createSupabaseServerAuthClient> | undefined;
+
+function getAuthClient() {
+  if (authClient === undefined) {
+    authClient = createSupabaseServerAuthClient();
+  }
+  return authClient;
+}
+
 export async function getAuthenticatedUser(request: Request): Promise<AuthenticatedUser | null> {
   const token = getBearerToken(request);
-  const supabase = createSupabaseServerAuthClient();
+  const supabase = getAuthClient();
 
   if (!token || !supabase) {
     return null;
   }
 
-  const { data, error } = await supabase.auth.getUser(token);
+  // getClaims() confere a assinatura do token LOCALMENTE (chave ES256 pública
+  // do projeto, em cache) — sem ida ao servidor de Auth a cada requisição.
+  // Se o projeto usasse chave simétrica, a própria lib cai no getUser().
+  // Observação: um token continua válido até expirar (1h), mesmo após logout
+  // em outro aparelho — comportamento padrão do Supabase com JWT.
+  const { data, error } = await supabase.auth.getClaims(token);
+  const claims = data?.claims as { sub?: unknown; email?: unknown; role?: unknown } | undefined;
 
-  if (error || !data.user) {
+  if (error || !claims || typeof claims.sub !== "string" || !claims.sub || claims.role !== "authenticated") {
     return null;
   }
 
   return {
-    id: data.user.id,
-    email: data.user.email ?? null
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null
   };
 }
 

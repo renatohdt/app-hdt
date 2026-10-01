@@ -8,7 +8,8 @@ import { useRouter } from "next/navigation";
 import { ShareButton } from "@/components/share-button";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
-import { BodyMeasurementsPanel } from "@/components/body-measurements-panel";
+import dynamic from "next/dynamic";
+import type { ComponentProps } from "react";
 import { computeAgeFromBirthDate } from "@/lib/age";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
@@ -25,6 +26,12 @@ import { formatBodyTypeLabel } from "@/lib/body-type";
 import { signOutAndRedirect } from "@/lib/client-signout";
 import { ENABLE_WORKOUT_REGENERATION } from "@/lib/feature-flags";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+
+// Painel de medidas usa gráficos (Recharts): carrega em pedaço separado.
+const BodyMeasurementsPanel = dynamic<ComponentProps<typeof import("@/components/body-measurements-panel").BodyMeasurementsPanel>>(
+  () => import("@/components/body-measurements-panel").then((m) => ({ default: m.BodyMeasurementsPanel })),
+  { ssr: false }
+);
 
 type ProfilePayload = {
   user: { id: string; name: string; email: string };

@@ -8,11 +8,9 @@ Sentry.init({
   // Captura 10% das transações para performance
   tracesSampleRate: 0.1,
 
-  // Grava replay de sessão apenas quando há erro
-  replaysOnErrorSampleRate: 1.0,
-  replaysSessionSampleRate: 0.05,
-
-  integrations: [Sentry.replayIntegration()],
+  // Replay de sessão do Sentry desligado: o Microsoft Clarity já grava as
+  // sessões, e o Replay pesava ~100 KB+ de JS e CPU em todo celular.
+  // Para religar: replaysOnErrorSampleRate + integrations: [Sentry.replayIntegration()].
 
   debug: false,
 

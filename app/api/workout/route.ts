@@ -19,7 +19,10 @@ import { sanitizeWeekdays } from "@/lib/weekly-plan";
 import { FREE_CYCLE_LIMIT_ERROR_CODE, getCycleRenewalsUsed, hasCompletedCycleBefore, hasFreeCycleRenewalAvailable } from "@/lib/cycle-renewal";
 import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
-import { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
+// lib/workout-ai (OpenAI, ~4 mil linhas) é carregado só dentro do POST
+// (geração de treino), para o GET — chamado em toda abertura de tela — iniciar
+// mais rápido quando a função "acorda" (cold start).
+type WorkoutAiModule = typeof import("@/lib/workout-ai");
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, fetchUserStandardWorkouts, resolveProgramCycleStart, getUnifiedProgramCompletedCount, getUnifiedLastProgramSession, type WorkoutRecordRow, saveWorkoutRecord } from "@/lib/workout-record-store";
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
@@ -62,26 +65,63 @@ export async function GET(request: NextRequest) {
       return jsonError("Acesso negado.", 403);
     }
 
-    // Modo programa: se o usuário tem um programa comprado ativo, ele tem
-    // prioridade sobre o fluxo de treino por IA (que segue intocado abaixo).
-    const programEntitlement = await getActiveProgramEntitlement(supabase, userId);
-    if (programEntitlement) {
-      return await buildProgramWorkoutResponse(request, userId, programEntitlement);
-    }
-
-    // Todas as queries iniciais rodam em paralelo — nenhuma depende do resultado da outra,
-    // pois o userId já está disponível desde o passo de autenticação acima.
+    // ETAPA 1 — tudo que depende só do userId roda junto (uma única "ida"
+    // ao banco em vez de várias em fila).
+    const workoutUserToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
+    const now = new Date().toISOString();
     const [
+      programEntitlement,
       { data: user, error: userError },
       { data: workoutRecordInitial, error: workoutError },
       savedAnswers,
-      exerciseLibrary
+      exerciseLibrary,
+      isPremiumUser,
+      standardWorkoutsGet,
+      rawAvailableLocations,
+      totalWorkoutsAllTime,
+      totalWeightIncreasesAllTime,
+      activeGoalResult,
+      completedGoalsResult,
+      referralAchievementResult
     ] = await Promise.all([
+      getActiveProgramEntitlement(supabase, userId),
       supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
       fetchLatestWorkoutRecord(supabase, { userId, includeCreatedAt: true, scope: "WORKOUT" }),
       getUserAnswersByUserId(supabase, userId),
-      getCachedExerciseCatalog()
+      getCachedExerciseCatalog(),
+      isPremium(userId, workoutUserToken),
+      fetchUserStandardWorkouts(supabase, userId),
+      // Locais que já têm treino (abas de local na tela de treino).
+      fetchAvailableWorkoutLocations(supabase, userId),
+      getAllTimeWorkoutCount(supabase, userId),
+      countWeightIncreases(supabase, userId),
+      supabase
+        .from("user_goals")
+        .select("*")
+        .eq("user_id", userId)
+        .is("completed_at", null)
+        .gte("ends_at", now)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("user_goals")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .not("completed_at", "is", null),
+      // Flag de desbloqueio da conquista de indicação ("Fofoqueiro(a)").
+      supabase
+        .from("users")
+        .select("referral_achievement_unlocked")
+        .eq("id", userId)
+        .maybeSingle()
     ]);
+
+    // Modo programa: se o usuário tem um programa comprado ativo, ele tem
+    // prioridade sobre o fluxo de treino por IA (que segue abaixo).
+    if (programEntitlement) {
+      return await buildProgramWorkoutResponse(request, userId, programEntitlement);
+    }
 
     if (userError || !user) {
       return jsonError(SESSION_EXPIRED_MESSAGE, 404);
@@ -105,25 +145,44 @@ export async function GET(request: NextRequest) {
     const answers = buildRuntimeQuizAnswers(savedAnswers, (user as { created_at?: string | null }).created_at ?? null);
     const diagnosis = diagnoseUser(answers);
 
-    // Premium tem um programa por local (casa/condomínio). Busca o treino do
-    // local ATIVO (answers.location). Free continua com um único programa (o
-    // mais recente), então não filtra por local.
+    // Contagem UNIFICADA do programa: soma as sessões de todos os locais desde o
+    // início do ciclo. Total continua o do local ativo. Local único = igual a antes.
+    const cycleStartGet = resolveProgramCycleStart(
+      (savedAnswers as { programCycleStartedAt?: string } | null)?.programCycleStartedAt,
+      standardWorkoutsGet
+    );
+    const standardIdsGet = standardWorkoutsGet.map((w) => w.id);
+    const activeGoalRow = activeGoalResult.data;
+
+    // ETAPA 2 — o que depende das respostas do quiz / premium / meta.
+    const [scopedWorkout, unifiedCompletedGet, unifiedLastGet, activeGoalCountResult] = await Promise.all([
+      // Premium tem um programa por local (casa/condomínio): busca o treino do
+      // local ATIVO. Free continua com um único programa (o mais recente).
+      isPremiumUser
+        ? fetchLatestWorkoutRecord(supabase, {
+            userId: user.id,
+            includeCreatedAt: true,
+            scope: "WORKOUT",
+            location: answers.location
+          })
+        : Promise.resolve(null),
+      getUnifiedProgramCompletedCount(supabase, user.id, cycleStartGet, standardIdsGet),
+      getUnifiedLastProgramSession(supabase, user.id, cycleStartGet, standardIdsGet),
+      activeGoalRow
+        ? supabase
+            .from("workout_session_logs")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .gte("completed_at", activeGoalRow.starts_at)
+            .lte("completed_at", activeGoalRow.ends_at)
+        : Promise.resolve(null)
+    ]);
+
+    // Só adota o treino do local ativo quando ele EXISTE. Se o premium ainda
+    // não tem programa para esse local, mantém o treino mais recente.
     let workoutRecord = workoutRecordInitial;
-    const workoutUserToken = request.headers.get("authorization")?.replace("Bearer ", "") ?? null;
-    const isPremiumUser = await isPremium(user.id, workoutUserToken);
-    if (isPremiumUser) {
-      const scopedWorkout = await fetchLatestWorkoutRecord(supabase, {
-        userId: user.id,
-        includeCreatedAt: true,
-        scope: "WORKOUT",
-        location: answers.location
-      });
-      // Só adota o treino do local ativo quando ele EXISTE. Se o premium ainda
-      // não tem programa para esse local, mantém o treino mais recente (não quebra
-      // a tela). A geração explícita para o local vazio vem pelas abas (Fase 5b).
-      if (!scopedWorkout.error && scopedWorkout.data) {
-        workoutRecord = scopedWorkout.data;
-      }
+    if (scopedWorkout && !scopedWorkout.error && scopedWorkout.data) {
+      workoutRecord = scopedWorkout.data;
     }
 
     if (!workoutRecord) {
@@ -181,52 +240,21 @@ export async function GET(request: NextRequest) {
       workout: normalizedWorkout,
       answers
     });
-    const now = new Date().toISOString();
-    const [sessionStats, replacementCountResult, totalWorkoutsAllTime, totalWeightIncreasesAllTime, activeGoalResult, completedGoalsResult, userLevelSummary, referralAchievementResult] = await Promise.all([
+
+    // ETAPA 3 — o que depende do treino escolhido (e o nível/XP, que pode
+    // gravar decaimento por inatividade — só roda para quem tem treino, como antes).
+    const [sessionStats, replacementCountResult, userLevelSummary] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
       supabase
         .from("workout_exercise_replacements")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("workout_id", workoutRecord.id),
-      getAllTimeWorkoutCount(supabase, user.id),
-      countWeightIncreases(supabase, user.id),
-      supabase
-        .from("user_goals")
-        .select("*")
-        .eq("user_id", user.id)
-        .is("completed_at", null)
-        .gte("ends_at", now)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("user_goals")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .not("completed_at", "is", null),
       // Aplica decaimento por inatividade e retorna resumo do nível.
       // Passa a experiência do quiz para inicializar a fase corretamente na 1ª vez.
-      getUserLevelSummary(supabase, user.id, savedAnswers?.experience ?? null).catch(() => null),
-      // Flag de desbloqueio da conquista de indicação ("Fofoqueiro(a)").
-      supabase
-        .from("users")
-        .select("referral_achievement_unlocked")
-        .eq("id", user.id)
-        .maybeSingle(),
+      getUserLevelSummary(supabase, user.id, savedAnswers?.experience ?? null).catch(() => null)
     ]);
-    // Contagem UNIFICADA do programa: soma as sessões de todos os locais desde o
-    // início do ciclo. Total continua o do local ativo. Local único = igual a antes.
-    const standardWorkoutsGet = await fetchUserStandardWorkouts(supabase, user.id);
-    const cycleStartGet = resolveProgramCycleStart(
-      (savedAnswers as { programCycleStartedAt?: string } | null)?.programCycleStartedAt,
-      standardWorkoutsGet
-    );
-    const standardIdsGet = standardWorkoutsGet.map((w) => w.id);
-    const [unifiedCompletedGet, unifiedLastGet] = await Promise.all([
-      getUnifiedProgramCompletedCount(supabase, user.id, cycleStartGet, standardIdsGet),
-      getUnifiedLastProgramSession(supabase, user.id, cycleStartGet, standardIdsGet)
-    ]);
+
     // Um programa, vários locais: contagem, último treino e próxima letra valem
     // para TODOS os locais (fez A no condomínio → o próximo é B em qualquer local).
     const hasUnified = standardIdsGet.length > 0;
@@ -240,14 +268,8 @@ export async function GET(request: NextRequest) {
 
     // Processar meta ativa
     let activeGoalData = null;
-    if (activeGoalResult.data) {
-      const g = activeGoalResult.data;
-      const { count: workoutsDone } = await supabase
-        .from("workout_session_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("completed_at", g.starts_at)
-        .lte("completed_at", g.ends_at);
+    if (activeGoalRow) {
+      const g = activeGoalRow;
       activeGoalData = {
         id: g.id,
         targetCount: g.target_count,
@@ -255,13 +277,11 @@ export async function GET(request: NextRequest) {
         startsAt: g.starts_at,
         endsAt: g.ends_at,
         completedAt: g.completed_at,
-        workoutsDone: workoutsDone ?? 0
+        workoutsDone: activeGoalCountResult?.count ?? 0
       };
     }
 
-    // Locais que já têm treino (para as abas de local na tela de treino). Só
-    // premium pode ter mais de um; garante que o local ativo apareça sempre.
-    const rawAvailableLocations = await fetchAvailableWorkoutLocations(supabase, user.id);
+    // Só premium pode ter mais de um local; garante que o local ativo apareça sempre.
     const availableLocationsSet = new Set<string>(rawAvailableLocations);
     availableLocationsSet.add(answers.location ?? "home");
     const availableLocations = Array.from(availableLocationsSet);
@@ -428,6 +448,7 @@ async function buildProgramWorkoutResponse(
 }
 
 export async function POST(request: Request) {
+  const { buildWorkoutHash, generateWorkoutWithAI, isOpenAIQuotaError }: WorkoutAiModule = await import("@/lib/workout-ai");
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {

@@ -7,11 +7,9 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
-import { BodyMeasurementsPanel } from "@/components/body-measurements-panel";
 import { Card } from "@/components/ui";
 import { useSubscription } from "@/components/use-subscription";
 import { DaySheet, type DaySheetSession } from "@/components/evolution/day-sheet";
-import { ProgressTab } from "@/components/evolution/progress-tab";
 import { SwipeTabs } from "@/components/evolution/swipe-tabs";
 import { WeeklyPlanCard } from "@/components/evolution/weekly-plan-card";
 import { calcConsistencyStats } from "@/lib/achievements";
@@ -27,6 +25,17 @@ import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { buildSuggestedDays, buildWeekProgress, toLocalDateKey } from "@/lib/evolution";
 import { buildWeeklyPlan } from "@/lib/weekly-plan";
 import type { WorkoutSessionLogEntry } from "@/lib/workout-sessions";
+
+// Abas com gráficos (Recharts, ~390 KB) carregam em pedaço separado: a aba
+// "Registro" abre sem esperar esse código baixar.
+const ProgressTab = dynamic(
+  () => import("@/components/evolution/progress-tab").then((m) => ({ default: m.ProgressTab })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-white/5" /> }
+);
+const BodyMeasurementsPanel = dynamic(
+  () => import("@/components/body-measurements-panel").then((m) => ({ default: m.BodyMeasurementsPanel })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-white/5" /> }
+);
 
 const AchievementsModal = dynamic(() =>
   import("@/components/achievements-modal").then((m) => ({ default: m.AchievementsModal }))
