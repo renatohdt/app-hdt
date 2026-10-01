@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { useState } from "react";
-import { Check, Lock, Pencil } from "lucide-react";
+import { Check, Lock, Moon, Pencil } from "lucide-react";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { toLocalDateKey } from "@/lib/evolution";
@@ -188,7 +188,7 @@ export function WeeklyPlanCard({
                     : cell.state === "planned"
                       ? cell.workoutKey
                       : cell.state === "rest_recovery"
-                        ? "💤"
+                        ? <Moon className="mx-auto h-3 w-3 text-white" aria-label="Recuperação" />
                         : cell.state === "missed"
                           ? "—"
                           : "off"}
@@ -197,9 +197,12 @@ export function WeeklyPlanCard({
             ))}
           </div>
           <p className="text-[11px] leading-relaxed text-white/50">
-            {hasRecoveryRest
-              ? "💤 Recuperação: depois de um treino de corpo inteiro, ou para não repetir o mesmo grupo muscular, o dia vira descanso. "
-              : ""}
+            {hasRecoveryRest ? (
+              <>
+                <Moon className="mr-1 inline h-3 w-3 align-[-2px] text-white" />
+                Recuperação: depois de um treino de corpo inteiro (quando a semana tem folga) ou para não repetir o mesmo grupo muscular, o dia vira descanso.{" "}
+              </>
+            ) : null}
             Perdeu um dia? A semana se reorganiza sozinha a partir de hoje.
           </p>
         </>

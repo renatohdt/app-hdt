@@ -12,6 +12,16 @@ export function getDefaultWeekdays(data: AppWorkoutData) {
     .map((item) => item.index);
 }
 
+function isSameSundayWeek(a: Date, b: Date) {
+  const start = (d: Date) => {
+    const s = new Date(d);
+    s.setHours(0, 0, 0, 0);
+    s.setDate(s.getDate() - s.getDay());
+    return s.getTime();
+  };
+  return start(a) === start(b);
+}
+
 export type PlannedNext = {
   workoutKey: string;
   dateKey: string;
@@ -55,6 +65,9 @@ export function getPlannedNext(input: {
     nextWorkoutKey: getFeaturedWorkoutKey(data.workoutOrder, progress.lastCompletedWorkoutKey),
     history,
     trainedToday: lastDateKey === todayKey,
+    weeklyTarget: data.weeklyTarget,
+    // Aqui só conhecemos o último treino: conta 1 se ele foi nesta semana (dom → hoje).
+    doneThisWeek: lastDate && isSameSundayWeek(lastDate, now) ? 1 : 0,
     daysAhead: 21,
     now
   });

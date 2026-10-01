@@ -1,7 +1,10 @@
 // "Minha semana" (Premium): distribui os treinos do programa nos dias que a
 // pessoa escolheu, com regras simples de recuperação:
 //  1. Só treina nos dias escolhidos (os outros são day off).
-//  2. Depois de um treino de corpo inteiro (full body), o dia seguinte é day off.
+//  2. Depois de um treino de corpo inteiro (full body), o dia seguinte é day off
+//     QUANDO há folga na semana. Se descansar fizer perder treinos da meta semanal
+//     (poucos dias sobrando), o full body pode vir no dia seguinte — mas nunca 3
+//     full body seguidos. Semana = domingo a sábado.
 //  3. Não repete o mesmo grupo muscular em dias seguidos (ex.: peito → costas).
 //     Se o próximo da fila repetiria o grupo, puxa o seguinte que não repete;
 //     se nenhum serve, o dia vira descanso.
@@ -67,6 +70,10 @@ export function buildWeeklyPlan(input: {
   nextWorkoutKey: string | null;
   history: Map<string, string>;
   trainedToday: boolean;
+  // Meta de treinos por semana (perfil). Sem meta → descanso após full body sempre.
+  weeklyTarget?: number;
+  // Treinos do programa já feitos na semana atual (dom → hoje), incluindo hoje.
+  doneThisWeek?: number;
   daysAhead?: number;
   now?: Date;
 }): PlannedDay[] {
@@ -88,16 +95,40 @@ export function buildWeeklyPlan(input: {
   const previous = new Date(start);
   previous.setDate(previous.getDate() - 1);
   let prevKey: string | null = input.history.get(toLocalDateKey(previous)) ?? null;
+  // Quantos full body seguidos terminaram no dia anterior (limite: 2).
+  const dayBefore = new Date(previous);
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  let fullBodyStreak = prevKey && isFullBody(byKey.get(prevKey))
+    ? (() => {
+        const k = input.history.get(toLocalDateKey(dayBefore));
+        return k && isFullBody(byKey.get(k)) ? 2 : 1;
+      })()
+    : 0;
+  let sessionsThisWeek = input.doneThisWeek ?? 0;
+
+  // Dias escolhidos que ainda restam na semana (de `date` até sábado).
+  const chosenLeftInWeek = (date: Date) => {
+    let count = 0;
+    const d = new Date(date);
+    for (let guard = 0; guard < 7; guard++) {
+      if (chosen.has((d.getDay() + 6) % 7)) count++;
+      if (d.getDay() === 6) break; // sábado fecha a semana
+      d.setDate(d.getDate() + 1);
+    }
+    return count;
+  };
 
   for (let i = 0; i < days; i++) {
     const date = new Date(start);
     date.setDate(start.getDate() + i);
     const dateKey = toLocalDateKey(date);
     const weekday = (date.getDay() + 6) % 7;
+    if (i > 0 && date.getDay() === 0) sessionsThisWeek = 0; // nova semana (domingo)
 
     // Hoje já treinou: o dia conta como treino real para a regra de amanhã.
     if (i === 0 && input.trainedToday) {
       prevKey = input.history.get(dateKey) ?? prevKey;
+      fullBodyStreak = prevKey && isFullBody(byKey.get(prevKey)) ? fullBodyStreak + 1 : 0;
       result.push({ dateKey, weekday, workoutKey: null, restReason: null });
       continue;
     }
@@ -105,28 +136,43 @@ export function buildWeeklyPlan(input: {
     if (!chosen.has(weekday)) {
       result.push({ dateKey, weekday, workoutKey: null, restReason: "not_chosen" });
       prevKey = null;
+      fullBodyStreak = 0;
       continue;
     }
 
     const prevInfo = prevKey ? byKey.get(prevKey) : undefined;
     if (prevInfo && isFullBody(prevInfo)) {
-      result.push({ dateKey, weekday, workoutKey: null, restReason: "after_full_body" });
-      prevKey = null;
-      continue;
+      // Há folga na semana para descansar e ainda bater a meta? Então descansa.
+      const needed = input.weeklyTarget ? Math.max(input.weeklyTarget - sessionsThisWeek, 0) : 0;
+      const canAffordRest = !input.weeklyTarget || chosenLeftInWeek(date) > needed;
+      if (canAffordRest || fullBodyStreak >= 2) {
+        result.push({ dateKey, weekday, workoutKey: null, restReason: "after_full_body" });
+        prevKey = null;
+        fullBodyStreak = 0;
+        continue;
+      }
     }
 
     if (!pending.length) pending = [...rotation];
-    const prevGroup = muscleGroupOf(prevInfo);
-    const pickIndex = pending.findIndex((key) => !prevGroup || muscleGroupOf(byKey.get(key)) !== prevGroup);
+    // Regra de grupo muscular vale entre treinos com ênfase (peito, costas, pernas…).
+    // Full body tem regra própria (acima), então não entra nesta comparação.
+    const prevGroup = prevInfo && !isFullBody(prevInfo) ? muscleGroupOf(prevInfo) : null;
+    const pickIndex = pending.findIndex((key) => {
+      const info = byKey.get(key);
+      return !prevGroup || isFullBody(info) || muscleGroupOf(info) !== prevGroup;
+    });
     if (pickIndex < 0) {
       result.push({ dateKey, weekday, workoutKey: null, restReason: "same_group" });
       prevKey = null;
+      fullBodyStreak = 0;
       continue;
     }
 
     const [picked] = pending.splice(pickIndex, 1);
     result.push({ dateKey, weekday, workoutKey: picked!, restReason: null });
     prevKey = picked!;
+    sessionsThisWeek++;
+    fullBodyStreak = isFullBody(byKey.get(picked!)) ? fullBodyStreak + 1 : 0;
   }
 
   return result;

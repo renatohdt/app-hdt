@@ -226,7 +226,9 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       })),
       nextWorkoutKey,
       history: doneByDate,
-      trainedToday
+      trainedToday,
+      weeklyTarget: data.weeklyTarget,
+      doneThisWeek: countDoneThisWeek(doneByDate)
     });
   }, [isPremiumPlan, data, chosenDays, nextWorkoutKey, doneByDate, trainedToday]);
 
@@ -570,6 +572,19 @@ function buildCalendarMonth(
       completedSessions: isCurrentMonth ? recordedSessionsByDate.get(dateKey) ?? [] : []
     } satisfies CalendarDayCell;
   });
+}
+
+// Treinos do programa feitos na semana atual (domingo → hoje).
+function countDoneThisWeek(doneByDate: Map<string, string>) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let count = 0;
+  for (let offset = 0; offset <= today.getDay(); offset++) {
+    const day = new Date(today);
+    day.setDate(today.getDate() - offset);
+    if (doneByDate.has(toLocalDateKey(day))) count++;
+  }
+  return count;
 }
 
 function startOfMonth(date: Date) {

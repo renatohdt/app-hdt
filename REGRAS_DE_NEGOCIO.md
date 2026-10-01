@@ -84,8 +84,8 @@ Implementação: `components/cycle-complete.tsx`, regra em `lib/cycle-renewal.ts
 
 - A pessoa escolhe os dias da semana em que vai treinar (`user_answers.weeklyPlanDays`, 0 = seg … 6 = dom). Os demais dias são day off
 - O app distribui os treinos do programa (A, B, C…) nos dias escolhidos, a partir de hoje, com as regras:
-  1. Depois de um treino de corpo inteiro (full body), o dia seguinte é day off
-  2. Não repete o mesmo grupo muscular em dias seguidos (ex.: peito → costas); se não houver opção, o dia vira descanso
+  1. Depois de um treino de corpo inteiro (full body), o dia seguinte é day off **quando a semana tem folga**. Se descansar fizer perder treinos da meta semanal (perfil), o full body pode vir no dia seguinte — nunca 3 full body seguidos
+  2. Não repete o mesmo grupo muscular em dias seguidos (ex.: peito → costas); se não houver opção, o dia vira descanso. Full body não entra nesta regra (tem a regra 1)
   3. Cada treino acontece 1x por rodada antes de repetir
   4. Perdeu um dia? A fila continua de onde parou — a semana se reorganiza sozinha
 - Free: vê o card bloqueado (prévia borrada) com convite ao Premium; o calendário usa a distribuição padrão pela frequência
