@@ -3,6 +3,7 @@ import "server-only";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 import { hasActiveProgramEntitlement } from "@/lib/program-store";
+import { noStoreFetch } from "@/lib/supabase-user";
 
 // Tipos de plano disponíveis no app
 export type SubscriptionPlan = "free" | "monthly" | "annual";
@@ -45,7 +46,8 @@ function getUserAuthClient(userToken: string) {
   }
 
   return createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${userToken}` } },
+    // Sem cache do Next.js: status Premium precisa refletir o banco na hora.
+    global: { headers: { Authorization: `Bearer ${userToken}` }, fetch: noStoreFetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -61,6 +63,7 @@ function getServiceRoleClient() {
   }
 
   return createClient(supabaseUrl, serviceRoleKey, {
+    global: { fetch: noStoreFetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
