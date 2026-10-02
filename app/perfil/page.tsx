@@ -835,25 +835,10 @@ export default function PerfilPage() {
     };
 
     return (
-      <AppShell>
+      <AppShell showNav={false}>
         <AppSessionTracker userId={payload.user.id} source="profile" />
 
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold text-white">{sectionTitle[editingSection]}</h1>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={handleCancel}
-              disabled={isSaving}
-              className="min-h-10 text-sm"
-            >
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving} className="min-h-10 text-sm">
-              {isSaving ? "Salvando..." : "Salvar"}
-            </Button>
-          </div>
-        </div>
+        <h1 className="text-xl font-semibold text-white">{sectionTitle[editingSection]}</h1>
 
         {feedback ? <FeedbackBanner feedback={feedback} /> : null}
 
@@ -1163,6 +1148,22 @@ export default function PerfilPage() {
             </div>
           </Card>
         )}
+      {/* Ações no rodapé (zona do polegar), sempre visíveis durante a edição */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050705]/90 px-4 pb-[calc(0.75rem+var(--app-safe-bottom))] pt-3 backdrop-blur-xl sm:px-6">
+        <div className="mx-auto flex w-full max-w-[var(--app-shell-max)] gap-3">
+          <Button
+            variant="secondary"
+            onClick={handleCancel}
+            disabled={isSaving}
+            className="min-h-12 flex-1 text-sm"
+          >
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving} className="min-h-12 flex-[2] text-sm">
+            {isSaving ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        </div>
+      </div>
       {showPremiumStyleModal ? (
         <UpsellModal reason="combine_styles_locked" onClose={() => setShowPremiumStyleModal(false)} />
       ) : null}
