@@ -50,6 +50,17 @@ select {
   font: inherit;
 }
 
+/* iOS (Safari/WebView) dá zoom automático ao focar campos com fonte < 16px
+   e não volta ao tamanho original depois. Forçamos 16px só no iOS para
+   evitar o zoom sem bloquear o pinch-zoom (acessibilidade). */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 .glass {
   backdrop-filter: blur(14px);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
