@@ -66,7 +66,16 @@ function generateParticles(count: number): Particle[] {
   });
 }
 
-export function WorkoutCompletionPopup({ onClose, showAd = false }: { onClose: () => void; showAd?: boolean }) {
+export function WorkoutCompletionPopup({
+  onClose,
+  showAd = false,
+  summary = null
+}: {
+  onClose: () => void;
+  showAd?: boolean;
+  /** Resumo opcional do treino, ex.: "47 min · 18 séries · 6/6 exercícios". */
+  summary?: string | null;
+}) {
   const [phrase] = useState<string>(() => {
     const index = Math.floor(Math.random() * FUNNY_PHRASES.length);
     return FUNNY_PHRASES[index] ?? FUNNY_PHRASES[0]!;
@@ -207,6 +216,15 @@ export function WorkoutCompletionPopup({ onClose, showAd = false }: { onClose: (
           >
             &ldquo;{phrase}&rdquo;
           </p>
+
+          {summary ? (
+            <p
+              className="mt-3 text-xs font-semibold tabular-nums text-white/50"
+              style={{ animation: "wcp-fade-up 0.5s ease-out 0.4s both" }}
+            >
+              {summary}
+            </p>
+          ) : null}
 
           {/* Botão de compartilhar */}
           <div

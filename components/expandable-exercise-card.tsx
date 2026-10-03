@@ -9,6 +9,12 @@ import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { WeightChartModal } from "@/components/weight-chart-modal";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import {
+  exerciseDraftKey,
+  readExerciseDraftRaw,
+  removeExerciseDraftRaw,
+  writeExerciseDraftRaw
+} from "@/lib/active-workout-session";
 
 type ExerciseSetEntry = {
   weightKg: string;
@@ -47,7 +53,9 @@ export function ExpandableExerciseCard({
   isReplaced = false,
   onExerciseReplaced,
   initialWeightKg = null,
-  onCompletionChange
+  onCompletionChange,
+  onProgressChange,
+  onSetActivity
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -69,9 +77,13 @@ export function ExpandableExerciseCard({
   // Avisa o componente pai (TrainingScreen) sempre que a conclusão deste exercício muda.
   // isComplete = true quando todas as séries planejadas estão marcadas como concluídas.
   onCompletionChange?: (exerciseId: string, isComplete: boolean) => void;
+  // Quantas séries estão marcadas (inclusive na carga inicial). Alimenta a barra de progresso.
+  onProgressChange?: (exerciseId: string, completedSets: number, totalSets: number) => void;
+  // Chamado só quando a PESSOA marca/desmarca séries (inicia o treino e conta como atividade).
+  onSetActivity?: (exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) => void;
 }) {
   const storageKey = useMemo(
-    () => `hdt-exercise-draft:${data.user.id}:${workoutKey}:${exercise.id}`,
+    () => exerciseDraftKey(data.user.id, workoutKey, exercise.id),
     [data.user.id, exercise.id, workoutKey]
   );
   const [draft, setDraft] = useState<ExerciseExecutionDraft | null>(null);
@@ -111,7 +123,7 @@ export function ExpandableExerciseCard({
       return;
     }
 
-    window.sessionStorage.setItem(storageKey, JSON.stringify(draft));
+    writeExerciseDraftRaw(storageKey, JSON.stringify(draft));
   }, [draft, storageKey]);
 
   useEffect(() => {
@@ -190,6 +202,11 @@ export function ExpandableExerciseCard({
     onCompletionChange?.(exercise.id, isExerciseComplete);
   }, [exercise.id, isExerciseComplete, onCompletionChange]);
 
+  const completedSetCount = setEntries.filter((entry) => entry.completed).length;
+  useEffect(() => {
+    onProgressChange?.(exercise.id, completedSetCount, totalSetRows);
+  }, [completedSetCount, exercise.id, onProgressChange, totalSetRows]);
+
   function updateDraft(next: Partial<ExerciseExecutionDraft>) {
     setDraft((current) => {
       const base = current ?? draftState;
@@ -232,6 +249,11 @@ export function ExpandableExerciseCard({
     } satisfies ExerciseExecutionDraft;
 
     setDraft(nextDraft);
+    onSetActivity?.(exercise.id, {
+      completedSets,
+      totalSets: nextEntries.length,
+      isComplete: nextEntries.length > 0 && nextEntries.every((entry) => entry.completed)
+    });
     setFeedback({
       tone: nextCompleted ? "success" : "info",
       text: nextCompleted
@@ -242,6 +264,38 @@ export function ExpandableExerciseCard({
     if (nextCompleted) {
       trackEvent("cta_click", data.user.id, {
         source: "complete_set_inline",
+        workout_key: workoutKey,
+        exercise_name: exercise.name,
+        completed_sets: nextDraft.completedSets
+      });
+    }
+  }
+
+  // Check geral: marca (ou desmarca) todas as séries do exercício de uma vez.
+  function handleToggleAllSets() {
+    const markAll = !isExerciseComplete;
+    const nextEntries = setEntries.map((entry) => ({ ...entry, completed: markAll }));
+    const lastWithWeight = [...nextEntries].reverse().find((entry) => entry.weightKg);
+    const nextDraft = {
+      ...draftState,
+      setEntries: nextEntries,
+      completedSets: markAll ? nextEntries.length : 0,
+      lastCompletedWeightKg: markAll ? lastWithWeight?.weightKg || draftState.lastCompletedWeightKg : draftState.lastCompletedWeightKg,
+      lastCompletedReps: markAll
+        ? draftState.lastCompletedReps || extractSuggestedReps(exercise.plannedRepsLabel)
+        : draftState.lastCompletedReps
+    } satisfies ExerciseExecutionDraft;
+
+    setDraft(nextDraft);
+    onSetActivity?.(exercise.id, {
+      completedSets: nextDraft.completedSets,
+      totalSets: nextEntries.length,
+      isComplete: markAll && nextEntries.length > 0
+    });
+
+    if (markAll) {
+      trackEvent("cta_click", data.user.id, {
+        source: "complete_all_sets_inline",
         workout_key: workoutKey,
         exercise_name: exercise.name,
         completed_sets: nextDraft.completedSets
@@ -301,13 +355,17 @@ export function ExpandableExerciseCard({
     <div ref={containerRef} className="scroll-mt-4">
       <Card
         className={clsx(
-          "rounded-[26px] p-4 shadow-none transition sm:p-5",
-          isCombinedExercise
+          "rounded-[26px] p-4 shadow-none transition-colors duration-300 sm:p-5",
+          // Concluído: card mais escuro e "apagado", deixando claro o que já foi feito.
+          isExerciseComplete
+            ? "border border-white/[0.05] bg-[#070807]"
+            : isCombinedExercise
             ? "border border-[#f59e0b]/18 bg-[linear-gradient(180deg,rgba(245,158,11,0.1),rgba(18,20,16,0.96))]"
             : isMobilityExercise
               ? "border border-[#38bdf8]/18 bg-[linear-gradient(180deg,rgba(56,189,248,0.09),rgba(18,20,16,0.96))]"
               : "border border-white/10 bg-[#0d100d]/80",
           expanded &&
+            !isExerciseComplete &&
             (isCombinedExercise
               ? "border-[#f59e0b]/28 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(18,20,16,0.98))]"
               : isMobilityExercise
@@ -315,12 +373,13 @@ export function ExpandableExerciseCard({
                 : "border-primary/18 bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(255,255,255,0.02))]")
         )}
       >
+        <div className="flex items-start gap-2">
         <button
           type="button"
           onClick={() => onToggle(exercise.id)}
           aria-expanded={expanded}
           aria-controls={panelId}
-          className="w-full text-left"
+          className="min-w-0 flex-1 text-left"
         >
           <div className="flex items-start gap-3">
             <div
@@ -333,14 +392,21 @@ export function ExpandableExerciseCard({
                   : "border-primary/15 bg-primary/10 text-primary"
               )}
             >
-              {index + 1}
+              {isExerciseComplete ? <Check className="h-5 w-5" strokeWidth={3} /> : index + 1}
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-start gap-2">
-                    <h3 className="text-base font-semibold leading-6 text-white">{exercise.name}</h3>
+                    <h3
+                      className={clsx(
+                        "text-base font-semibold leading-6 transition-colors",
+                        isExerciseComplete ? "text-white/45" : "text-white"
+                      )}
+                    >
+                      {exercise.name}
+                    </h3>
                     {wasReplaced || isReplaced ? (
                       <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/42">
                         Substituído
@@ -361,7 +427,12 @@ export function ExpandableExerciseCard({
 
               <div className="mt-3 min-w-0">
                 <div className="overflow-x-auto no-scrollbar">
-                  <p className="whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] text-white/62 min-[380px]:text-[12px]">
+                  <p
+                    className={clsx(
+                      "whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] transition-colors min-[380px]:text-[12px]",
+                      isExerciseComplete ? "text-white/30" : "text-white/62"
+                    )}
+                  >
                     <span>Séries: {exercise.sets}</span>
                     <span className={isMobilityExercise ? "ml-2.5 min-[380px]:ml-3" : "mx-2.5 min-[380px]:mx-3"}>
                       {isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}
@@ -378,10 +449,35 @@ export function ExpandableExerciseCard({
             </div>
           </div>
         </button>
+        <button
+          type="button"
+          onClick={handleToggleAllSets}
+          aria-pressed={isExerciseComplete}
+          aria-label={
+            isExerciseComplete
+              ? `Desmarcar todas as séries de ${exercise.name}`
+              : `Concluir todas as séries de ${exercise.name}`
+          }
+          className={clsx(
+            "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] transition",
+            isExerciseComplete
+              ? "border-primary bg-primary text-black shadow-[0_10px_22px_rgba(34,197,94,0.25)]"
+              : "border-white/20 text-white/35 hover:border-primary/40 hover:text-primary"
+          )}
+        >
+          <Check className="h-5 w-5" strokeWidth={3} />
+        </button>
+        </div>
 
         {/* Ações rápidas — escondidas em exercícios de mobilidade (não há carga nem substituição) */}
         {!isMobilityExercise ? (
-          <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3">
+          <div
+            className={clsx(
+              "mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3 transition-opacity duration-300",
+              // Exercício concluído: ações ficam apagadas (continuam clicáveis) para destacar os que faltam.
+              isExerciseComplete && "opacity-35 hover:opacity-80"
+            )}
+          >
             <button
               type="button"
               onClick={(e) => {
@@ -429,7 +525,7 @@ export function ExpandableExerciseCard({
         ) : null}
 
         {expanded ? (
-          <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+          <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-3 min-[380px]:p-4">
             {hasTechniqueTag && techniqueDescription ? (
               <p className="text-[12px] leading-5 text-[#f7b955]">{techniqueDescription}</p>
             ) : null}
@@ -497,7 +593,7 @@ export function ExpandableExerciseCard({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/42">Execução</p>
               </div>
 
-              <div className="grid grid-cols-[2rem_2.45rem_.25rem_3.35rem_3.35rem_2.35rem] items-center gap-x-1.5 gap-y-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">
+              <div className="grid grid-cols-[1.75rem_2.25rem_.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-x-1 min-[380px]:gap-x-1.5 gap-y-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">
                 <span className="text-center">Série</span>
                 <span className="text-center">{isIsometric ? "Seg." : "Reps"}</span>
                 <span className="mx-auto h-4 w-px rounded-full bg-white/8" aria-hidden />
@@ -510,7 +606,7 @@ export function ExpandableExerciseCard({
                 {setEntries.map((entry, setIndex) => (
                   <div
                     key={`${exercise.id}-set-${setIndex}`}
-                    className="grid grid-cols-[2rem_2.45rem_.25rem_3.35rem_3.35rem_2.35rem] items-center gap-x-1.5 gap-y-2"
+                    className="grid grid-cols-[1.75rem_2.25rem_.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-x-1 min-[380px]:gap-x-1.5 gap-y-2"
                   >
                     <span
                       className={clsx(
@@ -842,7 +938,7 @@ function readExerciseDraft(
   const targetSetCount = Math.max(plannedSetsCount ?? 1, 1);
 
   if (typeof window !== "undefined") {
-    const raw = window.sessionStorage.getItem(storageKey);
+    const raw = readExerciseDraftRaw(storageKey);
     if (raw) {
       try {
         const parsed = JSON.parse(raw) as Partial<ExerciseExecutionDraft> & {
@@ -882,7 +978,7 @@ function readExerciseDraft(
               : legacyReps || extractSuggestedReps(plannedRepsLabel),
         };
       } catch {
-        window.sessionStorage.removeItem(storageKey);
+        removeExerciseDraftRaw(storageKey);
       }
     }
   }

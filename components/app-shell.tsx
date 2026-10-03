@@ -3,6 +3,7 @@ import { ReactNode, useEffect } from "react";
 import { AppBottomNav } from "@/components/app-bottom-nav";
 import { PageShell } from "@/components/ui";
 import { FeedbackModal } from "@/components/feedback-modal";
+import { ActiveWorkoutWatcher } from "@/components/active-workout-watcher";
 
 const SCREEN_COUNT_KEY = "app_screen_count";
 
@@ -37,6 +38,7 @@ export function AppShell({
 
       {showNav ? <AppBottomNav /> : null}
       <FeedbackModal />
+      <ActiveWorkoutWatcher />
     </PageShell>
   );
 }

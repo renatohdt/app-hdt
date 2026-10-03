@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Zap, X, ChevronRight, Clock, CheckCircle2, Loader2 } from "lucide-react";
+import { Zap, X, ChevronRight, Clock, CheckCircle2, Loader2, Play } from "lucide-react";
 import { clsx } from "clsx";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
@@ -13,6 +13,29 @@ import { buildTrainingExerciseRows } from "@/lib/app-workout";
 import type { AppWorkoutData } from "@/lib/app-workout";
 import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import type { HomeEquipment, WorkoutPlan } from "@/lib/types";
+import { WorkoutProgressDock } from "@/components/workout-progress-dock";
+import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
+import { FeedbackFields, StatsRow } from "@/components/active-workout-watcher";
+import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
+import { scheduleIdleWorkoutNotification } from "@/lib/workout-idle-notification";
+import {
+  AUTO_FINISHED_EVENT,
+  buildTimingPayload,
+  clearActiveWorkout,
+  clearExerciseDrafts,
+  collectWeightsFromDrafts,
+  formatDurationMinutes,
+  getSessionDurationSeconds,
+  hasTrainedTodayLocally,
+  isAutoFinishDue,
+  markTrainedToday,
+  readActiveWorkout,
+  subscribeActiveWorkout,
+  writeActiveWorkout,
+  type ActiveWorkoutSession
+} from "@/lib/active-workout-session";
+
+const EXTRA_WORKOUT_KEY = "extra_A";
 
 type ExtraStatus = {
   isPremium: boolean;
@@ -22,6 +45,8 @@ type ExtraStatus = {
   expiresAt: string | null;
   usedThisMonth: number;
   monthlyLimit: number;
+  /** Já existe treino (programa ou extra) registrado hoje — 1 por dia. */
+  trainedToday?: boolean;
 };
 
 type ModalState =
@@ -98,9 +123,12 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
   const [completing, setCompleting] = useState(false);
-  const [completed, setCompleted] = useState(false);
   const [countdown, setCountdown] = useState("");
   const [mounted, setMounted] = useState(false);
+  // Comemoração com as frases engraçadas após concluir (com resumo opcional).
+  const [celebration, setCelebration] = useState<{ summary: string | null } | null>(null);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [showAlreadyTrained, setShowAlreadyTrained] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStatus = useCallback(async () => {
@@ -167,6 +195,17 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
       setModalState("upsell");
       return;
     }
+    // 1 treino por dia (programa ou extra): avisa ANTES de gerar ou iniciar o extra.
+    // Exceção: um extra que já está em andamento pode ser reaberto normalmente.
+    const saved = readActiveWorkout();
+    const extraInProgress = Boolean(
+      saved && saved.userId === userId && saved.workoutType === "extra" && !isAutoFinishDue(saved)
+    );
+    if (!extraInProgress && (status.trainedToday || hasTrainedTodayLocally(userId))) {
+      setShowAlreadyTrained(true);
+      trackEvent("cta_click", userId, { source: "extra_blocked_already_trained" });
+      return;
+    }
     if (status.hasExtraWorkout) {
       setModalState("view");
       return;
@@ -178,9 +217,27 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
   useEffect(() => {
     const open = () => handleButtonClick();
     window.addEventListener("hdt-open-extra-workout", open);
+    // Vindo da pílula "Treino Extra em andamento" de outra aba (/treino?extra=1).
+    if (status && new URLSearchParams(window.location.search).get("extra") === "1") {
+      window.history.replaceState(null, "", window.location.pathname);
+      open();
+    }
     return () => window.removeEventListener("hdt-open-extra-workout", open);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // Treino Extra fechado automaticamente (ou finalizado pela pergunta dos 15 min) pelo vigia global.
+  useEffect(() => {
+    const onAutoFinished = (event: Event) => {
+      const detail = (event as CustomEvent<{ workoutType?: string }>).detail;
+      if (detail?.workoutType !== "extra") return;
+      setModalState((prev) => (prev === "view" ? "closed" : prev));
+      // Mesmo comportamento do "Finalizar": o extra concluído sai da tela.
+      setStatus((prev) => (prev ? { ...prev, hasExtraWorkout: false, workout: null, expiresAt: null } : prev));
+    };
+    window.addEventListener(AUTO_FINISHED_EVENT, onAutoFinished);
+    return () => window.removeEventListener(AUTO_FINISHED_EVENT, onAutoFinished);
+  }, []);
 
   const handleGenerate = async () => {
     setGenerateError(null);
@@ -220,33 +277,63 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
     }
   };
 
-  const handleComplete = async () => {
-    if (!status?.workoutId || completing || completed) return;
+  // Registra o Treino Extra (com a avaliação, se respondida). Retorna true se deu certo.
+  const handleComplete = async (feedback: { liked: boolean | null; intensity: number | null }) => {
+    if (!status?.workoutId || completing) return false;
     setCompleting(true);
+    setCompleteError(null);
 
     try {
+      const saved = readActiveWorkout();
+      const session = saved && saved.userId === userId && saved.workoutType === "extra" ? saved : null;
+      const allDone = Boolean(session && session.setsTotal > 0 && session.setsDone >= session.setsTotal);
+      const exercises = (status.workout?.sections ?? []).flatMap((section) =>
+        buildTrainingExerciseRows(section).map((row) => ({ id: row.id, name: row.name }))
+      );
       const res = await fetchWithAuth("/api/workout/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           workoutType: "extra",
           workoutId: status.workoutId,
-          workoutKey: "extra_A"
+          workoutKey: EXTRA_WORKOUT_KEY,
+          exerciseWeights: collectWeightsFromDrafts(userId, EXTRA_WORKOUT_KEY, exercises),
+          liked: feedback.liked,
+          intensityLevel: feedback.intensity,
+          timing: session ? buildTimingPayload(session, allDone ? "all_done" : "manual") : null
         })
       });
 
-      if (res.ok) {
-        invalidateWorkoutCache();
-        setCompleted(true);
-        trackEvent("extra_workout_completed", userId, {});
-        setTimeout(() => {
-          setModalState("closed");
-          setCompleted(false);
-          setStatus((prev) => prev ? { ...prev, hasExtraWorkout: false, workout: null, expiresAt: null } : prev);
-        }, 2000);
+      if (!res.ok) {
+        setCompleteError("Não conseguimos registrar agora. Verifique a internet e tente de novo.");
+        return false;
       }
+
+      invalidateWorkoutCache();
+      markTrainedToday(userId);
+      const seconds = session ? getSessionDurationSeconds(session, "manual") : null;
+      const summary =
+        session && seconds !== null
+          ? [
+              formatDurationMinutes(seconds),
+              `${session.setsDone} séries`,
+              `${session.exercisesDone}/${session.exercisesTotal} exercícios`
+            ].join(" · ")
+          : null;
+      clearExerciseDrafts(userId, EXTRA_WORKOUT_KEY);
+      if (session) clearActiveWorkout();
+      trackEvent("extra_workout_completed", userId, {
+        with_feedback: feedback.liked !== null && feedback.intensity !== null
+      });
+      setModalState("closed");
+      setStatus((prev) =>
+        prev ? { ...prev, hasExtraWorkout: false, workout: null, expiresAt: null, trainedToday: true } : prev
+      );
+      setCelebration({ summary });
+      return true;
     } catch {
-      // silently fail
+      setCompleteError("Não conseguimos registrar agora. Verifique a internet e tente de novo.");
+      return false;
     } finally {
       setCompleting(false);
     }
@@ -284,7 +371,7 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
           userId={userId}
           expiresIn={countdown}
           completing={completing}
-          completed={completed}
+          completeError={completeError}
           onComplete={handleComplete}
           onClose={closeModal}
         />,
@@ -364,6 +451,22 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
         </div>,
         document.body
       )}
+
+      {/* Portal direto no body: o botão fica dentro de um card que cortava as janelas de tela cheia. */}
+      {mounted && showAlreadyTrained
+        ? createPortal(
+            <AlreadyTrainedTodayPopup showExtraOption={false} onClose={() => setShowAlreadyTrained(false)} />,
+            document.body
+          )
+        : null}
+
+      {/* Comemoração (frases engraçadas + avaliação na loja), igual ao treino do programa */}
+      {mounted && celebration
+        ? createPortal(
+            <WorkoutCompletionPopup summary={celebration.summary} onClose={() => setCelebration(null)} />,
+            document.body
+          )
+        : null}
     </>
   );
 }
@@ -611,20 +714,186 @@ function ModalQuestionnaire({
   );
 }
 
-function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, completed, onComplete, onClose }: {
+function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, completeError, onComplete, onClose }: {
   workout: WorkoutPlan;
   workoutId: string;
   userId: string;
   expiresIn: string;
   completing: boolean;
-  completed: boolean;
-  onComplete: () => void;
+  completeError: string | null;
+  onComplete: (feedback: { liked: boolean | null; intensity: number | null }) => Promise<boolean>;
   onClose: () => void;
 }) {
+  // Tela "Finalizar treino?" com avaliação — abre sozinha ao marcar tudo, ou pelo botão Finalizar.
+  const [showFinish, setShowFinish] = useState(false);
+  const [liked, setLiked] = useState<boolean | null>(null);
+  const [intensity, setIntensity] = useState<number | null>(null);
+  const autoPromptedRef = useRef(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
+  // Séries marcadas por exercício (barra de progresso).
+  const [exerciseProgress, setExerciseProgress] = useState<Record<string, { done: number; total: number }>>({});
+  const [activeSession, setActiveSession] = useState<ActiveWorkoutSession | null>(null);
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
   // Stub mínimo: ExpandableExerciseCard só usa data.user.id internamente
   const stubData = { user: { id: userId } } as unknown as AppWorkoutData;
+
+  // Todos os exercícios do extra, na ordem em que aparecem.
+  const allRows = workout.sections.flatMap((section) => buildTrainingExerciseRows(section));
+
+  useEffect(() => {
+    const sync = () => setActiveSession(readActiveWorkout());
+    sync();
+    return subscribeActiveWorkout(sync);
+  }, []);
+
+  const handleProgressChange = useCallback((exerciseId: string, done: number, total: number) => {
+    setExerciseProgress((prev) => {
+      const current = prev[exerciseId];
+      if (current && current.done === done && current.total === total) return prev;
+      return { ...prev, [exerciseId]: { done, total } };
+    });
+  }, []);
+
+  let setsDone = 0;
+  let setsTotal = 0;
+  let exercisesDone = 0;
+  const segments: number[] = [];
+  allRows.forEach((row) => {
+    const reported = exerciseProgress[row.id];
+    const total = reported?.total ?? Math.max(row.plannedSetsCount ?? 1, 1);
+    const done = Math.min(reported?.done ?? 0, total);
+    setsDone += done;
+    setsTotal += total;
+    segments.push(total);
+    if (total > 0 && done >= total) exercisesDone += 1;
+  });
+
+  const extraSession =
+    activeSession &&
+    activeSession.userId === userId &&
+    activeSession.workoutType === "extra" &&
+    !isAutoFinishDue(activeSession)
+      ? activeSession
+      : null;
+
+  // Mantém os totais do treino salvo atualizados (pílula e fechamento automático).
+  useEffect(() => {
+    const saved = readActiveWorkout();
+    if (!saved || saved.userId !== userId || saved.workoutType !== "extra") return;
+    if (
+      saved.setsDone === setsDone &&
+      saved.setsTotal === setsTotal &&
+      saved.exercisesDone === exercisesDone &&
+      saved.exercisesTotal === allRows.length
+    ) {
+      return;
+    }
+    writeActiveWorkout({ ...saved, setsDone, setsTotal, exercisesDone, exercisesTotal: allRows.length });
+  }, [allRows.length, exercisesDone, setsDone, setsTotal, userId]);
+
+  // Tela sempre acesa durante o extra em andamento.
+  const hasExtraSession = Boolean(extraSession);
+
+  // Marcou todas as séries: pergunta se quer finalizar (uma vez; se desmarcar algo, pode perguntar de novo).
+  const allSetsDone = setsTotal > 0 && setsDone >= setsTotal;
+  useEffect(() => {
+    if (!allSetsDone) {
+      autoPromptedRef.current = false;
+      return;
+    }
+    if (hasExtraSession && !autoPromptedRef.current) {
+      autoPromptedRef.current = true;
+      setShowFinish(true);
+    }
+  }, [allSetsDone, hasExtraSession]);
+
+  async function handleConfirmFinish() {
+    const ok = await onComplete({ liked, intensity });
+    if (ok) setShowFinish(false);
+  }
+  useEffect(() => {
+    if (!hasExtraSession) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    let cancelled = false;
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> };
+    };
+    void nav.wakeLock
+      ?.request("screen")
+      .then((acquired) => {
+        if (cancelled) void acquired.release().catch(() => {});
+        else lock = acquired;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      void lock?.release().catch(() => {});
+    };
+  }, [hasExtraSession]);
+
+  function isExerciseDone(exerciseId: string) {
+    const reported = exerciseProgress[exerciseId];
+    return Boolean(reported && reported.total > 0 && reported.done >= reported.total);
+  }
+
+  // Inicia (ou atualiza) o extra em andamento. Só um treino aberto por vez.
+  function startOrTouch(hadActivity: boolean): boolean {
+    const now = Date.now();
+    const saved = readActiveWorkout();
+    const savedActive = saved && saved.userId === userId && !isAutoFinishDue(saved, now) ? saved : null;
+    if (savedActive && savedActive.workoutType !== "extra") {
+      setBlockedMessage("Você tem um treino do programa em andamento. Finalize-o antes de começar o extra.");
+      return false;
+    }
+    const base = savedActive;
+    writeActiveWorkout({
+      v: 1,
+      userId,
+      workoutType: "extra",
+      workoutId,
+      workoutKey: EXTRA_WORKOUT_KEY,
+      workoutTitle: "Treino Extra",
+      estimatedLabel: null,
+      startedAt: base?.startedAt ?? now,
+      lastActivityAt: now,
+      hadActivity: Boolean(base?.hadActivity) || hadActivity,
+      setsDone,
+      setsTotal,
+      exercisesDone,
+      exercisesTotal: allRows.length,
+      exercises: allRows.map((row) => ({ id: row.id, name: row.name }))
+    });
+    void scheduleIdleWorkoutNotification({ lastActivityAt: now, workoutTitle: "Treino Extra", askPermission: !base });
+    if (!base) {
+      trackEvent("cta_click", userId, {
+        source: hadActivity ? "extra_workout_started_by_set" : "extra_workout_started"
+      });
+    }
+    return true;
+  }
+
+  function handleStart() {
+    if (!startOrTouch(false)) return;
+    if (!openExerciseId) {
+      const first = allRows.find((row) => !isExerciseDone(row.id));
+      if (first) setOpenExerciseId(first.id);
+    }
+  }
+
+  function handleSetActivity(exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) {
+    if (!startOrTouch(true)) return;
+    if (!info.isComplete) return;
+    try {
+      navigator.vibrate?.(20);
+    } catch {
+      // sem vibração
+    }
+    const index = allRows.findIndex((row) => row.id === exerciseId);
+    const ordered = [...allRows.slice(index + 1), ...allRows.slice(0, Math.max(index, 0))];
+    const next = ordered.find((row) => row.id !== exerciseId && !isExerciseDone(row.id));
+    setOpenExerciseId(next?.id ?? null);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#0a0a0a] md:items-center md:justify-center md:bg-black/70">
@@ -646,6 +915,7 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
         <button
           type="button"
           onClick={onClose}
+          aria-label="Fechar"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/50 hover:text-white"
         >
           <X className="h-4 w-4" />
@@ -665,7 +935,7 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
                 <ExpandableExerciseCard
                   key={exercise.id}
                   data={stubData}
-                  workoutKey="extra_A"
+                  workoutKey={EXTRA_WORKOUT_KEY}
                   exercise={exercise}
                   index={index}
                   expanded={openExerciseId === exercise.id}
@@ -680,6 +950,8 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
                   isPremiumUser={true}
                   isReplaced={false}
                   onExerciseReplaced={() => {}}
+                  onProgressChange={handleProgressChange}
+                  onSetActivity={handleSetActivity}
                 />
               ))}
             </div>
@@ -688,27 +960,86 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
         </div>
       </div>
 
-      {/* Botão no rodapé */}
-      <div className="shrink-0 border-t border-white/[0.06] px-4 py-4">
-        {completed ? (
-          <div className="flex items-center justify-center gap-2 rounded-[16px] bg-green-500/15 py-3.5 text-sm font-semibold text-green-400">
-            <CheckCircle2 className="h-5 w-5" />
-            Treino concluído!
+      {/* Rodapé: Iniciar → barra de progresso → concluído */}
+      <div className="shrink-0 border-t border-white/[0.06] px-4 pb-[calc(1rem+var(--app-safe-bottom))] pt-4">
+        {completing && !showFinish ? (
+          <div className="flex h-14 items-center justify-center gap-2 text-sm font-semibold text-white/70">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Registrando...
           </div>
+        ) : extraSession ? (
+          <WorkoutProgressDock
+            variant="inline"
+            title="Treino Extra"
+            startedAt={extraSession.startedAt}
+            setsDone={setsDone}
+            setsTotal={setsTotal}
+            exercisesDone={exercisesDone}
+            exercisesTotal={allRows.length}
+            segments={segments}
+            onFinish={() => setShowFinish(true)}
+          />
         ) : (
-          <button
-            type="button"
-            onClick={onComplete}
-            disabled={completing}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-primary text-[16px] font-bold text-white transition hover:brightness-110 disabled:opacity-60"
-          >
-            {completing ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
-            {completing ? "Registrando..." : "Finalizar Treino!"}
-          </button>
+          <>
+            {blockedMessage ? <p className="mb-3 text-center text-xs leading-5 text-white/60">{blockedMessage}</p> : null}
+            <button
+              type="button"
+              onClick={handleStart}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-[20px] bg-primary text-[16px] font-bold text-black transition hover:brightness-110"
+            >
+              <Play className="h-4 w-4 fill-current" />
+              Iniciar treino
+            </button>
+          </>
         )}
       </div>
       </div>
+
+      {showFinish && extraSession ? (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/65 px-4 pb-8 sm:items-center sm:pb-0">
+          <div className="w-full max-w-sm rounded-[24px] border border-white/10 bg-[#111] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">{allSetsDone ? "Treino completo! 💪" : "Finalizar treino?"}</h3>
+            <p className="mt-1 text-sm leading-6 text-white/62">
+              {allSetsDone
+                ? "Todas as séries marcadas. Mandou bem!"
+                : setsDone > 0
+                  ? `Você fez ${exercisesDone} de ${allRows.length} exercícios. Quer finalizar mesmo assim?`
+                  : "Você ainda não marcou nenhuma série. Quer finalizar mesmo assim?"}
+            </p>
+            <StatsRow
+              items={[
+                {
+                  value: formatDurationMinutes(getSessionDurationSeconds(extraSession, "manual")),
+                  label: "tempo"
+                },
+                { value: `${setsDone}/${setsTotal}`, label: "séries" },
+                { value: `${exercisesDone}/${allRows.length}`, label: "exercícios" }
+              ]}
+            />
+            <FeedbackFields liked={liked} intensity={intensity} onLiked={setLiked} onIntensity={setIntensity} />
+            {completeError ? <p className="mt-3 text-sm text-red-300">{completeError}</p> : null}
+            <div className="mt-5 flex flex-col gap-3 min-[380px]:flex-row">
+              <button
+                type="button"
+                onClick={() => setShowFinish(false)}
+                disabled={completing}
+                className="h-12 flex-1 rounded-2xl border border-white/15 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Continuar treinando
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmFinish()}
+                disabled={completing}
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-bold text-black disabled:opacity-60"
+              >
+                {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {completing ? "Salvando..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
-

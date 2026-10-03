@@ -475,6 +475,11 @@ type FeedbackContext = {
   avgIntensity: number | null;
   sessionCount: number;
   previousWorkoutSummary?: string | null;
+  /** Tempo real médio (min) das últimas sessões com tempo confiável. */
+  avgRealDurationMinutes?: number | null;
+  /** % médio de séries concluídas nessas sessões (0–1). */
+  avgCompletionRatio?: number | null;
+  timedSessionCount?: number;
 };
 
 function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
@@ -494,6 +499,19 @@ function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
     } else {
       lines.push(`Orientação geral (${ctx.sessionCount} sessões): aprovação ${(liked * 100).toFixed(0)}%, intensidade média ${intensity.toFixed(1)}/5.`);
     }
+  }
+
+  // Tempo real de treino (registrado pelo "Treino em andamento"). Só entra com
+  // pelo menos 3 sessões de tempo confiável, para não reagir a um dia atípico.
+  if ((ctx.timedSessionCount ?? 0) >= 3 && ctx.avgRealDurationMinutes) {
+    const completion =
+      typeof ctx.avgCompletionRatio === "number" ? ` e concluiu em media ${Math.round(ctx.avgCompletionRatio * 100)}% das series` : "";
+    lines.push(
+      "",
+      "TEMPO REAL DE TREINO:",
+      `Nas ultimas ${ctx.timedSessionCount} sessoes o usuario levou em media ${Math.round(ctx.avgRealDurationMinutes)} min por treino${completion}.`,
+      "Compare com o Tempo-alvo acima: se o tempo real passa do alvo em mais de 15%, reduza o volume (series ou exercicios) ou os descansos para caber no tempo; se fica abaixo do alvo em mais de 25% e a conclusao das series e alta (80% ou mais), pode aumentar levemente o volume. Conclusao abaixo de 70% indica treino longo ou pesado demais para a rotina dele."
+    );
   }
 
   if (ctx.previousWorkoutSummary) {

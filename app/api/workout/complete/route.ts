@@ -54,6 +54,7 @@ type CompleteWorkoutBody = {
   intensityLevel?: unknown;
   workoutType?: unknown; // "extra" para treinos extras
   workoutId?: unknown;   // ID do treino extra
+  timing?: unknown;      // tempo real do treino (início, fim, séries feitas, motivo)
 };
 
 export const dynamic = "force-dynamic";
@@ -106,6 +107,11 @@ export async function POST(request: NextRequest) {
       body.intensityLevel <= 5
         ? body.intensityLevel
         : null;
+    // Tempo real do treino. No fechamento automático (50 min sem atividade) o
+    // treino é registrado no momento da ÚLTIMA atividade — inclusive o dia —,
+    // e não na hora em que a pessoa reabriu o app.
+    const timing = parseTimingPayload(body.timing);
+    const completionReference = timing?.backdatedCompletedAt ?? null;
     // Treino extra — fluxo separado e isolado do treino regular
     if (body.workoutType === "extra") {
       return handleExtraWorkoutCompletion({
@@ -116,7 +122,8 @@ export async function POST(request: NextRequest) {
         liked,
         intensityLevel,
         workoutDifficulty,
-        completedAt: new Date().toISOString()
+        completedAt: completionReference ?? new Date().toISOString(),
+        timing
       });
     }
 
@@ -182,7 +189,8 @@ export async function POST(request: NextRequest) {
     const [sessionStats, todayCompletion, prevTotalWorkouts] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
       getUserWorkoutSessionForLocalDay(supabase, {
-        userId: auth.user.id
+        userId: auth.user.id,
+        referenceDate: completionReference
       }),
       getAllTimeWorkoutCount(supabase, auth.user.id)
     ]);
@@ -217,7 +225,7 @@ export async function POST(request: NextRequest) {
       return jsonError(PLAN_ALREADY_COMPLETED_MESSAGE, 409);
     }
 
-    const completedAt = new Date().toISOString();
+    const completedAt = completionReference ?? new Date().toISOString();
     let activeSessionStats = sessionStats;
     let sessionNumber = getNextSessionNumber(activeSessionStats);
     let completionResult = await createWorkoutSessionLog(supabase, {
@@ -265,7 +273,8 @@ export async function POST(request: NextRequest) {
         const [refreshedStats, refreshedTodayCompletion] = await Promise.all([
           getWorkoutSessionStats(supabase, workoutState.sessionFilter),
           getUserWorkoutSessionForLocalDay(supabase, {
-            userId: auth.user.id
+            userId: auth.user.id,
+            referenceDate: completionReference
           })
         ]);
         const alreadyCompletedToday = alreadyCompletedTodayConflict || Boolean(refreshedTodayCompletion.log);
@@ -327,7 +336,8 @@ export async function POST(request: NextRequest) {
               const [retryStats, retryTodayCompletion] = await Promise.all([
                 getWorkoutSessionStats(supabase, workoutState.sessionFilter),
                 getUserWorkoutSessionForLocalDay(supabase, {
-                  userId: auth.user.id
+                  userId: auth.user.id,
+                  referenceDate: completionReference
                 })
               ]);
               const retryAlreadyCompletedToday =
@@ -423,6 +433,10 @@ export async function POST(request: NextRequest) {
       } catch {
         // feedback é secundário, não quebra o fluxo
       }
+    }
+
+    if (timing) {
+      await saveSessionTiming(supabase, completionResult.data.id, timing);
     }
 
     const updatedStats = await getWorkoutSessionStats(supabase, workoutState.sessionFilter);
@@ -766,6 +780,7 @@ async function handleExtraWorkoutCompletion(input: {
   intensityLevel: number | null;
   workoutDifficulty: WorkoutDifficulty | null;
   completedAt: string;
+  timing: SessionTimingInput | null;
 }) {
   if (!input.workoutId) {
     return jsonError("ID do treino extra não informado.", 400);
@@ -788,7 +803,10 @@ async function handleExtraWorkoutCompletion(input: {
   const workoutKey = "extra_A";
 
   // Obtém a data local do usuário para completed_day_sp
-  const todaySession = await getUserWorkoutSessionForLocalDay(input.supabase as any, { userId: input.userId });
+  const todaySession = await getUserWorkoutSessionForLocalDay(input.supabase as any, {
+    userId: input.userId,
+    referenceDate: input.completedAt
+  });
 
   // Usa createWorkoutSessionLog que tem fallbacks para colunas ausentes
   const sessionResult = await createWorkoutSessionLog(input.supabase as any, {
@@ -813,6 +831,10 @@ async function handleExtraWorkoutCompletion(input: {
   }
 
   const logData = sessionResult.data;
+
+  if (input.timing) {
+    await saveSessionTiming(input.supabase, logData.id, input.timing);
+  }
 
   if (input.liked !== null && input.intensityLevel !== null) {
     try {
@@ -870,3 +892,106 @@ async function handleExtraWorkoutCompletion(input: {
   });
 }
 
+// ── Tempo real do treino ────────────────────────────────────────────────────
+
+type SessionTimingInput = {
+  startedAt: string;
+  /** Preenchido só no fechamento automático: momento da última atividade. */
+  backdatedCompletedAt: string | null;
+  durationSeconds: number | null;
+  completionRatio: number | null;
+  setsDone: number | null;
+  setsTotal: number | null;
+  endReason: "manual" | "all_done" | "auto_idle";
+  /** false quando o tempo é estimado/suspeito — a IA ignora essas sessões. */
+  reliable: boolean;
+};
+
+const TIMING_MAX_BACKDATE_MS = 7 * 24 * 60 * 60 * 1000;
+const TIMING_MIN_RELIABLE_SECONDS = 2 * 60;
+const TIMING_MAX_RELIABLE_SECONDS = 4 * 60 * 60;
+const TIMING_MAX_SECONDS = 12 * 60 * 60;
+
+function toSmallInt(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 999 ? value : null;
+}
+
+function parseTimingPayload(raw: unknown): SessionTimingInput | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as Record<string, unknown>;
+  const endReason =
+    t.endReason === "manual" || t.endReason === "all_done" || t.endReason === "auto_idle" ? t.endReason : null;
+  if (!endReason) return null;
+
+  const now = Date.now();
+  const startedMs = typeof t.startedAt === "string" ? Date.parse(t.startedAt) : Number.NaN;
+  if (!Number.isFinite(startedMs) || startedMs > now + 2 * 60 * 1000 || startedMs < now - TIMING_MAX_BACKDATE_MS) {
+    return null;
+  }
+
+  // Fim no passado só é aceito no fechamento automático (= última atividade).
+  let endedMs = now;
+  let backdatedCompletedAt: string | null = null;
+  if (endReason === "auto_idle") {
+    const parsedEnd = typeof t.endedAt === "string" ? Date.parse(t.endedAt) : Number.NaN;
+    if (Number.isFinite(parsedEnd) && parsedEnd >= startedMs && parsedEnd <= now) {
+      endedMs = parsedEnd;
+      backdatedCompletedAt = new Date(parsedEnd).toISOString();
+    }
+  }
+
+  const hadActivity = t.hadActivity === true;
+  const rawDuration = Math.max(0, Math.round((endedMs - Math.min(startedMs, endedMs)) / 1000));
+  // Fechado automaticamente sem nenhuma série marcada: não sabemos quanto durou.
+  const durationSeconds = endReason === "auto_idle" && !hadActivity ? null : Math.min(rawDuration, TIMING_MAX_SECONDS);
+  const reliable =
+    durationSeconds !== null &&
+    durationSeconds >= TIMING_MIN_RELIABLE_SECONDS &&
+    durationSeconds <= TIMING_MAX_RELIABLE_SECONDS;
+
+  const setsDone = toSmallInt(t.setsDone);
+  const setsTotal = toSmallInt(t.setsTotal);
+  const completionRatio =
+    setsDone !== null && setsTotal ? Math.round(Math.min(1, setsDone / setsTotal) * 1000) / 1000 : null;
+
+  return {
+    startedAt: new Date(Math.min(startedMs, endedMs)).toISOString(),
+    backdatedCompletedAt,
+    durationSeconds,
+    completionRatio,
+    setsDone,
+    setsTotal,
+    endReason,
+    reliable
+  };
+}
+
+async function saveSessionTiming(
+  supabase: NonNullable<ReturnType<typeof createSupabaseUserClient>>,
+  sessionLogId: string,
+  timing: SessionTimingInput
+) {
+  try {
+    const { error } = await supabase
+      .from("workout_session_logs")
+      .update({
+        started_at: timing.startedAt,
+        duration_seconds: timing.durationSeconds,
+        completion_ratio: timing.completionRatio,
+        sets_done: timing.setsDone,
+        sets_total: timing.setsTotal,
+        end_reason: timing.endReason,
+        timing_reliable: timing.reliable
+      })
+      .eq("id", sessionLogId);
+
+    if (error) {
+      logWarn("WORKOUT", "Workout session timing not saved", {
+        session_log_id: sessionLogId,
+        error_code: getSupabaseErrorCode(error)
+      });
+    }
+  } catch {
+    // tempo é secundário, não quebra o fluxo
+  }
+}

@@ -697,7 +697,39 @@ export async function POST(request: Request) {
             .map((s) => `${s.title}:\n${s.exercises.slice(0, 3).map((e) => `  - ${e.name}`).join("\n")}`)
             .join("\n")
         : null;
-      const feedbackContext = { avgLiked, avgIntensity, sessionCount: fbCount, previousWorkoutSummary };
+      // Tempo real das últimas sessões (só as de tempo confiável — sem os
+      // fechamentos automáticos em que nenhuma série foi marcada).
+      let avgRealDurationMinutes: number | null = null;
+      let avgCompletionRatio: number | null = null;
+      let timedSessionCount = 0;
+      try {
+        const { data: timingRows } = await supabase
+          .from("workout_session_logs")
+          .select("duration_seconds, completion_ratio")
+          .eq("user_id", userId)
+          .eq("timing_reliable", true)
+          .order("completed_at", { ascending: false })
+          .limit(10);
+        const rows = (timingRows ?? []) as { duration_seconds: number | null; completion_ratio: number | string | null }[];
+        const durations = rows.map((r) => r.duration_seconds).filter((v): v is number => typeof v === "number");
+        const ratios = rows
+          .map((r) => (r.completion_ratio === null ? null : Number(r.completion_ratio)))
+          .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+        timedSessionCount = durations.length;
+        avgRealDurationMinutes = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length / 60 : null;
+        avgCompletionRatio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : null;
+      } catch {
+        // colunas ainda não existem neste ambiente: segue sem o tempo real
+      }
+      const feedbackContext = {
+        avgLiked,
+        avgIntensity,
+        sessionCount: fbCount,
+        previousWorkoutSummary,
+        avgRealDurationMinutes,
+        avgCompletionRatio,
+        timedSessionCount
+      };
 
       workout = normalizeWorkoutPayload(
         await generateWorkoutWithAI(effectiveAnswers, diagnosis, normalizedExercises, {

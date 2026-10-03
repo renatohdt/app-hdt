@@ -13,6 +13,7 @@ import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { generateExtraWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai";
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord } from "@/lib/workout-record-store";
+import { getUserWorkoutSessionForLocalDay } from "@/lib/workout-session-store";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,15 @@ export async function GET(request: NextRequest) {
     const activeExtra = activeExtraResult.data ?? null;
     const usedThisMonth = monthlyCountResult.count ?? 0;
 
+    // Regra de 1 treino por dia (programa ou extra): o app avisa antes de começar.
+    let trainedToday = false;
+    try {
+      const today = await getUserWorkoutSessionForLocalDay(supabase, { userId });
+      trainedToday = Boolean(today.log);
+    } catch {
+      trainedToday = false;
+    }
+
     let workout = null;
     if (activeExtra) {
       try {
@@ -86,7 +96,8 @@ export async function GET(request: NextRequest) {
         workout,
         expiresAt: activeExtra?.expires_at ?? null,
         usedThisMonth,
-        monthlyLimit: MONTHLY_LIMIT
+        monthlyLimit: MONTHLY_LIMIT,
+        trainedToday
       }
     });
   } catch {
