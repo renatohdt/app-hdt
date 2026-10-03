@@ -629,6 +629,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           setSessionProgress(result.data.sessionProgress);
         }
         clearRegularActiveWorkout();
+        // Servidor confirmou que já houve treino hoje: os próximos "Iniciar" já avisam.
+        markTrainedToday(data.user.id);
 
         setConfirmCompletion(false);
         setShowAlreadyTrainedPopup(true);

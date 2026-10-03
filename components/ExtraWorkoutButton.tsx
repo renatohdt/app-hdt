@@ -131,22 +131,34 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
   const [showAlreadyTrained, setShowAlreadyTrained] = useState(false);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (silent = false) => {
     try {
-      setLoadingStatus(true);
+      if (!silent) setLoadingStatus(true);
       const res = await fetchWithAuth("/api/workout/extra");
       const json = await parseJsonResponse<{ data?: ExtraStatus }>(res);
-      if (json?.data) setStatus(json.data);
+      if (json?.data) {
+        setStatus(json.data);
+        // O servidor sabe se já houve treino hoje (programa ou extra), mesmo feito
+        // em outro aparelho. Guardamos no aparelho para a tela de treino avisar
+        // logo no "Iniciar treino", e não só ao finalizar.
+        if (json.data.trainedToday) markTrainedToday(userId);
+      }
     } catch {
       // silently fail — button just won't appear
     } finally {
       setLoadingStatus(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     setMounted(true);
     fetchStatus();
+    // Ao voltar para o app, atualiza (ex.: treinou em outro aparelho nesse meio-tempo).
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void fetchStatus(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchStatus]);
 
   // Countdown timer para treino extra ativo
