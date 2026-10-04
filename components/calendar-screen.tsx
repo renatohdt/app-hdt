@@ -244,13 +244,14 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       history: doneByDate,
       trainedToday,
       weeklyTarget: data.weeklyTarget,
-      doneThisWeek: countDoneThisWeek(doneByDate)
+      doneThisWeek: countDoneThisWeek(doneByDate),
+      daysAhead: PLAN_HORIZON_DAYS
     });
   }, [isPremiumPlan, data, chosenDays, nextWorkoutKey, doneByDate, trainedToday]);
 
   // Próximos treinos sugeridos no calendário (de hoje em diante).
   // Premium segue a "Minha semana"; Free usa a distribuição padrão na ordem A → B → C.
-  const suggestedDays = useMemo(() => {
+  const rawSuggestedDays = useMemo(() => {
     if (data.sessionProgress.cycleCompleted) return new Map<string, string>();
     if (isPremiumPlan) {
       return new Map(plannedDays.filter((d) => d.workoutKey).map((d) => [d.dateKey, d.workoutKey!]));
@@ -259,9 +260,32 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
       activeWeekdays: defaultWeekdays,
       workoutOrder: data.workoutOrder,
       nextWorkoutKey,
-      trainedToday
+      trainedToday,
+      daysAhead: PLAN_HORIZON_DAYS
     });
   }, [data.sessionProgress.cycleCompleted, data.workoutOrder, isPremiumPlan, plannedDays, defaultWeekdays, nextWorkoutKey, trainedToday]);
+
+  // Linha do tempo do programa: só as sessões que FALTAM viram sugestão; a última
+  // é o fim previsto (🏁) e o próximo dia de treino é o início do novo programa.
+  // (Programa comprado tem semanas próprias — fica de fora.)
+  const programTimeline = useMemo(() => {
+    const remaining = Math.max(data.sessionProgress.remainingSessions ?? 0, 0);
+    if (data.raw.program || !remaining) {
+      return { sessionDays: rawSuggestedDays, finishKey: null as string | null, newProgramKey: null as string | null, remaining };
+    }
+    const ordered = Array.from(rawSuggestedDays.entries()).sort(([a], [b]) => a.localeCompare(b));
+    const programDays = ordered.slice(0, remaining);
+    const reachesEnd = programDays.length === remaining;
+    return {
+      sessionDays: new Map(programDays),
+      finishKey: reachesEnd ? programDays[programDays.length - 1]![0] : null,
+      newProgramKey: reachesEnd ? ordered[remaining]?.[0] ?? null : null,
+      remaining
+    };
+  }, [rawSuggestedDays, data.sessionProgress.remainingSessions, data.raw.program]);
+  const suggestedDays = programTimeline.sessionDays;
+  // Free sem renovação disponível: o próximo programa é Premium.
+  const nextProgramLocked = !isPremiumPlan && !data.freeCycleRenewalAvailable;
 
   const monthCells = useMemo(
     () => buildCalendarMonth(visibleMonth, suggestedDays, recordedSessionsByDate),
@@ -299,6 +323,12 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
     const suggestedWorkout = suggestedKey ? data.workouts[suggestedKey] : undefined;
     return {
       dateLabel: capitalizeLabel(DAY_LABEL_FORMATTER.format(date)),
+      milestone:
+        selectedDateKey === programTimeline.finishKey
+          ? ("finish" as const)
+          : selectedDateKey === programTimeline.newProgramKey
+            ? ("new_program" as const)
+            : null,
       sessions,
       suggested:
         !sessions.length && suggestedKey && suggestedWorkout
@@ -308,7 +338,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
             }
           : null
     };
-  }, [selectedDateKey, recordedSessionsByDate, suggestedDays, data.workoutId, data.workouts]);
+  }, [selectedDateKey, recordedSessionsByDate, suggestedDays, data.workoutId, data.workouts, programTimeline]);
 
   const agenda = (
     <>
@@ -347,7 +377,9 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           {monthCells.map((cell) => {
             const isCompleted = cell.completedSessions.length > 0;
             const isSuggested = Boolean(cell.suggestedKey) && !isCompleted;
-            const isClickable = cell.isCurrentMonth && (isCompleted || isSuggested);
+            const isFinish = isSuggested && cell.dateKey === programTimeline.finishKey;
+            const isNewProgram = !isCompleted && cell.dateKey === programTimeline.newProgramKey;
+            const isClickable = cell.isCurrentMonth && (isCompleted || isSuggested || isNewProgram);
             return (
               <button
                 key={cell.dateKey}
@@ -367,6 +399,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
                     cell.isCurrentMonth ? "text-white" : "text-white/28",
                     isCompleted && cell.isCurrentMonth && "bg-primary text-[#041a0b]",
                     isSuggested && cell.isCurrentMonth && "border border-dashed border-primary/70 text-primary",
+                    isNewProgram && cell.isCurrentMonth && "border border-yellow-300/80 bg-yellow-300/10 text-yellow-200",
                     cell.isToday && !isCompleted && "ring-2 ring-white/70",
                     cell.isToday && !isCompleted && !isSuggested && "bg-white/80 text-[#0b0b0b] ring-0"
                   )}
@@ -377,16 +410,50 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
                       {cell.suggestedKey}
                     </span>
                   ) : null}
+                  {isFinish && cell.isCurrentMonth ? (
+                    <span className="absolute -right-1.5 -top-1.5 text-[11px] leading-none" aria-label="Fim do programa">🏁</span>
+                  ) : null}
+                  {isNewProgram && cell.isCurrentMonth ? (
+                    <span className="absolute -bottom-1.5 rounded-full bg-[#0b0d0b] px-1 text-[7px] font-bold leading-tight text-yellow-200">
+                      NOVO
+                    </span>
+                  ) : null}
                 </span>
               </button>
             );
           })}
         </div>
 
+        {programTimeline.finishKey ? (
+          <button
+            type="button"
+            onClick={() => {
+              const [fy, fm] = programTimeline.finishKey!.split("-").map(Number);
+              setVisibleMonth(new Date(fy!, (fm ?? 1) - 1, 1));
+              setSelectedDateKey(programTimeline.finishKey);
+            }}
+            className="flex w-full items-center gap-2.5 rounded-2xl border border-yellow-300/20 bg-yellow-300/[0.06] px-3 py-2.5 text-left"
+          >
+            <span className="text-base leading-none">🏁</span>
+            <span className="min-w-0 text-xs leading-snug text-white/75">
+              <strong className="text-white">Fim previsto do programa: {formatShortDate(programTimeline.finishKey)}</strong>
+              {" · "}
+              {programTimeline.remaining === 1 ? "falta 1 treino" : `faltam ${programTimeline.remaining} treinos`}
+              {programTimeline.newProgramKey ? (
+                <span className="block text-white/50">
+                  Novo programa a partir de {formatShortDate(programTimeline.newProgramKey)}
+                  {nextProgramLocked ? " (Premium)" : ""}
+                </span>
+              ) : null}
+            </span>
+          </button>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/8 pt-4 text-[11px] font-medium text-white/54">
           <LegendItem tone="completed" label="Concluído" />
           <LegendItem tone="planned" label="Sugerido" />
           <LegendItem tone="today" label="Hoje" />
+          {programTimeline.newProgramKey ? <LegendItem tone="new" label="Novo programa" /> : null}
           <span className="ml-auto text-white/35">Toque no dia para ver</span>
         </div>
       </Card>
@@ -395,7 +462,12 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         <WeeklyPlanCard
           locked={!isPremiumPlan}
           chosenDays={chosenDays}
-          plannedDays={plannedDays}
+          plannedDays={plannedDays.map((day) =>
+            // Depois do fim previsto do programa não há treino deste ciclo.
+            day.workoutKey && !suggestedDays.has(day.dateKey)
+              ? { ...day, workoutKey: null, restReason: "not_chosen" as const }
+              : day
+          )}
           doneByDate={doneByDate}
           weeklyTarget={data.weeklyTarget}
           saving={savingPlan}
@@ -503,6 +575,8 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
           dateLabel={sheet.dateLabel}
           sessions={sheet.sessions}
           suggested={sheet.suggested}
+          milestone={sheet.milestone}
+          nextProgramLocked={nextProgramLocked}
           onClose={() => setSelectedDateKey(null)}
         />
       ) : null}
@@ -550,7 +624,7 @@ function WeekProgressCard({ progress }: { progress: ReturnType<typeof buildWeekP
   );
 }
 
-function LegendItem({ label, tone }: { label: string; tone: "completed" | "planned" | "today" }) {
+function LegendItem({ label, tone }: { label: string; tone: "completed" | "planned" | "today" | "new" }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span
@@ -558,7 +632,8 @@ function LegendItem({ label, tone }: { label: string; tone: "completed" | "plann
           "inline-flex h-2.5 w-2.5 rounded-full",
           tone === "completed" && "bg-primary",
           tone === "planned" && "border border-dashed border-primary/70 bg-transparent",
-          tone === "today" && "bg-white/70"
+          tone === "today" && "bg-white/70",
+          tone === "new" && "border border-yellow-300/80 bg-yellow-300/20"
         )}
       />
       {label}
@@ -588,6 +663,17 @@ function buildCalendarMonth(
       completedSessions: isCurrentMonth ? recordedSessionsByDate.get(dateKey) ?? [] : []
     } satisfies CalendarDayCell;
   });
+}
+
+// Até onde planejar os próximos treinos (precisa alcançar o fim do programa).
+const PLAN_HORIZON_DAYS = 200;
+
+// "qui, 30/10"
+function formatShortDate(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(y!, (m ?? 1) - 1, d ?? 1);
+  const weekday = new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(date).replace(".", "");
+  return `${weekday}, ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
 }
 
 // Treinos do programa feitos na semana atual (domingo → hoje).

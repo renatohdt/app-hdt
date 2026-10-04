@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowUp, Dumbbell, Loader2, X, Zap } from "lucide-react";
+import { ArrowUp, Dumbbell, Loader2, Sparkles, X, Zap } from "lucide-react";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import type { SessionDetailExercise } from "@/app/api/workout/session-detail/route";
 
@@ -33,11 +33,17 @@ export function DaySheet({
   dateLabel,
   sessions,
   suggested,
+  milestone = null,
+  nextProgramLocked = false,
   onClose
 }: {
   dateLabel: string;
   sessions: DaySheetSession[];
   suggested: { label: string; exerciseCount: number } | null;
+  // Marco da linha do tempo do programa neste dia.
+  milestone?: "finish" | "new_program" | null;
+  // Free sem renovação: o próximo programa é Premium.
+  nextProgramLocked?: boolean;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -67,6 +73,11 @@ export function DaySheet({
           </div>
         ) : suggested ? (
           <div className="mt-1">
+            {milestone === "finish" ? (
+              <p className="mb-3 rounded-2xl border border-yellow-300/25 bg-yellow-300/10 px-3 py-2.5 text-xs leading-relaxed text-yellow-100">
+                🏁 <strong>Último treino do programa!</strong> Mantendo o ritmo, é aqui que você fecha o ciclo e monta o próximo.
+              </p>
+            ) : null}
             <p className="text-xl font-extrabold text-white">{suggested.label}</p>
             <p className="mt-1 text-sm text-white/60">
               Treino sugerido para este dia · {suggested.exerciseCount} exercícios
@@ -78,6 +89,30 @@ export function DaySheet({
               <Dumbbell className="h-4 w-4" />
               Ver treino
             </Link>
+          </div>
+        ) : milestone === "new_program" ? (
+          <div className="mt-1">
+            <p className="flex items-center gap-2 text-xl font-extrabold text-white">
+              <Sparkles className="h-5 w-5 text-yellow-300" />
+              Começa o próximo programa
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-white/65">
+              Mantendo o ritmo, é aqui que começa um novo programa: novos exercícios e uma nova progressão, montados a partir da sua evolução.
+            </p>
+            {nextProgramLocked ? (
+              <>
+                <p className="mt-3 text-xs leading-relaxed text-white/50">
+                  No plano gratuito você já usou seus 2 programas. Com o Premium, você ganha um novo programa a cada ciclo.
+                </p>
+                <Link
+                  href="/premium"
+                  className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong text-sm font-bold text-black"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Conhecer o Premium
+                </Link>
+              </>
+            ) : null}
           </div>
         ) : (
           <p className="mt-2 text-sm text-white/60">Dia de descanso. A recuperação também faz parte do treino. 😌</p>
