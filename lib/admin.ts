@@ -219,6 +219,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           .select("id, event_name, user_id, visitor_id, metadata, created_at")
           .is("deleted_at", null)
           .ilike("event_name", "%error%")
+          // Janela de 30 dias: sem ela o ilike varria a tabela inteira e estourava
+          // o statement timeout (8s), zerando o dashboard todo.
+          .gte("created_at", startOfLastDays(30).toISOString())
           .order("created_at", { ascending: false })
           .limit(10),
         // head:true retorna só o count sem baixar linhas — sem limite de 1000.
@@ -251,7 +254,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       buildQueryError("users-error", dashboardUsersQuery.error?.message, "users"),
       buildQueryError("answers-error", userAnswersRpcQuery.error?.message, "user_answers"),
       buildQueryError("events-error", dashboardEventsQuery.error?.message, "analytics_events"),
-      buildQueryError("error-events-error", dashboardErrorEventsQuery.error?.message, "analytics_events"),
+      // error-events é só informativo: se falhar, não deve zerar o dashboard.
       buildQueryError("retention-events-error", retentionEventsQuery.error?.message, "analytics_events")
     ].filter(Boolean) as AdminErrorLog[];
 
