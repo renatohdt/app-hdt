@@ -13,6 +13,7 @@ import { UpsellModal } from "@/components/upsell-modal";
 import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { useSubscription } from "@/components/use-subscription";
+import { PREMIUM_NUDGE_AT_WORKOUTS } from "@/components/workout-premium-nudge";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
 import {
@@ -180,6 +181,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [cardsResetToken, setCardsResetToken] = useState(0);
   // Resumo exibido no popup de comemoração (ex.: "47 min · 18 séries · 6/6 exercícios").
   const [completionSummary, setCompletionSummary] = useState<string | null>(null);
+  // Plano free no 2º/5º treino concluído: o popup mostra o convite Premium.
+  const [premiumNudgeWorkouts, setPremiumNudgeWorkouts] = useState<number | null>(null);
   // Regra de um treino por dia: avisa ao INICIAR (e não só ao finalizar).
   // Ao marcar séries, o aviso aparece uma única vez por abertura da tela.
   const alreadyTrainedWarnedRef = useRef(false);
@@ -692,6 +695,9 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
       const next = result.data.newTotalWorkouts ?? totalWorkoutsAllTime + 1;
       setTotalWorkoutsAllTime(next);
+      setPremiumNudgeWorkouts(
+        !subscriptionLoading && !isPremiumUser && PREMIUM_NUDGE_AT_WORKOUTS.includes(next) ? next : null
+      );
       const unlocked =
         getNewlyUnlockedAchievement(prev, next) ??
         getNewlyUnlockedWeightAchievement(
@@ -1104,6 +1110,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           onClose={() => setShowCompletionPopup(false)}
           showAd={showAds}
           summary={completionSummary}
+          premiumNudgeWorkouts={premiumNudgeWorkouts}
         />
       ) : null}
 

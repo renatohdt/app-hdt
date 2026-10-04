@@ -3,9 +3,11 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Sparkles, X, Zap } from "lucide-react";
+import { X, Zap } from "lucide-react";
 import { trackEvent } from "@/lib/analytics-client";
 import { useIsNativeApp } from "@/lib/is-native-app";
+import { PremiumBadge, PremiumIcon } from "@/components/premium-badge";
+import { getWebPricePerDayLabel } from "@/lib/premium-pricing";
 
 type UpsellReason =
   | "replacement_limit"   // Tentou substituir o 3º exercício
@@ -51,7 +53,7 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   },
   home_banner: {
     title: "Leve seus treinos ao próximo nível",
-    description: "Desbloqueie substituições ilimitadas, programas sem fim, evolução com IA e experiência sem anúncios. Por menos de R$&nbsp;10/mês.",
+    description: `Desbloqueie substituições ilimitadas, programas sem fim, evolução com IA e experiência sem anúncios. Por menos de ${getWebPricePerDayLabel("annual").replace(" ", "&nbsp;")} por dia.`,
     cta: "Ver planos",
   },
   weekly_plan: {
@@ -78,7 +80,7 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
   // No app (iOS/Android) não mostramos preços fixos de web; o valor real
   // aparece só na tela Premium (via App Store / RevenueCat no iOS).
   const description = isNative
-    ? content.description.replace(/Por menos de R\$(?:&nbsp;|\s)?10\/mês\.?/i, "").trim()
+    ? content.description.replace(/Por menos de R\$(?:&nbsp;|\s)?[\d,]+ por dia\.?/i, "").trim()
     : content.description;
 
   // Bloqueia scroll do body enquanto modal está aberto
@@ -123,9 +125,10 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
           <X size={16} />
         </button>
 
-        {/* Ícone */}
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10">
-          <Sparkles size={22} className="text-primary" />
+        {/* Ícone + selo dourado: identidade visual única do Premium */}
+        <div className="mb-4 flex items-center gap-3">
+          <PremiumIcon />
+          <PremiumBadge />
         </div>
 
         {/* Conteúdo */}
@@ -137,18 +140,23 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
           dangerouslySetInnerHTML={{ __html: description }}
         />
 
+        {/* No app o preço exato vem da loja (tela Premium); aqui só a referência. */}
+        {isNative ? (
+          <p className="-mt-3 mb-5 text-sm font-semibold text-premium">Menos que uma dose de whey por dia (e bem mais gostoso 😄)</p>
+        ) : null}
+
         {/* Preços rápidos — só no navegador (no app o preço vem da loja) */}
         {!isNative && (
           <div className="mb-5 grid grid-cols-2 gap-2 text-center">
             <div className="rounded-2xl border border-primary/20 bg-primary/8 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">Anual</p>
               <p className="text-lg font-bold text-white">R$&nbsp;9,90<span className="text-xs font-normal text-white/40">/mês</span></p>
-              <p className="text-[10px] text-primary">Mais popular</p>
+              <p className="text-[10px] font-semibold text-premium">só {getWebPricePerDayLabel("annual")}/dia</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Mensal</p>
               <p className="text-lg font-bold text-white">R$&nbsp;14,90<span className="text-xs font-normal text-white/40">/mês</span></p>
-              <p className="text-[10px] text-white/30">Cartão</p>
+              <p className="text-[10px] text-white/40">{getWebPricePerDayLabel("monthly")}/dia</p>
             </div>
           </div>
         )}
@@ -156,7 +164,7 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
         {/* CTA */}
         <button
           onClick={handleCTA}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong py-3.5 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
+          className="premium-shine flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3.5 text-sm font-black text-[#2b1d00] shadow-[0_10px_40px_rgba(245,196,81,0.25)] transition hover:opacity-95 active:scale-[0.99]"
         >
           <Zap size={15} strokeWidth={2.5} />
           {content.cta}

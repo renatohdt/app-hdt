@@ -90,3 +90,40 @@ select {
     transform: translateY(0);
   }
 }
+
+/* ── Premium: brilho que atravessa o selo/cartão de tempos em tempos ── */
+.premium-shine {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.premium-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  transform: translateX(-130%) skewX(-20deg);
+  animation: premiumShine 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes premiumShine {
+  0% {
+    transform: translateX(-130%) skewX(-20deg);
+  }
+  55%,
+  100% {
+    transform: translateX(260%) skewX(-20deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .premium-shine::after {
+    display: none;
+  }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Check, Lock, Shield, Sparkles, X, Zap } from "lucide-react";
+import { Check, ChevronLeft, Lock, Shield, Sparkles, X, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -11,6 +11,7 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { useNativePlatform } from "@/lib/is-native-app";
 import { BrandFooter } from "@/components/brand-footer";
 import { IosPremiumPurchase } from "@/components/ios-premium-purchase";
+import { getWebPricePerDayLabel } from "@/lib/premium-pricing";
 
 type Plan = "annual" | "monthly";
 
@@ -45,6 +46,18 @@ function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: 
 function PremiumPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Volta para a tela anterior. Se a pessoa chegou por link direto ou voltou
+  // do checkout (Stripe/login), não há "anterior" útil: vai para a home.
+  function handleBack() {
+    const cameFromCheckoutFlow =
+      searchParams.get("canceled") || searchParams.get("checkout") || searchParams.get("auth");
+    if (!cameFromCheckoutFlow && typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/dashboard");
+  }
   const canceled = searchParams.get("canceled") === "true";
 
   const platform = useNativePlatform();
@@ -143,13 +156,18 @@ function PremiumPageContent() {
     <main className="min-h-screen min-h-[100dvh] bg-[#080808] px-4 py-8 text-white sm:px-6">
       <div className="mx-auto w-full max-w-lg">
 
-        {/* Voltar */}
-        <Link
-          href="/perfil"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-white/40 transition-colors hover:text-white/70"
-        >
-          ← Voltar
-        </Link>
+        {/* Voltar: área de toque grande (44px), fixa no topo e afastada do
+            entalhe/cantos do celular. Volta para a tela de onde a pessoa veio. */}
+        <div className="sticky top-0 z-30 -mx-4 mb-4 bg-[#080808]/85 px-4 pb-2 pt-[max(env(safe-area-inset-top),0.5rem)] backdrop-blur-md sm:-mx-6 sm:px-6">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex h-11 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] pl-2.5 pr-4 text-sm font-semibold text-white/80 transition hover:bg-white/10 active:scale-[0.97]"
+          >
+            <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
+            Voltar
+          </button>
+        </div>
 
         {/* Aviso de checkout cancelado */}
         {canceled && !isNative && (
@@ -270,7 +288,8 @@ function PremiumPageContent() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Anual</p>
                   <p className="mt-1 text-2xl font-black text-white">R$&nbsp;9,90</p>
                   <p className="text-[11px] text-white/40">/mês · R$&nbsp;118,80/ano</p>
-                  <p className="mt-1.5 text-[11px] font-semibold text-primary">Economize 33%</p>
+                  <p className="mt-1.5 text-[11px] font-bold text-premium">só {getWebPricePerDayLabel("annual")} por dia</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-primary">Economize 33%</p>
                 </div>
                 {selectedPlan === "annual" && (
                   <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
@@ -293,7 +312,8 @@ function PremiumPageContent() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Mensal</p>
                   <p className="mt-1 text-2xl font-black text-white">R$&nbsp;14,90</p>
                   <p className="text-[11px] text-white/40">/mês</p>
-                  <p className="mt-1.5 text-[11px] text-white/30">Cartão de crédito</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-white/55">{getWebPricePerDayLabel("monthly")} por dia</p>
+                  <p className="mt-0.5 text-[11px] text-white/30">Cartão de crédito</p>
                 </div>
                 {selectedPlan === "monthly" && (
                   <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">

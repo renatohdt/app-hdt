@@ -8,6 +8,11 @@ import { noStoreFetch } from "@/lib/supabase-user";
 // Tipos de plano disponíveis no app
 export type SubscriptionPlan = "free" | "monthly" | "annual";
 
+// De onde vem o acesso Premium — decide o que o perfil mostra e onde se gerencia:
+// stripe (site), app_store / play_store (lojas, gerenciado nelas),
+// referral (cortesia por indicação), program (incluso em programa comprado).
+export type PremiumSource = "free" | "stripe" | "app_store" | "play_store" | "referral" | "program";
+
 export type SubscriptionStatus =
   | "active"
   | "canceled"
@@ -173,13 +178,31 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
       cancelsAt: null,
       cancelAtPeriodEnd: false,
       manageable: false,
+      source: "free" as PremiumSource,
+      accessUntil: null as string | null,
     };
   }
 
   if (!subscription && (referralPremium || programPremium || applePremium)) {
-    // Premium sem assinatura Stripe: via indicação, programa comprado OU Apple (IAP).
-    // Assinatura da Apple é gerenciada nos Ajustes da App Store, não pelo Stripe,
-    // por isso manageable = false aqui.
+    // Premium sem assinatura Stripe: via loja (Apple/Google), indicação ou programa.
+    // Loja é gerenciada nos Ajustes da App Store / Google Play, não pelo Stripe,
+    // por isso manageable = false aqui; `source` diz ao perfil para onde mandar.
+    const { data: premiumFields } = await client
+      .from("users")
+      .select("apple_premium_expires_at, store_premium_source, referral_premium_until")
+      .eq("id", userId)
+      .maybeSingle();
+
+    let source: PremiumSource = "program";
+    let accessUntil: string | null = null;
+    if (applePremium) {
+      source = premiumFields?.store_premium_source === "play_store" ? "play_store" : "app_store";
+      accessUntil = premiumFields?.apple_premium_expires_at ?? null;
+    } else if (referralPremium) {
+      source = "referral";
+      accessUntil = premiumFields?.referral_premium_until ?? null;
+    }
+
     return {
       plan: "monthly" as SubscriptionPlan,
       isPremium: true,
@@ -187,6 +210,8 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
       cancelsAt: null,
       cancelAtPeriodEnd: false,
       manageable: false,
+      source,
+      accessUntil,
     };
   }
 
@@ -201,5 +226,7 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
       : null,
     cancelAtPeriodEnd: subscription!.cancel_at_period_end,
     manageable: Boolean(subscription!.stripe_subscription_id),
+    source: "stripe" as PremiumSource,
+    accessUntil: subscription!.current_period_end,
   };
 }

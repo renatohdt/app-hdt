@@ -15,6 +15,7 @@ import {
   type RcPackage,
 } from "@/lib/revenuecat-native";
 import { useSubscription } from "@/components/use-subscription";
+import { getStorePricePerDayLabel } from "@/lib/premium-pricing";
 import { getNativePlatformNow, useNativePlatform } from "@/lib/is-native-app";
 
 type Plan = "annual" | "monthly";
@@ -210,6 +211,10 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
   const monthlyPrice = packages.monthly?.product.priceString;
   const selectedPrice = selected === "annual" ? annualPrice : monthlyPrice;
   const selectedPeriod = selected === "annual" ? "ano" : "mês";
+  // Preço por dia calculado a partir do preço real da loja (só referência; o
+  // valor cobrado continua em destaque, como pede a Apple).
+  const annualPerDay = getStorePricePerDayLabel(annualPrice, "annual");
+  const monthlyPerDay = getStorePricePerDayLabel(monthlyPrice, "monthly");
 
   return (
     <>
@@ -230,6 +235,7 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Anual</p>
             <p className="mt-1 text-2xl font-black text-white">{annualPrice ?? "—"}</p>
             <p className="text-[11px] text-white/40">/ano</p>
+            {annualPerDay ? <p className="mt-1.5 text-[11px] font-bold text-premium">só {annualPerDay} por dia</p> : null}
           </div>
           {selected === "annual" && (
             <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
@@ -250,6 +256,7 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Mensal</p>
             <p className="mt-1 text-2xl font-black text-white">{monthlyPrice ?? "—"}</p>
             <p className="text-[11px] text-white/40">/mês</p>
+            {monthlyPerDay ? <p className="mt-1.5 text-[11px] font-semibold text-white/55">{monthlyPerDay} por dia</p> : null}
           </div>
           {selected === "monthly" && (
             <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">

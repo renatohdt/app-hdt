@@ -12,7 +12,11 @@ const config: Config = {
         background: "#080808",
         card: "#111111",
         primary: "#22c55e",
-        primaryStrong: "#16a34a"
+        primaryStrong: "#16a34a",
+        // Dourado exclusivo do Premium: separado do verde da marca para o olho
+        // aprender que "dourado = Premium" em qualquer tela do app.
+        premium: "#f5c451",
+        premiumStrong: "#e0a526"
       },
       boxShadow: {
         glow: "0 0 0 1px rgba(34, 197, 94, 0.2), 0 24px 80px rgba(34, 197, 94, 0.18)"

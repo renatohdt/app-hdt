@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ShareButton } from "@/components/share-button";
 import GoogleAd from "@/components/GoogleAd";
 import { registerWorkoutAndMaybeAskReview } from "@/lib/app-review";
+import { WorkoutPremiumNudge } from "@/components/workout-premium-nudge";
 
 const TRAINING_AD_SLOT = "2572593951";
 
@@ -69,10 +70,13 @@ function generateParticles(count: number): Particle[] {
 export function WorkoutCompletionPopup({
   onClose,
   showAd = false,
-  summary = null
+  summary = null,
+  premiumNudgeWorkouts = null
 }: {
   onClose: () => void;
   showAd?: boolean;
+  /** Plano free no 2º/5º treino: mostra o convite Premium no lugar do anúncio. */
+  premiumNudgeWorkouts?: number | null;
   /** Resumo opcional do treino, ex.: "47 min · 18 séries · 6/6 exercícios". */
   summary?: string | null;
 }) {
@@ -234,8 +238,15 @@ export function WorkoutCompletionPopup({
             <ShareButton context="workout" />
           </div>
 
+          {/* Convite Premium no pico de motivação (substitui o anúncio nesses treinos) */}
+          {premiumNudgeWorkouts ? (
+            <div className="mt-5" style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}>
+              <WorkoutPremiumNudge totalWorkouts={premiumNudgeWorkouts} onNavigate={onClose} />
+            </div>
+          ) : null}
+
           {/* Anúncio — exibido apenas para usuários free, após o momento de celebração */}
-          {showAd ? (
+          {showAd && !premiumNudgeWorkouts ? (
             <div
               className="mt-5 overflow-hidden rounded-xl"
               style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}

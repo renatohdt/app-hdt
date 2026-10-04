@@ -11,6 +11,10 @@ type SubscriptionSummary = {
   cancelsAt: string | null;
   cancelAtPeriodEnd: boolean;
   manageable: boolean;
+  // Origem do Premium e até quando vale (loja/cortesia). Opcionais para
+  // compatibilidade com respostas antigas em cache.
+  source?: "free" | "stripe" | "app_store" | "play_store" | "referral" | "program";
+  accessUntil?: string | null;
 };
 
 type UseSubscriptionResult = {
@@ -28,6 +32,8 @@ const DEFAULT: SubscriptionSummary = {
   cancelsAt: null,
   cancelAtPeriodEnd: false,
   manageable: false,
+  source: "free",
+  accessUntil: null,
 };
 
 // Contexto compartilhado: evita multiplas chamadas a /api/subscription
