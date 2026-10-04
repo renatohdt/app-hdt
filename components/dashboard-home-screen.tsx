@@ -38,6 +38,7 @@ import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
 import { RecommendationsCard } from "@/components/recommendations-card";
 import { useIsNativeApp } from "@/lib/is-native-app";
+import { PremiumHomeBanner } from "@/components/premium-home-banner";
 
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
@@ -55,7 +56,6 @@ export function DashboardHomeScreen({
 }) {
   // Modo programa: presente apenas quando o usuário tem um programa comprado ativo.
   const program = data.raw.program ?? null;
-  const [showUpsellBanner, setShowUpsellBanner] = useState(false);
   const [showWorkoutUpsell, setShowWorkoutUpsell] = useState(false);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [goalTarget, setGoalTarget] = useState("12");
@@ -383,6 +383,20 @@ export function DashboardHomeScreen({
         </Link>
       </Card>
 
+      {/* Banner Premium (só plano free) logo abaixo do cartão principal: visível
+          sem rolar, mas sem tirar o "Iniciar treino" do topo. */}
+      {isFreePlan ? (
+        <PremiumHomeBanner
+          isNative={isNative}
+          onOpen={() => {
+            // O banner já mostra benefícios e preço: vai direto para a página
+            // Premium (plano anual pré-selecionado), sem pop-up no meio.
+            trackEvent("cta_click", data.user.id, { source: "upsell_modal_cta_home_banner" });
+            router.push("/premium");
+          }}
+        />
+      ) : null}
+
       {/* Anúncio menor (320x50) — entre os cards, somente plano free e com consentimento ativo */}
       {isFreePlan ? <TrainingInlineAd /> : null}
 
@@ -563,30 +577,6 @@ export function DashboardHomeScreen({
         location={data.answers.location}
       />
 
-      {/* Banner Premium — exibido apenas para usuários do plano free */}
-      {isFreePlan && (
-        <button
-          onClick={() => setShowUpsellBanner(true)}
-          className="w-full rounded-[24px] border border-primary/20 bg-[linear-gradient(135deg,rgba(34,197,94,0.10),rgba(16,185,129,0.05))] p-[18px] text-left transition hover:border-primary/35"
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.12em] text-primary/80">
-                Premium
-              </p>
-              <p className="text-[15px] font-bold leading-snug text-white">
-                {isNative ? "Evolua sem limites com o Premium" : <>Evolua sem limites por R$&nbsp;9,90/mês</>}
-              </p>
-              <p className="mt-1 text-[13px] text-white/50">
-                Programas e substituições ilimitados
-              </p>
-            </div>
-            <div className="shrink-0 rounded-2xl border border-primary/30 bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary">
-              Ver planos
-            </div>
-          </div>
-        </button>
-      )}
 
       <div>
         {achievement ? (
@@ -607,9 +597,6 @@ export function DashboardHomeScreen({
 
       {isFreePlan ? <GoogleAd /> : null}
 
-      {showUpsellBanner ? (
-        <UpsellModal reason="home_banner" onClose={() => setShowUpsellBanner(false)} />
-      ) : null}
 
       {showWorkoutUpsell ? (
         <UpsellModal reason="generate_workout" onClose={() => setShowWorkoutUpsell(false)} />
