@@ -24,6 +24,22 @@ type QueuedAnalyticsEvent = {
 const FLUSH_INTERVAL_MS = 10_000;
 const MAX_QUEUE_SIZE = 10;
 
+// Micro-cliques esperados durante o uso normal (abrir exercício, marcar série,
+// iniciar treino). Continuam indo para o PostHog e o Google Analytics, mas NÃO
+// são gravados no banco: eram ~60% da tabela analytics_events e nenhuma métrica
+// do admin depende deles (retenção já é coberta por app_session/workout_viewed).
+const DATABASE_SKIPPED_CTA_SOURCES = new Set<string>([
+  "exercise_inline_open",
+  "complete_set_inline",
+  "complete_all_sets_inline",
+  "home_primary_cta"
+]);
+
+// Eventos de atividade que só precisam ir para o banco 1 vez por dia por usuário
+// (o admin só pergunta "usou o app hoje?"). O PostHog continua recebendo todos.
+const DATABASE_ONCE_PER_DAY_EVENTS = new Set<AnalyticsEventName>(["workout_viewed", "viewed_workout"]);
+const DAILY_EVENT_STORAGE_PREFIX = "hora-do-treino-daily-event";
+
 const eventQueue: QueuedAnalyticsEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushListenersRegistered = false;
@@ -70,6 +86,10 @@ export function trackEvent(
   forwardEventToPostHog(event_name, metadata);
 
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!shouldPersistEventToDatabase(event_name, user_id, metadata)) {
     return;
   }
 
@@ -180,6 +200,34 @@ function forwardEventToGoogleAnalytics(eventName: AnalyticsEventName, metadata?:
     ...metadata,
     source_event: eventName === canonicalEventName ? undefined : eventName
   });
+}
+
+function shouldPersistEventToDatabase(
+  eventName: AnalyticsEventName,
+  userId: string | null | undefined,
+  metadata?: AnalyticsEventMetadata
+) {
+  const source = metadata?.source;
+  if (eventName === "cta_click" && typeof source === "string" && DATABASE_SKIPPED_CTA_SOURCES.has(source)) {
+    return false;
+  }
+
+  if (DATABASE_ONCE_PER_DAY_EVENTS.has(eventName)) {
+    const who = userId || getTrackingVisitorId();
+    const today = new Date().toISOString().slice(0, 10);
+    const storageKey = `${DAILY_EVENT_STORAGE_PREFIX}:${eventName}:${who}:${today}`;
+
+    try {
+      if (window.localStorage.getItem(storageKey)) {
+        return false;
+      }
+      window.localStorage.setItem(storageKey, "1");
+    } catch {
+      // Sem acesso ao storage: grava normalmente (melhor sobrar do que faltar).
+    }
+  }
+
+  return true;
 }
 
 function forwardEventToPostHog(eventName: AnalyticsEventName, metadata?: AnalyticsEventMetadata) {
