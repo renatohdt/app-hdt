@@ -39,6 +39,8 @@ import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
 import { RecommendationsCard } from "@/components/recommendations-card";
 import { useIsNativeApp } from "@/lib/is-native-app";
 import { PremiumHomeBanner } from "@/components/premium-home-banner";
+import { MissingOutPopup } from "@/components/missing-out-popup";
+import { getDaysUsing, getFirstSeenAt, markMissingOutShown, shouldShowMissingOut } from "@/lib/missing-out-schedule";
 
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
 
@@ -94,6 +96,43 @@ export function DashboardHomeScreen({
   // Só trata como free depois que a assinatura terminou de carregar.
   // Evita mostrar anúncio/banner premium para quem é premium durante o carregamento.
   const isFreePlan = !subscriptionLoading && !subscription?.isPremium;
+
+  // Pop-up "o que você está perdendo" (free): dias 3 e 7 de uso, depois a cada
+  // 14 dias. Nunca por cima de outro pop-up; espera a home aparecer primeiro.
+  const [showMissingOut, setShowMissingOut] = useState(false);
+  const [missingOutDaysUsing, setMissingOutDaysUsing] = useState(1);
+  const missingOutCheckedRef = useRef(false);
+  const anotherPopupOpen =
+    showFreeLimitPopup ||
+    showRegressionPopup ||
+    showReferralRewardPopup ||
+    showReferralExpiryPopup ||
+    showReferralAchievementPopup ||
+    showCycleCelebration ||
+    showGenerateConfirm ||
+    showGoalForm ||
+    showWorkoutUpsell ||
+    isGenerating;
+
+  useEffect(() => {
+    if (!isFreePlan || anotherPopupOpen || missingOutCheckedRef.current) return;
+    if (typeof window === "undefined") return;
+    missingOutCheckedRef.current = true;
+
+    const earliestSession = data.sessionLogs.reduce<string | null>((earliest, log) => {
+      const at = log.createdAt ?? log.completedAt;
+      return at && (!earliest || at < earliest) ? at : earliest;
+    }, null);
+    const firstSeenAt = getFirstSeenAt(data.user.id, earliestSession);
+    if (!shouldShowMissingOut(data.user.id, firstSeenAt)) return;
+
+    const timer = window.setTimeout(() => {
+      markMissingOutShown(data.user.id);
+      setMissingOutDaysUsing(getDaysUsing(firstSeenAt));
+      setShowMissingOut(true);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [isFreePlan, anotherPopupOpen, data.sessionLogs, data.user.id]);
   // Premium segue a "Minha semana" (dias escolhidos + regras de descanso).
   const plannedNext = useMemo(
     () => (!subscriptionLoading && subscription?.isPremium && !program ? getPlannedNext({ data }) : null),
@@ -634,6 +673,17 @@ export function DashboardHomeScreen({
       ) : null}
 
       {/* ── Popup de limite free — gerar programa ───────────────────── */}
+      {showMissingOut && !anotherPopupOpen ? (
+        <MissingOutPopup
+          firstName={firstName}
+          totalWorkouts={data.totalWorkoutsAllTime}
+          weightIncreases={data.totalWeightIncreasesAllTime}
+          daysUsing={missingOutDaysUsing}
+          isNative={isNative}
+          onClose={() => setShowMissingOut(false)}
+        />
+      ) : null}
+
       {showFreeLimitPopup ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center">
           <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">

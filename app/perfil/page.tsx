@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Bell, CalendarDays, ChevronRight, CreditCard, Dumbbell, Lock, Ruler, Shield, Sparkles, Target, UserRound, Weight, X } from "lucide-react";
+import { Bell, CalendarDays, ChevronRight, CreditCard, Crown, Dumbbell, Lock, Ruler, Shield, Sparkles, Target, UserRound, Weight, X } from "lucide-react";
 import Link from "next/link";
 import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1019,7 +1019,7 @@ export default function PerfilPage() {
                       )}
                     >
                       {option.label}
-                      {lockedForFree ? <span aria-hidden className="text-[0.65rem] text-white/40">🔒</span> : null}
+                      {lockedForFree ? <Crown aria-hidden className="h-3 w-3 text-premium" strokeWidth={2.5} /> : null}
                     </button>
                   );
                 })}

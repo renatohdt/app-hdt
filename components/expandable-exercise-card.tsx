@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, TrendingUp, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, TrendingUp, X, Crown } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { trackEvent } from "@/lib/analytics-client";
@@ -498,10 +498,18 @@ export function ExpandableExerciseCard({
                   e.stopPropagation();
                   if (!isPremiumUser) setShowUpsell(true);
                 }}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/10 bg-white/[0.03] py-2 text-[12px] font-semibold text-white/28 transition hover:border-primary/20 hover:text-white/50"
+                className={
+                  isPremiumUser
+                    ? "inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/10 bg-white/[0.03] py-2 text-[12px] font-semibold text-white/28 transition hover:border-primary/20 hover:text-white/50"
+                    : "inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-premium/35 bg-premium/[0.07] py-2 text-[12px] font-semibold text-premium transition hover:bg-premium/[0.12]"
+                }
                 aria-label="Limite de substituições atingido"
               >
-                <Lock className="h-3.5 w-3.5 shrink-0" />
+                {isPremiumUser ? (
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <Crown className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
+                )}
                 Substituir
               </button>
             ) : (

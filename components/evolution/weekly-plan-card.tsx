@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { useState } from "react";
 import { Check, Lock, Moon, Pencil } from "lucide-react";
+import { PremiumBadge } from "@/components/premium-badge";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { toLocalDateKey } from "@/lib/evolution";
@@ -71,12 +72,13 @@ export function WeeklyPlanCard({
           onClick={() => setShowUpsell(true)}
           className="absolute inset-0 flex flex-col items-center justify-center bg-black/55 px-6 text-center"
         >
-          <Lock className="h-4 w-4 text-white/80" />
-          <span className="mt-1.5 text-sm font-bold text-white">Monte sua semana como um personal</span>
+          <PremiumBadge size="xs" />
+          <span className="mt-2 text-sm font-bold text-white">Monte sua semana como um personal</span>
           <span className="mt-1 text-xs leading-relaxed text-white/60">
             Escolha seus dias e o app organiza a ordem ideal dos treinos, com day off na hora certa e reorganização automática.
           </span>
-          <span className="mt-3 rounded-xl bg-gradient-to-r from-primary to-primaryStrong px-4 py-2 text-xs font-bold text-black">
+          <span className="premium-shine mt-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-premium to-premiumStrong px-4 py-2 text-xs font-black text-[#2b1d00]">
+            <Lock className="h-3.5 w-3.5" strokeWidth={2.75} />
             Desbloquear no Premium
           </span>
         </button>

@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Loader2, Play } from "lucide-react";
+import { CheckCircle2, Crown, Loader2, Play } from "lucide-react";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
@@ -782,6 +782,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                           )}
                         >
                           {formatLocationLabel(loc)}
+                          {/* Free não troca de local: coroa dourada = recurso Premium */}
+                          {!isActive && !isPremiumUser ? (
+                            <Crown className="h-3 w-3 text-premium" strokeWidth={2.5} aria-label="Premium" />
+                          ) : null}
                         </button>
                       );
                     })
@@ -793,14 +797,23 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                     onClick={() =>
                       isPremiumUser ? setShowLocationPicker((prev) => !prev) : setShowLocationUpsell(true)
                     }
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/[0.06] px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-primary transition hover:bg-primary/10 disabled:opacity-60"
+                    className={clsx(
+                      "inline-flex min-h-9 items-center justify-center gap-1 rounded-full border border-dashed px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:opacity-60",
+                      isPremiumUser
+                        ? "border-primary/40 bg-primary/[0.06] text-primary hover:bg-primary/10"
+                        : "border-premium/50 bg-premium/[0.08] text-premium hover:bg-premium/15"
+                    )}
                   >
                     {generatingLocation ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Gerando…
                       </>
-                    ) : (
+                    ) : isPremiumUser ? (
                       "+ Local"
+                    ) : (
+                      <>
+                        <Crown className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden /> + Local
+                      </>
                     )}
                   </button>
                 ) : null}

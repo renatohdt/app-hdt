@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Lock, Search, TrendingUp, Trophy, X } from "lucide-react";
+import { PremiumBadge } from "@/components/premium-badge";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card } from "@/components/ui";
 import { GoalCard } from "@/components/goal-card";
@@ -244,8 +245,9 @@ function LoadEvolutionCard() {
                 <polyline fill="none" stroke="#22c55e" strokeWidth="3" points="0,70 50,64 100,55 150,48 200,36 250,26 300,12" />
               </svg>
               <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/45 text-center">
-                <Lock className="h-4 w-4 text-white/80" />
-                <span className="text-xs font-semibold text-white">
+                <PremiumBadge size="xs" />
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-white">
+                  <Lock className="h-3 w-3 text-premium" strokeWidth={2.75} />
                   {result.exercisesImproved > 1
                     ? `Você evoluiu em ${result.exercisesImproved} exercícios. Veja todos no Premium`
                     : "Veja o gráfico de cada exercício no Premium"}

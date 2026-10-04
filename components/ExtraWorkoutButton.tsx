@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Zap, X, ChevronRight, Clock, CheckCircle2, Loader2, Play } from "lucide-react";
+import { Crown, Zap, X, ChevronRight, Clock, CheckCircle2, Loader2, Play } from "lucide-react";
 import { clsx } from "clsx";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
@@ -373,6 +373,8 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
       >
         <Zap className={clsx("h-3.5 w-3.5", status.hasExtraWorkout ? "text-yellow-400" : "")} />
         <span>Extra</span>
+        {/* Treino Extra é Premium: coroa dourada para quem é free */}
+        {!status.isPremium ? <Crown className="h-3 w-3 text-premium" strokeWidth={2.5} aria-label="Premium" /> : null}
       </button>
 
       {/* Tela cheia ao ver o treino — portal direto no body, sem card embrulhando */}
@@ -501,9 +503,9 @@ function ModalUpsell({ onClose, onUpgrade }: { onClose: () => void; onUpgrade: (
       <div className="space-y-2">
         <button
           onClick={onUpgrade}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-yellow-500 text-sm font-bold text-black transition hover:brightness-110"
+          className="premium-shine flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-gradient-to-r from-premium to-premiumStrong text-sm font-black text-[#2b1d00] transition hover:brightness-110"
         >
-          <Zap className="h-4 w-4" />
+          <Crown className="h-4 w-4" strokeWidth={2.5} />
           Assine o Premium
         </button>
         <button
