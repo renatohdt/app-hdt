@@ -59,19 +59,45 @@ function fireConversionEvents(plan: string | null, isProgram: boolean) {
   });
 }
 
+const PURCHASE_TRACKED_STORAGE_PREFIX = "hora-do-treino-purchase-tracked";
+
+// Retorna true se essa compra já foi registrada neste aparelho; senão marca agora.
+function wasPurchaseAlreadyTracked(sessionId: string) {
+  const storageKey = `${PURCHASE_TRACKED_STORAGE_PREFIX}:${sessionId}`;
+  try {
+    if (window.localStorage.getItem(storageKey)) {
+      return true;
+    }
+    window.localStorage.setItem(storageKey, new Date().toISOString());
+  } catch {
+    // Sem acesso ao storage: segue e registra (melhor contar do que perder a venda).
+  }
+  return false;
+}
+
 function SuccessContent() {
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan");
   const isProgram = Boolean(searchParams.get("program"));
+  const sessionId = searchParams.get("session_id");
   const firedRef = useRef(false);
 
   useEffect(() => {
     // Garante que os eventos disparam apenas uma vez mesmo em StrictMode
-    if (!firedRef.current) {
-      firedRef.current = true;
-      fireConversionEvents(plan, isProgram);
+    if (firedRef.current) {
+      return;
     }
-  }, [plan, isProgram]);
+    firedRef.current = true;
+
+    // Se a pessoa recarregar ou voltar a esta página, a mesma compra não pode
+    // ser contada de novo (GA4, Meta Pixel, OpenAI e PostHog). Usamos o
+    // session_id do Stripe, que é único por pagamento.
+    if (sessionId && wasPurchaseAlreadyTracked(sessionId)) {
+      return;
+    }
+
+    fireConversionEvents(plan, isProgram);
+  }, [plan, isProgram, sessionId]);
 
   return (
     <main className="flex min-h-screen min-h-[100dvh] flex-col items-center justify-center bg-spotlight px-4 py-12">
