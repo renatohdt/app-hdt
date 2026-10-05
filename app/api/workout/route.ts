@@ -28,7 +28,7 @@ import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, fetchUserStan
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
-import { experienceToInitialPhase, phaseToExperience, type UserPhase } from "@/lib/user-level";
+import { applyBeginnerSafetyCap, experienceToInitialPhase, phaseToExperience, type UserPhase } from "@/lib/user-level";
 import {
   applyWorkoutPlanSessionConfig,
   buildWorkoutSessionProgress,
@@ -532,8 +532,9 @@ export async function POST(request: Request) {
     // O quiz é a fonte primária. O XP só sobrescreve se a fase evoluiu além
     // do que o quiz indicaria — preservando o filtro de exercícios por nível.
     const levelRow = await getUserLevelSummary(supabase, user.id, savedAnswers.experience ?? null).catch(() => null);
+    // Depois, a trava de segurança: nível "Iniciante" no app = só exercícios de iniciante.
     const effectiveAnswers = levelRow
-      ? overrideExperienceFromPhase(answers, levelRow.currentPhase)
+      ? applyBeginnerSafetyCap(overrideExperienceFromPhase(answers, levelRow.currentPhase), levelRow.currentPhase)
       : answers;
     const diagnosis = diagnoseUser(effectiveAnswers);
     const workoutHash = buildWorkoutHash(effectiveAnswers);

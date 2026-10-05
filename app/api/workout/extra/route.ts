@@ -14,6 +14,8 @@ import { generateExtraWorkoutWithAI, isOpenAIQuotaError } from "@/lib/workout-ai
 import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/workout-payload";
 import { fetchLatestWorkoutRecord } from "@/lib/workout-record-store";
 import { getUserWorkoutSessionForLocalDay } from "@/lib/workout-session-store";
+import { getUserLevelRow } from "@/lib/user-level-store";
+import { applyBeginnerSafetyCap } from "@/lib/user-level";
 
 export const dynamic = "force-dynamic";
 
@@ -185,14 +187,16 @@ export async function POST(request: NextRequest) {
         ? (body.location as Location)
         : null;
 
-    const [savedAnswers, exercisesResult, excludedResult, regularWorkoutResult] = await Promise.all([
+    const [savedAnswers, exercisesResult, excludedResult, regularWorkoutResult, levelRow] = await Promise.all([
       getUserAnswersByUserId(supabase, userId),
       supabase.from("exercises").select("*"),
       supabase.from("user_excluded_exercises").select("exercise_id").eq("user_id", userId),
-      fetchLatestWorkoutRecord(supabase, { userId, includeCreatedAt: false, scope: "EXTRA" })
+      fetchLatestWorkoutRecord(supabase, { userId, includeCreatedAt: false, scope: "EXTRA" }),
+      getUserLevelRow(supabase, userId).catch(() => null)
     ]);
 
-    const answers = buildRuntimeQuizAnswers(savedAnswers);
+    // Trava de segurança: nível "Iniciante" no app = Treino Extra só com exercícios de iniciante.
+    const answers = applyBeginnerSafetyCap(buildRuntimeQuizAnswers(savedAnswers), levelRow?.current_phase);
     if (requestedLocation) {
       answers.location = requestedLocation;
     }

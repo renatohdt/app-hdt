@@ -227,7 +227,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         // head:true retorna só o count sem baixar linhas — sem limite de 1000.
         supabase
           .from("workouts")
-          .select("*", { count: "exact", head: true }),
+          // "id" e não "*": com "*" o banco montava todas as colunas de todos os
+          // treinos só para contar; com "id" usa o índice e fica bem mais leve.
+          .select("id", { count: "exact", head: true }),
         // Query dedicada para retenção com janela de 90 dias.
         // O funil usa 30 dias, mas o cálculo de retenção precisa de janela maior:
         // um usuário registrado há 45 dias tem janela D7 entre 44 e 38 dias atrás —
@@ -246,7 +248,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         // Assim não sofre com o limite padrão de 1000 linhas do PostgREST.
         supabase
           .from("users")
-          .select("*", { count: "exact", head: true })
+          .select("id", { count: "exact", head: true })
           .is("deleted_at", null)
       ]);
 

@@ -258,3 +258,19 @@ export function checkStreak7Days(isoDates: string[]): boolean {
   }
   return false;
 }
+
+/**
+ * REGRA DE SEGURANÇA (Renato, out/2026): quem o app mostra como "Iniciante"
+ * NUNCA recebe exercícios intermediários/avançados (ex.: búlgaro, avanço),
+ * mesmo que tenha respondido no quiz que treina há mais tempo. Acontece com
+ * quem ficou parado e caiu de nível por inatividade: o corpo destreinou.
+ * Usada na geração do treino, na substituição de exercício e no Treino Extra.
+ */
+export function applyBeginnerSafetyCap<T extends { experience?: unknown }>(
+  answers: T,
+  phase: string | null | undefined
+): T {
+  if (phase !== "iniciante") return answers;
+  if (answers.experience === "no_training" || answers.experience === "lt_6_months") return answers;
+  return { ...answers, experience: "lt_6_months" };
+}

@@ -12,6 +12,8 @@ import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { callAIForReplacement, filterReplacementCandidates } from "@/lib/workout-ai";
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
+import { getUserLevelRow } from "@/lib/user-level-store";
+import { applyBeginnerSafetyCap } from "@/lib/user-level";
 
 export const dynamic = "force-dynamic";
 
@@ -196,8 +198,12 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Buscar respostas do usuário para o filtro ---
-    const savedAnswers = await getUserAnswersByUserId(supabase, userId);
-    const answers = buildRuntimeQuizAnswers(savedAnswers);
+    const [savedAnswers, levelRow] = await Promise.all([
+      getUserAnswersByUserId(supabase, userId),
+      getUserLevelRow(supabase, userId).catch(() => null)
+    ]);
+    // Trava de segurança: nível "Iniciante" no app = substituto também de iniciante.
+    const answers = applyBeginnerSafetyCap(buildRuntimeQuizAnswers(savedAnswers), levelRow?.current_phase);
 
     // --- Encontrar o ExerciseRecord original pelo nome ---
     const originalNameKey = originalExercise.name.trim().toLowerCase();
