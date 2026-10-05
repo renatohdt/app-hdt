@@ -194,7 +194,10 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   // Use the new windowed metric path first so the admin dashboard stays coherent
   // across event-based funnel data and persisted onboarding rows.
   {
-    const [dashboardUsersQuery, userAnswersRpcQuery, dashboardEventsQuery, dashboardErrorEventsQuery, workoutsCountQuery, retentionEventsQuery, totalUsersCountQuery] =
+    // Retorno (D1/7/30), funil e log de erros saíram do admin (out/2026): o
+    // PostHog (painel "Hora do Treino – Crescimento") e o Sentry cobrem isso.
+    // Sem elas, o admin não varre mais a tabela analytics_events ao abrir.
+    const [dashboardUsersQuery, userAnswersRpcQuery, workoutsCountQuery, totalUsersCountQuery] =
       await Promise.all([
         supabase
           .from("users")
@@ -204,45 +207,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         // RPC retorna um único valor JSON com todos os registros → não sofre com o
         // limite padrão de 1000 linhas do PostgREST que afetava .select() direto.
         supabase.rpc("get_all_user_answers"),
-        supabase
-          .from("analytics_events")
-          .select("id, event_name, user_id, visitor_id, metadata, created_at")
-          .is("deleted_at", null)
-          .in("event_name", DASHBOARD_EVENT_NAMES)
-          // Limita a 30 dias para o funil — suficiente para visão diária e semanal.
-          // Retenção usa query própria (retentionEventsQuery) com janela maior.
-          .gte("created_at", startOfLastDays(30).toISOString())
-          .order("created_at", { ascending: false })
-          .limit(20000),
-        supabase
-          .from("analytics_events")
-          .select("id, event_name, user_id, visitor_id, metadata, created_at")
-          .is("deleted_at", null)
-          .ilike("event_name", "%error%")
-          // Janela de 30 dias: sem ela o ilike varria a tabela inteira e estourava
-          // o statement timeout (8s), zerando o dashboard todo.
-          .gte("created_at", startOfLastDays(30).toISOString())
-          .order("created_at", { ascending: false })
-          .limit(10),
         // head:true retorna só o count sem baixar linhas — sem limite de 1000.
         supabase
           .from("workouts")
           // "id" e não "*": com "*" o banco montava todas as colunas de todos os
           // treinos só para contar; com "id" usa o índice e fica bem mais leve.
           .select("id", { count: "exact", head: true }),
-        // Query dedicada para retenção com janela de 90 dias.
-        // O funil usa 30 dias, mas o cálculo de retenção precisa de janela maior:
-        // um usuário registrado há 45 dias tem janela D7 entre 44 e 38 dias atrás —
-        // completamente fora dos 30 dias do funil, o que causaria falso "não retornou".
-        // 90 dias cobre D30 de usuários com até ~60 dias de cadastro.
-        supabase
-          .from("analytics_events")
-          .select("event_name, user_id, created_at")
-          .is("deleted_at", null)
-          .in("event_name", RETURN_ACTIVITY_EVENTS)
-          .gte("created_at", startOfLastDays(90).toISOString())
-          .order("created_at", { ascending: false })
-          .limit(50000),
         // Query dedicada apenas para contar o total real de usuários ativos.
         // head:true faz o Supabase retornar só o count, sem baixar nenhuma linha.
         // Assim não sofre com o limite padrão de 1000 linhas do PostgREST.
@@ -254,10 +224,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
     const dashboardQueryErrors = [
       buildQueryError("users-error", dashboardUsersQuery.error?.message, "users"),
-      buildQueryError("answers-error", userAnswersRpcQuery.error?.message, "user_answers"),
-      buildQueryError("events-error", dashboardEventsQuery.error?.message, "analytics_events"),
-      // error-events é só informativo: se falhar, não deve zerar o dashboard.
-      buildQueryError("retention-events-error", retentionEventsQuery.error?.message, "analytics_events")
+      buildQueryError("answers-error", userAnswersRpcQuery.error?.message, "user_answers")
     ].filter(Boolean) as AdminErrorLog[];
 
     if (dashboardQueryErrors.length) {
@@ -308,13 +275,11 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const dashboardUsers = dashboardAllUsers.filter((user) => !user.deleted_at);
     const deletedUsers = dashboardAllUsers.filter((user) => Boolean(user.deleted_at)).length;
     const dashboardAnswers = (userAnswersRpcQuery.data ?? []) as UserAnswerRow[];
-    const dashboardEvents = (dashboardEventsQuery.data ?? []) as AdminEvent[];
-    const dashboardErrorEvents = (dashboardErrorEventsQuery.data ?? []) as AdminEvent[];
-    const dashboardIdentityResolver = getEventIdentityResolver(dashboardEvents);
+    // Sem eventos no admin: métricas de atividade/funil ficam no PostHog.
+    const dashboardEvents: AdminEvent[] = [];
     const dashboardAnswerList = dashboardAnswers
       .map((row) => normalizeAnswers(row.answers))
       .filter(Boolean) as Array<Partial<QuizAnswers> & Record<string, unknown>>;
-    const dashboardAllEvents = [...dashboardEvents, ...dashboardErrorEvents];
 
     // Novas métricas de crescimento
     const sevenDaysAgo = startOfLastDays(7);
@@ -325,11 +290,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const completionRate = null;
 
     // RPCs paralelos: engajamento, retenção precisa (banco), premium
-    const [featureUsageRpcQuery, retentionRpcQuery, premiumSubscriptionsQuery, applePremiumQuery] = await Promise.all([
+    const [featureUsageRpcQuery, premiumSubscriptionsQuery, applePremiumQuery] = await Promise.all([
       supabase.rpc("get_feature_usage_counts"),
-      // Ativos 7d e 30d calculados direto no banco → elimina bug de 7d = 30d
-      // causado pelo limite de linhas no client-side filtering anterior.
-      supabase.rpc("get_retention_metrics"),
       // Usuários com assinatura ativa (active) ou dentro do período de graça (past_due)
       supabase
         .from("subscriptions")
@@ -364,11 +326,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }) as FeatureUsageCounts;
 
     type RetentionMetricsCounts = { active_7d: number; active_30d: number };
-    const retentionRaw = (retentionRpcQuery.data ?? {}) as Partial<RetentionMetricsCounts>;
-    const retentionCounts: RetentionMetricsCounts = {
-      active_7d: retentionRaw.active_7d ?? 0,
-      active_30d: retentionRaw.active_30d ?? 0
-    };
 
     // Usuários premium: Stripe (ativa ou em período de graça) + lojas (expiração no futuro).
     // Compras de TESTE das lojas (sandbox) não entram no total nem nas lojas.
@@ -414,23 +371,17 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           label: "Semanal"
         })
       },
-      activeUsersLast7d: retentionCounts.active_7d,
-      activeUsersLast30d: retentionCounts.active_30d,
+      activeUsersLast7d: 0,
+      activeUsersLast30d: 0,
       ageDistribution: toDistribution(dashboardAnswerList.map(getAgeBucket)),
       genderDistribution: toDistribution(dashboardAnswerList.map((answers) => getGenderLabel(answers.gender))),
       goalDistribution: toDistribution(dashboardAnswerList.map((answers) => getGoalLabel(answers.goal))),
-      retention: buildRetentionMetrics(dashboardUsers, (retentionEventsQuery.data ?? []) as AdminEvent[], totalUsers),
+      retention: buildRetentionMetrics([], []),
       funnel: {
-        daily: buildWindowedFunnelPeriod(dashboardUsers, dashboardAnswers, dashboardEvents, dashboardIdentityResolver, {
-          from: startOfToday(),
-          label: "Diario"
-        }),
-        weekly: buildWindowedFunnelPeriod(dashboardUsers, dashboardAnswers, dashboardEvents, dashboardIdentityResolver, {
-          from: startOfLastDays(7),
-          label: "Semanal"
-        })
+        daily: buildLegacyFunnelPeriod([], startOfToday(), "Diario"),
+        weekly: buildLegacyFunnelPeriod([], startOfLastDays(7), "Semanal")
       },
-      errors: [...dashboardQueryErrors, ...getRecentSystemErrors(dashboardAllEvents)].slice(0, 10),
+      errors: dashboardQueryErrors,
       newUsersLast7Days,
       workoutsGenerated,
       workoutsLast7Days,

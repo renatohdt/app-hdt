@@ -82,43 +82,6 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         />
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {data.retention.map((metric) => {
-          // Sobrescreve active_7d e active_30d com os valores precisos do RPC de banco
-          if (metric.key === "active_7d") {
-            const count = data.activeUsersLast7d;
-            const pct = totalUsers > 0 ? Math.round((count / totalUsers) * 100) : null;
-            return (
-              <RetentionMetricCard
-                key={metric.key}
-                metric={{
-                  ...metric,
-                  returnedUsers: count,
-                  percentage: pct,
-                  detail: `${count} de ${totalUsers} usuários retornaram ao app nos últimos 7 dias.`
-                }}
-              />
-            );
-          }
-          if (metric.key === "active_30d") {
-            const count = data.activeUsersLast30d;
-            const pct = totalUsers > 0 ? Math.round((count / totalUsers) * 100) : null;
-            return (
-              <RetentionMetricCard
-                key={metric.key}
-                metric={{
-                  ...metric,
-                  returnedUsers: count,
-                  percentage: pct,
-                  detail: `${count} de ${totalUsers} usuários retornaram ao app nos últimos 30 dias.`
-                }}
-              />
-            );
-          }
-          return <RetentionMetricCard key={metric.key} metric={metric} />;
-        })}
-      </section>
-
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryMetricCard
           label="Novos (7 dias)"
@@ -165,37 +128,7 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0 space-y-2">
-              <h2 className="text-[1.2rem] font-semibold text-white">Funil</h2>
-              <p className="text-[12px] leading-5 text-white/56">
-                Eventos do produto com fallback persistido de onboarding quando o topo do funil não foi trackeado.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <PeriodButton active={period === "daily"} onClick={() => setPeriod("daily")}>
-                Visão diária
-              </PeriodButton>
-              <PeriodButton active={period === "weekly"} onClick={() => setPeriod("weekly")}>
-                Visão semanal
-              </PeriodButton>
-              <button
-                type="button"
-                onClick={handleExportMonthly}
-                disabled={exporting}
-                className="inline-flex min-h-9 w-full items-center justify-center rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10 disabled:opacity-60 sm:w-auto"
-              >
-                {exporting ? "Exportando..." : "Exportar CSV mensal"}
-              </button>
-            </div>
-          </div>
-
-          <FunnelView funnel={funnel} />
-        </Card>
-
+      <section className="grid gap-4">
         <DistributionBarCard
           title="Distribuição por idade"
           data={data.ageDistribution}
@@ -296,34 +229,6 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         </section>
       )}
 
-      <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
-        <div className="space-y-2">
-          <h2 className="text-[1.2rem] font-semibold text-white">Log de erros</h2>
-          <p className="text-[12px] leading-5 text-white/56">
-            Últimos erros capturados pelo sistema para apoio operacional do admin.
-          </p>
-        </div>
-
-        {data.errors.length ? (
-          <div className="max-h-[30rem] space-y-3 overflow-y-auto pr-1">
-            {data.errors.map((error) => (
-              <div key={error.id} className="rounded-[18px] border border-white/8 bg-black/20 px-3.5 py-3.5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 space-y-1">
-                    <p className="break-words text-[12px] font-medium leading-5 text-white">{error.message}</p>
-                    <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">{error.origin}</p>
-                  </div>
-                  <p className="shrink-0 text-[10px] text-white/52">{formatDate(error.created_at)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-[18px] border border-white/8 bg-black/20 px-4 py-5 text-[12px] text-white/60">
-            Sem erros recentes
-          </div>
-        )}
-      </Card>
     </div>
   );
 }
