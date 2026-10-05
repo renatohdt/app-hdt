@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { AdFrame } from "@/components/AdFrame";
 import { useConsentPreferences } from "@/components/consent-provider";
+import { ADSENSE_CLIENT, ADSENSE_SCRIPT_EVENT, pushAdSlot } from "@/lib/ads";
 
 declare global {
   interface Window {
@@ -10,16 +12,16 @@ declare global {
   }
 }
 
-const ADSENSE_SCRIPT_EVENT = "google-adsense:loaded";
-const ADSENSE_CLIENT = "ca-pub-1213559545344901";
 const AD_SLOT = "7189522393";
 
 /**
- * Anúncio inline fixo 400x60 para a tela de treino.
- * Só renderiza para usuários free com consentimento de anúncios ativo.
+ * Anúncio pequeno fixo (320x50) para o meio da lista de exercícios na tela de
+ * treino — formato discreto de propósito, para não atrapalhar o treino.
+ * Só renderiza para usuários free com anúncios liberados.
  */
 export function TrainingInlineAd() {
-  const { canUseAds } = useConsentPreferences();
+  const { canUseAds, preferences } = useConsentPreferences();
+  const adsConsent = preferences.ads;
   const adRef = useRef<HTMLModElement | null>(null);
   const pushed = useRef(false);
 
@@ -33,7 +35,7 @@ export function TrainingInlineAd() {
       if (pushed.current || !adRef.current) return;
       pushed.current = true;
       try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        pushAdSlot(adsConsent);
       } catch {
         pushed.current = false;
       }
@@ -50,12 +52,14 @@ export function TrainingInlineAd() {
     return () => {
       window.removeEventListener(ADSENSE_SCRIPT_EVENT, tryPush);
     };
-  }, [canUseAds]);
+  }, [adsConsent, canUseAds]);
 
   if (!canUseAds) return null;
 
   return (
-    <div className="flex w-full justify-center py-1">
+    // Sem "Remover anúncios" aqui: no meio do treino não tiramos a pessoa da tela.
+    <AdFrame placement="treino" showRemoveLink={false} className="py-1">
+    <div className="flex w-full justify-center">
       <ins
         ref={adRef}
         className="adsbygoogle"
@@ -64,5 +68,6 @@ export function TrainingInlineAd() {
         data-ad-slot={AD_SLOT}
       />
     </div>
+    </AdFrame>
   );
 }

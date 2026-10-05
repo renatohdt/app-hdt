@@ -11,7 +11,6 @@ import {
   Trophy
 } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
-import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
@@ -436,8 +435,8 @@ export function DashboardHomeScreen({
         />
       ) : null}
 
-      {/* Anúncio menor (320x50) — entre os cards, somente plano free e com consentimento ativo */}
-      {isFreePlan ? <TrainingInlineAd /> : null}
+      {/* Anúncio responsivo entre os cards — somente plano free com anúncios liberados */}
+      {isFreePlan ? <GoogleAd placement="home_meio" /> : null}
 
       {/* Entrada para os programas de treino (só para quem não está em um programa) */}
       {/* Escondido temporariamente via SHOW_PROGRAMS_HOME_ENTRY até haver programas cadastrados. */}
@@ -634,7 +633,7 @@ export function DashboardHomeScreen({
       </div>
 
 
-      {isFreePlan ? <GoogleAd /> : null}
+      {isFreePlan ? <GoogleAd placement="home_fim" /> : null}
 
 
       {showWorkoutUpsell ? (

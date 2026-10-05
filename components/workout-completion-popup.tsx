@@ -251,7 +251,7 @@ export function WorkoutCompletionPopup({
               className="mt-5 overflow-hidden rounded-xl"
               style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}
             >
-              <GoogleAd slot={TRAINING_AD_SLOT} />
+              <GoogleAd slot={TRAINING_AD_SLOT} placement="treino_concluido" />
             </div>
           ) : null}
 

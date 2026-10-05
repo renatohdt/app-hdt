@@ -2,8 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { AdFrame } from "@/components/AdFrame";
 import { useConsentPreferences } from "@/components/consent-provider";
-import { isNativeAppNow } from "@/lib/is-native-app";
+import { ADSENSE_CLIENT, ADSENSE_SCRIPT_EVENT, pushAdSlot } from "@/lib/ads";
 import { clientLogError, clientLogInfo, clientLogWarn } from "@/lib/client-logger";
 
 declare global {
@@ -13,13 +14,21 @@ declare global {
   }
 }
 
-const ADSENSE_SCRIPT_EVENT = "google-adsense:loaded";
-const ADSENSE_CLIENT = "ca-pub-1213559545344901";
 const DEFAULT_ADSENSE_SLOT = "7658583800";
 
-export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: string } = {}) {
+export default function GoogleAd({
+  slot = DEFAULT_ADSENSE_SLOT,
+  placement = "geral",
+  showRemoveLink = true
+}: {
+  slot?: string;
+  /** Onde o anúncio está — usado no analytics do "Remover anúncios". */
+  placement?: string;
+  showRemoveLink?: boolean;
+} = {}) {
   const pathname = usePathname();
-  const { canUseAds } = useConsentPreferences();
+  const { canUseAds, preferences } = useConsentPreferences();
+  const adsConsent = preferences.ads;
   const adRef = useRef<HTMLModElement | null>(null);
   const pushAttemptedRef = useRef(false);
   const [scriptLoaded, setScriptLoaded] = useState(() =>
@@ -205,19 +214,12 @@ export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: strin
       pushAttemptedRef.current = true;
 
       try {
-        const adsQueue = (window.adsbygoogle = window.adsbygoogle || []) as unknown[] & {
-          requestNonPersonalizedAds?: number;
-        };
-        // Dentro do app das lojas servimos anúncios NÃO personalizados (npa),
-        // ou seja, sem rastreamento — em conformidade com a Apple (sem ATT).
-        // No navegador, os anúncios seguem como antes (com consentimento).
-        if (isNativeAppNow()) {
-          adsQueue.requestNonPersonalizedAds = 1;
-        }
-        adsQueue.push({});
+        // Regra de personalização (iOS nunca; Android só com consentimento)
+        // fica centralizada em lib/ads.ts.
+        const { nonPersonalized } = pushAdSlot(adsConsent);
         clientLogInfo("ADS PUSH EXECUTED", {
           pathname,
-          non_personalized: isNativeAppNow()
+          non_personalized: nonPersonalized
         });
 
         statusTimeoutId = window.setTimeout(() => {
@@ -245,13 +247,14 @@ export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: strin
       }
       resizeObserver?.disconnect();
     };
-  }, [canUseAds, pathname, scriptLoaded]);
+  }, [adsConsent, canUseAds, pathname, scriptLoaded]);
 
   if (!canUseAds) {
     return null;
   }
 
   return (
+    <AdFrame placement={placement} showRemoveLink={showRemoveLink}>
     <div className="w-full overflow-visible" data-ad-shell="google-adsense">
       <ins
         ref={adRef}
@@ -267,6 +270,7 @@ export default function GoogleAd({ slot = DEFAULT_ADSENSE_SLOT }: { slot?: strin
         data-full-width-responsive="true"
       />
     </div>
+    </AdFrame>
   );
 }
 

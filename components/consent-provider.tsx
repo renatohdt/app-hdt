@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui";
 import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-tracker";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
-import { isNativeAppNow } from "@/lib/is-native-app";
+import { getNativePlatformNow, isNativeAppNow } from "@/lib/is-native-app";
+import { isAdsAllowedHost } from "@/lib/ads";
 import {
   type ConsentPreferenceMap,
   type ConsentScope,
@@ -247,8 +248,9 @@ export function ConsentProvider({
       ready,
       hasInteracted,
       preferences,
-      // No app nativo os anúncios são NÃO personalizados (sem rastreamento),
-      // então não precisam de consentimento — liberamos direto. No navegador,
+      // No app nativo os anúncios sempre aparecem: no iOS são sempre NÃO
+      // personalizados; no Android são personalizados só se a pessoa aceitou
+      // anúncios no aviso de privacidade (regra em lib/ads.ts). No navegador,
       // continua dependendo do consentimento do usuário.
       canUseAds: ready && (isNativeAppNow() || preferences.ads),
       canUseMarketing: ready && preferences.marketing,
@@ -264,10 +266,12 @@ export function ConsentProvider({
     [hasInteracted, preferences, ready]
   );
 
-  // No app nativo NÃO mostramos o banner de cookies: ele sugeria rastreamento
-  // (anúncios/marketing) e foi motivo de recusa da Apple. No app não rastreamos
+  // No app iOS NÃO mostramos o banner de cookies: ele sugeria rastreamento
+  // (anúncios/marketing) e foi motivo de recusa da Apple. No iOS não rastreamos
   // (anúncios não-personalizados, sem Meta Pixel), então o banner não se aplica.
-  const shouldShowBanner = ready && (!hasInteracted || isPanelOpen) && !isNativeAppNow();
+  // No Android o banner aparece: quem aceitar anúncios recebe anúncios
+  // personalizados (pagam mais); quem recusar continua vendo, sem personalização.
+  const shouldShowBanner = ready && (!hasInteracted || isPanelOpen) && getNativePlatformNow() !== "ios";
 
   return (
     <ConsentContext.Provider value={contextValue}>
@@ -363,7 +367,8 @@ function ConsentManagedScripts({
 }) {
   const isPixelPage = useIsPixelPage();
   const { subscription, loading: subscriptionLoading } = useSubscription();
-  const canShowAds = canUseAds && !subscriptionLoading && !subscription?.isPremium;
+  // isAdsAllowedHost: só no endereço oficial (nada de anúncio em link de teste da Vercel).
+  const canShowAds = canUseAds && !subscriptionLoading && !subscription?.isPremium && isAdsAllowedHost();
   // No app das lojas NÃO carregamos o Meta Pixel (rastreamento de publicidade
   // de terceiros), pra ficar coerente com a declaração "sem rastreamento" da
   // Apple. No navegador segue normal (com consentimento). Anúncios AdSense no

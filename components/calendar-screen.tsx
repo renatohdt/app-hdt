@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import GoogleAd from "@/components/GoogleAd";
-import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { useSubscription } from "@/components/use-subscription";
@@ -476,7 +475,7 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         />
       ) : null}
 
-      {isFreePlan ? <TrainingInlineAd /> : null}
+      {isFreePlan ? <GoogleAd placement="evolucao_agenda" /> : null}
 
       <Card className="space-y-3 p-5">
         <div>
@@ -546,14 +545,14 @@ export function CalendarScreen({ data }: { data: AppWorkoutData }) {
         perfectWeeks={weekProgress.perfectWeeks}
         onOpenAchievements={() => setShowAchievements(true)}
       />
-      {isFreePlan && visitedTabs.has(1) ? <GoogleAd /> : null}
+      {isFreePlan && visitedTabs.has(1) ? <GoogleAd placement="evolucao_progresso" /> : null}
     </>
   );
 
   const corpo = visitedTabs.has(2) ? (
     <>
       <BodyMeasurementsPanel age={(data.answers.age as number | undefined) ?? null} />
-      {isFreePlan ? <TrainingInlineAd /> : null}
+      {isFreePlan ? <GoogleAd placement="evolucao_corpo" /> : null}
     </>
   ) : (
     <div className="h-64" />
