@@ -19,11 +19,13 @@
     "retention:cleanup:dry": "node scripts/run-retention-cleanup.mjs --dry-run"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.2.0",
     "@capacitor-firebase/messaging": "^8.3.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@capacitor/local-notifications": "^8.3.1",
     "@capawesome/capacitor-app-review": "^8.0.2",
     "@revenuecat/purchases-capacitor": "^13.4.0",
     "@sentry/nextjs": "^10.53.1",

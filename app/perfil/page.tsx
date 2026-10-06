@@ -1149,7 +1149,7 @@ export default function PerfilPage() {
           </Card>
         )}
       {/* Ações no rodapé (zona do polegar), sempre visíveis durante a edição */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050705]/90 px-4 pb-[calc(0.75rem+var(--app-safe-bottom))] pt-3 backdrop-blur-xl sm:px-6">
+      <div data-hide-admob className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#050705]/90 px-4 pb-[calc(0.75rem+var(--app-safe-bottom))] pt-3 backdrop-blur-xl sm:px-6">
         <div className="mx-auto flex w-full max-w-[var(--app-shell-max)] gap-3">
           <Button
             variant="secondary"

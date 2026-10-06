@@ -7,7 +7,10 @@
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-shell-max: 35rem;
-  --app-nav-offset: calc(8.4rem + var(--app-safe-bottom));
+  /* Altura do banner nativo do AdMob (0 quando não há banner). Atualizada
+     pelo lib/admob.ts; empurra conteúdo e botões flutuantes para cima. */
+  --admob-banner-h: 0px;
+  --app-nav-offset: calc(8.4rem + var(--app-safe-bottom) + var(--admob-banner-h));
   --app-bg: #050705;
   --app-surface: rgba(255, 255, 255, 0.04);
   --app-border: rgba(255, 255, 255, 0.1);

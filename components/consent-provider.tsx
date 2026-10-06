@@ -8,6 +8,7 @@ import { MetaPixelPageViewTracker } from "@/components/meta-pixel-page-view-trac
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
 import { getNativePlatformNow, isNativeAppNow } from "@/lib/is-native-app";
 import { isAdsAllowedHost } from "@/lib/ads";
+import { isAdMobAvailable } from "@/lib/admob";
 import {
   type ConsentPreferenceMap,
   type ConsentScope,
@@ -252,7 +253,9 @@ export function ConsentProvider({
       // personalizados; no Android são personalizados só se a pessoa aceitou
       // anúncios no aviso de privacidade (regra em lib/ads.ts). No navegador,
       // continua dependendo do consentimento do usuário.
-      canUseAds: ready && (isNativeAppNow() || preferences.ads),
+      // Se o app já tem o AdMob (anúncios nativos), o AdSense fica desligado no
+      // app — os anúncios passam a ser o banner nativo acima do menu.
+      canUseAds: ready && !isAdMobAvailable() && (isNativeAppNow() || preferences.ads),
       canUseMarketing: ready && preferences.marketing,
       savePreferences: (nextPreferences) => {
         persistPreferencesLocally(nextPreferences);
@@ -281,7 +284,7 @@ export function ConsentProvider({
       />
       {children}
       {shouldShowBanner ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-5">
+        <div data-hide-admob className="pointer-events-none fixed inset-x-0 bottom-0 z-50 p-3 sm:p-5">
           <div className="pointer-events-auto relative mx-auto w-full max-w-3xl rounded-[24px] border border-white/8 bg-[#0b0b0b]/95 p-3.5 shadow-[0_18px_46px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-4">
             <button
               type="button"

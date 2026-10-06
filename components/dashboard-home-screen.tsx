@@ -14,6 +14,7 @@ import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
+import { RewardedAdButton } from "@/components/RewardedAdButton";
 import { getPlannedNext } from "@/lib/weekly-plan-app";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { ReferralRewardPopup } from "@/components/referral-reward-popup";
@@ -705,6 +706,15 @@ export function DashboardHomeScreen({
               >
                 Assinar o Premium
               </button>
+              {/* Só no app com AdMob: libera gerar agora em troca de um vídeo */}
+              <RewardedAdButton
+                purpose="generate_workout"
+                label="Assistir um vídeo e gerar agora"
+                onRewarded={() => {
+                  setShowFreeLimitPopup(false);
+                  void handleGenerateWorkout();
+                }}
+              />
               <button
                 type="button"
                 onClick={() => setShowFreeLimitPopup(false)}

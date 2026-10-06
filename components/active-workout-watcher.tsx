@@ -340,7 +340,7 @@ export function ActiveWorkoutWatcher() {
 
   if (showPill) {
     return (
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.9rem+var(--app-safe-bottom))] z-30 flex justify-center px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.9rem+var(--app-safe-bottom)+var(--admob-banner-h))] z-30 flex justify-center px-4">
         <button
           type="button"
           onClick={openActiveWorkout}

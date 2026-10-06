@@ -4,4 +4,7 @@
     <string name="title_activity_main">Hora do Treino</string>
     <string name="package_name">com.horadotreino.app</string>
     <string name="custom_url_scheme">com.horadotreino.app</string>
+    <!-- ID do APP no AdMob (Android). ATENÇÃO: este é o ID de TESTE do Google;
+         trocar pelo ID real (ca-app-pub-XXXX~YYYY) antes de publicar. -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
 </resources>

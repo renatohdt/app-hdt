@@ -982,7 +982,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               onFinish={requestCompletion}
             />
           ) : extraSessionActive ? null : (
-            <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.9rem+var(--app-safe-bottom))] z-30 flex justify-center">
+            <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.9rem+var(--app-safe-bottom)+var(--admob-banner-h))] z-30 flex justify-center">
               <button
                 type="button"
                 onClick={handleStartWorkout}
