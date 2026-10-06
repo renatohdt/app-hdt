@@ -127,3 +127,9 @@ select {
     display: none;
   }
 }
+
+/* Anúncios: se o Google não tiver anúncio para mostrar, esconde a moldura
+   inteira (rótulo "Publicidade" + espaço reservado). Ver components/AdFrame.tsx */
+.hdt-ad-frame:has(ins.adsbygoogle[data-ad-status="unfilled"]) {
+  display: none;
+}
