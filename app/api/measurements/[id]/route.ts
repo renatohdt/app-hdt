@@ -13,7 +13,8 @@ import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
@@ -55,7 +56,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = await paramsPromise;
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {

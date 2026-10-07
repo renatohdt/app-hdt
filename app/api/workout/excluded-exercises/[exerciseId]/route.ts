@@ -8,16 +8,17 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 export const dynamic = "force-dynamic";
 
 type Params = {
-  params: {
+  params: Promise<{
     exerciseId: string;
-  };
+  }>;
 };
 
 const SESSION_EXPIRED_MESSAGE = "Sua sessão expirou. Faça login novamente.";
 const DELETE_ERROR_MESSAGE = "Não foi possível remover o exercício agora. Tente novamente.";
 const NOT_FOUND_MESSAGE = "Exercício não encontrado na sua lista de excluídos.";
 
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest, { params: paramsPromise }: Params) {
+  const params = await paramsPromise;
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
