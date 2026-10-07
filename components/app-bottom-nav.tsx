@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChartLine, Dumbbell, House, Timer, UserRound } from "lucide-react";
 import { RestTimer } from "@/components/rest-timer";
+import { AdMobBannerController } from "@/components/AdMobBannerController";
 
 const NAV_ITEMS = [
   {
@@ -44,6 +45,7 @@ export function AppBottomNav() {
   const [timerOpen, setTimerOpen] = useState(false);
   const [suggestedSeconds, setSuggestedSeconds] = useState(60);
   const swipeStartY = useRef<number | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function handleSuggestedRest(event: Event) {
@@ -62,6 +64,7 @@ export function AppBottomNav() {
     <nav aria-label="Navegação principal do app" className="pointer-events-none fixed inset-x-0 bottom-0 z-40">
       {timerOpen ? (
         <div
+          data-hide-admob
           className="pointer-events-auto mx-auto mb-3 w-full max-w-[var(--app-shell-max)] px-4"
           onTouchStart={(e) => { swipeStartY.current = e.touches[0].clientY; }}
           onTouchEnd={(e) => {
@@ -84,7 +87,9 @@ export function AppBottomNav() {
         </div>
       ) : null}
 
-      <div className="pointer-events-auto border-t border-white/12 bg-[#070907]">
+      {/* Banner do AdMob (só app com plugin + plano free) fica logo acima desta barra */}
+      <AdMobBannerController barRef={barRef} />
+      <div ref={barRef} className="pointer-events-auto border-t border-white/12 bg-[#070907]">
         <div className="mx-auto w-full max-w-[var(--app-shell-max)] px-4 pb-[calc(0.35rem+var(--app-safe-bottom))] pt-2">
           <div className="grid grid-cols-5 gap-1">
             {NAV_ITEMS.map((item) => {

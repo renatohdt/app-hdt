@@ -7,16 +7,17 @@ import { jsonError, jsonSuccess } from "@/lib/server-response";
 export const dynamic = "force-dynamic";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 // Regex simples para validar UUID v4-ish. Evita query desnecessária com
 // strings aleatórias vindas da URL.
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(request: Request, { params }: Params) {
+export async function GET(request: Request, { params: paramsPromise }: Params) {
+  const params = await paramsPromise;
   try {
     const admin = await requireAdminUser(request, "ADMIN");
     if (admin.response) return admin.response;

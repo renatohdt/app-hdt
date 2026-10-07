@@ -1,6 +1,7 @@
+import * as Sentry from "@sentry/nextjs";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const Sentry = await import("@sentry/nextjs");
     Sentry.init({
       dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
       environment: process.env.NODE_ENV,
@@ -13,7 +14,6 @@ export async function register() {
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
-    const Sentry = await import("@sentry/nextjs");
     Sentry.init({
       dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
       environment: process.env.NODE_ENV,
@@ -24,3 +24,6 @@ export async function register() {
     });
   }
 }
+
+// Next 15: envia ao Sentry os erros de Server Components, rotas e middleware.
+export const onRequestError = Sentry.captureRequestError;

@@ -5,6 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, TrendingUp, X, Crown } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
+import { useConsentPreferences } from "@/components/consent-provider";
+import { useAdMobAvailable } from "@/components/RewardedAdButton";
+import { showRewardedAd } from "@/lib/admob";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { WeightChartModal } from "@/components/weight-chart-modal";
@@ -97,6 +100,11 @@ export function ExpandableExerciseCard({
   const [replaceLimitError, setReplaceLimitError] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const [wasReplaced, setWasReplaced] = useState(false);
+  // Plano free no app com AdMob: cada troca é liberada com um vídeo curto.
+  const adMobAvailable = useAdMobAvailable();
+  const { preferences: consentPreferences } = useConsentPreferences();
+  const [loadingRewardedAd, setLoadingRewardedAd] = useState(false);
+  const replaceRequiresVideo = !isPremiumUser && adMobAvailable;
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -301,6 +309,27 @@ export function ExpandableExerciseCard({
         completed_sets: nextDraft.completedSets
       });
     }
+  }
+
+  async function handleReplaceClick() {
+    if (!replaceReason || isReplacing || loadingRewardedAd) return;
+    if (!replaceRequiresVideo) {
+      void handleReplaceExercise();
+      return;
+    }
+
+    setLoadingRewardedAd(true);
+    setReplaceError(null);
+    const result = await showRewardedAd("replace_exercise", consentPreferences.ads);
+    setLoadingRewardedAd(false);
+
+    if (result === "dismissed") {
+      setReplaceError("Assista o vídeo até o fim para liberar a troca.");
+      return;
+    }
+    // "rewarded" — ou "unavailable" (sem vídeo disponível no momento): a troca
+    // segue normalmente, para a pessoa não ficar travada por falta de anúncio.
+    void handleReplaceExercise();
   }
 
   async function handleReplaceExercise() {
@@ -792,22 +821,29 @@ export function ExpandableExerciseCard({
               </div>
             ) : null}
 
+            {replaceRequiresVideo ? (
+              <p className="mt-4 flex items-center gap-2 text-xs leading-4 text-white/50">
+                <PlayCircle className="h-4 w-4 shrink-0 text-primary" />
+                No plano gratuito, cada troca é liberada com um vídeo curto.
+              </p>
+            ) : null}
+
             <div className="mt-5 flex gap-3">
               <Button
                 variant="secondary"
                 className="flex-1"
-                onClick={() => { if (!isReplacing) setShowReplaceModal(false); }}
-                disabled={isReplacing}
+                onClick={() => { if (!isReplacing && !loadingRewardedAd) setShowReplaceModal(false); }}
+                disabled={isReplacing || loadingRewardedAd}
               >
                 Cancelar
               </Button>
               <Button
                 variant="primary"
                 className="flex-1"
-                onClick={handleReplaceExercise}
-                disabled={!replaceReason || isReplacing}
+                onClick={() => void handleReplaceClick()}
+                disabled={!replaceReason || isReplacing || loadingRewardedAd}
               >
-                Substituir
+                {loadingRewardedAd ? "Carregando vídeo..." : replaceRequiresVideo ? "Ver vídeo e substituir" : "Substituir"}
               </Button>
             </div>
           </div>

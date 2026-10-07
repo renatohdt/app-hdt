@@ -19,25 +19,27 @@
     "retention:cleanup:dry": "node scripts/run-retention-cleanup.mjs --dry-run"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.2.0",
     "@capacitor-firebase/messaging": "^8.3.0",
-    "@capacitor/android": "^8.5.0",
-    "@capacitor/cli": "^8.5.0",
-    "@capacitor/core": "^8.5.0",
-    "@capacitor/ios": "^8.5.0",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/local-notifications": "^8.3.1",
     "@capawesome/capacitor-app-review": "^8.0.2",
     "@revenuecat/purchases-capacitor": "^13.4.0",
-    "@sentry/nextjs": "^10.53.1",
+    "@sentry/nextjs": "^10.76.1",
     "@supabase/supabase-js": "^2.57.4",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "clsx": "^2.1.1",
     "firebase-admin": "^14.2.0",
     "lucide-react": "^0.542.0",
-    "next": "14.2.35",
+    "next": "15.5.27",
     "openai": "^6.33.0",
     "posthog-js": "^1.434.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "recharts": "^2.15.4",
     "stripe": "^22.0.2",
     "web-push": "^3.6.7"
@@ -45,12 +47,15 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@types/node": "^22.10.2",
-    "@types/react": "^18.3.17",
-    "@types/react-dom": "^18.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
     "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "react-is": "^19.0.0"
   }
 }

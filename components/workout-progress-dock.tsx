@@ -100,7 +100,7 @@ export function WorkoutProgressDock({
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.9rem+var(--app-safe-bottom))] z-30">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.9rem+var(--app-safe-bottom)+var(--admob-banner-h))] z-30">
       <div className="mx-auto w-full max-w-[var(--app-shell-max)] px-2.5">
         <div className="pointer-events-auto rounded-t-[22px] border border-b-0 border-white/10 bg-[#0c110c]/95 shadow-[0_-14px_34px_rgba(0,0,0,0.55)] backdrop-blur-xl">
           {collapsed ? (
