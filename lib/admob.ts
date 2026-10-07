@@ -17,8 +17,14 @@ import { clientLogError } from "@/lib/client-logger";
 // Enquanto algum estiver vazio, o app usa os blocos de TESTE do Google
 // (anúncios de exemplo, que não geram receita) — seguro para testar.
 const AD_UNITS = {
-  android: { banner: "", rewarded: "" },
-  ios: { banner: "", rewarded: "" }
+  android: {
+    banner: "ca-app-pub-1213559545344901/3677237071",
+    rewarded: "ca-app-pub-1213559545344901/4851462807"
+  },
+  ios: {
+    banner: "ca-app-pub-1213559545344901/8063949502",
+    rewarded: "ca-app-pub-1213559545344901/7986173863"
+  }
 } as const;
 
 const TEST_AD_UNITS = {
