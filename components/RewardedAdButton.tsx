@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, PlayCircle } from "lucide-react";
 import { useConsentPreferences } from "@/components/consent-provider";
-import { isAdMobAvailable, showRewardedAd } from "@/lib/admob";
+import { isAdMobAvailable, preloadRewardedAd, showRewardedAd } from "@/lib/admob";
 
 /** Hook: o app tem AdMob (anúncio com recompensa disponível)? Começa false (SSR). */
 export function useAdMobAvailable(): boolean {
@@ -32,6 +32,11 @@ export function RewardedAdButton({
   const { preferences } = useConsentPreferences();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Começa a baixar o vídeo assim que o botão aparece.
+  useEffect(() => {
+    if (available) void preloadRewardedAd(preferences.ads);
+  }, [available, preferences.ads]);
 
   if (!available) return null;
 

@@ -174,6 +174,37 @@ export async function hideAdMobBanner(): Promise<void> {
 // ── Anúncio com recompensa (vídeo) ─────────────────────────────────────────
 export type RewardedResult = "rewarded" | "dismissed" | "unavailable";
 
+// Pré-carregamento: o vídeo é baixado ANTES de a pessoa tocar no botão, para
+// abrir na hora (carregar sob demanda podia levar quase 1 minuto).
+// O Google descarta vídeos carregados há mais de 1 hora; renovamos aos 50 min.
+const REWARDED_MAX_AGE_MS = 50 * 60 * 1000;
+let rewardedPreload: Promise<boolean> | null = null;
+let rewardedLoadedAt = 0;
+
+/** Baixa um vídeo com recompensa em segundo plano (pode chamar várias vezes). */
+export function preloadRewardedAd(adsConsent: boolean): Promise<boolean> {
+  if (!isAdMobAvailable()) return Promise.resolve(false);
+
+  const expired = rewardedLoadedAt > 0 && Date.now() - rewardedLoadedAt > REWARDED_MAX_AGE_MS;
+  if (rewardedPreload && !expired) return rewardedPreload;
+
+  rewardedPreload = (async () => {
+    const { AdMob } = await loadPlugin();
+    await initAdMob();
+    const { adId, isTesting } = getAdUnit("rewarded");
+    await AdMob.prepareRewardVideoAd({ adId, isTesting, npa: shouldUseNonPersonalized(adsConsent) });
+    rewardedLoadedAt = Date.now();
+    return true;
+  })().catch((error) => {
+    clientLogError("ADMOB REWARDED PRELOAD ERROR", error);
+    rewardedPreload = null;
+    rewardedLoadedAt = 0;
+    return false;
+  });
+
+  return rewardedPreload;
+}
+
 /**
  * Mostra um vídeo com recompensa. Resolve:
  *  - "rewarded": a pessoa assistiu até ganhar a recompensa;
@@ -197,8 +228,12 @@ export async function showRewardedAd(purpose: string, adsConsent: boolean): Prom
       void AdMob.addListener(RewardAdPluginEvents.FailedToShow, () => resolve()).then((h) => handles.push(h));
     });
 
-    const { adId, isTesting } = getAdUnit("rewarded");
-    await AdMob.prepareRewardVideoAd({ adId, isTesting, npa: shouldUseNonPersonalized(adsConsent) });
+    // Usa o vídeo pré-carregado (ou espera terminar de carregar).
+    const ready = await preloadRewardedAd(adsConsent);
+    // O vídeo é de uso único: libera para o próximo pré-carregamento.
+    rewardedPreload = null;
+    rewardedLoadedAt = 0;
+    if (!ready) throw new Error("rewarded_not_loaded");
     capturePostHog("admob_rewarded_shown", { purpose });
 
     // No iOS a promessa de showRewardVideoAd só termina se houver recompensa;
@@ -215,5 +250,7 @@ export async function showRewardedAd(purpose: string, adsConsent: boolean): Prom
     return rewarded ? "rewarded" : "unavailable";
   } finally {
     await Promise.all(handles.map((h) => h.remove().catch(() => undefined)));
+    // Já deixa o próximo vídeo carregando para a próxima vez.
+    void preloadRewardedAd(adsConsent);
   }
 }

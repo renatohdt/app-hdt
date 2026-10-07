@@ -7,7 +7,7 @@ import { Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { useConsentPreferences } from "@/components/consent-provider";
 import { useAdMobAvailable } from "@/components/RewardedAdButton";
-import { showRewardedAd } from "@/lib/admob";
+import { preloadRewardedAd, showRewardedAd } from "@/lib/admob";
 import { trackEvent } from "@/lib/analytics-client";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { WeightChartModal } from "@/components/weight-chart-modal";
@@ -105,6 +105,11 @@ export function ExpandableExerciseCard({
   const { preferences: consentPreferences } = useConsentPreferences();
   const [loadingRewardedAd, setLoadingRewardedAd] = useState(false);
   const replaceRequiresVideo = !isPremiumUser && adMobAvailable;
+
+  // Abriu a janela de troca: já deixa o vídeo carregando.
+  useEffect(() => {
+    if (showReplaceModal && replaceRequiresVideo) void preloadRewardedAd(consentPreferences.ads);
+  }, [showReplaceModal, replaceRequiresVideo, consentPreferences.ads]);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -320,16 +325,13 @@ export function ExpandableExerciseCard({
 
     setLoadingRewardedAd(true);
     setReplaceError(null);
-    const result = await showRewardedAd("replace_exercise", consentPreferences.ads);
+    // A troca começa JUNTO com o vídeo: quando o vídeo termina, o exercício
+    // novo já está pronto. (Se não houver vídeo disponível, a troca segue
+    // normalmente, para a pessoa não ficar travada por falta de anúncio.)
+    const replacement = handleReplaceExercise();
+    await showRewardedAd("replace_exercise", consentPreferences.ads);
     setLoadingRewardedAd(false);
-
-    if (result === "dismissed") {
-      setReplaceError("Assista o vídeo até o fim para liberar a troca.");
-      return;
-    }
-    // "rewarded" — ou "unavailable" (sem vídeo disponível no momento): a troca
-    // segue normalmente, para a pessoa não ficar travada por falta de anúncio.
-    void handleReplaceExercise();
+    await replacement;
   }
 
   async function handleReplaceExercise() {
@@ -437,7 +439,7 @@ export function ExpandableExerciseCard({
                       {exercise.name}
                     </h3>
                     {wasReplaced || isReplaced ? (
-                      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/42">
+                      <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
                         Substituído
                       </span>
                     ) : null}

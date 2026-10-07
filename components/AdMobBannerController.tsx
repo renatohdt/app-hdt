@@ -4,7 +4,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useConsentPreferences } from "@/components/consent-provider";
 import { useSubscription } from "@/components/use-subscription";
-import { hideAdMobBanner, isAdMobAvailable, showAdMobBanner } from "@/lib/admob";
+import { hideAdMobBanner, isAdMobAvailable, preloadRewardedAd, showAdMobBanner } from "@/lib/admob";
 import { clientLogError } from "@/lib/client-logger";
 
 // Elementos que "cobrem" a tela (pop-ups, folhas que sobem de baixo, aviso de
@@ -79,7 +79,10 @@ export function AdMobBannerController({ barRef }: { barRef: RefObject<HTMLElemen
     // O plugin mede a distância a partir da borda segura inferior da tela;
     // o menu do app já inclui essa borda, então descontamos.
     const margin = bar.getBoundingClientRect().height - readSafeAreaBottom();
-    showAdMobBanner(margin, preferences.ads).catch((error) => clientLogError("ADMOB SHOW BANNER ERROR", error));
+    showAdMobBanner(margin, preferences.ads)
+      // Com o banner no ar, já deixa um vídeo com recompensa pronto (free).
+      .then(() => preloadRewardedAd(preferences.ads))
+      .catch((error) => clientLogError("ADMOB SHOW BANNER ERROR", error));
   }, [available, barRef, isFreePlan, overlayOpen, pathname, preferences.ads, ready]);
 
   // Saiu das telas com menu (ex.: login, checkout): esconde o banner.
