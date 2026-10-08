@@ -68,31 +68,19 @@ function loadPlugin() {
   return pluginPromise;
 }
 
-// ── Inicialização + permissão de rastreamento (iOS) ────────────────────────
+// ── Inicialização ──────────────────────────────────────────────────────────
 let initPromise: Promise<void> | null = null;
-let iosTrackingAuthorized = false;
 
 /**
- * Inicializa o AdMob uma vez. No iOS mostra o aviso da Apple
- * "Permitir que o app rastreie..." (só na primeira vez).
+ * Inicializa o AdMob uma vez.
+ * iOS: o app é declarado na Apple como "SEM rastreamento" (decisão após as
+ * recusas de ago/2026). Por isso NÃO mostramos o aviso de rastreamento (ATT)
+ * e os anúncios no iPhone são sempre não personalizados.
  */
 export function initAdMob(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
       const { AdMob } = await loadPlugin();
-
-      if (getPlatform() === "ios") {
-        try {
-          let { status } = await AdMob.trackingAuthorizationStatus();
-          if (status === "notDetermined") {
-            await AdMob.requestTrackingAuthorization();
-            ({ status } = await AdMob.trackingAuthorizationStatus());
-          }
-          iosTrackingAuthorized = status === "authorized";
-        } catch {
-          iosTrackingAuthorized = false;
-        }
-      }
 
       const anyTest = getAdUnit("banner").isTesting || getAdUnit("rewarded").isTesting;
       await AdMob.initialize({ initializeForTesting: anyTest });
@@ -106,11 +94,11 @@ export function initAdMob(): Promise<void> {
 
 /**
  * Anúncio NÃO personalizado quando:
- *  - iOS: a pessoa não autorizou o rastreamento no aviso da Apple;
+ *  - iOS: sempre (app declarado "sem rastreamento" na Apple);
  *  - Android: a pessoa não aceitou anúncios no aviso de privacidade do app.
  */
 function shouldUseNonPersonalized(adsConsent: boolean): boolean {
-  return getPlatform() === "ios" ? !iosTrackingAuthorized : !adsConsent;
+  return getPlatform() === "ios" ? true : !adsConsent;
 }
 
 // ── Banner fixo (acima do menu inferior) ───────────────────────────────────

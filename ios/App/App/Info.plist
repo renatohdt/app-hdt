@@ -75,9 +75,6 @@
 	<!-- AdMob: ID do APP (iOS) -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1213559545344901~1730796240</string>
-	<!-- Texto do aviso da Apple "Permitir que o app rastreie..." (App Tracking Transparency) -->
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Usamos essa permissão para mostrar anúncios mais relevantes para você. Os anúncios ajudam a manter o Hora do Treino gratuito.</string>
 	<!-- Redes de anúncio (SKAdNetwork) exigidas pelo Google Mobile Ads -->
 	<key>SKAdNetworkItems</key>
 	<array>
