@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dumbbell,
+  Loader2,
+  PlayCircle,
   RefreshCw,
   Settings,
   Target,
@@ -14,7 +16,9 @@ import GoogleAd from "@/components/GoogleAd";
 import { AppShell } from "@/components/app-shell";
 import { Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
-import { RewardedAdButton } from "@/components/RewardedAdButton";
+import { RewardedAdButton, useAdMobAvailable } from "@/components/RewardedAdButton";
+import { useConsentPreferences } from "@/components/consent-provider";
+import { preloadRewardedAd, showRewardedAd } from "@/lib/admob";
 import { getPlannedNext } from "@/lib/weekly-plan-app";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { ReferralRewardPopup } from "@/components/referral-reward-popup";
@@ -74,6 +78,11 @@ export function DashboardHomeScreen({
   const generatingAnimFrameRef = useRef(0);
   const generatingCardRef = useRef<HTMLDivElement | null>(null);
   const { subscription, loading: subscriptionLoading } = useSubscription();
+  // Plano free no app (AdMob): gerar novo programa passa por um vídeo com recompensa.
+  const adMobAvailable = useAdMobAvailable();
+  const { preferences: consentPreferences } = useConsentPreferences();
+  const generateRequiresVideo = !subscription?.isPremium && adMobAvailable;
+  const [loadingGenerateVideo, setLoadingGenerateVideo] = useState(false);
   const isNative = useIsNativeApp();
   const router = useRouter();
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
@@ -238,6 +247,22 @@ export function DashboardHomeScreen({
   // Ciclo concluído no fluxo de IA (programa comprado tem navegação própria de semanas).
   const isCycleCompleteAi = !program && Boolean(data.sessionProgress?.cycleCompleted);
   const progressBarWidth = Math.max(Math.min(coverage.percentage, 100), 0);
+
+  // Começa a baixar o vídeo assim que o modal de confirmação abre.
+  useEffect(() => {
+    if (showGenerateConfirm && generateRequiresVideo) void preloadRewardedAd(consentPreferences.ads);
+  }, [showGenerateConfirm, generateRequiresVideo, consentPreferences.ads]);
+
+  async function handleGenerateWithVideo() {
+    if (isGenerating || loadingGenerateVideo) return;
+    setLoadingGenerateVideo(true);
+    // O programa começa a ser gerado JUNTO com o vídeo: quando o vídeo termina,
+    // o treino novo já está pronto (ou quase). Sem vídeo disponível, gera normalmente.
+    const generation = handleGenerateWorkout();
+    await showRewardedAd("generate_program", consentPreferences.ads);
+    setLoadingGenerateVideo(false);
+    await generation;
+  }
 
   function handleGenerateWorkoutClick() {
     if (isGenerating) return;
@@ -655,10 +680,16 @@ export function DashboardHomeScreen({
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => void handleGenerateWorkout()}
-                className="flex h-12 w-full items-center justify-center rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
+                onClick={() => void (generateRequiresVideo ? handleGenerateWithVideo() : handleGenerateWorkout())}
+                disabled={loadingGenerateVideo}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
               >
-                Sim, gerar novo programa
+                {generateRequiresVideo ? (
+                  loadingGenerateVideo ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />
+                ) : null}
+                {generateRequiresVideo
+                  ? loadingGenerateVideo ? "Carregando vídeo..." : "Ver vídeo e gerar novo programa"
+                  : "Sim, gerar novo programa"}
               </button>
               <button
                 type="button"
