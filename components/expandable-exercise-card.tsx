@@ -9,6 +9,7 @@ import { useConsentPreferences } from "@/components/consent-provider";
 import { useAdMobAvailable } from "@/components/RewardedAdButton";
 import { preloadRewardedAd, showRewardedAd } from "@/lib/admob";
 import { trackEvent } from "@/lib/analytics-client";
+import { announceSetCompleted } from "@/lib/rest-timer-store";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { WeightChartModal } from "@/components/weight-chart-modal";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
@@ -275,6 +276,8 @@ export function ExpandableExerciseCard({
     });
 
     if (nextCompleted) {
+      // Avisa a barra do treino para oferecer o cronômetro com o tempo deste exercício.
+      announceSetCompleted(draftState.preferredRestSeconds ?? exercise.plannedRestSeconds ?? 60);
       trackEvent("cta_click", data.user.id, {
         source: "complete_set_inline",
         workout_key: workoutKey,

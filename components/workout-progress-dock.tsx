@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Pause, Play, RotateCcw, Timer } from "lucide-react";
 import { formatElapsedClock } from "@/lib/active-workout-session";
+import {
+  SET_COMPLETED_EVENT,
+  formatTimerClock,
+  sendRestTimerCommand,
+  useRestTimerStatus
+} from "@/lib/rest-timer-store";
 
 // Barra "Treino em andamento" que fica colada no menu inferior.
 // - Anda a cada SÉRIE marcada (feedback frequente), com marcadores entre exercícios.
 // - Começa com um pedacinho preenchido ao iniciar (efeito de progresso dotado).
 // - Encolhe sozinha ao rolar para baixo e volta ao rolar para cima.
 // - O cronômetro é discreto (decisão do Renato).
+// - Ao marcar uma série, oferece iniciar o cronômetro com 1 toque (nunca começa sozinho,
+//   por causa de bi-set/circuito). No Treino Extra (que cobre o menu), mostra o tempo correndo.
+
+const OFFER_VISIBLE_MS = 20000;
 
 type WorkoutProgressDockProps = {
   title: string;
@@ -39,6 +49,45 @@ export function WorkoutProgressDock({
   const [now, setNow] = useState(() => Date.now());
   const [collapsed, setCollapsed] = useState(false);
   const lastScrollY = useRef(0);
+  const timer = useRestTimerStatus();
+  const timerActiveRef = useRef(timer.active);
+  timerActiveRef.current = timer.active;
+  /** Oferta "Série feita! Cronômetro 1:30 · Iniciar" (segundos) */
+  const [offerSeconds, setOfferSeconds] = useState<number | null>(null);
+
+  useEffect(() => {
+    function handleSetCompleted(event: Event) {
+      const seconds = (event as CustomEvent<{ seconds: number | null }>).detail?.seconds;
+      if (!seconds || timerActiveRef.current) return;
+      setOfferSeconds(seconds);
+      setCollapsed(false);
+    }
+    window.addEventListener(SET_COMPLETED_EVENT, handleSetCompleted);
+    return () => window.removeEventListener(SET_COMPLETED_EVENT, handleSetCompleted);
+  }, []);
+
+  // Some sozinha depois de um tempo, ou quando o cronômetro começa por outro caminho.
+  useEffect(() => {
+    if (offerSeconds === null) return;
+    if (timer.active) {
+      setOfferSeconds(null);
+      return;
+    }
+    const id = window.setTimeout(() => setOfferSeconds(null), OFFER_VISIBLE_MS);
+    return () => window.clearTimeout(id);
+  }, [offerSeconds, timer.active]);
+
+  const showOffer = offerSeconds !== null && !timer.active && setsDone < setsTotal;
+  const offer = showOffer ? (
+    <TimerOffer
+      seconds={offerSeconds as number}
+      onStart={() => {
+        sendRestTimerCommand({ type: "start", seconds: offerSeconds });
+        setOfferSeconds(null);
+      }}
+      onDismiss={() => setOfferSeconds(null)}
+    />
+  ) : null;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -95,6 +144,9 @@ export function WorkoutProgressDock({
           </button>
         </div>
         <ProgressBar pct={pct} ticks={ticks} />
+        {offer}
+        {/* O Treino Extra cobre o menu inferior: o tempo do cronômetro aparece aqui. */}
+        {timer.active ? <InlineTimer running={timer.running} leftSeconds={timer.leftSeconds} /> : null}
       </div>
     );
   }
@@ -151,6 +203,7 @@ export function WorkoutProgressDock({
                 </button>
               </div>
               <ProgressBar pct={pct} ticks={ticks} />
+              {offer}
             </div>
           )}
         </div>
@@ -176,6 +229,57 @@ function ProgressBar({ pct, ticks }: { pct: number; ticks: number[] }) {
       {ticks.map((left, index) => (
         <span key={index} className="absolute inset-y-0 w-[2px] bg-[#0c110c]" style={{ left: `${left}%` }} />
       ))}
+    </div>
+  );
+}
+
+function TimerOffer({ seconds, onStart, onDismiss }: { seconds: number; onStart: () => void; onDismiss: () => void }) {
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 py-1.5 pl-3 pr-1.5 text-[0.8rem] text-white/80" role="status">
+      <Timer className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+      <span className="min-w-0 flex-1">
+        Série feita! Cronômetro <b className="tabular-nums text-white">{formatTimerClock(seconds)}</b>
+      </span>
+      <button type="button" onClick={onDismiss} className="h-8 rounded-xl px-2 text-xs font-medium text-white/55 hover:text-white">
+        Agora não
+      </button>
+      <button
+        type="button"
+        onClick={onStart}
+        className="inline-flex h-8 items-center gap-1 rounded-xl bg-primary px-3 text-xs font-bold text-black transition hover:brightness-110"
+      >
+        <Play className="h-3.5 w-3.5 fill-current" />
+        Iniciar
+      </button>
+    </div>
+  );
+}
+
+function InlineTimer({ running, leftSeconds }: { running: boolean; leftSeconds: number }) {
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] py-1.5 pl-3 pr-1.5 text-[0.8rem]">
+      <Timer className={running ? "h-4 w-4 text-primary" : "h-4 w-4 text-white/45"} aria-hidden />
+      <span className="flex-1 text-white/60">
+        Cronômetro{" "}
+        <b className={running ? "tabular-nums text-primary" : "tabular-nums text-white/55"}>{formatTimerClock(leftSeconds)}</b>
+        {running ? null : " · pausado"}
+      </span>
+      <button
+        type="button"
+        onClick={() => sendRestTimerCommand({ type: running ? "pause" : "resume" })}
+        aria-label={running ? "Pausar cronômetro" : "Continuar cronômetro"}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.06] text-white/75 hover:text-white"
+      >
+        {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        type="button"
+        onClick={() => sendRestTimerCommand({ type: "reset" })}
+        aria-label="Parar cronômetro"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.06] text-white/75 hover:text-white"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }

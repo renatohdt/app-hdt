@@ -113,3 +113,52 @@ export async function cancelIdleWorkoutNotification() {
     // ignora
   }
 }
+
+// ── Cronômetro: "Tempo finalizado" ──────────────────────────────────────────
+// Mesmo plugin e mesma permissão do lembrete acima. Agendado quando o
+// cronômetro começa (para tocar mesmo com o celular bloqueado ou em outro app)
+// e cancelado ao pausar/resetar.
+
+const TIMER_NOTIFICATION_ID = 7316;
+let timerScheduledFor: number | null = null;
+
+function formatClock(seconds: number) {
+  const total = Math.max(0, Math.round(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+export async function scheduleTimerFinishedNotification(input: { at: number; totalSeconds: number }) {
+  if (!pluginAvailable()) return;
+  if (timerScheduledFor === input.at) return;
+  timerScheduledFor = input.at;
+  try {
+    // Pede a permissão uma única vez (a mesma do lembrete do treino).
+    if (!(await hasPermission(true))) return;
+    await withTimeout(LocalNotifications.cancel({ notifications: [{ id: TIMER_NOTIFICATION_ID }] })).catch(() => {});
+    if (input.at <= Date.now() || timerScheduledFor !== input.at) return;
+    await withTimeout(
+      LocalNotifications.schedule({
+        notifications: [
+          {
+            id: TIMER_NOTIFICATION_ID,
+            title: "Tempo finalizado ⏱️",
+            body: `Seu cronômetro de ${formatClock(input.totalSeconds)} terminou. Bora!`,
+            schedule: { at: new Date(input.at), allowWhileIdle: true }
+          }
+        ]
+      })
+    );
+  } catch {
+    // notificação é um extra: nunca atrapalha o cronômetro
+  }
+}
+
+export async function cancelTimerFinishedNotification() {
+  timerScheduledFor = null;
+  if (!pluginAvailable()) return;
+  try {
+    await withTimeout(LocalNotifications.cancel({ notifications: [{ id: TIMER_NOTIFICATION_ID }] }));
+  } catch {
+    // ignora
+  }
+}

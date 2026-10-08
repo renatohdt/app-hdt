@@ -12,6 +12,7 @@
 // Nada aqui chama a rede.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { cancelTimerFinishedNotification, scheduleTimerFinishedNotification } from "@/lib/workout-idle-notification";
 
 export const TIMER_MIN_SECONDS = 5;
 export const TIMER_MAX_SECONDS = 300;
@@ -21,6 +22,10 @@ export const TIMER_PRESETS = [30, 45, 60, 90, 120];
 const STORAGE_KEY = "hdt-rest-timer";
 const CHANGE_EVENT = "hdt-rest-timer-change";
 const MUTED_KEY = "horadotreino:cronometro-mudo";
+/** Pedido de outras telas para comandar o cronômetro (ex.: "Iniciar" na barra do treino). */
+const COMMAND_EVENT = "hdt-rest-timer-command";
+/** Avisado pela tela de treino quando uma série é marcada. */
+export const SET_COMPLETED_EVENT = "hdt-set-completed";
 /** Se o tempo acabou há mais do que isso (app estava fechado), não toca o sino ao reabrir. */
 const LATE_FINISH_TOLERANCE_MS = 5000;
 
@@ -87,6 +92,59 @@ function vibrate(pattern: number | number[]) {
   } catch {
     // iPhone não tem vibração pelo navegador; ignora
   }
+}
+
+export type RestTimerCommand =
+  | { type: "start"; seconds?: number | null }
+  | { type: "pause" }
+  | { type: "resume" }
+  | { type: "reset" };
+
+/**
+ * Comanda o cronômetro de qualquer tela. Chame DENTRO do toque do usuário:
+ * o evento é síncrono, então o som continua "liberado" no iPhone/Android.
+ */
+export function sendRestTimerCommand(command: RestTimerCommand) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<RestTimerCommand>(COMMAND_EVENT, { detail: command }));
+}
+
+/** A tela de treino avisa que uma série foi marcada (com o tempo planejado do exercício). */
+export function announceSetCompleted(seconds?: number | null) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent<{ seconds: number | null }>(SET_COMPLETED_EVENT, { detail: { seconds: normalizeTimerSeconds(seconds) } }));
+}
+
+/** Só leitura: para outras telas mostrarem o tempo (ex.: Treino Extra, que cobre o menu). */
+export function useRestTimerStatus() {
+  const [state, setState] = useState<RestTimerState>(() => defaultState());
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setState(readState());
+    const onChange = () => setState(readState());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_KEY) onChange();
+    };
+    window.addEventListener(CHANGE_EVENT, onChange);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(CHANGE_EVENT, onChange);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state.endAt === null) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(id);
+  }, [state.endAt]);
+
+  const running = state.endAt !== null;
+  const paused = state.pausedLeftMs !== null;
+  const leftMs = running ? Math.max(0, (state.endAt as number) - now) : paused ? (state.pausedLeftMs as number) : state.selectedSeconds * 1000;
+  return { running, paused, active: running || paused, leftSeconds: leftMs / 1000 };
 }
 
 export type RestTimerController = ReturnType<typeof useRestTimer>;
@@ -204,6 +262,16 @@ export function useRestTimer() {
       });
   }, []);
 
+  // Aviso do sistema "tempo finalizado" para quando o celular estiver bloqueado
+  // ou em outro app (só no app nativo; no navegador não faz nada).
+  useEffect(() => {
+    if (state.endAt !== null) {
+      void scheduleTimerFinishedNotification({ at: state.endAt, totalSeconds: Math.round(state.totalMs / 1000) });
+    } else {
+      void cancelTimerFinishedNotification();
+    }
+  }, [state.endAt, state.totalMs]);
+
   const running = state.endAt !== null;
   const paused = state.pausedLeftMs !== null;
   const active = running || paused;
@@ -277,6 +345,22 @@ export function useRestTimer() {
       }
       return next;
     });
+  }, []);
+
+  // Comandos vindos de outras telas (barra do treino, Treino Extra).
+  const commandsRef = useRef({ start, pause, resume, reset });
+  commandsRef.current = { start, pause, resume, reset };
+  useEffect(() => {
+    function onCommand(event: Event) {
+      const command = (event as CustomEvent<RestTimerCommand>).detail;
+      if (!command) return;
+      if (command.type === "start") commandsRef.current.start(command.seconds ?? undefined);
+      else if (command.type === "pause") commandsRef.current.pause();
+      else if (command.type === "resume") commandsRef.current.resume();
+      else if (command.type === "reset") commandsRef.current.reset();
+    }
+    window.addEventListener(COMMAND_EVENT, onCommand);
+    return () => window.removeEventListener(COMMAND_EVENT, onCommand);
   }, []);
 
   return {
