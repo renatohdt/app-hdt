@@ -97,9 +97,11 @@ export function AppBottomNav() {
             onClick={() => setTimerOpen(false)}
             className="pointer-events-auto fixed inset-0 bg-black/40"
           />
+          {/* data-hide-admob esconde o banner do anúncio; a margem com --admob-banner-h
+              garante que, se ele ainda estiver na tela, o painel fique ACIMA dele. */}
           <div
             data-hide-admob
-            className="pointer-events-auto relative mx-auto mb-3 w-full max-w-[var(--app-shell-max)] px-4"
+            className="pointer-events-auto relative mx-auto mb-[calc(0.75rem+var(--admob-banner-h))] w-full max-w-[var(--app-shell-max)] px-4"
             onTouchStart={(e) => startSwipe(e.touches[0].clientY, e.target)}
             onTouchEnd={(e) => endSwipe(e.changedTouches[0].clientY)}
             onMouseDown={(e) => startSwipe(e.clientY, e.target)}

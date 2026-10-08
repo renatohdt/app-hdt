@@ -268,12 +268,9 @@ export function ExpandableExerciseCard({
       totalSets: nextEntries.length,
       isComplete: nextEntries.length > 0 && nextEntries.every((entry) => entry.completed)
     });
-    setFeedback({
-      tone: nextCompleted ? "success" : "info",
-      text: nextCompleted
-        ? `Série ${setIndex + 1} registrada em ${exercise.name}.`
-        : `Série ${setIndex + 1} desmarcada em ${exercise.name}.`
-    });
+    // Sem mensagem no card ao marcar/desmarcar: a confirmação de série feita
+    // aparece na barra do treino (junto com o cronômetro).
+    setFeedback(null);
 
     if (nextCompleted) {
       // Avisa a barra do treino para oferecer o cronômetro com o tempo deste exercício.

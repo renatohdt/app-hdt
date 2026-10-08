@@ -104,6 +104,10 @@ function shouldUseNonPersonalized(adsConsent: boolean): boolean {
 // ── Banner fixo (acima do menu inferior) ───────────────────────────────────
 let bannerState: "none" | "shown" | "hidden" = "none";
 let bannerMargin = -1;
+// O que a tela QUER agora (mostrar ou esconder). Mostrar leva alguns instantes;
+// se um pop-up/cronômetro abrir nesse meio-tempo, o banner é escondido assim
+// que terminar de aparecer — antes ele ficava por cima, tapando botões.
+let bannerWanted = false;
 let sizeListenerAttached = false;
 
 function setBannerHeightVar(height: number) {
@@ -115,6 +119,13 @@ function setBannerHeightVar(height: number) {
  * segura inferior da tela e o banner — ou seja, a altura do menu do app.
  */
 export async function showAdMobBanner(margin: number, adsConsent: boolean): Promise<void> {
+  bannerWanted = true;
+  await showAdMobBannerNow(margin, adsConsent);
+  // Pediram para esconder enquanto o banner aparecia: esconde agora.
+  if (!bannerWanted) await hideAdMobBanner();
+}
+
+async function showAdMobBannerNow(margin: number, adsConsent: boolean): Promise<void> {
   const { AdMob, BannerAdPluginEvents, BannerAdPosition, BannerAdSize } = await loadPlugin();
   await initAdMob();
 
@@ -148,6 +159,7 @@ export async function showAdMobBanner(margin: number, adsConsent: boolean): Prom
 
 /** Esconde o banner sem destruí-lo (volta rápido com showAdMobBanner). */
 export async function hideAdMobBanner(): Promise<void> {
+  bannerWanted = false;
   if (bannerState !== "shown") return;
   bannerState = "hidden";
   setBannerHeightVar(0);
