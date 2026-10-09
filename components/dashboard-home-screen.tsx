@@ -41,6 +41,7 @@ import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { getRequestErrorMessage, parseJsonResponse } from "@/lib/api";
 import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
 import { RecommendationsCard } from "@/components/recommendations-card";
+import { ReferralCard } from "@/components/referral-card";
 import { useIsNativeApp } from "@/lib/is-native-app";
 import { PremiumHomeBanner } from "@/components/premium-home-banner";
 import { MissingOutPopup } from "@/components/missing-out-popup";
@@ -633,6 +634,9 @@ export function DashboardHomeScreen({
           {generateError}
         </div>
       ) : null}
+
+      {/* Indique e Ganhe — só plano free (Premium não ganha nada indicando) */}
+      {isFreePlan ? <ReferralCard /> : null}
 
       <RecommendationsCard
         goal={data.user.goal}
