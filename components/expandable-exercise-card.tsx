@@ -59,7 +59,8 @@ export function ExpandableExerciseCard({
   initialWeightKg = null,
   onCompletionChange,
   onProgressChange,
-  onSetActivity
+  onSetActivity,
+  onBeforeSetActivity
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -85,6 +86,9 @@ export function ExpandableExerciseCard({
   onProgressChange?: (exerciseId: string, completedSets: number, totalSets: number) => void;
   // Chamado só quando a PESSOA marca/desmarca séries (inicia o treino e conta como atividade).
   onSetActivity?: (exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) => void;
+  // Chamado ANTES de MARCAR série(s): o pai pode pedir confirmação ("Vai começar o
+  // treino agora?"). A marcação só acontece quando o pai chama proceed().
+  onBeforeSetActivity?: (proceed: () => void) => void;
 }) {
   const storageKey = useMemo(
     () => exerciseDraftKey(data.user.id, workoutKey, exercise.id),
@@ -247,6 +251,15 @@ export function ExpandableExerciseCard({
   }
 
   function handleToggleSetCompletion(setIndex: number) {
+    const marking = !(setEntries[setIndex]?.completed ?? false);
+    if (marking && onBeforeSetActivity) {
+      onBeforeSetActivity(() => applyToggleSetCompletion(setIndex));
+      return;
+    }
+    applyToggleSetCompletion(setIndex);
+  }
+
+  function applyToggleSetCompletion(setIndex: number) {
     const currentEntry = setEntries[setIndex] ?? createEmptySetEntry();
     const nextCompleted = !currentEntry.completed;
     const nextEntries = setEntries.map((entry, index) => (index === setIndex ? { ...entry, completed: nextCompleted } : entry));
@@ -286,6 +299,14 @@ export function ExpandableExerciseCard({
 
   // Check geral: marca (ou desmarca) todas as séries do exercício de uma vez.
   function handleToggleAllSets() {
+    if (!isExerciseComplete && onBeforeSetActivity) {
+      onBeforeSetActivity(applyToggleAllSets);
+      return;
+    }
+    applyToggleAllSets();
+  }
+
+  function applyToggleAllSets() {
     const markAll = !isExerciseComplete;
     const nextEntries = setEntries.map((entry) => ({ ...entry, completed: markAll }));
     const lastWithWeight = [...nextEntries].reverse().find((entry) => entry.weightKg);

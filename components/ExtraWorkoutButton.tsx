@@ -17,6 +17,7 @@ import { WorkoutProgressDock } from "@/components/workout-progress-dock";
 import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
 import { FeedbackFields, StatsRow } from "@/components/active-workout-watcher";
 import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
+import { StartWorkoutConfirm } from "@/components/start-workout-confirm";
 import { scheduleIdleWorkoutNotification } from "@/lib/workout-idle-notification";
 import {
   AUTO_FINISHED_EVENT,
@@ -743,6 +744,9 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
   const [liked, setLiked] = useState<boolean | null>(null);
   const [intensity, setIntensity] = useState<number | null>(null);
   const autoPromptedRef = useRef(false);
+  // "Vai começar o treino agora?" (marcou série sem tocar em Iniciar) e modo "só explorando".
+  const [pendingStartAction, setPendingStartAction] = useState<(() => void) | null>(null);
+  const exploringRef = useRef(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   // Séries marcadas por exercício (barra de progresso).
   const [exerciseProgress, setExerciseProgress] = useState<Record<string, { done: number; total: number }>>({});
@@ -861,6 +865,8 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
       return false;
     }
     const base = savedActive;
+    // Explorando: marcar séries não inicia o extra (só o botão "Iniciar treino").
+    if (!base && exploringRef.current && hadActivity) return false;
     writeActiveWorkout({
       v: 1,
       userId,
@@ -888,11 +894,24 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
   }
 
   function handleStart() {
+    exploringRef.current = false;
     if (!startOrTouch(false)) return;
     if (!openExerciseId) {
       const first = allRows.find((row) => !isExerciseDone(row.id));
       if (first) setOpenExerciseId(first.id);
     }
+  }
+
+  // Antes de MARCAR uma série sem extra em andamento: pergunta se vai começar agora.
+  function handleBeforeSetActivity(proceed: () => void) {
+    const saved = readActiveWorkout();
+    const hasSession = Boolean(saved && saved.userId === userId && !isAutoFinishDue(saved));
+    if (hasSession || exploringRef.current) {
+      proceed();
+      return;
+    }
+    setPendingStartAction(() => proceed);
+    trackEvent("cta_click", userId, { source: "extra_workout_start_confirm_shown" });
   }
 
   function handleSetActivity(exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) {
@@ -966,6 +985,7 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
                   onExerciseReplaced={() => {}}
                   onProgressChange={handleProgressChange}
                   onSetActivity={handleSetActivity}
+                  onBeforeSetActivity={handleBeforeSetActivity}
                 />
               ))}
             </div>
@@ -1008,6 +1028,23 @@ function ModalViewWorkout({ workout, workoutId, userId, expiresIn, completing, c
         )}
       </div>
       </div>
+
+      {pendingStartAction ? (
+        <StartWorkoutConfirm
+          onConfirm={() => {
+            const proceed = pendingStartAction;
+            setPendingStartAction(null);
+            exploringRef.current = false;
+            trackEvent("cta_click", userId, { source: "extra_workout_start_confirmed" });
+            proceed();
+          }}
+          onExplore={() => {
+            setPendingStartAction(null);
+            exploringRef.current = true;
+            trackEvent("cta_click", userId, { source: "extra_workout_start_exploring" });
+          }}
+        />
+      ) : null}
 
       {showFinish && extraSession ? (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/65 px-4 pb-8 sm:items-center sm:pb-0">

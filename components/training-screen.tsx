@@ -31,6 +31,7 @@ import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
 import { WorkoutProgressDock } from "@/components/workout-progress-dock";
 import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
+import { StartWorkoutConfirm } from "@/components/start-workout-confirm";
 import { StatsRow } from "@/components/active-workout-watcher";
 import {
   AUTO_FINISHED_EVENT,
@@ -186,6 +187,11 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   // Regra de um treino por dia: avisa ao INICIAR (e não só ao finalizar).
   // Ao marcar séries, o aviso aparece uma única vez por abertura da tela.
   const alreadyTrainedWarnedRef = useRef(false);
+  // "Vai começar o treino agora?": marcação de série aguardando a resposta.
+  const [pendingStartAction, setPendingStartAction] = useState<(() => void) | null>(null);
+  // Respondeu "só estou explorando": nesta visita à tela, marcar séries não inicia
+  // o treino e não pergunta de novo (até tocar em "Iniciar treino").
+  const exploringRef = useRef(false);
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const featuredWorkoutKey = useMemo(
     () => getFeaturedWorkoutKey(data.workoutOrder, sessionProgress.lastCompletedWorkoutKey),
@@ -360,6 +366,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   // Dispara só uma vez por sessão (autoPrompted); se a pessoa cancelar, não reabre sozinho.
   useEffect(() => {
     if (autoPrompted || !exerciseRows.length) return;
+    // Só pergunta se quer finalizar quando há um treino em andamento (quem está
+    // explorando e marca tudo não deve cair na tela de finalizar).
+    const running = readActiveWorkout();
+    if (!running || running.userId !== data.user.id || running.workoutType === "extra") return;
     const allComplete = exerciseRows.every((exercise) => completedExerciseIds.has(exercise.id));
     if (allComplete) {
       setAutoPrompted(true);
@@ -534,6 +544,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       return false;
     }
     const base = savedActive;
+    // Explorando: marcar séries não inicia o treino (só o botão "Iniciar treino").
+    if (!base && exploringRef.current && !fromStartButton) return false;
     if (!base && trainedTodayAnyType()) {
       if (fromStartButton || !alreadyTrainedWarnedRef.current) {
         alreadyTrainedWarnedRef.current = true;
@@ -574,6 +586,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   }
 
   function handleStartWorkout() {
+    exploringRef.current = false;
     if (!startOrTouchWorkout(false, true)) return;
     if (!openExerciseId) {
       const first = exerciseRows.find((row) => !isExerciseDone(row.id));
@@ -583,6 +596,34 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
   // Cada série marcada/desmarcada: inicia o treino (se preciso), conta como atividade
   // e, ao concluir um exercício, já abre o próximo que falta.
+  // Antes de MARCAR uma série sem treino em andamento: pergunta se vai começar agora.
+  function handleBeforeSetActivity(proceed: () => void) {
+    const saved = readActiveWorkout();
+    const hasSession = Boolean(saved && saved.userId === data.user.id && !isAutoFinishDue(saved));
+    // Treino já aberto, ou a pessoa disse que está explorando: marca direto.
+    // Já treinou hoje: segue o fluxo que mostra "Você já treinou hoje!".
+    if (hasSession || exploringRef.current || trainedTodayAnyType()) {
+      proceed();
+      return;
+    }
+    setPendingStartAction(() => proceed);
+    trackEvent("cta_click", data.user.id, { source: "workout_start_confirm_shown", workout_key: activeWorkoutKey });
+  }
+
+  function handleConfirmStart() {
+    const proceed = pendingStartAction;
+    setPendingStartAction(null);
+    exploringRef.current = false;
+    trackEvent("cta_click", data.user.id, { source: "workout_start_confirmed", workout_key: activeWorkoutKey });
+    proceed?.();
+  }
+
+  function handleExploreOnly() {
+    setPendingStartAction(null);
+    exploringRef.current = true;
+    trackEvent("cta_click", data.user.id, { source: "workout_start_exploring", workout_key: activeWorkoutKey });
+  }
+
   function handleSetActivity(exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) {
     if (!startOrTouchWorkout(true)) return;
     if (!info.isComplete) return;
@@ -944,6 +985,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 onCompletionChange={handleExerciseCompletionChange}
                 onProgressChange={handleExerciseProgressChange}
                 onSetActivity={handleSetActivity}
+                onBeforeSetActivity={handleBeforeSetActivity}
               />
               {showAd ? <TrainingInlineAd /> : null}
             </Fragment>
@@ -1125,6 +1167,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           summary={completionSummary}
           premiumNudgeWorkouts={premiumNudgeWorkouts}
         />
+      ) : null}
+
+      {pendingStartAction ? (
+        <StartWorkoutConfirm onConfirm={handleConfirmStart} onExplore={handleExploreOnly} />
       ) : null}
 
       {showAlreadyTrainedPopup ? (
