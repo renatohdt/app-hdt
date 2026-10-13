@@ -5,6 +5,8 @@ import { ShareButton } from "@/components/share-button";
 import GoogleAd from "@/components/GoogleAd";
 import { registerWorkoutAndMaybeAskReview } from "@/lib/app-review";
 import { WorkoutPremiumNudge } from "@/components/workout-premium-nudge";
+import { WorkoutMilestoneCard } from "@/components/workout-milestone-card";
+import type { WorkoutMilestone } from "@/lib/workout-milestones";
 
 const TRAINING_AD_SLOT = "2572593951";
 
@@ -71,12 +73,15 @@ export function WorkoutCompletionPopup({
   onClose,
   showAd = false,
   summary = null,
-  premiumNudgeWorkouts = null
+  premiumNudgeWorkouts = null,
+  milestone = null
 }: {
   onClose: () => void;
   showAd?: boolean;
   /** Plano free no 2º/5º treino: mostra o convite Premium no lugar do anúncio. */
   premiumNudgeWorkouts?: number | null;
+  /** Lembrete do 6º/7º/8º treino (Indique e Ganhe, avaliação, redes sociais). */
+  milestone?: WorkoutMilestone | null;
   /** Resumo opcional do treino, ex.: "47 min · 18 séries · 6/6 exercícios". */
   summary?: string | null;
 }) {
@@ -245,8 +250,16 @@ export function WorkoutCompletionPopup({
             </div>
           ) : null}
 
-          {/* Anúncio — exibido apenas para usuários free, após o momento de celebração */}
-          {showAd && !premiumNudgeWorkouts ? (
+          {/* Lembrete do 6º/7º/8º treino (nunca junto com o convite Premium) */}
+          {milestone && !premiumNudgeWorkouts ? (
+            <div className="mt-5" style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}>
+              <WorkoutMilestoneCard milestone={milestone} />
+            </div>
+          ) : null}
+
+          {/* Anúncio — exibido apenas para usuários free, após o momento de celebração.
+              Some quando há convite Premium ou lembrete, para ter um pedido por vez. */}
+          {showAd && !premiumNudgeWorkouts && !milestone ? (
             <div
               className="mt-5 overflow-hidden rounded-xl"
               style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}

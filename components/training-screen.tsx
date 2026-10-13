@@ -54,6 +54,7 @@ import {
 import { scheduleIdleWorkoutNotification } from "@/lib/workout-idle-notification";
 import { normalizeExerciseName } from "@/lib/exercise-weight-store";
 import { getPlannedNext } from "@/lib/weekly-plan-app";
+import { pickWorkoutMilestone, type WorkoutMilestone } from "@/lib/workout-milestones";
 
 const TRAINING_STYLE_LABELS: Record<string, string> = {
   musculacao: "Tradicional",
@@ -184,6 +185,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [completionSummary, setCompletionSummary] = useState<string | null>(null);
   // Plano free no 2º/5º treino concluído: o popup mostra o convite Premium.
   const [premiumNudgeWorkouts, setPremiumNudgeWorkouts] = useState<number | null>(null);
+  const [workoutMilestone, setWorkoutMilestone] = useState<WorkoutMilestone | null>(null);
   // Regra de um treino por dia: avisa ao INICIAR (e não só ao finalizar).
   // Ao marcar séries, o aviso aparece uma única vez por abertura da tela.
   const alreadyTrainedWarnedRef = useRef(false);
@@ -736,8 +738,14 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
       const next = result.data.newTotalWorkouts ?? totalWorkoutsAllTime + 1;
       setTotalWorkoutsAllTime(next);
-      setPremiumNudgeWorkouts(
-        !subscriptionLoading && !isPremiumUser && PREMIUM_NUDGE_AT_WORKOUTS.includes(next) ? next : null
+      const premiumNudgeAt =
+        !subscriptionLoading && !isPremiumUser && PREMIUM_NUDGE_AT_WORKOUTS.includes(next) ? next : null;
+      setPremiumNudgeWorkouts(premiumNudgeAt);
+      // Lembrete do 6º/7º/8º treino — só quando não há convite Premium neste treino.
+      setWorkoutMilestone(
+        premiumNudgeAt
+          ? null
+          : pickWorkoutMilestone({ totalWorkouts: next, isPremium: subscriptionLoading ? null : isPremiumUser })
       );
       const unlocked =
         getNewlyUnlockedAchievement(prev, next) ??
@@ -1166,6 +1174,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           showAd={showAds}
           summary={completionSummary}
           premiumNudgeWorkouts={premiumNudgeWorkouts}
+          milestone={workoutMilestone}
         />
       ) : null}
 

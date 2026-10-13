@@ -12,9 +12,9 @@ import { getNativePlatformNow, useNativePlatform } from "@/lib/is-native-app";
 
 // ── Ajustes fáceis de mexer ──────────────────────────────────────────────────
 
-// Vire para `true` quando o app iOS estiver publicado na App Store.
-// Enquanto estiver `false`, nada de avaliação é disparado no iOS.
-const IOS_STORE_LIVE = false;
+// App iOS publicado na App Store (out/2026): avaliação liberada no iPhone.
+// Se precisar desligar no iOS por algum motivo, volte para `false`.
+const IOS_STORE_LIVE = true;
 
 // A partir de quantos treinos concluídos pedimos a avaliação.
 // (Pode trocar para 4 ou 5 se preferir esperar um pouco mais.)
@@ -27,6 +27,10 @@ const COOLDOWN_DAYS = 120;
 
 // Identificador do app na Play Store (o mesmo do capacitor.config.ts).
 const ANDROID_PACKAGE_ID = "com.horadotreino.app";
+
+// Apple ID do app na App Store (vem do link apps.apple.com/.../id6799299314).
+// No iOS o plugin PRECISA desse número para abrir a página certa da loja.
+const IOS_APP_STORE_ID = "6799299314";
 
 // Chaves guardadas no aparelho (localStorage), só neste dispositivo.
 const WORKOUTS_KEY = "app_review_workout_count";
@@ -52,6 +56,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 // ── Funções públicas ─────────────────────────────────────────────────────────
+
+/** Diz se dá pra pedir avaliação na loja agora (Android, ou iOS já publicado). */
+export function canAskStoreReview(): boolean {
+  return reviewEnabled();
+}
 
 /**
  * Mostra o card NATIVO de avaliação (o usuário avalia SEM sair do app).
@@ -79,7 +88,10 @@ export async function openStoreReview(): Promise<void> {
   const platform = getNativePlatformNow();
   try {
     if (reviewEnabled()) {
-      await withTimeout(AppReview.openAppStore(), 8000);
+      await withTimeout(
+        platform === "ios" ? AppReview.openAppStore({ appId: IOS_APP_STORE_ID }) : AppReview.openAppStore(),
+        8000,
+      );
       return;
     }
   } catch {

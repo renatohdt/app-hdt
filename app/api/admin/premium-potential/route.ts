@@ -9,7 +9,10 @@ export type PremiumPotentialUser = {
   id: string;
   name: string;
   email: string;
+  /** Treinos concluídos no período pedido (30 dias ou histórico todo). */
   session_count: number;
+  /** Treinos concluídos desde o cadastro. */
+  total_sessions: number;
   created_at: string;
   last_workout_at: string | null;
 };
@@ -22,17 +25,37 @@ export async function GET(request: Request) {
     const supabase = createSupabaseAdminClient();
     if (!supabase) return jsonError("Supabase não configurado.", 500);
 
-    // Busca usuários free com 5+ treinos finalizados (sem assinatura ativa)
-    const { data: potentialRows, error: potentialError } = await supabase.rpc(
-      "get_premium_potential_users"
+    // Período: ?days=30 (padrão) conta só os últimos 30 dias; ?days=all usa o histórico todo.
+    const daysParam = new URL(request.url).searchParams.get("days");
+    const days = daysParam === "all" ? null : Number(daysParam) > 0 ? Math.floor(Number(daysParam)) : 30;
+
+    // Busca usuários free com 5+ treinos concluídos no período. A função do banco já
+    // tira quem é Premium pelo Stripe, pelas lojas (Android/iOS) ou pelo Indique e Ganhe.
+    let { data: potentialRows, error: potentialError } = await supabase.rpc(
+      "get_premium_potential_users",
+      { p_days: days }
     );
+
+    // Segurança para a transição: se a migration nova ainda não foi aplicada neste
+    // banco, a função antiga (sem parâmetro) continua respondendo.
+    if (potentialError) {
+      logError("ADMIN", "premium-potential RPC with period failed, falling back", {
+        error: potentialError.message
+      });
+      ({ data: potentialRows, error: potentialError } = await supabase.rpc("get_premium_potential_users"));
+    }
 
     if (potentialError) {
       logError("ADMIN", "premium-potential RPC failed", { error: potentialError.message });
       return jsonError("Não foi possível carregar os dados.", 500);
     }
 
-    type PotentialRow = { user_id: string; session_count: number; last_workout_at: string | null };
+    type PotentialRow = {
+      user_id: string;
+      session_count: number;
+      total_sessions?: number;
+      last_workout_at: string | null;
+    };
     const rows = (potentialRows ?? []) as PotentialRow[];
 
     if (!rows.length) {
@@ -83,6 +106,7 @@ export async function GET(request: Request) {
           name: user?.name ?? "—",
           email: emailMap.get(row.user_id) ?? "—",
           session_count: row.session_count,
+          total_sessions: row.total_sessions ?? row.session_count,
           created_at: user?.created_at ?? "",
           last_workout_at: row.last_workout_at
         };
