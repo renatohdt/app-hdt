@@ -81,12 +81,9 @@ export async function POST(request: Request) {
       weight: toNumber(body.weight),
       height: toNumber(body.height),
       profession: toText(body.profession),
-      situation: typeof body.situation === "string" ? body.situation : "cant_stay_consistent",
-      mindMuscle: typeof body.mindMuscle === "string" ? body.mindMuscle : "sometimes",
       days: toNumber(body.days),
       time: toNumber(body.time),
       equipment: Array.isArray(body.equipment) ? body.equipment : [],
-      structuredPlan: typeof body.structuredPlan === "string" ? body.structuredPlan : "no",
       trainingStyle: typeof body.trainingStyle === "string" ? body.trainingStyle : "personal",
       // Região de ênfase escolhida no quiz. Sem isto, a escolha do usuário era
       // descartada no cadastro e a IA sempre tratava todos como "balanced".
