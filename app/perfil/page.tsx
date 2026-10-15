@@ -19,13 +19,12 @@ import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { readProfileCache, writeProfileCache } from "@/lib/profile-cache";
 import { Button, Card } from "@/components/ui";
 import { parseJsonResponse } from "@/lib/api";
-import { trackEvent as trackAppEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/auth-errors";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { useIsNativeApp } from "@/lib/is-native-app";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { signOutAndRedirect } from "@/lib/client-signout";
-import { ENABLE_WORKOUT_REGENERATION } from "@/lib/feature-flags";
+import { RegenerateProgramFlow } from "@/components/regenerate-program-flow";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 // Painel de medidas usa gráficos (Recharts): carrega em pedaço separado.
@@ -227,10 +226,8 @@ export default function PerfilPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPremiumStyleModal, setShowPremiumStyleModal] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const generatingAnimFrameRef = useRef(0);
-  const generatingCardRef = useRef<HTMLDivElement | null>(null);
+  // Depois de salvar Dados de Treino com mudanças: pergunta se quer um programa novo.
+  const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
@@ -238,7 +235,6 @@ export default function PerfilPage() {
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM_STATE);
   const [excludedExercises, setExcludedExercises] = useState<Array<{ exerciseId: string; exerciseName: string }>>([]);
   const [removingExerciseId, setRemovingExerciseId] = useState<string | null>(null);
-  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
 
   // ── Seletor unificado de estilo de treino ───────────────────────────────
   // 1 estilo (ou "Personal Escolhe") é grátis; 2+ estilos é Premium.
@@ -276,36 +272,6 @@ export default function PerfilPage() {
     }
     applyStyleSelection([...concrete, value]);
   };
-
-  // Animação da barra de progresso durante geração do treino
-  useEffect(() => {
-    if (!isGenerating) {
-      setLoadingProgress(0);
-      window.cancelAnimationFrame(generatingAnimFrameRef.current);
-      return;
-    }
-
-    // Scroll para o card de progresso assim que ele aparecer
-    window.requestAnimationFrame(() => {
-      generatingCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
-    const startTime = window.performance.now();
-    setLoadingProgress(WORKOUT_LOADING_INITIAL);
-
-    const animate = () => {
-      const elapsed = window.performance.now() - startTime;
-      const next = getWorkoutLoadingProgress(elapsed);
-      setLoadingProgress((current) => (next > current ? next : current));
-      generatingAnimFrameRef.current = window.requestAnimationFrame(animate);
-    };
-
-    generatingAnimFrameRef.current = window.requestAnimationFrame(animate);
-
-    return () => {
-      window.cancelAnimationFrame(generatingAnimFrameRef.current);
-    };
-  }, [isGenerating]);
 
   useEffect(() => {
     let active = true;
@@ -436,6 +402,9 @@ export default function PerfilPage() {
       return;
     }
 
+    // Mudou algo que muda o treino? Depois de salvar, perguntamos se quer um programa novo.
+    const trainingChanged = editingSection === "training" && hasTrainingChanges(buildFormState(payload), form);
+
     setIsSaving(true);
     setFeedback(null);
 
@@ -483,6 +452,7 @@ export default function PerfilPage() {
       setIsEditing(false);
       setEditingSection(null);
       setFeedback({ tone: "success", text: "Seus dados foram salvos com sucesso." });
+      if (trainingChanged) setShowRegeneratePrompt(true);
     } catch (saveError) {
       setFeedback({
         tone: "error",
@@ -653,62 +623,6 @@ export default function PerfilPage() {
       setFeedback({ tone: "error", text: "Não foi possível configurar notificações. Tente novamente." });
     } finally {
       setNotificationsLoading(false);
-    }
-  }
-
-  function handleGenerateWorkoutClick() {
-    if (!payload || isGenerating) return;
-    if (isEditing) {
-      setFeedback({ tone: "info", text: "Salve suas alterações antes de gerar um novo programa." });
-      return;
-    }
-    setShowGenerateConfirm(true);
-  }
-
-  async function handleGenerateWorkout() {
-    if (!payload || isGenerating) {
-      return;
-    }
-
-    setShowGenerateConfirm(false);
-    setIsGenerating(true);
-    setFeedback(null);
-
-    try {
-      const response = await fetchWithAuth("/api/workout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          userId: payload.user.id,
-          force: true
-        })
-      });
-
-      const result = await parseJsonResponse<{ success: boolean; error?: string }>(response);
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error ?? "Não foi possível gerar seu treino agora.");
-      }
-
-      trackAppEvent("workout_generated", payload.user.id, {
-        goal: payload.answers.goal ?? null,
-        source: "profile_regenerate"
-      });
-      setLoadingProgress(100);
-      await new Promise((resolve) => window.setTimeout(resolve, 300));
-      // O treino mudou: limpa o cache para o dashboard buscar a versão nova.
-      invalidateWorkoutCache();
-      router.push("/dashboard");
-      router.refresh();
-    } catch (generationError) {
-      setFeedback({
-        tone: "error",
-        text: generationError instanceof Error ? generationError.message : "Não foi possível gerar seu treino agora."
-      });
-    } finally {
-      setIsGenerating(false);
     }
   }
 
@@ -1048,7 +962,7 @@ export default function PerfilPage() {
                     })}
                   </div>
                   <p className="text-[0.7rem] text-white/40">
-                    Marque os locais onde você treina. Ao clicar em “Gerar Novo Treino” na Dashboard, criamos um treino para cada local marcado.
+                    Marque os locais onde você treina. Ao gerar um novo programa (na tela de Treino), criamos um treino para cada local marcado.
                   </p>
                 </>
               ) : (
@@ -1326,7 +1240,7 @@ export default function PerfilPage() {
         <button
           type="button"
           onClick={handleLogout}
-          disabled={isSigningOut || isSaving || isGenerating}
+          disabled={isSigningOut || isSaving}
           className="text-sm text-white/40 transition hover:text-red-400 disabled:opacity-50"
         >
           {isSigningOut ? "Saindo..." : "Sair da conta"}
@@ -1335,6 +1249,20 @@ export default function PerfilPage() {
 
       {showWorkoutUpsell ? (
         <UpsellModal reason="generate_workout" onClose={() => setShowWorkoutUpsell(false)} />
+      ) : null}
+
+      {showRegeneratePrompt ? (
+        <RegenerateProgramFlow
+          reason="profile_changed"
+          source="profile_save"
+          userId={payload.user.id}
+          goal={payload.answers.goal ?? null}
+          activeLocation={payload.answers.location ?? "home"}
+          markedLocations={payload.answers.locations ?? null}
+          lastWorkoutGeneratedAt={payload.lastWorkoutGeneratedAt}
+          onClose={() => setShowRegeneratePrompt(false)}
+          onGenerated={() => router.push("/treino")}
+        />
       ) : null}
 
       {showPremiumStyleModal ? (
@@ -1448,6 +1376,14 @@ function SettingsRow({
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
+
+// Campos de "Dados de Treino" que mudam o programa gerado.
+const TRAINING_FIELDS = ["goal", "days", "time", "location", "locations", "equipment", "focusRegion", "trainingStyle", "trainingStyles"] as const;
+
+function hasTrainingChanges(before: ProfileFormState, after: ProfileFormState) {
+  const normalize = (value: string | string[]) => (Array.isArray(value) ? [...value].sort().join(",") : value);
+  return TRAINING_FIELDS.some((field) => normalize(before[field]) !== normalize(after[field]));
+}
 
 function buildFormState(payload: ProfilePayload): ProfileFormState {
   return {
@@ -1616,33 +1552,6 @@ function formatSubscriptionDate(isoDate: string) {
   } catch {
     return isoDate;
   }
-}
-
-// ─── Barra de progresso — geração de treino ───────────────────────────────────
-
-const WORKOUT_LOADING_STAGES = [
-  "Analisando seu perfil atualizado",
-  "Selecionando os melhores exercícios",
-  "Criando a estratégia de treino",
-  "Montando seu plano personalizado",
-  "Treino pronto!"
-];
-
-const WORKOUT_LOADING_INITIAL = 4;
-const WORKOUT_LOADING_MAX = 97;
-const WORKOUT_LOADING_DECAY_MS = 8000;
-
-function getWorkoutLoadingProgress(elapsed: number) {
-  if (elapsed <= 0) return WORKOUT_LOADING_INITIAL;
-  return WORKOUT_LOADING_INITIAL + (WORKOUT_LOADING_MAX - WORKOUT_LOADING_INITIAL) * (1 - Math.exp(-elapsed / WORKOUT_LOADING_DECAY_MS));
-}
-
-function getWorkoutLoadingStageIndex(progress: number) {
-  if (progress >= 100) return 4;
-  if (progress >= 75) return 3;
-  if (progress >= 50) return 2;
-  if (progress >= 25) return 1;
-  return 0;
 }
 
 // Chave no localStorage que marca "o usuário desligou o push nativo".

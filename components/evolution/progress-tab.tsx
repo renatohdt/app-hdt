@@ -6,7 +6,8 @@ import { ChevronRight, Lock, Search, TrendingUp, Trophy, X } from "lucide-react"
 import { PremiumBadge } from "@/components/premium-badge";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card } from "@/components/ui";
-import { GoalCard } from "@/components/goal-card";
+import { GoalCard, type ActiveGoalShape } from "@/components/goal-card";
+import { GoalSheet } from "@/components/goal-sheet";
 import { LevelModal, PHASE_COLORS } from "@/components/level-badge";
 import { UpsellModal } from "@/components/upsell-modal";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
@@ -28,6 +29,9 @@ export function ProgressTab({
   onOpenAchievements: () => void;
 }) {
   const level = useMemo(() => buildLevelProgress(data.levelData), [data.levelData]);
+  // Meta pessoal: dá para criar daqui também (gaveta igual à da Home).
+  const [activeGoal, setActiveGoal] = useState<ActiveGoalShape>(data.activeGoal ?? null);
+  const [showGoalSheet, setShowGoalSheet] = useState(false);
 
   const achievements = useMemo(() => {
     const groups = getAllAchievementsUnified(
@@ -83,7 +87,18 @@ export function ProgressTab({
         </Card>
       </button>
 
-      <GoalCard activeGoal={data.activeGoal} readOnly />
+      <GoalCard activeGoal={activeGoal} onCreate={() => setShowGoalSheet(true)} />
+
+      {showGoalSheet ? (
+        <GoalSheet
+          weeklyTarget={data.weeklyTarget}
+          onClose={() => setShowGoalSheet(false)}
+          onCreated={(goal) => {
+            setActiveGoal(goal);
+            setShowGoalSheet(false);
+          }}
+        />
+      ) : null}
     </>
   );
 }

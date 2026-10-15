@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Dumbbell, Salad, ShoppingBag, ExternalLink } from "lucide-react";
+import clsx from "clsx";
+import { Building2, ChevronDown, Dumbbell, ExternalLink, Lightbulb, Salad, ShoppingBag } from "lucide-react";
 import { Card } from "@/components/ui";
 import {
   RECOMMENDATIONS_DATA,
@@ -9,14 +10,20 @@ import {
 } from "@/lib/recommendations-data";
 import type { Goal, Experience, HomeEquipment } from "@/lib/types";
 
-type Tab = "training" | "nutrition" | "equipment";
+type Tab = "howto" | "training" | "nutrition" | "equipment" | "condo";
 
 type Props = {
   goal?: Goal;
   level?: string;
   equipment?: string[];
   location?: string;
+  // Locais marcados (Premium pode ter mais de um) — libera a aba Condomínio.
+  locations?: string[];
+  // Quem está começando (< 5 treinos) vê "Como usar" primeiro.
+  totalWorkouts?: number;
 };
+
+const NEW_USER_WORKOUTS = 5;
 
 function filterCards(
   cards: RecommendationCard[],
@@ -42,103 +49,112 @@ function filterCards(
   });
 }
 
-export function RecommendationsCard({ goal, level, equipment = [], location }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("training");
+export function RecommendationsCard({ goal, level, equipment = [], location, locations = [], totalWorkouts = 0 }: Props) {
+  const isNewUser = totalWorkouts < NEW_USER_WORKOUTS;
+  const [activeTab, setActiveTab] = useState<Tab>(isNewUser ? "howto" : "training");
+  // Só um item aberto por vez: a informação está lá, mas não enche a tela.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const userLevel = level as Experience | undefined;
   const userEquipment = equipment as HomeEquipment[];
   // Materiais só fazem sentido para quem treina em casa. No condomínio/academia
   // os aparelhos são do local, então não mostramos a aba de compra de equipamento.
   const isHome = (location ?? "home") === "home";
+  const usesCondo = location === "condo_gym" || locations.includes("condo_gym");
 
-  const trainingCards = filterCards(RECOMMENDATIONS_DATA.training, goal, userLevel, userEquipment, location);
-  const nutritionCards = filterCards(RECOMMENDATIONS_DATA.nutrition, goal, userLevel, userEquipment, location);
-  const equipmentCards = isHome
-    ? filterCards(RECOMMENDATIONS_DATA.equipment, goal, userLevel, userEquipment, location)
-    : [];
-
-  const tabs: { id: Tab; label: string; icon: typeof Dumbbell; cards: RecommendationCard[] }[] = [
-    { id: "training", label: "Treino", icon: Dumbbell, cards: trainingCards },
-    { id: "nutrition", label: "Nutrição", icon: Salad, cards: nutritionCards },
+  type TabDef = { id: Tab; label: string; icon: typeof Dumbbell; cards: RecommendationCard[] };
+  const howToTab: TabDef = { id: "howto", label: "Como usar", icon: Lightbulb, cards: RECOMMENDATIONS_DATA.howTo };
+  const tabs: TabDef[] = ([
+    ...(isNewUser ? [howToTab] : []),
+    { id: "training" as Tab, label: "Treino", icon: Dumbbell, cards: filterCards(RECOMMENDATIONS_DATA.training, goal, userLevel, userEquipment, location) },
+    { id: "nutrition" as Tab, label: "Nutrição", icon: Salad, cards: filterCards(RECOMMENDATIONS_DATA.nutrition, goal, userLevel, userEquipment, location) },
+    ...(usesCondo ? [{ id: "condo" as Tab, label: "Condomínio", icon: Building2, cards: RECOMMENDATIONS_DATA.condo }] : []),
     ...(isHome
-      ? [{ id: "equipment" as Tab, label: "Materiais", icon: ShoppingBag, cards: equipmentCards }]
+      ? [{ id: "equipment" as Tab, label: "Materiais", icon: ShoppingBag, cards: filterCards(RECOMMENDATIONS_DATA.equipment, goal, userLevel, userEquipment, location) }]
       : []),
-  ];
+    ...(isNewUser ? [] : [howToTab])
+  ] as TabDef[]).filter((tab) => tab.cards.length > 0);
+
+  if (!tabs.length) return null;
 
   // Se o local ativo esconder a aba atual, volta para a primeira aba visível.
-  const visibleTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
-
-  const MAX_CARDS = 3;
+  const visibleTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]!.id;
+  const MAX_CARDS = 6;
   const activeCards = (tabs.find((t) => t.id === visibleTab)?.cards ?? []).slice(0, MAX_CARDS);
 
   return (
-    <Card className="rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-      <div className="mb-4">
-        <p className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.22em] text-primary/88">
-          Para você
-        </p>
-        <p className="text-[13px] text-white/45">Dicas baseadas no seu perfil</p>
+    <Card className="rounded-[24px] border-white/[0.06] p-4 shadow-none sm:p-4">
+      <div className="mb-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary/90">Para você</p>
+        <p className="mt-0.5 text-[12px] text-white/45">Dicas do seu personal, baseadas no seu perfil</p>
       </div>
 
-      {/* Abas */}
-      <div className="mb-4 flex gap-2">
+      {/* Abas (rolam para o lado se não couberem) */}
+      <div className="no-scrollbar -mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4">
         {tabs.map(({ id, label, icon: Icon }) => {
           const isActive = visibleTab === id;
           return (
             <button
               key={id}
               type="button"
-              onClick={() => setActiveTab(id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-[7px] text-[12px] font-semibold transition ${
-                isActive
-                  ? "bg-primary/15 text-primary"
-                  : "bg-white/[0.04] text-white/50 hover:bg-white/[0.07] hover:text-white/70"
-              }`}
+              onClick={() => {
+                setActiveTab(id);
+                setOpenId(null);
+              }}
+              className={clsx(
+                "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-semibold transition",
+                isActive ? "bg-primary/15 text-primary" : "bg-white/[0.04] text-white/50 hover:text-white/75"
+              )}
             >
-              <Icon className="h-[13px] w-[13px] shrink-0" />
+              <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {label}
             </button>
           );
         })}
       </div>
 
-      {/* Cards */}
-      <div className="flex flex-col gap-[10px]">
-        {activeCards.length === 0 ? (
-          <p className="py-4 text-center text-[13px] text-white/40">
-            Nenhuma recomendação disponível no momento.
-          </p>
-        ) : (
-          activeCards.map((card) => (
-            <div
-              key={card.id}
-              className="rounded-[14px] border border-white/[0.07] bg-white/[0.03] p-[14px]"
-            >
-              <div className="flex items-start gap-[10px]">
-                {card.emoji && (
-                  <span className="shrink-0 text-[22px] leading-none">{card.emoji}</span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="mb-1 text-[13px] font-semibold leading-snug tracking-tight text-white/90">
-                    {card.title}
-                  </p>
-                  <p className="text-[12px] leading-[1.55] text-white/52">{card.body}</p>
-                  {card.link && (
+      {/* Itens fechados; toque para ler */}
+      <div className="divide-y divide-white/[0.06] rounded-[16px] border border-white/[0.07]">
+        {activeCards.map((card) => {
+          const isOpen = openId === card.id;
+          return (
+            <div key={card.id}>
+              <button
+                type="button"
+                onClick={() => setOpenId(isOpen ? null : card.id)}
+                aria-expanded={isOpen}
+                className="flex min-h-12 w-full items-center gap-2.5 px-3.5 py-2.5 text-left"
+              >
+                {card.icon === "dumbbell" ? (
+                  <Dumbbell className="h-[18px] w-[18px] shrink-0 text-primary" aria-hidden />
+                ) : card.emoji ? (
+                  <span className="shrink-0 text-[18px] leading-none">{card.emoji}</span>
+                ) : null}
+                <span className="min-w-0 flex-1 text-[13px] font-semibold leading-snug text-white/90">{card.title}</span>
+                <ChevronDown
+                  className={clsx("h-4 w-4 shrink-0 text-white/35 transition-transform", isOpen && "rotate-180")}
+                  aria-hidden
+                />
+              </button>
+              {isOpen ? (
+                <div className="px-3.5 pb-3.5 pl-[42px]">
+                  <p className="text-[13px] leading-[1.55] text-white/60">{card.body}</p>
+                  {card.link ? (
                     <a
                       href={card.link.url}
                       target="_blank"
                       rel="noreferrer noopener"
-                      className="mt-[10px] inline-flex items-center gap-1.5 rounded-[10px] border border-primary/25 bg-primary/10 px-3 py-[6px] text-[12px] font-semibold text-primary transition hover:bg-primary/16"
+                      className="mt-2.5 inline-flex min-h-9 items-center gap-1.5 rounded-[10px] border border-primary/25 bg-primary/10 px-3 text-[12px] font-semibold text-primary transition hover:bg-primary/16"
                     >
                       {card.link.label}
-                      <ExternalLink className="h-3 w-3 shrink-0" />
+                      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
                     </a>
-                  )}
+                  ) : null}
                 </div>
-              </div>
+              ) : null}
             </div>
-          ))
-        )}
+          );
+        })}
       </div>
     </Card>
   );

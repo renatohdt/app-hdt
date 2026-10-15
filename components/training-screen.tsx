@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Crown, Loader2, Play } from "lucide-react";
+import { CheckCircle2, Crown, Loader2, Play, RefreshCw } from "lucide-react";
 import { TrainingInlineAd } from "@/components/TrainingInlineAd";
 import { AppShell } from "@/components/app-shell";
 import { AchievementPopup } from "@/components/achievement-popup";
@@ -29,6 +29,7 @@ import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
+import { RegenerateProgramFlow } from "@/components/regenerate-program-flow";
 import { WorkoutProgressDock } from "@/components/workout-progress-dock";
 import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
 import { StartWorkoutConfirm } from "@/components/start-workout-confirm";
@@ -128,6 +129,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 }) {
   // Modo programa: presente apenas quando o usuário tem um programa comprado ativo.
   const isProgram = Boolean(data.raw.program);
+  // "Gerar novo programa" (botão discreto no topo). Regras no RegenerateProgramFlow.
+  const [showRegenerate, setShowRegenerate] = useState(false);
   // Se existe um treino em andamento salvo no aparelho, reabre direto nele.
   const [restoredWorkoutKey] = useState<string | null>(() => {
     const saved = readActiveWorkout();
@@ -793,8 +796,19 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     <AppShell>
       <Card className="space-y-3 p-5 shadow-none sm:p-6">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="flex items-center gap-2">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-primary/90">Treinos</p>
+            {/* Escondido durante um treino em andamento (trocar o programa no meio quebraria a sessão). */}
+            {!isProgram && !userSession ? (
+              <button
+                type="button"
+                onClick={() => setShowRegenerate(true)}
+                className="-my-2 inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium text-white/45 transition hover:bg-white/[0.04] hover:text-white/75"
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                Novo programa
+              </button>
+            ) : null}
           </div>
 
           <div className="whitespace-nowrap rounded-full border border-primary/15 bg-primary/10 px-3.5 py-2 text-[13px] font-semibold leading-none text-primary">
@@ -1208,6 +1222,18 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       {showLocationUpsell ? (
         <UpsellModal reason="unlock_location" onClose={() => setShowLocationUpsell(false)} />
+      ) : null}
+      {showRegenerate ? (
+        <RegenerateProgramFlow
+          userId={data.user.id}
+          goal={data.user.goal ?? null}
+          activeLocation={(data.answers.location as string | undefined) ?? "home"}
+          markedLocations={Array.isArray(data.answers.locations) ? (data.answers.locations as string[]) : null}
+          lastWorkoutGeneratedAt={data.lastWorkoutGeneratedAt}
+          source="training_button"
+          onClose={() => setShowRegenerate(false)}
+          onGenerated={reloadWorkout}
+        />
       ) : null}
     </AppShell>
   );

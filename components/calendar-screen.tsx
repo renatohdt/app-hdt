@@ -24,6 +24,7 @@ import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { buildSuggestedDays, buildWeekProgress, toLocalDateKey } from "@/lib/evolution";
 import { buildWeeklyPlan } from "@/lib/weekly-plan";
 import type { WorkoutSessionLogEntry } from "@/lib/workout-sessions";
+import { readSessionLogsCache, writeSessionLogsCache } from "@/lib/session-logs-cache";
 
 // Abas com gráficos (Recharts, ~390 KB) carregam em pedaço separado: a aba
 // "Registro" abre sem esperar esse código baixar.
@@ -709,26 +710,4 @@ function isSameDay(left: Date, right: Date) {
 }
 function capitalizeLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-const SESSION_LOGS_CACHE_KEY = "hdt_session_logs_cache_v1";
-
-function readSessionLogsCache(userId: string): WorkoutSessionLogEntry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SESSION_LOGS_CACHE_KEY);
-    if (!raw) return [];
-    const entry = JSON.parse(raw) as { userId?: string; logs?: WorkoutSessionLogEntry[] };
-    return entry?.userId === userId && Array.isArray(entry.logs) ? entry.logs : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeSessionLogsCache(userId: string, logs: WorkoutSessionLogEntry[]) {
-  try {
-    window.localStorage.setItem(SESSION_LOGS_CACHE_KEY, JSON.stringify({ userId, logs }));
-  } catch {
-    // sem espaço/bloqueado: segue sem cache
-  }
 }

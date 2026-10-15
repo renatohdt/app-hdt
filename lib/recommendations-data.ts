@@ -29,6 +29,8 @@ export type RecommendationCard = {
   body: string;
   /** Ícone emoji opcional exibido no card */
   emoji?: string;
+  /** Ícone desenhado (quando não existe emoji adequado, ex.: halter). Tem prioridade sobre o emoji. */
+  icon?: "dumbbell";
   /** Link externo (afiliado, artigo, produto) */
   link?: {
     label: string;
@@ -49,7 +51,14 @@ export type RecommendationsData = {
   training: RecommendationCard[];
   nutrition: RecommendationCard[];
   equipment: RecommendationCard[];
+  howTo: RecommendationCard[];
+  condo: RecommendationCard[];
 };
+
+// Atalho para cards sem filtro (valem para todos).
+function forEveryone(card: Pick<RecommendationCard, "id" | "emoji" | "icon" | "title" | "body" | "link">): RecommendationCard {
+  return { ...card, goals: [], levels: [], equipment: [], missingEquipment: [] };
+}
 
 // ─── ABA 1: TREINO ───────────────────────────────────────────────────────────
 
@@ -433,10 +442,84 @@ const equipment: RecommendationCard[] = [
   },
 ];
 
+// ─── ABA: COMO USAR (dicas do app) ───────────────────────────────────────────
+// Aparece primeiro para quem tem menos de 5 treinos.
+
+const howTo: RecommendationCard[] = [
+  forEveryone({
+    id: "howto_start",
+    emoji: "🏁",
+    title: "Comece pelo Iniciar treino",
+    body: "Toque em Iniciar treino antes da primeira série. Assim o app marca o tempo e o treino conta na sua semana, no seu nível e nas medalhas."
+  }),
+  forEveryone({
+    id: "howto_sets",
+    emoji: "✅",
+    title: "Marque as séries",
+    body: "Terminou uma série? Marque no exercício. A barra no rodapé mostra quanto falta para fechar o treino. Esqueceu de finalizar? Depois de um tempo sem atividade o app finaliza para você."
+  }),
+  forEveryone({
+    id: "howto_loads",
+    emoji: "🏋️",
+    title: "Preencha as cargas",
+    body: "Anote o peso usado em cada exercício. É assim que você enxerga sua evolução de carga e desbloqueia as medalhas de aumento de carga."
+  }),
+  forEveryone({
+    id: "howto_timer",
+    emoji: "⏱️",
+    title: "Use o cronômetro de descanso",
+    body: "O cronômetro fica no menu de baixo. Respeitar o descanso indicado faz diferença no resultado (e evita conversa demais entre as séries)."
+  }),
+  forEveryone({
+    id: "howto_goal",
+    emoji: "🎯",
+    title: "Crie sua meta pessoal",
+    body: "Escolha quantos treinos quer fazer em 1 mês, 3 meses ou no ano inteiro. Você acompanha no card Sua semana, aqui na tela inicial."
+  }),
+  forEveryone({
+    id: "howto_replace",
+    emoji: "🔄",
+    title: "Exercício não encaixou? Substitua",
+    body: "Se um exercício incomodar ou faltar equipamento, use a opção de substituir no próprio exercício. Ele não volta a ser sugerido nos próximos programas."
+  })
+];
+
+// ─── ABA: CONDOMÍNIO ─────────────────────────────────────────────────────────
+// Aparece só para quem treina (ou marcou) a academia do condomínio.
+
+const condo: RecommendationCard[] = [
+  forEveryone({
+    id: "condo_adjust",
+    emoji: "⚙️",
+    title: "Cada aparelho é diferente",
+    body: "Cada condomínio possui uma máquina diferente. Fique atento para ajustar o aparelho da melhor forma possível para o seu corpo."
+  }),
+  forEveryone({
+    id: "condo_missing",
+    emoji: "🔄",
+    title: "Aparelho quebrado ou inexistente",
+    body: "Substitua o exercício no app para ter um treino melhor para você."
+  }),
+  forEveryone({
+    id: "condo_weights",
+    icon: "dumbbell",
+    title: "Poucos pesos disponíveis",
+    body: "Os halteres do condomínio não chegam no peso que você precisa? Faça mais repetições ou deixe a descida mais lenta (3 a 4 segundos). O músculo sente do mesmo jeito."
+  }),
+  forEveryone({
+    id: "condo_kit",
+    emoji: "🎒",
+    title: "Leve o básico",
+    body: "Toalha, garrafa de água e, se tiver, um elástico. Ajuda a adaptar exercícios e deixa o espaço limpo para o próximo morador."
+  })
+];
+
 // ─── EXPORT PRINCIPAL ─────────────────────────────────────────────────────────
 
 export const RECOMMENDATIONS_DATA: RecommendationsData = {
   training,
   nutrition,
   equipment,
+  howTo,
+  condo,
 };

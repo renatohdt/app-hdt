@@ -381,7 +381,7 @@ export function getAllAchievementsUnified(
       achievements: getAllAchievementsWithStatus(totalWorkouts)
     },
     {
-      label: "Consistencia",
+      label: "Consistência",
       achievements: getAllConsistencyAchievementsWithStatus(consistencyStats, referralAchievementUnlocked)
     },
     {

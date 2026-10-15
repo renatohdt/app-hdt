@@ -22,6 +22,8 @@ export function ReferralCard() {
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  // Compacto por padrão: link, cupom e botões aparecem ao tocar em "Indicar".
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -57,39 +59,45 @@ export function ReferralCard() {
     ? `Tô usando o Hora do Treino pra treinar e tô adorando! Usa meu cupom ${data.code} e comece grátis: ${data.link} #horadotreino`
     : "";
 
+  const count = data?.count ?? 0;
+
   return (
-    <Card className="space-y-3 rounded-[24px] border-white/[0.06] p-[18px] shadow-none sm:p-[18px]">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">🎁</div>
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Indique e Ganhe</p>
-          <p className="text-sm font-semibold text-white">Indique 5 amigos e ganhe 30 dias de Premium grátis!</p>
+    <Card className="rounded-[24px] border-white/[0.06] p-4 shadow-none sm:p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-primary/15 text-lg">🎁</div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold leading-snug text-white">Indique 5 amigos, ganhe 30 dias de Premium</p>
+          {loading || !data ? (
+            <div className="mt-1.5 h-2 w-24 animate-pulse rounded-full bg-white/10" />
+          ) : (
+            <div className="mt-1 flex items-center gap-2">
+              <div className="flex gap-1">
+                {Array.from({ length: REFERRAL_GOAL }, (_, i) => (
+                  <span key={i} className={`h-2 w-2 rounded-full ${i < count ? "bg-primary" : "bg-white/20"}`} />
+                ))}
+              </div>
+              <span className="text-[12px] text-white/50">
+                {count} de {REFERRAL_GOAL}
+              </span>
+            </div>
+          )}
         </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          disabled={!data}
+          aria-expanded={expanded}
+          className="min-h-9 shrink-0 rounded-full border border-primary/25 bg-primary/10 px-4 text-[12px] font-semibold text-primary transition hover:bg-primary/16 disabled:opacity-50"
+        >
+          {expanded ? "Fechar" : "Indicar"}
+        </button>
       </div>
 
-      {loading || !data ? (
-        <div className="space-y-2 animate-pulse">
-          <div className="h-2.5 w-2/3 rounded-full bg-white/10" />
-          <div className="h-2.5 w-1/2 rounded-full bg-white/10" />
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              {Array.from({ length: REFERRAL_GOAL }, (_, i) => (
-                <span key={i} className={`h-2.5 w-2.5 rounded-full ${i < data.count ? "bg-primary" : "bg-white/20"}`} />
-              ))}
-            </div>
-            <span className="text-xs text-white/50">
-              {data.count} de {REFERRAL_GOAL} indicações
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-xs text-white/40">Seu link:</p>
-            <p className="break-all rounded-[12px] border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-white/70">
-              {data.link}
-            </p>
-          </div>
+      {expanded && data ? (
+        <div className="mt-3 space-y-2.5 border-t border-white/[0.06] pt-3">
+          <p className="break-all rounded-[12px] border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-white/70">
+            {data.link}
+          </p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -105,8 +113,8 @@ export function ReferralCard() {
           <p className="text-xs text-white/50">
             Ou compartilhe o cupom: <span className="font-mono font-semibold text-white/75">{data.code}</span>
           </p>
-        </>
-      )}
+        </div>
+      ) : null}
     </Card>
   );
 }

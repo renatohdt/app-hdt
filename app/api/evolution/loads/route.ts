@@ -79,6 +79,17 @@ export async function GET(request: NextRequest) {
     all.sort((a, b) => gain(b) - gain(a) || b.sessions - a.sessions);
 
     const improved = all.filter((i) => i.maxKg > i.firstKg);
+
+    // ?summary=1 (Home): só os 3 maiores ganhos, sem histórico — resposta leve.
+    if (premium && request.nextUrl.searchParams.get("summary") === "1") {
+      const summary: LoadEvolutionResponse = {
+        locked: false,
+        exercisesTracked: all.length,
+        exercisesImproved: improved.length,
+        items: improved.slice(0, 3).map((i) => ({ ...i, points: [] }))
+      };
+      return NextResponse.json({ success: true, data: summary });
+    }
     const items = premium
       ? all.slice(0, MAX_ITEMS)
       : all.slice(0, 1).map((i) => ({ ...i, points: [] }));
