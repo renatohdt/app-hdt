@@ -1,5 +1,7 @@
 "use client";
 
+import { removeAdMobBannerForLogout } from "@/lib/admob";
+
 type SignOutClient = {
   auth?: {
     signOut: () => Promise<unknown>;
@@ -13,6 +15,10 @@ export async function signOutAndRedirect(options: {
   onError?: (error: unknown) => void;
 }) {
   const { supabaseClient, redirectTo = "/login", onBeforeRedirect, onError } = options;
+
+  // Tira o banner do AdMob ANTES de deslogar (senão ele aparece e fica preso
+  // na tela de login, que não tem o controle do banner).
+  await removeAdMobBannerForLogout();
 
   // Limpa os caches de treino salvos no aparelho (não podem vazar para a
   // próxima conta que entrar neste celular).

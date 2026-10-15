@@ -145,8 +145,12 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
     // (com ou sem sessão) e os demais cobrem login, refresh de token e troca de conta.
     // Antes, se a sessão ainda não estivesse pronta no primeiro instante, o usuário
     // ficava marcado como free até dar um refresh manual.
-    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+    let lastUserId: string | null = null;
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
+      const userId = session?.user?.id ?? null;
+      const switchedAccount = userId !== lastUserId;
+      lastUserId = userId;
 
       if (event === "SIGNED_OUT") {
         setSubscription(DEFAULT);
@@ -154,8 +158,13 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
         return;
       }
 
+      // Entrou numa conta: até saber o plano dela, não trata como free (evita
+      // banner/anúncio piscando para quem é Premium logo após o login).
+      // (O Supabase também manda SIGNED_IN ao voltar para o app; só conta se mudou a conta.)
+      if (event === "SIGNED_IN" && switchedAccount) setLoading(true);
+
       // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED: refaz a busca.
-      // Não reativa o "loading" para não piscar a UI em refresh de token periódico.
+      // Não reativa o "loading" nos outros eventos para não piscar a UI em refresh de token periódico.
       void fetchSubscription();
     });
 

@@ -109,6 +109,12 @@ let bannerMargin = -1;
 // que terminar de aparecer — antes ele ficava por cima, tapando botões.
 let bannerWanted = false;
 let sizeListenerAttached = false;
+// Saindo da conta: nenhum banner pode aparecer até a página recarregar.
+let bannerSuppressed = false;
+// O banner é NATIVO (fica por cima do WebView) e sobrevive a um recarregamento
+// da página, mas o estado acima zera. Na 1ª vez que esta página pede para
+// esconder, escondemos no nativo mesmo sem "saber" de banner nenhum.
+let orphanChecked = false;
 
 function setBannerHeightVar(height: number) {
   document.documentElement.style.setProperty("--admob-banner-h", `${Math.max(0, Math.round(height))}px`);
@@ -119,6 +125,7 @@ function setBannerHeightVar(height: number) {
  * segura inferior da tela e o banner — ou seja, a altura do menu do app.
  */
 export async function showAdMobBanner(margin: number, adsConsent: boolean): Promise<void> {
+  if (bannerSuppressed) return;
   bannerWanted = true;
   await showAdMobBannerNow(margin, adsConsent);
   // Pediram para esconder enquanto o banner aparecia: esconde agora.
@@ -160,6 +167,16 @@ async function showAdMobBannerNow(margin: number, adsConsent: boolean): Promise<
 /** Esconde o banner sem destruí-lo (volta rápido com showAdMobBanner). */
 export async function hideAdMobBanner(): Promise<void> {
   bannerWanted = false;
+  if (bannerState === "none" && !orphanChecked && isAdMobAvailable()) {
+    orphanChecked = true;
+    try {
+      const { AdMob } = await loadPlugin();
+      await AdMob.hideBanner();
+    } catch {
+      // nenhum banner órfão: tudo certo
+    }
+    return;
+  }
   if (bannerState !== "shown") return;
   bannerState = "hidden";
   setBannerHeightVar(0);
@@ -169,6 +186,27 @@ export async function hideAdMobBanner(): Promise<void> {
   } catch (error) {
     clientLogError("ADMOB HIDE BANNER ERROR", error);
   }
+}
+
+/**
+ * Remove o banner de vez e bloqueia novos até a página recarregar.
+ * Usado ao sair da conta: o logout recarrega a página (o React não roda a
+ * limpeza) e, no instante entre "deslogou" e "recarregou", o app já trata a
+ * pessoa como free — o banner aparecia e ficava preso na tela de login.
+ */
+export async function removeAdMobBannerForLogout(): Promise<void> {
+  bannerSuppressed = true;
+  bannerWanted = false;
+  if (!isAdMobAvailable()) return;
+  try {
+    const { AdMob } = await loadPlugin();
+    await AdMob.removeBanner();
+  } catch {
+    // não havia banner
+  }
+  bannerState = "none";
+  bannerMargin = -1;
+  setBannerHeightVar(0);
 }
 
 // ── Anúncio com recompensa (vídeo) ─────────────────────────────────────────
