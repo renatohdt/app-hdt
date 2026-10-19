@@ -12,6 +12,7 @@ import { PostHogIdentify } from "@/components/posthog-identify";
 import { GoogleTag } from "@/components/google-tag";
 import { PwaRegistration } from "@/components/pwa-registration";
 import { NativePushProvider } from "@/components/native-push-provider";
+import { NotificationOptInHost } from "@/components/notification-optin-modal";
 import { getCurrentConsentVersion } from "@/lib/consents";
 import { getSiteUrl } from "@/lib/site-url";
 import { SchemaOrg } from "@/components/schema-org";
@@ -114,6 +115,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div className="flex min-h-screen flex-col">
               <PwaRegistration />
               <NativePushProvider />
+              <NotificationOptInHost />
               <div className="flex-1">
                 {children}
               </div>

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
+import { notifyAccountEvent } from "@/lib/notify-user";
+import { pagamentoLojaFalhouText } from "@/lib/notification-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,7 @@ export const dynamic = "force-dynamic";
 // Purchases.logIn(<id do usuário>) antes de comprar.
 
 type RevenueCatEvent = {
+  id?: string;
   type?: string;
   app_user_id?: string;
   expiration_at_ms?: number | null;
@@ -68,6 +71,18 @@ export async function POST(request: NextRequest) {
     if (!appUserId || appUserId.startsWith("$RCAnonymousID")) {
       logWarn("REVENUECAT", "Evento sem usuário identificável", { type, app_user_id: appUserId });
       return jsonSuccess({ ok: true, skipped: "no_user" });
+    }
+
+    // Problema de cobrança na loja (cartão recusado etc.): avisa a pessoa.
+    // O BILLING_ISSUE pode vir com data de expiração (período de carência), então
+    // o aviso fica ANTES da decisão abaixo, que continua igual.
+    if (type === "BILLING_ISSUE") {
+      await notifyAccountEvent({
+        userId: appUserId,
+        type: "pagamento_loja",
+        dedupeKey: `pagamento_loja:${event?.id ?? new Date().toISOString().slice(0, 10)}`,
+        text: pagamentoLojaFalhouText(),
+      });
     }
 
     // Decide a nova data de expiração do premium da loja.

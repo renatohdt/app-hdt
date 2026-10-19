@@ -69,6 +69,22 @@ type ExportPayload = {
     notes: string | null;
     createdAt: string;
   }>;
+  // Aparelhos cadastrados para receber notificações. O token/endereço técnico
+  // não é exportado: é uma credencial de envio, não um dado sobre a pessoa.
+  notificationDevices: Array<{
+    platform: "web" | "ios" | "android";
+    registeredAt: string;
+  }>;
+  // Notificações automáticas que o app enviou (ou tentou enviar).
+  notificationHistory: Array<{
+    type: string;
+    category: string;
+    title: string;
+    body: string;
+    status: string;
+    createdAt: string;
+    sentAt: string | null;
+  }>;
   metadata: {
     userId: string;
     exportFormat: "json";
@@ -98,7 +114,10 @@ export async function GET(request: Request) {
     consentsResult,
     analyticsEventsResult,
     contentRecommendationsResult,
-    bodyMeasurementsResult
+    bodyMeasurementsResult,
+    webPushResult,
+    nativePushResult,
+    notificationLogResult
   ] = await Promise.all([
     supabase.from("users").select("id, name, created_at").eq("id", userId).maybeSingle(),
     supabase.from("user_answers").select("answers").eq("user_id", userId).maybeSingle(),
@@ -129,7 +148,14 @@ export async function GET(request: Request) {
         "id, measured_at, weight_kg, body_fat_pct, lean_mass_pct, resting_hr, neck_cm, chest_cm, waist_cm, hip_cm, arm_cm, forearm_cm, thigh_cm, calf_cm, notes, created_at"
       )
       .eq("user_id", userId)
-      .order("measured_at", { ascending: false })
+      .order("measured_at", { ascending: false }),
+    supabase.from("push_subscriptions").select("created_at").eq("user_id", userId),
+    supabase.from("native_push_tokens").select("platform, created_at").eq("user_id", userId),
+    supabase
+      .from("notification_log")
+      .select("type, category, title, body, status, created_at, sent_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
   ]);
 
   const errors = [
@@ -140,7 +166,10 @@ export async function GET(request: Request) {
     consentsResult.error,
     analyticsEventsResult.error,
     contentRecommendationsResult.error,
-    bodyMeasurementsResult.error
+    bodyMeasurementsResult.error,
+    webPushResult.error,
+    nativePushResult.error,
+    notificationLogResult.error
   ].filter(Boolean);
 
   if (errors.length) {
@@ -212,6 +241,22 @@ export async function GET(request: Request) {
       calfCm: m.calf_cm,
       notes: m.notes,
       createdAt: m.created_at
+    })),
+    notificationDevices: [
+      ...(webPushResult.data ?? []).map((d) => ({ platform: "web" as const, registeredAt: d.created_at })),
+      ...(nativePushResult.data ?? []).map((d) => ({
+        platform: (d.platform === "ios" ? "ios" : "android") as "ios" | "android",
+        registeredAt: d.created_at
+      }))
+    ],
+    notificationHistory: (notificationLogResult.data ?? []).map((n) => ({
+      type: n.type,
+      category: n.category,
+      title: n.title,
+      body: n.body,
+      status: n.status,
+      createdAt: n.created_at,
+      sentAt: n.sent_at ?? null
     })),
     metadata: {
       userId,

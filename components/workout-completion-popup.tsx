@@ -7,6 +7,7 @@ import { registerWorkoutAndMaybeAskReview } from "@/lib/app-review";
 import { WorkoutPremiumNudge } from "@/components/workout-premium-nudge";
 import { WorkoutMilestoneCard } from "@/components/workout-milestone-card";
 import type { WorkoutMilestone } from "@/lib/workout-milestones";
+import { requestPushOptIn } from "@/lib/push-optin";
 
 const TRAINING_AD_SLOT = "2572593951";
 
@@ -92,6 +93,13 @@ export function WorkoutCompletionPopup({
 
   const [particles] = useState<Particle[]>(() => generateParticles(30));
 
+  // Fechar no X: depois da comemoração, talvez apareça o convite de notificações
+  // (lib/push-optin.ts decide se é a hora). Ir para o Premium pelo cartão não dispara.
+  function handleClose() {
+    onClose();
+    requestPushOptIn();
+  }
+
   // Ao concluir um treino, conta +1 e, no momento certo (a partir do 3º treino),
   // mostra o card de avaliação da loja — só dentro do app Android; no navegador
   // não faz nada. O pequeno atraso deixa a comemoração aparecer primeiro.
@@ -173,7 +181,7 @@ export function WorkoutCompletionPopup({
         >
           {/* Botão X no canto superior direito */}
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/60 transition hover:bg-white/20 hover:text-white"
             aria-label="Fechar"
           >

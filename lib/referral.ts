@@ -6,7 +6,7 @@ const CODE_PREFIX = "HDT-";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 4;
 const MAX_RETRIES = 5;
-const REFERRALS_NEEDED = 5;
+export const REFERRALS_NEEDED = 5;
 const PREMIUM_DAYS = 30;
 
 // Código de erro do PostgreSQL para violação de constraint UNIQUE

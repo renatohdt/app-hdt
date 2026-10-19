@@ -3,6 +3,8 @@ import { stripe } from "@/lib/stripe";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { createClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
+import { notifyAccountEvent } from "@/lib/notify-user";
+import { pagamentoFalhouText } from "@/lib/notification-copy";
 
 export const dynamic = "force-dynamic";
 
@@ -358,10 +360,11 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 
   const supabase = getServiceRoleClient();
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("subscriptions")
     .update({ status: "past_due" })
-    .eq("stripe_subscription_id", subscriptionId);
+    .eq("stripe_subscription_id", subscriptionId)
+    .select("user_id");
 
   if (error) {
     logError("STRIPE_WEBHOOK", "Erro ao marcar past_due", {
@@ -369,6 +372,17 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
       error: error.message,
     });
     return;
+  }
+
+  // Aviso de conta: uma notificação por tentativa de cobrança que falhou.
+  const userId = updated?.[0]?.user_id as string | undefined;
+  if (userId) {
+    await notifyAccountEvent({
+      userId,
+      type: "pagamento",
+      dedupeKey: `pagamento:${invoice.id}:${invoice.attempt_count ?? 1}`,
+      text: pagamentoFalhouText(),
+    });
   }
 
   logInfo("STRIPE_WEBHOOK", "Assinatura marcada como past_due após falha de pagamento", {

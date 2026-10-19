@@ -12,7 +12,7 @@
 // pacote do plugin: assim o site continua compilando e funcionando mesmo antes
 // de o app novo chegar às lojas.
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { WORKOUT_IDLE_PROMPT_MS } from "@/lib/active-workout-session";
+import { WORKOUT_AUTO_FINISH_MS, WORKOUT_IDLE_PROMPT_MS } from "@/lib/active-workout-session";
 
 type PermissionState = "granted" | "denied" | "prompt" | "prompt-with-rationale";
 
@@ -34,7 +34,8 @@ type LocalNotificationsPlugin = {
 const LocalNotifications = registerPlugin<LocalNotificationsPlugin>("LocalNotifications");
 
 const IDLE_NOTIFICATION_ID = 7315;
-const PERMISSION_ASKED_KEY = "hdt-idle-notification-permission-asked";
+// "Treino finalizado": no mesmo momento em que o app finaliza sozinho (50 min parado).
+const AUTO_FINISH_NOTIFICATION_ID = 7317;
 
 let lastScheduledFor: number | null = null;
 
@@ -53,24 +54,20 @@ function withTimeout<T>(promise: Promise<T>, ms = 4000): Promise<T> {
   ]);
 }
 
-async function hasPermission(askIfNeeded: boolean) {
+// NÃO pede permissão aqui (out/2026). O pedido do sistema só pode aparecer uma
+// vez no iOS, então ele acontece com explicação: no popup depois do treino
+// concluído (components/notification-optin-modal.tsx) ou no botão do Perfil.
+// A permissão é a mesma do push: quem aceitou lá já recebe estas também.
+// O parâmetro fica só por compatibilidade com quem chama.
+async function hasPermission(_askIfNeeded: boolean) {
   const current = await withTimeout(LocalNotifications.checkPermissions());
-  if (current.display === "granted") return true;
-  if (current.display === "denied" || !askIfNeeded) return false;
-  // Pede uma única vez (no início do treino). Se a pessoa já respondeu, não insistimos.
-  try {
-    if (window.localStorage.getItem(PERMISSION_ASKED_KEY)) return false;
-    window.localStorage.setItem(PERMISSION_ASKED_KEY, "1");
-  } catch {
-    // ignora
-  }
-  const requested = await withTimeout(LocalNotifications.requestPermissions(), 60000);
-  return requested.display === "granted";
+  return current.display === "granted";
 }
 
 /**
  * (Re)agenda o lembrete para 15 min após a última atividade.
- * askPermission = true só quando o treino está começando.
+ * Também agenda o "Treino finalizado" para os 50 min (mesmo horário do auto-finalizar).
+ * askPermission não pede mais nada (ver hasPermission).
  */
 export async function scheduleIdleWorkoutNotification(input: {
   lastActivityAt: number;
@@ -82,8 +79,11 @@ export async function scheduleIdleWorkoutNotification(input: {
   if (lastScheduledFor === at) return;
   try {
     if (!(await hasPermission(Boolean(input.askPermission)))) return;
-    await withTimeout(LocalNotifications.cancel({ notifications: [{ id: IDLE_NOTIFICATION_ID }] })).catch(() => {});
+    await withTimeout(
+      LocalNotifications.cancel({ notifications: [{ id: IDLE_NOTIFICATION_ID }, { id: AUTO_FINISH_NOTIFICATION_ID }] })
+    ).catch(() => {});
     if (at <= Date.now()) return;
+    const autoFinishAt = input.lastActivityAt + WORKOUT_AUTO_FINISH_MS;
     await withTimeout(
       LocalNotifications.schedule({
         notifications: [
@@ -92,6 +92,13 @@ export async function scheduleIdleWorkoutNotification(input: {
             title: "Ainda está treinando? 💪",
             body: `Seu ${input.workoutTitle} continua aberto. Se já terminou, finalize para ele contar na sua sequência.`,
             schedule: { at: new Date(at), allowWhileIdle: true },
+            extra: { route: "/treino" }
+          },
+          {
+            id: AUTO_FINISH_NOTIFICATION_ID,
+            title: "Treino finalizado ✅",
+            body: `Encerramos seu ${input.workoutTitle} por você. Toque para salvar e manter sua sequência.`,
+            schedule: { at: new Date(autoFinishAt), allowWhileIdle: true },
             extra: { route: "/treino" }
           }
         ]
@@ -108,7 +115,9 @@ export async function cancelIdleWorkoutNotification() {
   lastScheduledFor = null;
   if (!pluginAvailable()) return;
   try {
-    await withTimeout(LocalNotifications.cancel({ notifications: [{ id: IDLE_NOTIFICATION_ID }] }));
+    await withTimeout(
+      LocalNotifications.cancel({ notifications: [{ id: IDLE_NOTIFICATION_ID }, { id: AUTO_FINISH_NOTIFICATION_ID }] })
+    );
   } catch {
     // ignora
   }
@@ -132,8 +141,8 @@ export async function scheduleTimerFinishedNotification(input: { at: number; tot
   if (timerScheduledFor === input.at) return;
   timerScheduledFor = input.at;
   try {
-    // Pede a permissão uma única vez (a mesma do lembrete do treino).
-    if (!(await hasPermission(true))) return;
+    // Só agenda se a pessoa já permitiu notificações (não pede aqui).
+    if (!(await hasPermission(false))) return;
     await withTimeout(LocalNotifications.cancel({ notifications: [{ id: TIMER_NOTIFICATION_ID }] })).catch(() => {});
     if (input.at <= Date.now() || timerScheduledFor !== input.at) return;
     await withTimeout(

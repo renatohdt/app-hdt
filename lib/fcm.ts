@@ -52,6 +52,9 @@ export async function sendFcmToTokens(
       tokens: batch,
       notification: { title: payload.title, body: payload.body },
       data: payload.url ? { url: payload.url } : undefined,
+      // Som padrão do aparelho. Sem isso o iPhone mostra a notificação em silêncio.
+      apns: { payload: { aps: { sound: "default" } } },
+      android: { notification: { sound: "default" } },
     });
 
     sent += response.successCount;
