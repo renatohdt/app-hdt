@@ -11,11 +11,41 @@ import { trackEvent } from "@/lib/analytics-client";
 import { openStoreReview } from "@/lib/app-review";
 import type { WorkoutMilestone } from "@/lib/workout-milestones";
 
+// Ícones iguais aos do rodapé da marca (components/brand-footer.tsx).
 const SOCIAL_LINKS = [
-  { id: "instagram", label: "Instagram", href: "https://instagram.com/horadotreino_oficial" },
-  { id: "tiktok", label: "TikTok", href: "https://www.tiktok.com/@horadotreinooficial" },
-  { id: "youtube", label: "YouTube", href: "https://www.youtube.com/@HoradoTreino" },
-] as const;
+  {
+    id: "instagram",
+    label: "Instagram da Hora do Treino",
+    href: "https://instagram.com/horadotreino_oficial",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="5" />
+        <circle cx="12" cy="12" r="4" />
+        <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
+  {
+    id: "tiktok",
+    label: "TikTok da Hora do Treino",
+    href: "https://www.tiktok.com/@horadotreinooficial",
+    icon: (
+      <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M16.5 3c.3 2 1.5 3.6 3.5 4v2.6c-1.3 0-2.5-.4-3.6-1.1v5.6a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.7a2.9 2.9 0 1 0 2 2.8V3h2.8z" />
+      </svg>
+    ),
+  },
+  {
+    id: "youtube",
+    label: "YouTube da Hora do Treino",
+    href: "https://www.youtube.com/@HoradoTreino",
+    icon: (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M21.6 7.2a2.7 2.7 0 0 0-1.9-1.9C18 4.8 12 4.8 12 4.8s-6 0-7.7.5A2.7 2.7 0 0 0 2.4 7.2 28 28 0 0 0 2 12a28 28 0 0 0 .4 4.8 2.7 2.7 0 0 0 1.9 1.9c1.7.5 7.7.5 7.7.5s6 0 7.7-.5a2.7 2.7 0 0 0 1.9-1.9A28 28 0 0 0 22 12a28 28 0 0 0-.4-4.8zM10 15V9l5 3-5 3z" />
+      </svg>
+    ),
+  },
+];
 
 function track(milestone: WorkoutMilestone, action: string) {
   trackEvent("cta_click", null, { source: `workout_milestone_${milestone}_${action}` });
@@ -116,9 +146,10 @@ function SocialMilestone() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => track("social", link.id)}
-            className="rounded-xl border border-white/10 bg-white/5 py-2.5 text-center text-[12px] font-semibold text-white/80 transition hover:border-primary/40 hover:text-primary active:scale-[0.98]"
+            aria-label={link.label}
+            className="flex h-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/80 transition hover:border-primary/40 hover:text-primary active:scale-[0.98]"
           >
-            {link.label}
+            {link.icon}
           </a>
         ))}
       </div>
