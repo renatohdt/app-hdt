@@ -12,6 +12,7 @@ import { Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
 import { getLevelReviewHint, type LevelReviewHint } from "@/components/level-review-card";
+import { BeginnerTourOverlay, useBeginnerTour } from "@/components/beginner-tour";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { useSubscription } from "@/components/use-subscription";
 import { PREMIUM_NUDGE_AT_WORKOUTS } from "@/components/workout-premium-nudge";
@@ -426,6 +427,37 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   }, [reloadWorkout]);
 
   const sessionLabel = formatSessionCounter(sessionProgress);
+
+  // ── Dicas do 1º treino (iniciante, nenhum treino concluído) ──────────────
+  // Textos e regras: lib/beginner-tour.ts. Cada grupo aparece no momento certo:
+  // "screen" ao abrir a tela, "exercise" ao abrir um exercício, "finish" na
+  // janela de finalizar. Nunca por cima de outro popup.
+  const beginnerTourEligible =
+    !isProgram && data.levelData?.currentPhase === "iniciante" && totalWorkoutsAllTime === 0;
+  const beginnerTour = useBeginnerTour(data.user.id, beginnerTourEligible);
+  const requestTour = beginnerTour.request;
+  const tourBlocked =
+    showCompletionPopup ||
+    showCycleCelebration ||
+    Boolean(pendingStartAction) ||
+    showAlreadyTrainedPopup ||
+    Boolean(phaseUpPopup) ||
+    Boolean(newAchievement) ||
+    showRegenerate ||
+    showLocationPicker ||
+    showLocationUpsell;
+  useEffect(() => {
+    if (tourBlocked || confirmCompletion) return;
+    const group = openExerciseId ? "exercise" : "screen";
+    // Pequena espera: o card do exercício abre com animação.
+    const timer = window.setTimeout(() => requestTour(group), openExerciseId ? 450 : 600);
+    return () => window.clearTimeout(timer);
+  }, [tourBlocked, confirmCompletion, openExerciseId, requestTour, beginnerTour.isActive]);
+  useEffect(() => {
+    if (!confirmCompletion || tourBlocked) return;
+    const timer = window.setTimeout(() => requestTour("finish"), 350);
+    return () => window.clearTimeout(timer);
+  }, [confirmCompletion, tourBlocked, requestTour, beginnerTour.isActive]);
   const isCycleComplete = sessionProgress.cycleCompleted;
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
   const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
@@ -810,7 +842,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
             ) : null}
           </div>
 
-          <div className="whitespace-nowrap rounded-full border border-primary/15 bg-primary/10 px-3.5 py-2 text-[13px] font-semibold leading-none text-primary">
+          <div data-tour="session-badge" className="whitespace-nowrap rounded-full border border-primary/15 bg-primary/10 px-3.5 py-2 text-[13px] font-semibold leading-none text-primary">
             {sessionLabel}
           </div>
         </div>
@@ -905,7 +937,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           );
         })() : null}
 
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+        <div data-tour="workout-tabs" className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
           {data.workoutOrder.map((workoutKey) => {
             const currentWorkout = data.workouts[workoutKey];
             const active = workoutKey === activeWorkoutKey;
@@ -1049,6 +1081,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               <button
                 type="button"
                 onClick={handleStartWorkout}
+                data-tour="start-workout"
                 className="pointer-events-auto inline-flex h-[3.25rem] items-center gap-2.5 rounded-full bg-gradient-to-b from-primary to-primaryStrong px-7 text-[15px] font-bold text-black shadow-[0_12px_34px_rgba(34,197,94,0.45)] transition active:scale-95"
               >
                 <Play className="h-4 w-4 fill-current" />
@@ -1106,6 +1139,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               />
             ) : null}
             <hr className="my-4 border-white/10" />
+            {/* Avaliação do treino (destacada na dica "Finalizar o treino"). */}
+            <div data-tour="finish-feedback">
             <p className="mb-3 text-sm text-white">
               Gostou do treino? Sua resposta ajuda a personalizar o próximo.
             </p>
@@ -1162,6 +1197,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 </button>
               ))}
             </div>
+            </div>
             <hr className="mb-4 border-white/10" />
             <p className="text-sm text-white/62">
               Confirmar que você concluiu {formatWorkoutDisplayTitle(workout.title, activeWorkoutKey)} agora?
@@ -1180,6 +1216,11 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           </div>
         </div>
       ) : null}
+
+      <BeginnerTourOverlay
+        tour={beginnerTour}
+        context={{ sessionLabel, totalSessions: sessionProgress.totalSessions }}
+      />
 
       {showCompletionPopup ? (
         <WorkoutCompletionPopup

@@ -404,7 +404,7 @@ export function ExpandableExerciseCard({
   }
 
   return (
-    <div ref={containerRef} className="scroll-mt-4">
+    <div ref={containerRef} data-tour={index === 0 ? "first-exercise" : undefined} className="scroll-mt-4">
       <Card
         className={clsx(
           "rounded-[26px] p-4 shadow-none transition-colors duration-300 sm:p-5",
@@ -504,6 +504,7 @@ export function ExpandableExerciseCard({
         <button
           type="button"
           onClick={handleToggleAllSets}
+          data-tour={expanded ? "exercise-check" : undefined}
           aria-pressed={isExerciseComplete}
           aria-label={
             isExerciseComplete
@@ -626,6 +627,7 @@ export function ExpandableExerciseCard({
                     <button
                       type="button"
                       onClick={() => exercise.videoUrl && setShowVideo(true)}
+                      data-tour={expanded && exercise.videoUrl ? "exercise-video" : undefined}
                       disabled={!exercise.videoUrl}
                       className={clsx(
                         "inline-flex h-16 w-16 items-center justify-center rounded-full border backdrop-blur-sm transition",
@@ -666,6 +668,7 @@ export function ExpandableExerciseCard({
                 {setEntries.map((entry, setIndex) => (
                   <div
                     key={`${exercise.id}-set-${setIndex}`}
+                    data-tour={expanded && setIndex === 0 ? "exercise-set-row" : undefined}
                     className="grid grid-cols-[1.75rem_2.25rem_.25rem_minmax(0,1fr)_minmax(0,1fr)_2.5rem] items-center gap-x-1 min-[380px]:gap-x-1.5 gap-y-2"
                   >
                     <span
@@ -687,6 +690,7 @@ export function ExpandableExerciseCard({
                       type="text"
                       inputMode="decimal"
                       value={entry.weightKg}
+                      data-tour={expanded && setIndex === 0 ? "exercise-weight" : undefined}
                       onChange={(event) =>
                         updateSetEntry(setIndex, {
                           weightKg: normalizeDecimalInput(event.target.value)
