@@ -15,7 +15,7 @@ import { normalizeWorkoutPayload, syncWorkoutWithExerciseLibrary } from "@/lib/w
 import { fetchLatestWorkoutRecord } from "@/lib/workout-record-store";
 import { getUserWorkoutSessionForLocalDay } from "@/lib/workout-session-store";
 import { getUserLevelRow } from "@/lib/user-level-store";
-import { applyBeginnerSafetyCap } from "@/lib/user-level";
+import { applyPhaseLevel } from "@/lib/user-level";
 
 export const dynamic = "force-dynamic";
 
@@ -195,8 +195,8 @@ export async function POST(request: NextRequest) {
       getUserLevelRow(supabase, userId).catch(() => null)
     ]);
 
-    // Trava de segurança: nível "Iniciante" no app = Treino Extra só com exercícios de iniciante.
-    const answers = applyBeginnerSafetyCap(buildRuntimeQuizAnswers(savedAnswers), levelRow?.current_phase);
+    // Nível único: Treino Extra segue a fase de evolução do app (sobe ou cai com o XP).
+    const answers = applyPhaseLevel(buildRuntimeQuizAnswers(savedAnswers), levelRow?.current_phase);
     if (requestedLocation) {
       answers.location = requestedLocation;
     }

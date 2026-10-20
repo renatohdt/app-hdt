@@ -13,7 +13,7 @@ import { getUserAnswersByUserId } from "@/lib/user-answers";
 import { callAIForReplacement, filterReplacementCandidates } from "@/lib/workout-ai";
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 import { getUserLevelRow } from "@/lib/user-level-store";
-import { applyBeginnerSafetyCap } from "@/lib/user-level";
+import { applyPhaseLevel } from "@/lib/user-level";
 
 export const dynamic = "force-dynamic";
 
@@ -202,8 +202,8 @@ export async function POST(request: NextRequest) {
       getUserAnswersByUserId(supabase, userId),
       getUserLevelRow(supabase, userId).catch(() => null)
     ]);
-    // Trava de segurança: nível "Iniciante" no app = substituto também de iniciante.
-    const answers = applyBeginnerSafetyCap(buildRuntimeQuizAnswers(savedAnswers), levelRow?.current_phase);
+    // Nível único: substituto segue a fase de evolução do app (sobe ou cai com o XP).
+    const answers = applyPhaseLevel(buildRuntimeQuizAnswers(savedAnswers), levelRow?.current_phase);
 
     // --- Encontrar o ExerciseRecord original pelo nome ---
     const originalNameKey = originalExercise.name.trim().toLowerCase();

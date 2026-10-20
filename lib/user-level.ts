@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { TrainingLevel } from "@/lib/workout-strategy";
+import type { Experience } from "@/lib/types";
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -113,13 +114,16 @@ export function experienceToInitialPhase(experience?: string | null): UserPhase 
 }
 
 /**
- * Mapeia a fase XP para a string de experience que a IA entende.
- * Só sobrescreve o quiz quando o XP é MAIS ALTO que o quiz indicaria.
+ * Mapeia a fase XP para o código de `experience` que a geração entende.
+ * Toda a geração lê `experience` assim: no_training/lt_6_months = beginner,
+ * 6_to_12_months = intermediate, gt_1_year = advanced. Por isso o código sai
+ * de phaseToTrainingLevel — selo e treino passam a ter UMA fonte só.
  */
-export function phaseToExperience(phase: UserPhase): string {
-  if (phase === "iniciante" || phase === "pre_intermediario") return "6_to_12_months"; // beginner/false_intermediate
-  if (phase === "intermediario") return "gt_1_year";                                  // stagnated
-  return "gt_1_year";                                                                  // pre_avancado/avancado
+export function phaseToExperience(phase: UserPhase): Experience {
+  const level = phaseToTrainingLevel(phase);
+  if (level === "advanced") return "gt_1_year";
+  if (level === "intermediate") return "6_to_12_months";
+  return "lt_6_months";
 }
 
 /**
@@ -257,6 +261,29 @@ export function checkStreak7Days(isoDates: string[]): boolean {
     }
   }
   return false;
+}
+
+/**
+ * NÍVEL ÚNICO (Renato, out/2026): o treino segue SEMPRE a fase de evolução que
+ * o app mostra (a que sobe com XP e cai com inatividade), nos dois sentidos.
+ * Evoluiu → exercícios e métodos do nível novo; decaiu → do nível abaixo.
+ * O quiz só define a fase inicial. Sem fase (erro ao ler o nível), usa a fase
+ * que o quiz daria — a mesma que o selo mostraria.
+ * Usada na geração do treino, na substituição de exercício e no Treino Extra.
+ */
+export function applyPhaseLevel<T extends { experience?: unknown }>(
+  answers: T,
+  phase: string | null | undefined
+): T {
+  const effectivePhase: UserPhase =
+    phase && (PHASE_ORDER as string[]).includes(phase)
+      ? (phase as UserPhase)
+      : experienceToInitialPhase(typeof answers.experience === "string" ? answers.experience : null);
+  const experience = phaseToExperience(effectivePhase);
+  // Iniciante que respondeu "ainda não treino" continua com a resposta original
+  // (mesmo nível na geração; evita trocar o hash do treino em cache à toa).
+  if (experience === "lt_6_months" && answers.experience === "no_training") return answers;
+  return { ...answers, experience };
 }
 
 /**

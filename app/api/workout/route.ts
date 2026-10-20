@@ -28,7 +28,7 @@ import { fetchLatestWorkoutRecord, fetchAvailableWorkoutLocations, fetchUserStan
 import { getAllTimeWorkoutCount, getWorkoutSessionStats, listWorkoutSessionLogs } from "@/lib/workout-session-store";
 import { countWeightIncreases } from "@/lib/exercise-weight-store";
 import { getUserLevelSummary } from "@/lib/user-level-store";
-import { applyBeginnerSafetyCap, experienceToInitialPhase, phaseToExperience, type UserPhase } from "@/lib/user-level";
+import { applyPhaseLevel } from "@/lib/user-level";
 import {
   applyWorkoutPlanSessionConfig,
   buildWorkoutSessionProgress,
@@ -529,13 +529,10 @@ export async function POST(request: Request) {
     }
 
     // ── Nível para geração do treino ────────────────────────────────────────
-    // O quiz é a fonte primária. O XP só sobrescreve se a fase evoluiu além
-    // do que o quiz indicaria — preservando o filtro de exercícios por nível.
+    // O treino segue a fase de evolução do app (a do selo), subindo ou caindo.
+    // O quiz só define a fase inicial (feito dentro de getUserLevelSummary).
     const levelRow = await getUserLevelSummary(supabase, user.id, savedAnswers.experience ?? null).catch(() => null);
-    // Depois, a trava de segurança: nível "Iniciante" no app = só exercícios de iniciante.
-    const effectiveAnswers = levelRow
-      ? applyBeginnerSafetyCap(overrideExperienceFromPhase(answers, levelRow.currentPhase), levelRow.currentPhase)
-      : answers;
+    const effectiveAnswers = applyPhaseLevel(answers, levelRow?.currentPhase ?? null);
     const diagnosis = diagnoseUser(effectiveAnswers);
     const workoutHash = buildWorkoutHash(effectiveAnswers);
     const { data: exercises, error: exercisesError } = await supabase.from("exercises").select("*");
@@ -907,29 +904,6 @@ function resolveWorkoutPlanState(input: {
       planCycleId: sessionConfig.planCycleId,
       cycleStartedAt: input.workoutRecord.created_at ?? null
     }
-  };
-}
-
-/**
- * Sobrescreve o campo `experience` dos answers com o nível derivado da fase XP,
- * MAS SOMENTE se a fase XP for maior que o que o quiz indicaria.
- * Isso preserva o filtro de exercícios por nível do quiz para novos usuários.
- */
-function overrideExperienceFromPhase(
-  answers: QuizAnswers,
-  currentPhase: UserPhase
-): QuizAnswers {
-  const quizPhase = experienceToInitialPhase(answers.experience);
-  const phaseOrder = ["iniciante", "pre_intermediario", "intermediario", "pre_avancado", "avancado"];
-  const quizIdx   = phaseOrder.indexOf(quizPhase);
-  const xpIdx     = phaseOrder.indexOf(currentPhase);
-
-  // Só sobrescreve se XP evoluiu ALÉM do quiz
-  if (xpIdx <= quizIdx) return answers;
-
-  return {
-    ...answers,
-    experience: phaseToExperience(currentPhase) as Experience,
   };
 }
 
