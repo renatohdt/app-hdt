@@ -49,34 +49,34 @@ export function useBeginnerTour(userId: string, eligible: boolean) {
     [eligible, state]
   );
 
-  const advance = useCallback((markSeen: boolean) => {
-    setActive((current) => {
-      if (!current) return current;
-      const id = current.ids[current.index];
-      if (markSeen && id) {
-        setState((prev) => {
-          if (!prev || prev.seen.includes(id)) return prev;
-          const next = { ...prev, seen: [...prev.seen, id] };
-          writeTourState(userId, next);
-          return next;
-        });
+  const advance = useCallback(
+    (markSeen: boolean) => {
+      if (!active) return;
+      const id = active.ids[active.index];
+      if (markSeen && id && state && !state.seen.includes(id)) {
+        const nextState = { ...state, seen: [...state.seen, id] };
+        writeTourState(userId, nextState);
+        setState(nextState);
       }
-      const nextIndex = current.index + 1;
-      return nextIndex < current.ids.length ? { ...current, index: nextIndex } : null;
-    });
-  }, [userId]);
+      const nextIndex = active.index + 1;
+      setActive(nextIndex < active.ids.length ? { ...active, index: nextIndex } : null);
+    },
+    [active, state, userId]
+  );
 
+  // "Pular dicas" encerra só o conjunto da tela atual: na Home, as dicas da Home;
+  // no treino, todas as dicas do treino (tela, exercício e finalizar).
   const skipAll = useCallback(() => {
-    setActive((current) => {
-      if (current) trackEvent("cta_click", null, { source: `beginner_tour_skip_${current.ids[current.index] ?? "unknown"}` });
-      return null;
-    });
-    setState((prev) => {
-      const next = { seen: prev?.seen ?? [], skipped: true };
-      writeTourState(userId, next);
-      return next;
-    });
-  }, [userId]);
+    if (!active) return;
+    trackEvent("cta_click", null, { source: `beginner_tour_skip_${active.ids[active.index] ?? "unknown"}` });
+    const groups: TourGroupId[] = active.group === "home" ? ["home"] : ["screen", "exercise", "finish"];
+    const skippedIds = groups.flatMap((group) => TOUR_GROUPS[group].map((step) => step.id));
+    const seen = Array.from(new Set([...(state?.seen ?? []), ...skippedIds]));
+    const nextState = { seen, skipped: state?.skipped ?? false };
+    writeTourState(userId, nextState);
+    setState(nextState);
+    setActive(null);
+  }, [active, state, userId]);
 
   const currentStep: TourStep | null = active
     ? TOUR_GROUPS[active.group].find((step) => step.id === active.ids[active.index]) ?? null

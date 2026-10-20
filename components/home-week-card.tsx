@@ -123,7 +123,7 @@ export function HomeWeekCard({
         ))}
       </div>
 
-      <div className="mt-3 border-t border-white/[0.06] pt-3">
+      <div data-tour="home-goal" className="mt-3 border-t border-white/[0.06] pt-3">
         {goal ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3">

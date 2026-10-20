@@ -1,7 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Dicas do 1º treino para iniciantes (Renato, out/2026)
 //
-// Quem vê: selo "Iniciante" que ainda não concluiu nenhum treino (1º acesso).
+// Quem vê: Home → qualquer nível, logo após o cadastro (nenhum treino concluído).
+//          Tela de treino → selo "Iniciante" que ainda não concluiu nenhum treino.
 // Como funciona: um contorno destaca a ferramenta, o resto da tela escurece e
 // uma caixa explica. Só dá para tocar em "Pular dicas" ou "Entendi" — tocar
 // fora não faz nada (para ninguém perder a dica sem querer).
@@ -12,9 +13,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type TourContext = {
-  /** Ex.: "Sessão 1 de 10" */
-  sessionLabel: string;
-  totalSessions: number;
+  /** Ex.: "Sessão 1 de 10" (tela de treino) */
+  sessionLabel?: string;
+  totalSessions?: number;
+  /** Primeiro nome do usuário (Home) */
+  firstName?: string | null;
 };
 
 export type TourStep = {
@@ -27,18 +30,43 @@ export type TourStep = {
   text: (ctx: TourContext) => string;
 };
 
-export type TourGroupId = "screen" | "exercise" | "finish";
+export type TourGroupId = "home" | "screen" | "exercise" | "finish";
 
 export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
+  // Home — logo após o cadastro (qualquer nível, nenhum treino concluído)
+  home: [
+    {
+      id: "home-level",
+      target: "home-level",
+      shape: "pill",
+      title: () => "Seu nível",
+      text: (ctx) =>
+        `Olá${ctx.firstName ? `, ${ctx.firstName}` : ""}! Esse é o nível que eu recomendei para você, e seu treino foi montado com base nele. Se não concordar, você pode alterar depois em Perfil › Dados de treino.`
+    },
+    {
+      id: "home-goal",
+      target: "home-goal",
+      title: () => "Crie uma meta pessoal",
+      text: () =>
+        "Defina quantos treinos você pretende fazer e em quanto tempo. Estudos mostram que, quando você se desafia, você vai mais longe!"
+    },
+    {
+      id: "home-workout",
+      target: "home-workout",
+      title: () => "Já viu seu treino do dia?",
+      text: () =>
+        "Aqui eu mostro qual é o seu treino do dia, o tempo que planejei e a quantidade de exercícios. Está ansioso para iniciar o treino? Eu também!"
+    }
+  ],
   // Momento 1 — ao abrir a tela de treino
   screen: [
     {
       id: "session",
       target: "session-badge",
       shape: "pill",
-      title: (ctx) => `${ctx.sessionLabel} · Seu programa tem começo, meio e fim`,
+      title: (ctx) => `${ctx.sessionLabel ?? "Sessões"} · Seu programa tem começo, meio e fim`,
       text: (ctx) =>
-        `Montei um programa com ${ctx.totalSessions} sessões de treino para você. Ao completar todas, vou montar um programa novo para seu corpo não se adaptar e você continuar tendo bons resultados.`
+        `Montei um programa com ${ctx.totalSessions ?? "várias"} sessões de treino para você. Ao completar todas, vou montar um programa novo para seu corpo não se adaptar e você continuar tendo bons resultados.`
     },
     {
       id: "tabs",
@@ -93,6 +121,13 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
       title: () => "Carga · Qual peso usar?",
       text: () =>
         "Escolha um peso em que as 2 últimas repetições fiquem difíceis, mas sem perder a postura. Anote aqui: assim eu conheço sua força, e na próxima vez você sabe de onde partir e vê o quanto evoluiu."
+    },
+    {
+      id: "replace",
+      target: "exercise-replace",
+      title: () => "Não vai rolar esse exercício?",
+      text: () =>
+        "Às vezes eu posso colocar um exercício que você não vai conseguir fazer. Sem problema: é só tocar em Substituir que eu procuro outro para o mesmo grupo muscular."
     }
   ],
   // Momento 3 — na janela de "Treino completo!" / "Finalizar treino?"

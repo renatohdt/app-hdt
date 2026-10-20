@@ -575,6 +575,7 @@ export function ExpandableExerciseCard({
                   setReplaceError(null);
                   setReplaceLimitError(false);
                 }}
+                data-tour={expanded ? "exercise-replace" : undefined}
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
                 aria-label="Substituir exercício"
               >

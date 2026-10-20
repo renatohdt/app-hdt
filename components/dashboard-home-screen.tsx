@@ -38,6 +38,7 @@ import { ReferralCard } from "@/components/referral-card";
 import { useIsNativeApp } from "@/lib/is-native-app";
 import { PremiumHomeBanner } from "@/components/premium-home-banner";
 import { MissingOutPopup } from "@/components/missing-out-popup";
+import { BeginnerTourOverlay, useBeginnerTour } from "@/components/beginner-tour";
 import { getDaysUsing, getFirstSeenAt, markMissingOutShown, shouldShowMissingOut } from "@/lib/missing-out-schedule";
 
 const HOME_LOGO_URL = "https://horadotreino.com.br/wp-content/uploads/2026/03/logo-branco.png";
@@ -96,6 +97,16 @@ export function DashboardHomeScreen({
     showReferralAchievementPopup ||
     showCycleCelebration ||
     showGoalSheet;
+
+  // ── Dicas da Home (qualquer nível, logo após o cadastro) ─────────────────
+  // Textos: lib/beginner-tour.ts (grupo "home"). Nunca por cima de outro pop-up.
+  const homeTour = useBeginnerTour(data.user.id, (data.totalWorkoutsAllTime ?? 0) === 0);
+  const requestHomeTour = homeTour.request;
+  useEffect(() => {
+    if (anotherPopupOpen || showMissingOut) return;
+    const timer = window.setTimeout(() => requestHomeTour("home"), 700);
+    return () => window.clearTimeout(timer);
+  }, [anotherPopupOpen, showMissingOut, requestHomeTour]);
 
   useEffect(() => {
     if (!isFreePlan || anotherPopupOpen || missingOutCheckedRef.current) return;
@@ -208,7 +219,7 @@ export function DashboardHomeScreen({
         <div className="flex items-center justify-between gap-3">
           <p className="text-[13px] font-medium text-white/50">{todayLabel}</p>
           {levelData ? (
-            <div className="shrink-0 rounded-full border border-white/12 bg-white/[0.03] px-3 py-1">
+            <div data-tour="home-level" className="shrink-0 rounded-full border border-white/12 bg-white/[0.03] px-3 py-1">
               <LevelBadge data={levelData} />
             </div>
           ) : null}
@@ -225,6 +236,7 @@ export function DashboardHomeScreen({
       </div>
 
       {/* Treino de hoje: o que é, quanto tempo, onde, e em que ponto do ciclo. */}
+      <div data-tour="home-workout">
       <Card className="rounded-[24px] border-primary/20 bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.12),transparent_60%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] p-5 shadow-none sm:p-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary/90">
           {heroEyebrow}
@@ -312,6 +324,8 @@ export function DashboardHomeScreen({
           )}
         </Link>
       </Card>
+
+      </div>
 
       {/* Sua semana + meta pessoal. Espera a assinatura para não mostrar o convite
           "Planejar dias" (Premium) piscando para quem já é Premium. */}
@@ -420,7 +434,9 @@ export function DashboardHomeScreen({
 
 
       {/* ── Pop-up "o que você está perdendo" (free) ─────────────────── */}
-      {showMissingOut && !anotherPopupOpen ? (
+      <BeginnerTourOverlay tour={homeTour} context={{ firstName }} />
+
+      {showMissingOut && !anotherPopupOpen && !homeTour.isActive ? (
         <MissingOutPopup
           firstName={firstName}
           totalWorkouts={data.totalWorkoutsAllTime}
