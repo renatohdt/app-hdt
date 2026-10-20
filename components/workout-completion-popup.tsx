@@ -6,6 +6,7 @@ import GoogleAd from "@/components/GoogleAd";
 import { registerWorkoutAndMaybeAskReview } from "@/lib/app-review";
 import { WorkoutPremiumNudge } from "@/components/workout-premium-nudge";
 import { WorkoutMilestoneCard } from "@/components/workout-milestone-card";
+import { LevelReviewCard, type LevelReviewHint } from "@/components/level-review-card";
 import type { WorkoutMilestone } from "@/lib/workout-milestones";
 import { requestPushOptIn } from "@/lib/push-optin";
 
@@ -75,7 +76,8 @@ export function WorkoutCompletionPopup({
   showAd = false,
   summary = null,
   premiumNudgeWorkouts = null,
-  milestone = null
+  milestone = null,
+  levelReviewHint = null
 }: {
   onClose: () => void;
   showAd?: boolean;
@@ -85,7 +87,12 @@ export function WorkoutCompletionPopup({
   milestone?: WorkoutMilestone | null;
   /** Resumo opcional do treino, ex.: "47 min · 18 séries · 6/6 exercícios". */
   summary?: string | null;
+  /** Não curtiu + fácil/difícil: convida a rever o nível (tem prioridade sobre os outros pedidos). */
+  levelReviewHint?: LevelReviewHint | null;
 }) {
+  // Um pedido por vez: o convite de rever nível substitui Premium, lembrete e anúncio.
+  const showPremiumNudge = Boolean(premiumNudgeWorkouts) && !levelReviewHint;
+  const showMilestone = Boolean(milestone) && !premiumNudgeWorkouts && !levelReviewHint;
   const [phrase] = useState<string>(() => {
     const index = Math.floor(Math.random() * FUNNY_PHRASES.length);
     return FUNNY_PHRASES[index] ?? FUNNY_PHRASES[0]!;
@@ -252,14 +259,21 @@ export function WorkoutCompletionPopup({
           </div>
 
           {/* Convite Premium no pico de motivação (substitui o anúncio nesses treinos) */}
-          {premiumNudgeWorkouts ? (
+          {/* Não curtiu + fácil/difícil: convite para rever o nível */}
+          {levelReviewHint ? (
+            <div className="mt-5" style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}>
+              <LevelReviewCard hint={levelReviewHint} onNavigate={onClose} />
+            </div>
+          ) : null}
+
+          {showPremiumNudge && premiumNudgeWorkouts ? (
             <div className="mt-5" style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}>
               <WorkoutPremiumNudge totalWorkouts={premiumNudgeWorkouts} onNavigate={onClose} />
             </div>
           ) : null}
 
           {/* Lembrete do 6º/7º/8º treino (nunca junto com o convite Premium) */}
-          {milestone && !premiumNudgeWorkouts ? (
+          {showMilestone && milestone ? (
             <div className="mt-5" style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}>
               <WorkoutMilestoneCard milestone={milestone} />
             </div>
@@ -267,7 +281,7 @@ export function WorkoutCompletionPopup({
 
           {/* Anúncio — exibido apenas para usuários free, após o momento de celebração.
               Some quando há convite Premium ou lembrete, para ter um pedido por vez. */}
-          {showAd && !premiumNudgeWorkouts && !milestone ? (
+          {showAd && !premiumNudgeWorkouts && !milestone && !levelReviewHint ? (
             <div
               className="mt-5 overflow-hidden rounded-xl"
               style={{ animation: "wcp-fade-up 0.5s ease-out 0.7s both" }}

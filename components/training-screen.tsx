@@ -11,6 +11,7 @@ import { ExpandableExerciseCard } from "@/components/expandable-exercise-card";
 import { Button, Card } from "@/components/ui";
 import { UpsellModal } from "@/components/upsell-modal";
 import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
+import { getLevelReviewHint, type LevelReviewHint } from "@/components/level-review-card";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { useSubscription } from "@/components/use-subscription";
 import { PREMIUM_NUDGE_AT_WORKOUTS } from "@/components/workout-premium-nudge";
@@ -152,6 +153,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [completingWorkout, setCompletingWorkout] = useState(false);
   const [sessionLiked, setSessionLiked] = useState<boolean | null>(null);
   const [sessionIntensity, setSessionIntensity] = useState<number | null>(null);
+  // Não curtiu + fácil/difícil → o popup de concluído convida a rever o nível.
+  const [levelReviewHint, setLevelReviewHint] = useState<LevelReviewHint | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [switchingLocation, setSwitchingLocation] = useState(false);
   const [showLocationUpsell, setShowLocationUpsell] = useState(false);
@@ -717,7 +720,6 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
         plannedNextKey ??
         result.data.nextWorkoutKey ??
         getFeaturedWorkoutKey(data.workoutOrder, result.data.sessionProgress.lastCompletedWorkoutKey);
-      const nextWorkoutLabel = formatWorkoutDisplayTitle(data.workouts[nextWorkoutKey ?? ""]?.title, nextWorkoutKey);
 
       if (nextWorkoutKey) {
         setActiveWorkoutKey(nextWorkoutKey);
@@ -727,15 +729,12 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       // comum de treino concluído (modo programa comprado segue o fluxo normal).
       const cycleJustCompleted = Boolean(result.data.program_completed) && !isProgram;
 
+      setLevelReviewHint(getLevelReviewHint(sessionLiked, sessionIntensity));
       setConfirmCompletion(false);
       if (cycleJustCompleted) {
         setShowCycleCelebration(true);
       } else {
         setShowCompletionPopup(true);
-        setFeedback({
-          tone: "success",
-          text: `Próximo em destaque: ${nextWorkoutLabel}.`
-        });
       }
 
       const prev = result.data.prevTotalWorkouts ?? totalWorkoutsAllTime;
@@ -1189,6 +1188,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           summary={completionSummary}
           premiumNudgeWorkouts={premiumNudgeWorkouts}
           milestone={workoutMilestone}
+          levelReviewHint={levelReviewHint}
         />
       ) : null}
 

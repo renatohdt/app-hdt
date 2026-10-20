@@ -25,6 +25,7 @@ import { useIsNativeApp } from "@/lib/is-native-app";
 import { formatBodyTypeLabel } from "@/lib/body-type";
 import { signOutAndRedirect } from "@/lib/client-signout";
 import { RegenerateProgramFlow } from "@/components/regenerate-program-flow";
+import { LevelReassessment } from "@/components/level-reassessment";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 // Painel de medidas usa gráficos (Recharts): carrega em pedaço separado.
@@ -228,6 +229,8 @@ export default function PerfilPage() {
   const [showPremiumStyleModal, setShowPremiumStyleModal] = useState(false);
   // Depois de salvar Dados de Treino com mudanças: pergunta se quer um programa novo.
   const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false);
+  // Questionário "Rever meu nível" (Dados de Treino).
+  const [showLevelReassess, setShowLevelReassess] = useState(false);
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
@@ -235,6 +238,19 @@ export default function PerfilPage() {
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM_STATE);
   const [excludedExercises, setExcludedExercises] = useState<Array<{ exerciseId: string; exerciseName: string }>>([]);
   const [removingExerciseId, setRemovingExerciseId] = useState<string | null>(null);
+
+  // Atalho vindo do "Treino concluído" (/perfil?editar=treino, convite de rever
+  // nível): abre direto em Dados de Treino, onde fica o campo Nível.
+  const openedFromLinkRef = useRef(false);
+  useEffect(() => {
+    if (!payload || openedFromLinkRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("editar") !== "treino") return;
+    openedFromLinkRef.current = true;
+    window.history.replaceState(null, "", "/perfil");
+    openSection("training");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payload]);
 
   // ── Seletor unificado de estilo de treino ───────────────────────────────
   // 1 estilo (ou "Personal Escolhe") é grátis; 2+ estilos é Premium.
@@ -874,6 +890,23 @@ export default function PerfilPage() {
 
         {editingSection === "training" && (
           <Card className="space-y-5 p-5">
+            {/* Nível de evolução: define exercícios e métodos do treino. */}
+            <div className="space-y-2">
+              <p className="text-xs text-white/50">Nível</p>
+              <div className="flex items-center justify-between gap-3 rounded-[16px] border border-white/10 bg-white/[0.03] px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">{payload.phaseLabel ?? "Iniciante"}</p>
+                  <p className="text-xs leading-5 text-white/50">Define os exercícios e métodos do seu treino</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLevelReassess(true)}
+                  className="shrink-0 rounded-full border border-primary/40 px-3.5 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10"
+                >
+                  Rever nível
+                </button>
+              </div>
+            </div>
             <div className="space-y-2">
               <p className="text-xs text-white/50">Objetivo</p>
               <SelectField
@@ -1067,6 +1100,24 @@ export default function PerfilPage() {
       </div>
       {showPremiumStyleModal ? (
         <UpsellModal reason="combine_styles_locked" onClose={() => setShowPremiumStyleModal(false)} />
+      ) : null}
+      {showLevelReassess ? (
+        <LevelReassessment
+          userId={payload.user.id}
+          currentPhaseLabel={payload.phaseLabel ?? "Iniciante"}
+          goal={payload.answers.goal ?? null}
+          activeLocation={payload.answers.location ?? "home"}
+          markedLocations={payload.answers.locations ?? null}
+          lastWorkoutGeneratedAt={payload.lastWorkoutGeneratedAt}
+          onClose={() => setShowLevelReassess(false)}
+          onApplied={(phase, phaseLabel) => {
+            const nextPayload = { ...payload, currentPhase: phase, phaseLabel };
+            setPayload(nextPayload);
+            writeProfileCache(payload.user.id, nextPayload);
+            invalidateWorkoutCache();
+          }}
+          onGenerated={() => router.push("/treino")}
+        />
       ) : null}
       </AppShell>
     );
