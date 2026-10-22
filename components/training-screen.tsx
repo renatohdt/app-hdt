@@ -31,6 +31,9 @@ import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { getNewlyUnlockedAchievement, getNewlyUnlockedWeightAchievement, type Achievement } from "@/lib/achievements";
 import type { WorkoutSessionProgress } from "@/lib/workout-sessions";
 import { ExtraWorkoutButton } from "@/components/ExtraWorkoutButton";
+import { useAdMobAvailable } from "@/components/RewardedAdButton";
+import { WorkoutTabGate } from "@/components/workout-tab-gate";
+import { isWorkoutTabsUnlocked } from "@/lib/workout-tabs-unlock";
 import { RegenerateProgramFlow } from "@/components/regenerate-program-flow";
 import { WorkoutProgressDock } from "@/components/workout-progress-dock";
 import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
@@ -148,6 +151,12 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [activeWorkoutKey, setActiveWorkoutKey] = useState(
     restoredWorkoutKey ?? data.featuredWorkoutKey ?? data.workoutOrder[0] ?? ""
   );
+  // Treino "do dia": o que o próprio app escolheu (destaque, em andamento ou o
+  // próximo após concluir). No plano free, as OUTRAS abas pedem um vídeo.
+  const [dayWorkoutKey, setDayWorkoutKey] = useState(activeWorkoutKey);
+  // Aba que a pessoa tocou e está aguardando o vídeo (plano free no app).
+  const [tabGateKey, setTabGateKey] = useState<string | null>(null);
+  const adMobAvailable = useAdMobAvailable();
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
   const [sessionProgress, setSessionProgress] = useState(data.sessionProgress);
   const [confirmCompletion, setConfirmCompletion] = useState(false);
@@ -218,12 +227,17 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   useEffect(() => {
     if (!followsWeeklyPlan || userPickedTabRef.current) return;
     const planned = getPlannedNext({ data })?.workoutKey;
-    if (planned && data.workouts[planned]) setActiveWorkoutKey(planned);
+    if (planned && data.workouts[planned]) {
+      setActiveWorkoutKey(planned);
+      setDayWorkoutKey(planned);
+    }
   }, [followsWeeklyPlan, data]);
 
   useEffect(() => {
     if (!data.workouts[activeWorkoutKey]) {
-      setActiveWorkoutKey(featuredWorkoutKey ?? data.workoutOrder[0] ?? "");
+      const fallbackKey = featuredWorkoutKey ?? data.workoutOrder[0] ?? "";
+      setActiveWorkoutKey(fallbackKey);
+      setDayWorkoutKey(fallbackKey);
     }
   }, [activeWorkoutKey, data.workoutOrder, data.workouts, featuredWorkoutKey]);
 
@@ -755,6 +769,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       if (nextWorkoutKey) {
         setActiveWorkoutKey(nextWorkoutKey);
+        // Concluiu o do dia: o seguinte vira o "do dia" (sem vídeo para vê-lo).
+        setDayWorkoutKey(nextWorkoutKey);
       }
 
       // Última sessão do ciclo: a celebração de fim de programa substitui o popup
@@ -810,6 +826,24 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     } finally {
       setCompletingWorkout(false);
     }
+  }
+
+  // Plano free no app: abas fora do treino do dia pedem um vídeo com recompensa
+  // (que libera todas as abas por 24h). Premium, programa comprado e web: livre.
+  const workoutTabsRequireVideo = adMobAvailable && !subscriptionLoading && !isPremiumUser && !isProgram;
+
+  function handleWorkoutTabClick(workoutKey: string) {
+    if (
+      workoutTabsRequireVideo &&
+      workoutKey !== activeWorkoutKey &&
+      workoutKey !== dayWorkoutKey &&
+      !isWorkoutTabsUnlocked(data.user.id)
+    ) {
+      setTabGateKey(workoutKey);
+      trackEvent("cta_click", data.user.id, { source: "workout_tab_gate_shown", workout_key: workoutKey });
+      return;
+    }
+    handleWorkoutTabChange(workoutKey);
   }
 
   function handleWorkoutTabChange(workoutKey: string) {
@@ -946,7 +980,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
               <button
                 key={workoutKey}
                 type="button"
-                onClick={() => handleWorkoutTabChange(workoutKey)}
+                onClick={() => handleWorkoutTabClick(workoutKey)}
                 className={clsx(
                   "inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border px-3.5 py-2 text-sm font-semibold transition",
                   active
@@ -1235,6 +1269,20 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       {pendingStartAction ? (
         <StartWorkoutConfirm onConfirm={handleConfirmStart} onExplore={handleExploreOnly} />
+      ) : null}
+
+      {tabGateKey ? (
+        <WorkoutTabGate
+          userId={data.user.id}
+          workoutKey={tabGateKey}
+          workoutLabel={formatWorkoutDisplayTitle(data.workouts[tabGateKey]?.title, tabGateKey)}
+          onUnlocked={() => {
+            const key = tabGateKey;
+            setTabGateKey(null);
+            handleWorkoutTabChange(key);
+          }}
+          onClose={() => setTabGateKey(null)}
+        />
       ) : null}
 
       {showAlreadyTrainedPopup ? (
