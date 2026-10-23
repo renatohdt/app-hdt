@@ -13,6 +13,8 @@ import { UpsellModal } from "@/components/upsell-modal";
 import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
 import { getLevelReviewHint, type LevelReviewHint } from "@/components/level-review-card";
 import { BeginnerTourOverlay, useBeginnerTour } from "@/components/beginner-tour";
+import { CoachTipSheet, useCoachTips } from "@/components/coach-tips";
+import type { CoachTip } from "@/lib/coach-tips";
 import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode } from "@/components/cycle-complete";
 import { useSubscription } from "@/components/use-subscription";
 import { PREMIUM_NUDGE_AT_WORKOUTS } from "@/components/workout-premium-nudge";
@@ -472,6 +474,47 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     const timer = window.setTimeout(() => requestTour("finish"), 350);
     return () => window.clearTimeout(timer);
   }, [confirmCompletion, tourBlocked, requestTour, beginnerTour.isActive]);
+
+  // ── Dicas do Renato (lib/coach-tips.ts) ───────────────────────────────────
+  // Card ao tocar em "Iniciar treino" + dica de carga dentro do exercício
+  // (só com o treino em andamento). No 1º treino quem orienta são as dicas guiadas.
+  const coachExercises = useMemo(
+    () => exerciseRows.filter((row) => !row.isMobility).map((row) => ({ name: row.name, reps: row.reps })),
+    [exerciseRows]
+  );
+  const coach = useCoachTips({
+    userId: data.user.id,
+    enabled: !isProgram && !beginnerTourEligible,
+    workoutKey: activeWorkoutKey,
+    exercises: coachExercises,
+    workoutOrder: data.workoutOrder,
+    weeklyTarget: data.weeklyTarget,
+    remainingSessions: sessionProgress.remainingSessions,
+    followsWeeklyPlan
+  });
+  const [coachSheetTip, setCoachSheetTip] = useState<CoachTip | null>(null);
+  // Tocou em "Iniciar" antes das dicas chegarem do servidor: mostra assim que chegarem.
+  const [coachTipPending, setCoachTipPending] = useState(false);
+  function showCoachTipOnStart() {
+    if (beginnerTour.isActive) return;
+    if (!coach.loaded) {
+      setCoachTipPending(true);
+      return;
+    }
+    const tip = coach.pickSessionTip();
+    if (!tip) return;
+    coach.markShown(tip.id);
+    setCoachSheetTip(tip);
+  }
+  useEffect(() => {
+    if (!coachTipPending || !coach.loaded) return;
+    setCoachTipPending(false);
+    const tip = coach.pickSessionTip();
+    if (!tip) return;
+    coach.markShown(tip.id);
+    setCoachSheetTip(tip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachTipPending, coach.loaded]);
   const isCycleComplete = sessionProgress.cycleCompleted;
   const estimatedDurationLabel = formatDurationLabel(workout?.estimatedDurationMinutes, workout?.durationRange ?? null);
   const workoutDayId = String(data.workoutOrder.indexOf(activeWorkoutKey));
@@ -642,6 +685,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   function handleStartWorkout() {
     exploringRef.current = false;
     if (!startOrTouchWorkout(false, true)) return;
+    showCoachTipOnStart();
     if (!openExerciseId) {
       const first = exerciseRows.find((row) => !isExerciseDone(row.id));
       if (first) setOpenExerciseId(first.id);
@@ -670,6 +714,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     exploringRef.current = false;
     trackEvent("cta_click", data.user.id, { source: "workout_start_confirmed", workout_key: activeWorkoutKey });
     proceed?.();
+    showCoachTipOnStart();
   }
 
   function handleExploreOnly() {
@@ -1073,6 +1118,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
                 onProgressChange={handleExerciseProgressChange}
                 onSetActivity={handleSetActivity}
                 onBeforeSetActivity={handleBeforeSetActivity}
+                coachTip={sessionForUser ? coach.exerciseTipFor(exercise.name) : null}
+                onCoachTipDismiss={coach.markShown}
               />
               {showAd ? <TrainingInlineAd /> : null}
             </Fragment>
@@ -1250,6 +1297,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           </div>
         </div>
       ) : null}
+
+      {coachSheetTip ? <CoachTipSheet tip={coachSheetTip} onClose={() => setCoachSheetTip(null)} /> : null}
 
       <BeginnerTourOverlay
         tour={beginnerTour}

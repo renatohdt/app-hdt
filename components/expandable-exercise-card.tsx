@@ -12,6 +12,8 @@ import { trackEvent } from "@/lib/analytics-client";
 import { announceSetCompleted } from "@/lib/rest-timer-store";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { WeightChartModal } from "@/components/weight-chart-modal";
+import { CoachTipInline } from "@/components/coach-tips";
+import type { CoachTip } from "@/lib/coach-tips";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import {
   exerciseDraftKey,
@@ -60,7 +62,9 @@ export function ExpandableExerciseCard({
   onCompletionChange,
   onProgressChange,
   onSetActivity,
-  onBeforeSetActivity
+  onBeforeSetActivity,
+  coachTip = null,
+  onCoachTipDismiss
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -89,6 +93,9 @@ export function ExpandableExerciseCard({
   // Chamado ANTES de MARCAR série(s): o pai pode pedir confirmação ("Vai começar o
   // treino agora?"). A marcação só acontece quando o pai chama proceed().
   onBeforeSetActivity?: (proceed: () => void) => void;
+  // Dica do Renato de carga (aumentar/diminuir), só com o treino em andamento.
+  coachTip?: CoachTip | null;
+  onCoachTipDismiss?: (tipId: string) => void;
 }) {
   const storageKey = useMemo(
     () => exerciseDraftKey(data.user.id, workoutKey, exercise.id),
@@ -649,6 +656,10 @@ export function ExpandableExerciseCard({
               <div className="flex justify-end px-1">
                 <span className="text-[11px] font-medium text-white/42">{exercise.mediaDurationLabel}</span>
               </div>
+            ) : null}
+
+            {coachTip ? (
+              <CoachTipInline tip={coachTip} onDismiss={() => onCoachTipDismiss?.(coachTip.id)} />
             ) : null}
 
             <section className="space-y-3 rounded-[20px] border border-white/10 bg-white/[0.02] p-3">
