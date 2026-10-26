@@ -30,7 +30,7 @@ export const EXERCISE_TYPE_OPTIONS = [
 ] as const;
 
 export const EXERCISE_TRAINING_STYLE_OPTIONS = [
-  { value: "musculacao", label: "Tradicional" },
+  { value: "musculacao", label: "Musculação" },
   { value: "funcional", label: "Funcional" },
   { value: "hiit", label: "HIIT" },
   { value: "calistenia", label: "Calistenia" }

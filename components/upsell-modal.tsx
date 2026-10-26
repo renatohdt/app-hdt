@@ -43,7 +43,7 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   },
   combine_styles: {
     title: "Combine estilos de treino",
-    description: "No Premium você mistura vários estilos no mesmo programa (ex.: Tradicional + Funcional) e a IA distribui pelos treinos. No plano gratuito você escolhe 1 estilo.",
+    description: "No Premium você mistura vários estilos no mesmo programa (ex.: Musculação + Funcional) e a IA distribui pelos treinos. No plano gratuito você escolhe 1 estilo.",
     cta: "Assinar Premium",
   },
   combine_styles_locked: {

@@ -18,12 +18,13 @@ export const metadata: Metadata = {
 };
 
 export default function CriarContaPage() {
+  // pt com --app-safe-top: no app (iPhone) empurra o conteúdo para baixo da câmera/relógio. Na web vale 0.
   return (
-    <PageShell className="py-8 sm:py-10">
+    <PageShell className="pb-8 pt-[calc(2rem+var(--app-safe-top))] sm:pb-10 sm:pt-[calc(2.5rem+var(--app-safe-top))]">
       <div className="mx-auto w-full max-w-3xl">
         {/* Cabeçalho estilo app: logo + chamada curta */}
         <header className="mb-8 flex flex-col items-center text-center">
-          <Link href="/" aria-label="Hora do Treino — página inicial" className="mb-6 inline-flex">
+          <Link href="/" aria-label="Hora do Treino — página inicial" className="mb-6 inline-flex self-start">
             <Image
               src="/logo-branco.png"
               alt="Hora do Treino"

@@ -1,5 +1,8 @@
 export type Goal = "lose_weight" | "gain_muscle" | "body_recomposition" | "improve_conditioning";
 export type Experience = "no_training" | "lt_6_months" | "6_to_12_months" | "gt_1_year";
+// Resposta detalhada do quiz "Você já treinou ou está treinando?".
+// É convertida em Experience (nível) no próprio quiz.
+export type TrainingHistory = "never" | "stopped_short" | "stopped_long" | "training_recent" | "training_years";
 export type Gender = "male" | "female";
 export type Situation =
   | "cant_stay_consistent"
@@ -31,6 +34,7 @@ export type UserProfile = "beginner_lost" | "false_intermediate" | "inconsistent
 export type QuizAnswers = {
   goal: Goal;
   experience: Experience;
+  trainingHistory?: TrainingHistory;
   gender: Gender;
   age: number;
   // Data de nascimento (YYYY-MM-DD). Quando presente, a idade é derivada dela.

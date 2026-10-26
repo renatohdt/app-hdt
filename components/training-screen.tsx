@@ -65,7 +65,7 @@ import { getPlannedNext } from "@/lib/weekly-plan-app";
 import { pickWorkoutMilestone, type WorkoutMilestone } from "@/lib/workout-milestones";
 
 const TRAINING_STYLE_LABELS: Record<string, string> = {
-  musculacao: "Tradicional",
+  musculacao: "Musculação",
   funcional: "Funcional",
   hiit: "HIIT",
   calistenia: "Calistenia"

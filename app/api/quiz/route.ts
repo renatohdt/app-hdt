@@ -76,6 +76,12 @@ export async function POST(request: Request) {
     const answers = {
       goal: typeof body.goal === "string" ? body.goal : "lose_weight",
       experience: typeof body.experience === "string" ? body.experience : "no_training",
+      // Resposta detalhada da pergunta de nível (só para histórico/análise).
+      trainingHistory:
+        typeof body.trainingHistory === "string" &&
+        ["never", "stopped_short", "stopped_long", "training_recent", "training_years"].includes(body.trainingHistory)
+          ? body.trainingHistory
+          : undefined,
       gender: typeof body.gender === "string" ? body.gender : "male",
       age: toNumber(body.age),
       weight: toNumber(body.weight),

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Caveat } from "next/font/google";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,10 @@ import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib
 import { clientLogError, clientLogInfo } from "@/lib/client-logger";
 import { QuizAnswers } from "@/lib/types";
 import { initialAnswers, quizSteps } from "@/lib/quiz";
+import { ITEM_HEIGHT as WHEEL_ITEM_HEIGHT, VISIBLE as WHEEL_VISIBLE, WheelColumn } from "@/components/rest-timer-wheel";
+
+// Fonte "escrita à mão" usada só na prancheta do resumo.
+const handwriting = Caveat({ subsets: ["latin"], weight: ["500", "700"], display: "swap" });
 
 type AccountFields = {
   name: string;
@@ -36,6 +41,8 @@ export function QuizForm() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Qual caixinha de explicação ("i") está aberta. Formato: "etapa:opção".
+  const [openInfo, setOpenInfo] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasTrackedStart, setHasTrackedStart] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -192,7 +199,7 @@ export function QuizForm() {
       return true;
     }
 
-    if (step.type === "slider") {
+    if (step.type === "chips") {
       return Number.isFinite(Number(value));
     }
 
@@ -204,6 +211,7 @@ export function QuizForm() {
 
   const roundedLoadingProgress = Math.round(loadingProgress);
   const loadingStageIndex = getLoadingStageIndex(roundedLoadingProgress);
+  const loadingStages = useMemo(() => getLoadingStages(answers), [answers]);
   function trackStart(stepNumber: number) {
     if (!hasTrackedStart) {
       trackAppEvent("quiz_started", null, { step: stepNumber });
@@ -220,6 +228,19 @@ export function QuizForm() {
 
   function updateCurrentAnswer(value: string | number) {
     updateAnswer(step.key as keyof QuizAnswers, value);
+  }
+
+  function handleChoice(option: { value: string; experience?: string }) {
+    updateCurrentAnswer(option.value);
+    // Pergunta de nível: além da resposta detalhada, grava o nível
+    // ("experience") que a geração de treino usa.
+    if (option.experience) {
+      updateAnswer("experience", option.experience);
+    }
+  }
+
+  function toggleInfo(key: string) {
+    setOpenInfo((current) => (current === key ? null : key));
   }
 
   function toggleMultiAnswer(value: string) {
@@ -270,6 +291,7 @@ export function QuizForm() {
   }
 
   function goBack() {
+    setOpenInfo(null);
     shouldScrollToStepRef.current = true;
     setStepIndex((current) => Math.max(0, current - 1));
   }
@@ -416,6 +438,7 @@ export function QuizForm() {
       return;
     }
 
+    setOpenInfo(null);
     shouldScrollToStepRef.current = true;
     setStepIndex((current) => Math.min(current + 1, visibleSteps.length - 1));
   }
@@ -426,7 +449,7 @@ export function QuizForm() {
       <div className="mb-8 space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Formulário</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Avaliação inicial</p>
             <p className="mt-2 text-sm text-white/60">
               Etapa {safeStepIndex + 1} de {visibleSteps.length}
             </p>
@@ -444,7 +467,18 @@ export function QuizForm() {
 
       <div key={`${step.key}-${step.type}`} className="min-h-[420px] transition-all duration-300 ease-out">
         <div className="space-y-3 transition-all duration-300 ease-out animate-in fade-in-0 slide-in-from-right-2">
-          <h2 className="text-2xl font-semibold sm:text-3xl">{step.title}</h2>
+          <div className="flex items-start gap-3">
+            <h2 className="text-2xl font-semibold sm:text-3xl">{step.title}</h2>
+            {"info" in step && step.info ? (
+              <InfoButton
+                className="mt-0.5 sm:mt-1"
+                open={openInfo === `${step.key}:step`}
+                onClick={() => toggleInfo(`${step.key}:step`)}
+                label="Por que eu pergunto isso?"
+              />
+            ) : null}
+          </div>
+          {"info" in step && step.info && openInfo === `${step.key}:step` ? <InfoBox text={step.info} /> : null}
           {"description" in step && step.description ? (
             <p className="max-w-xl text-sm text-white/62">{step.description}</p>
           ) : null}
@@ -470,51 +504,47 @@ export function QuizForm() {
           <div className="mt-8 grid gap-3">
             {step.options.map((option) => {
               const selected = answers[step.key as keyof QuizAnswers] === option.value;
+              const optionInfo = "info" in option ? option.info : undefined;
+              const infoKey = `${step.key}:${option.value}`;
+              const infoOpen = openInfo === infoKey;
 
               return (
-                <button
-                  key={`${step.key}-${option.value}`}
-                  type="button"
-                  onClick={() => updateCurrentAnswer(option.value)}
-                  className={`min-h-16 rounded-[24px] border px-5 py-5 text-left text-base transition duration-200 ${
-                    selected
-                      ? "border-primary bg-primary/15 text-white shadow-glow"
-                      : "border-white/10 bg-white/[0.03] text-white/78 hover:border-white/20 hover:bg-white/[0.05]"
-                  }`}
-                >
-                  {option.label}
-                </button>
+                <div key={`${step.key}-${option.value}`} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => handleChoice(option)}
+                    className={`min-h-16 w-full rounded-[24px] border px-5 py-5 text-left text-base transition duration-200 ${
+                      optionInfo ? "pr-16" : ""
+                    } ${
+                      selected
+                        ? "border-primary bg-primary/15 text-white shadow-glow"
+                        : "border-white/10 bg-white/[0.03] text-white/78 hover:border-white/20 hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    <span className="block">{option.label}</span>
+                    {optionInfo && infoOpen ? (
+                      <span className="mt-2 block text-sm leading-6 text-white/66">{optionInfo}</span>
+                    ) : null}
+                  </button>
+                  {optionInfo ? (
+                    <InfoButton
+                      className="absolute right-4 top-4"
+                      open={infoOpen}
+                      onClick={() => toggleInfo(infoKey)}
+                      label={`O que é ${option.label}?`}
+                    />
+                  ) : null}
+                </div>
               );
             })}
           </div>
         ) : step.type === "physical" ? (
-          <div className="mt-8 space-y-6">
-            <PhysicalSlider
-              label="Idade"
-              value={Number(answers.age ?? 25)}
-              min={12}
-              max={80}
-              step={1}
-              formatValue={(value) => `${value} anos`}
-              onChange={(value) => updateAnswer("age", value)}
-            />
-            <PhysicalSlider
-              label="Peso"
-              value={Number(answers.weight ?? 70)}
-              min={40}
-              max={150}
-              step={1}
-              formatValue={(value) => `${value} kg`}
-              onChange={(value) => updateAnswer("weight", value)}
-            />
-            <PhysicalSlider
-              label="Altura"
-              value={Number(answers.height ?? 170)}
-              min={140}
-              max={210}
-              step={1}
-              formatValue={(value) => `${value} cm`}
-              onChange={(value) => updateAnswer("height", value)}
+          <div className="mt-8">
+            <PhysicalWheels
+              age={Number(answers.age ?? 25)}
+              weight={Number(answers.weight ?? 70)}
+              height={Number(answers.height ?? 170)}
+              onChange={(field, value) => updateAnswer(field, value)}
             />
           </div>
         ) : step.type === "multi" ? (
@@ -558,7 +588,8 @@ export function QuizForm() {
             })}
           </div>
         ) : step.type === "account" ? (
-          <div className="mt-8 grid gap-3">
+          <div className="mt-8 grid grid-cols-1 gap-3">
+            <PlanSummary answers={answers} studentName={account.name.trim()} />
             <input
               type="text"
               value={account.name}
@@ -599,23 +630,33 @@ export function QuizForm() {
               />
             </div>
           </div>
-        ) : step.type === "slider" ? (
+        ) : step.type === "chips" ? (
           <div className="mt-8 space-y-5">
             <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-5 py-6 text-center">
-              <p className="text-3xl font-semibold text-white">{step.formatValue(Number(answers[step.key] ?? step.min))}</p>
+              <p className="text-3xl font-semibold text-white">
+                {step.formatValue(Number(answers[step.key] ?? step.values[0]))}
+              </p>
             </div>
-            <input
-              type="range"
-              min={step.min}
-              max={step.max}
-              step={step.step}
-              value={Number(answers[step.key] ?? step.min)}
-              onChange={(event) => updateCurrentAnswer(Number(event.target.value))}
-              className="w-full accent-[#22c55e]"
-            />
-            <div className="flex justify-between text-xs text-white/45">
-              <span>{step.formatValue(step.min)}</span>
-              <span>{step.formatValue(step.max)}</span>
+            <div className={`grid gap-2 ${step.values.length === 7 ? "grid-cols-7" : "grid-cols-3"}`}>
+              {(step.values as readonly number[]).map((value) => {
+                const selected = Number(answers[step.key]) === value;
+
+                return (
+                  <button
+                    key={`${step.key}-${value}`}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => updateCurrentAnswer(value)}
+                    className={`min-h-14 rounded-[18px] border text-base font-semibold tabular-nums transition duration-200 ${
+                      selected
+                        ? "border-primary bg-primary/15 text-white shadow-glow"
+                        : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/20 hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    {step.chipLabel(value)}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -683,7 +724,7 @@ export function QuizForm() {
               <div className="space-y-2">
                 <p className="text-xl font-semibold text-white sm:text-2xl">Montando seu treino personalizado...</p>
                 <p className="max-w-2xl text-sm leading-6 text-white/66">
-                  Estamos analisando suas respostas para criar um treino mais alinhado ao seu objetivo, rotina e nível.
+                  Estou analisando suas respostas para montar um treino alinhado ao seu objetivo, rotina e nível.
                 </p>
               </div>
             </div>
@@ -751,13 +792,141 @@ export function QuizForm() {
   );
 }
 
-const loadingStages = [
-  { label: "Analisando seu perfil" },
-  { label: "Selecionando os melhores exercícios" },
-  { label: "Criando a estratégia para o melhor resultado" },
-  { label: "Montando seu treino personalizado" },
-  { label: "Bom treino!" }
-];
+const LEVEL_LABELS: Record<string, string> = {
+  no_training: "Iniciante",
+  lt_6_months: "Iniciante",
+  "6_to_12_months": "Intermediário",
+  gt_1_year: "Avançado"
+};
+
+const GOAL_FOCUS: Record<string, string> = {
+  lose_weight: "emagrecimento",
+  gain_muscle: "ganho de massa muscular",
+  body_recomposition: "definição",
+  improve_conditioning: "condicionamento"
+};
+
+// Pega o texto da opção que a pessoa escolheu (ex.: "legs_glutes" -> "Pernas e Glúteo").
+function getOptionLabel(key: string, value: unknown): string | null {
+  const quizStep = quizSteps.find((item) => item.key === key);
+  if (!quizStep || !("options" in quizStep)) return null;
+  const option = (quizStep.options as readonly { label: string; value: string }[]).find((item) => item.value === value);
+  return option?.label ?? null;
+}
+
+// Etapas da tela "Montando seu treino", escritas com as respostas da pessoa.
+function getLoadingStages(answers: Partial<QuizAnswers>) {
+  const level = answers.experience ? LEVEL_LABELS[answers.experience] : null;
+  const equipmentLabels = (answers.equipment ?? [])
+    .filter((item) => item !== "nenhum")
+    .map((item) => getOptionLabel("equipment", item)?.toLowerCase())
+    .filter((item): item is string => Boolean(item));
+
+  let exercises: string;
+  if (answers.location === "condo_gym") {
+    exercises = "Selecionando exercícios para a academia do condomínio";
+  } else if (equipmentLabels.length === 0) {
+    exercises = "Selecionando exercícios com o peso do corpo";
+  } else if (equipmentLabels.length <= 2) {
+    exercises = `Selecionando exercícios com ${equipmentLabels.join(" e ")}`;
+  } else {
+    exercises = `Selecionando exercícios com seus ${equipmentLabels.length} materiais`;
+  }
+
+  const goal = answers.goal ? GOAL_FOCUS[answers.goal] : null;
+  const days = Number(answers.days);
+  const time = Number(answers.time);
+
+  return [
+    { label: level ? `Analisando seu perfil de nível ${level}` : "Analisando seu perfil" },
+    { label: exercises },
+    { label: goal ? `Ajustando séries e descanso para ${goal}` : "Ajustando séries e descanso" },
+    {
+      label:
+        days && time
+          ? `Distribuindo ${days} ${days === 1 ? "treino" : "treinos"} de ${time} min na sua semana`
+          : "Montando sua semana de treinos"
+    },
+    { label: "Bom treino!" }
+  ];
+}
+
+// Resumo das respostas antes de criar a conta, no formato de uma prancheta
+// com a ficha de avaliação preenchida à mão pelo personal.
+function PlanSummary({ answers, studentName }: { answers: Partial<QuizAnswers>; studentName: string }) {
+  const items = [
+    { label: "Objetivo", value: getOptionLabel("goal", answers.goal) },
+    { label: "Nível", value: answers.experience ? LEVEL_LABELS[answers.experience] : null },
+    { label: "Local", value: getOptionLabel("location", answers.location) },
+    { label: "Frequência", value: answers.days ? `${answers.days}x por semana` : null },
+    { label: "Duração", value: answers.time ? `${answers.time} min por treino` : null },
+    { label: "Ênfase", value: getOptionLabel("focusRegion", answers.focusRegion) },
+    { label: "Método", value: getOptionLabel("trainingStyle", answers.trainingStyle) }
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+
+  const today = new Date().toLocaleDateString("pt-BR");
+  const rows = [{ label: "Aluno(a)", value: studentName }, ...items];
+
+  return (
+    <div className="relative mx-auto mb-4 mt-5 w-full min-w-0 max-w-md">
+      {/* prendedor de metal */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-0 z-10 h-9 w-28 -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-white/40 bg-gradient-to-b from-[#f3f4f6] via-[#9ca3af] to-[#4b5563] shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
+      >
+        <div className="mx-auto mt-2.5 h-2 w-12 rounded-full bg-[#1f2937]/70" />
+      </div>
+
+      {/* prancheta */}
+      <div className="rounded-[22px] bg-gradient-to-br from-[#2c2f33] via-[#1d1f22] to-[#121314] p-3 pt-7 shadow-[0_18px_40px_rgba(0,0,0,0.55)] ring-1 ring-white/10">
+        {/* folha */}
+        <div className="rounded-[10px] bg-[#f7f5ef] px-5 pb-5 pt-5 text-[#1f2937] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]">
+          <div className="flex items-start justify-between gap-3 border-b-2 border-[#1f2937]/80 pb-2">
+            <div>
+              <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#16a34a]">Hora do Treino</p>
+              <p className="text-base font-extrabold uppercase tracking-[0.06em]">Ficha de avaliação</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-[#6b7280]">Data</p>
+              <p className={`${handwriting.className} text-lg leading-none text-[#1e3a8a]`}>{today}</p>
+            </div>
+          </div>
+
+          <dl className="mt-2">
+            {rows.map((row) => (
+              <div key={row.label} className="flex min-h-[38px] items-end gap-3 border-b border-dashed border-[#9ca3af]/70 pb-1 pt-2">
+                <dt className="w-[5.5rem] shrink-0 pb-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#6b7280]">
+                  {row.label}
+                </dt>
+                <dd className={`${handwriting.className} min-w-0 flex-1 truncate text-[1.4rem] font-medium leading-none text-[#1e3a8a]`}>
+                  {row.value}
+                </dd>
+                {row.value ? (
+                  <span aria-hidden className="pb-0.5 text-sm font-bold text-[#16a34a]">
+                    {"\u2713"}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </dl>
+
+          <div className="mt-5 flex flex-col items-center gap-4 text-center">
+            <p className={`${handwriting.className} max-w-[16rem] text-[1.2rem] leading-snug text-[#1e3a8a]/90`}>
+              Quanto mais você treina, mais eu ajusto os seus próximos treinos.
+            </p>
+            <div>
+              <p className="text-[0.55rem] font-semibold uppercase tracking-[0.22em] text-[#16a34a]">Método</p>
+              <p className={`${handwriting.className} text-2xl font-bold leading-none text-[#111827]`}>Renato Santiago</p>
+              <p className="mt-1 border-t border-[#1f2937]/60 pt-1 text-[0.55rem] font-semibold uppercase tracking-[0.18em] text-[#6b7280]">
+                Personal Trainer
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const initialLoadingProgress = 4;
 const maxVisualLoadingProgress = 97;
@@ -779,39 +948,119 @@ function getLoadingProgressForElapsedTime(elapsed: number) {
   return initialLoadingProgress + (maxVisualLoadingProgress - initialLoadingProgress) * (1 - Math.exp(-elapsed / loadingDecayMs));
 }
 
-function PhysicalSlider({
+function numberRange(min: number, max: number) {
+  return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+}
+
+// Mesmos limites validados em canContinue (isBetween).
+const AGE_VALUES = numberRange(12, 80);
+const WEIGHT_VALUES = numberRange(40, 150);
+const HEIGHT_VALUES = numberRange(140, 210);
+
+// Etapa "Seus dados físicos": 3 roletas lado a lado (mesma roleta do cronômetro),
+// separadas por linhas para mostrar que são medidas diferentes.
+function PhysicalWheels({
+  age,
+  weight,
+  height,
+  onChange
+}: {
+  age: number;
+  weight: number;
+  height: number;
+  onChange: (field: "age" | "weight" | "height", value: number) => void;
+}) {
+  const columns = [
+    { field: "age" as const, label: "Idade", unit: "anos", items: AGE_VALUES, value: age },
+    { field: "weight" as const, label: "Peso", unit: "kg", items: WEIGHT_VALUES, value: weight },
+    { field: "height" as const, label: "Altura", unit: "cm", items: HEIGHT_VALUES, value: height }
+  ];
+
+  return (
+    <div className="grid grid-cols-3 divide-x divide-white/10 rounded-[24px] border border-white/10 bg-white/[0.03] py-5">
+      {columns.map((column) => (
+        <PhysicalWheelColumn
+          key={column.field}
+          label={column.label}
+          unit={column.unit}
+          items={column.items}
+          value={column.value}
+          onChange={(v) => onChange(column.field, v)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PhysicalWheelColumn({
   label,
+  unit,
+  items,
   value,
-  min,
-  max,
-  step,
-  formatValue,
   onChange
 }: {
   label: string;
+  unit: string;
+  items: number[];
   value: number;
-  min: number;
-  max: number;
-  step: number;
-  formatValue: (value: number) => string;
   onChange: (value: number) => void;
 }) {
+  const pad = Math.floor(WHEEL_VISIBLE / 2);
+
   return (
-    <div className="space-y-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm font-medium text-white/78">{label}</p>
-        <p className="text-lg font-semibold text-white">{formatValue(value)}</p>
+    <div className="flex flex-col items-center px-1">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-white/55">
+        {label} <span className="font-normal normal-case tracking-normal text-white/40">({unit})</span>
+      </p>
+      <div className="relative mt-3 w-full" style={{ height: WHEEL_ITEM_HEIGHT * WHEEL_VISIBLE }} data-no-swipe>
+        {/* faixa que marca o número escolhido */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-2 rounded-xl border border-primary/25 bg-white/[0.06]"
+          style={{ top: WHEEL_ITEM_HEIGHT * pad, height: WHEEL_ITEM_HEIGHT }}
+        />
+        <div className="flex justify-center">
+          <WheelColumn label={`${label} (${unit})`} items={items} value={value} onChange={onChange} />
+        </div>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full accent-[#22c55e]"
-      />
     </div>
+  );
+}
+
+// Botão "i" que abre/fecha uma explicação curta.
+function InfoButton({
+  open,
+  onClick,
+  label,
+  className = ""
+}: {
+  open: boolean;
+  onClick: () => void;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-expanded={open}
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border font-serif text-base font-semibold italic transition ${
+        open
+          ? "border-primary bg-primary/20 text-primary"
+          : "border-white/20 bg-white/[0.04] text-white/60 hover:border-white/35 hover:text-white"
+      } ${className}`}
+    >
+      i
+    </button>
+  );
+}
+
+function InfoBox({ text }: { text: string }) {
+  return (
+    <p className="max-w-xl rounded-[18px] border border-primary/20 bg-primary/10 px-4 py-3 text-sm leading-6 text-white/80">
+      {text}
+    </p>
   );
 }
 

@@ -132,7 +132,7 @@ const FOCUS_REGION_OPTIONS = [
 
 const TRAINING_STYLE_OPTIONS = [
   { value: "personal", label: "Personal Escolhe" },
-  { value: "musculacao", label: "Tradicional" },
+  { value: "musculacao", label: "Musculação" },
   { value: "funcional", label: "Funcional" },
   { value: "hiit", label: "HIIT" },
   { value: "calistenia", label: "Calistenia" }

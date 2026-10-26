@@ -8,8 +8,8 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { TIMER_MAX_SECONDS, TIMER_MIN_SECONDS, TIMER_STEP_SECONDS } from "@/lib/rest-timer-store";
 
-const ITEM_HEIGHT = 40; // altura de cada número (px) — precisa bater com h-10
-const VISIBLE = 5; // quantos números aparecem na roleta (ímpar, para ter um no meio)
+export const ITEM_HEIGHT = 40; // altura de cada número (px) — precisa bater com h-10
+export const VISIBLE = 5; // quantos números aparecem na roleta (ímpar, para ter um no meio)
 const PAD = Math.floor(VISIBLE / 2);
 
 const MINUTES = Array.from({ length: Math.floor(TIMER_MAX_SECONDS / 60) + 1 }, (_, i) => i);
@@ -43,7 +43,7 @@ export function RestTimerWheel({ value, onChange }: { value: number; onChange: (
   );
 }
 
-function WheelColumn({
+export function WheelColumn({
   label,
   items,
   value,
