@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveWorkoutAge } from "@/lib/age";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
-import { getPrimaryExerciseMuscle, normalizeExerciseRecord } from "@/lib/exercise-library";
+import {
+  getPrimaryExerciseMuscle,
+  normalizeExerciseEquipmentList,
+  normalizeExerciseRecord
+} from "@/lib/exercise-library";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
@@ -75,7 +79,7 @@ export async function POST(request: NextRequest) {
     // --- Buscar workout do usuário ---
     const { data: workoutRow, error: workoutError } = await supabase
       .from("workouts")
-      .select("id, exercises")
+      .select("id, exercises, created_at")
       .eq("id", workoutId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -131,17 +135,30 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Verificar limite de substituições baseado no plano real do usuário ---
-    // Free:    2 substituições por programa de treino (workout_id)
-    // Premium: 2 substituições por sessão de treino (workout_id + workout_day_id)
+    // Free:    2 substituições por programa de treino
+    // Premium: 2 substituições por letra (Treino A, B, C...) durante o programa
+    //
+    // IMPORTANTE: ao gerar um programa novo, o app REAPROVEITA a mesma linha de
+    // `workouts` (mesmo id) e só atualiza o created_at. Por isso contamos apenas as
+    // substituições feitas DEPOIS do início do programa atual — senão as trocas de
+    // programas antigos continuariam contando e o limite nunca zeraria.
     const userIsPremium = await isPremium(userId, userToken);
+    const programStartedAt =
+      typeof (workoutRow as { created_at?: unknown }).created_at === "string"
+        ? ((workoutRow as { created_at: string }).created_at)
+        : null;
 
     if (!userIsPremium) {
       // Free: conta total de substituições no programa
-      const { count: replacementCount, error: countError } = await supabase
+      let freeCountQuery = supabase
         .from("workout_exercise_replacements")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("workout_id", workoutId);
+      if (programStartedAt) {
+        freeCountQuery = freeCountQuery.gte("created_at", programStartedAt);
+      }
+      const { count: replacementCount, error: countError } = await freeCountQuery;
 
       if (countError) {
         logError("REPLACE_EXERCISE", "Replacement count query failed", {
@@ -162,12 +179,16 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Premium: conta substituições apenas desta sessão (Treino A, B, C... independentes)
-      const { count: dayReplacementCount, error: dayCountError } = await supabase
+      let dayCountQuery = supabase
         .from("workout_exercise_replacements")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("workout_id", workoutId)
         .eq("workout_day_id", workoutDayId);
+      if (programStartedAt) {
+        dayCountQuery = dayCountQuery.gte("created_at", programStartedAt);
+      }
+      const { count: dayReplacementCount, error: dayCountError } = await dayCountQuery;
 
       if (dayCountError) {
         logError("REPLACE_EXERCISE", "Premium day replacement count query failed", {
@@ -246,13 +267,41 @@ export async function POST(request: NextRequest) {
     const excludedExerciseIds = (excludedRows ?? []).map((row) => row.exercise_id as string);
 
     // --- Filtrar candidatos (removendo também os já descartados) ---
-    const candidates = filterReplacementCandidates(
+    let candidates = filterReplacementCandidates(
       originalRecord,
       sessionExerciseIds,
       answers,
       exerciseLibrary,
       excludedExerciseIds
     );
+
+    // --- "Aparelho/material indisponível": evitar o MESMO equipamento ---
+    // Ex.: original usa halteres → prioriza substitutos sem halteres. "machine" é
+    // IGNORADO de propósito: a categoria não distingue qual máquina (faltar o leg
+    // press não significa faltar a cadeira extensora), então outra máquina continua
+    // valendo como substituta. Se não sobrar nenhum candidato, volta para a lista
+    // completa para nunca travar a troca.
+    if (reason === "no_equipment" && candidates.length) {
+      const originalEquipment = normalizeExerciseEquipmentList(
+        (originalRecord.equipment ?? originalRecord.metadata?.equipment) as string | string[] | null | undefined
+      ).filter((item) => item !== "bodyweight" && item !== "machine");
+
+      if (originalEquipment.length) {
+        const blocked = new Set(originalEquipment);
+        const withDifferentEquipment = candidates.filter(
+          (candidate) => !candidate.equipment.some((item) => blocked.has(item))
+        );
+        if (withDifferentEquipment.length) {
+          candidates = withDifferentEquipment;
+        } else {
+          logInfo("REPLACE_EXERCISE", "No candidate with different equipment, using full list", {
+            user_id: userId,
+            exercise_name: originalExercise.name,
+            original_equipment: originalEquipment
+          });
+        }
+      }
+    }
 
     if (!candidates.length) {
       logWarn("REPLACE_EXERCISE", "No replacement candidates found", {

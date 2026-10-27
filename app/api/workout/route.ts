@@ -245,11 +245,19 @@ export async function GET(request: NextRequest) {
     // gravar decaimento por inatividade — só roda para quem tem treino, como antes).
     const [sessionStats, replacementCountResult, userLevelSummary] = await Promise.all([
       getWorkoutSessionStats(supabase, workoutState.sessionFilter),
-      supabase
-        .from("workout_exercise_replacements")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("workout_id", workoutRecord.id),
+      // Só as substituições do programa ATUAL (a linha do treino é reaproveitada
+      // ao gerar um programa novo; o created_at marca o início do programa).
+      (() => {
+        let replacementQuery = supabase
+          .from("workout_exercise_replacements")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("workout_id", workoutRecord.id);
+        if (workoutRecord.created_at) {
+          replacementQuery = replacementQuery.gte("created_at", workoutRecord.created_at);
+        }
+        return replacementQuery;
+      })(),
       // Aplica decaimento por inatividade e retorna resumo do nível.
       // Passa a experiência do quiz para inicializar a fase corretamente na 1ª vez.
       getUserLevelSummary(supabase, user.id, savedAnswers?.experience ?? null).catch(() => null)
