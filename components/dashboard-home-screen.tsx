@@ -12,7 +12,7 @@ import { CycleCompleteCard, CycleCompleteCelebration, resolveCycleCompleteMode }
 import { ReferralRewardPopup } from "@/components/referral-reward-popup";
 import { ReferralExpiryPopup } from "@/components/referral-expiry-popup";
 import { useSubscription } from "@/components/use-subscription";
-import { LevelBadge, LevelPopup } from "@/components/level-badge";
+import { LevelBadge, LevelPopup, getLevelBalloon } from "@/components/level-badge";
 import { REGRESSION_MESSAGE } from "@/lib/user-level";
 import {
   buildTrainingExerciseRows,
@@ -78,6 +78,8 @@ export function DashboardHomeScreen({
     isReferralPremiumActive: boolean;
   } | null>(null);
   const levelData = data.levelData ?? null;
+  // Mensagem de nível fica numa linha própria (dentro da pílula ela quebrava o topo).
+  const levelBalloon = levelData ? getLevelBalloon(levelData) : null;
   // Mostra popup se houve regressão de nível ao carregar o dashboard
   const showRegressionPopup = !phasePopupDismissed && (levelData?.decayRegressed ?? false);
   const firstName = normalizeDisplayName(data.user.firstName, data.user.name);
@@ -220,10 +222,19 @@ export function DashboardHomeScreen({
           <p className="text-[13px] font-medium text-white/50">{todayLabel}</p>
           {levelData ? (
             <div data-tour="home-level" className="shrink-0 rounded-full border border-white/12 bg-white/[0.03] px-3 py-1">
-              <LevelBadge data={levelData} />
+              <LevelBadge data={levelData} hideBalloon />
             </div>
           ) : null}
         </div>
+        {levelBalloon ? (
+          <p
+            className={`mt-1.5 text-right text-[12px] italic leading-snug ${
+              levelBalloon.tone === "down" ? "text-red-400" : "text-green-400"
+            }`}
+          >
+            {levelBalloon.text}
+          </p>
+        ) : null}
         {dayTitle ? (
           <h1 className="mt-0.5 flex items-center gap-2 text-[22px] font-bold leading-tight tracking-tight text-white">
             {dayTitle}

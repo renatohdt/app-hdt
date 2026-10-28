@@ -33,11 +33,20 @@ export type LevelBadgeData = {
 
 type LevelBadgeProps = {
   data: LevelBadgeData;
+  /** true: a mensagem (caiu/falta pouco) é mostrada por quem usa o selo, fora da pílula. */
+  hideBalloon?: boolean;
 };
+
+/** Mensagem de nível (caiu por inatividade / falta pouco para subir), ou null. */
+export function getLevelBalloon(data: LevelBadgeData): { text: string; tone: "down" | "up" } | null {
+  if (data.decayRegressed) return { text: REGRESSION_MESSAGE, tone: "down" };
+  if (data.isReadyButWaiting) return { text: ALMOST_THERE_MESSAGE, tone: "up" };
+  return null;
+}
 
 // ── Componente principal ───────────────────────────────────────────────────
 
-export function LevelBadge({ data }: LevelBadgeProps) {
+export function LevelBadge({ data, hideBalloon = false }: LevelBadgeProps) {
   const [showModal, setShowModal] = useState(false);
 
   const colors   = PHASE_COLORS[data.currentPhase];
@@ -77,7 +86,7 @@ export function LevelBadge({ data }: LevelBadgeProps) {
         )}
       </button>
 
-      {balloon && (
+      {balloon && !hideBalloon && (
         <p className={`mt-1 text-xs italic leading-snug ${data.decayRegressed ? "text-red-400" : "text-green-400"}`}>
           {balloon}
         </p>
