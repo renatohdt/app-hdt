@@ -339,16 +339,12 @@ function pickUniqueExercises(
 
 function matchesDayMuscles(exercise: ExerciseRecord, dayPlan: DayPlan) {
   const muscles = getNormalizedExerciseMuscles(exercise);
-  const tags = exercise.tags ?? [];
   const dayMuscles = [...dayPlan.primaryMuscles, ...dayPlan.secondaryMuscles];
 
   if (muscles.some((muscle) => dayMuscles.includes(muscle))) return true;
   if (muscles.some((muscle) => getRelatedMuscles(muscle).some((related) => dayMuscles.includes(related)))) {
     return true;
   }
-  if (dayPlan.primaryMuscles.includes("chest") && tags.includes("push")) return true;
-  if (dayPlan.primaryMuscles.includes("back") && tags.includes("pull")) return true;
-  if (dayPlan.primaryMuscles.some((item) => ["quadriceps", "hamstrings", "glutes"].includes(item)) && (tags.includes("legs") || tags.includes("lower"))) return true;
   if (getExerciseType(exercise) === "functional" && dayPlan.secondaryMuscles.includes("abs")) return true;
 
   return false;
@@ -471,9 +467,6 @@ function getExerciseType(exercise: ExerciseRecord) {
     return resolveExerciseMovementType(rawType);
   }
 
-  const tags = exercise.tags ?? [];
-  if (tags.includes("functional") || tags.includes("cardio")) return "functional";
-  if (tags.includes("isolation")) return "isolation";
   return "compound";
 }
 
@@ -492,9 +485,7 @@ function matchesLevel(exercise: ExerciseRecord, level: TrainingLevel) {
 }
 
 function isSimpleExercise(exercise: ExerciseRecord) {
-  const tags = exercise.tags ?? [];
-  const type = getExerciseType(exercise);
-  return type === "isolation" || tags.includes("machine") || tags.includes("bodyweight") || tags.includes("dumbbell");
+  return getExerciseType(exercise) === "isolation";
 }
 
 function buildSubtitle(dayPlan: DayPlan) {

@@ -193,7 +193,6 @@ create table if not exists public.exercises (
   location text[] not null default '{}',
   equipment text[] not null default '{}',
   level text[] not null default '{}',
-  tags text[] not null default '{}',
   metadata jsonb not null default '{"muscle":"","muscle_groups":[],"muscles":[],"type":"","level":[],"location":[],"equipment":[]}'::jsonb
     check (jsonb_typeof(metadata) = 'object'),
   video_url text

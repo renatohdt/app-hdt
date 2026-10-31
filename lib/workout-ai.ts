@@ -728,7 +728,7 @@ export async function generateWorkoutWithAI(
 
   // Telemetria: modelo/tempo/tokens usados para alimentar o dashboard admin
   // de observabilidade da IA (public.ai_workout_generations).
-  const telemetryModel = process.env.OPENAI_WORKOUT_MODEL?.trim() || "gpt-4o-mini";
+  const telemetryModel = getWorkoutModel();
   const telemetryStartedAt = Date.now();
 
   // Plano 100% HIIT: o app monta tudo localmente (buildLocalHiitExercises),
@@ -797,7 +797,7 @@ export async function generateWorkoutWithAI(
 
     const response = await openai.chat.completions.create({
       model: telemetryModel,
-      temperature: 0.6,
+      ...getModelSamplingParams(telemetryModel, 0.6),
       messages: [
         {
           role: "system",
@@ -944,13 +944,33 @@ export async function generateWorkoutWithAI(
   }
 }
 
+/**
+ * Modelo usado nas chamadas de treino. Configurável por OPENAI_WORKOUT_MODEL.
+ * Padrão continua gpt-4o-mini até a migração ser ligada (OpenAI aposenta em 14/01/2027).
+ */
+function getWorkoutModel(): string {
+  return process.env.OPENAI_WORKOUT_MODEL?.trim() || "gpt-4o-mini";
+}
+
+/**
+ * Parâmetros de amostragem por família de modelo. Os modelos GPT-6 são de
+ * raciocínio: rodamos com reasoning_effort "none" (rápido e barato, ~5-6 s) e
+ * mantemos temperature. Em outros esforços a API rejeitaria temperature (400).
+ */
+function getModelSamplingParams(model: string, temperature: number) {
+  if (model.startsWith("gpt-6")) {
+    return { temperature, reasoning_effort: "none" } as { temperature: number };
+  }
+  return { temperature };
+}
+
 export async function runWorkoutTestPrompt(prompt = "Crie um treino de peito simples") {
   const openai = getOpenAIClient();
   logInfo("AI", "Workout test prompt started");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.7,
+    model: getWorkoutModel(),
+    ...getModelSamplingParams(getWorkoutModel(), 0.7),
     messages: [{ role: "user", content: prompt }]
   });
 
@@ -3963,8 +3983,8 @@ Responda APENAS com JSON válido, sem texto adicional:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.4,
+    model: getWorkoutModel(),
+    ...getModelSamplingParams(getWorkoutModel(), 0.4),
     messages: [{ role: "user", content: prompt }]
   });
 

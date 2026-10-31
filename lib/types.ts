@@ -69,7 +69,6 @@ export type ExerciseRecord = {
   id: string;
   name: string;
   name_normalized?: string;
-  tags?: string[];
   muscle?: string;
   muscle_groups?: string[];
   type?: string;
@@ -78,6 +77,8 @@ export type ExerciseRecord = {
   equipment?: string[];
   required_equipment?: string[];
   training_styles?: string[];
+  difficulty?: number | null;
+  can_warmup?: boolean;
   metadata?: {
     muscle?: string;
     muscle_groups?: string[];

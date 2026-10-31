@@ -434,7 +434,7 @@ export function formatExerciseTrainingStyleLabel(value?: string | null) {
 export function buildExerciseSearchBlob(
   exercise: Pick<
     ExerciseRecord,
-    "name" | "muscle" | "muscle_groups" | "type" | "tags" | "metadata" | "equipment" | "level" | "location"
+    "name" | "muscle" | "muscle_groups" | "type" | "metadata" | "equipment" | "level" | "location"
   >
 ) {
   const muscleGroups = getExerciseMuscleGroups(exercise);
@@ -449,7 +449,6 @@ export function buildExerciseSearchBlob(
       formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null),
       exercise.muscle,
       exercise.metadata?.muscle,
-      ...(exercise.tags ?? []),
       ...muscleGroups,
       ...muscleGroups.map((group) => formatExerciseMuscleLabel(group)),
       ...levels,

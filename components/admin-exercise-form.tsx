@@ -33,6 +33,8 @@ type ExerciseFormValues = {
   equipment: string[];
   required_equipment: string[];
   training_styles: string[];
+  difficulty: string;
+  can_warmup: boolean;
   video_url: string;
 };
 
@@ -46,8 +48,20 @@ const emptyValues: ExerciseFormValues = {
   equipment: [],
   required_equipment: [],
   training_styles: [],
+  difficulty: "",
+  can_warmup: false,
   video_url: ""
 };
+
+// Escala de dificuldade: o que a pessoa precisa para EXECUTAR o exercício
+// (técnica, força, coordenação, equilíbrio). Não mede a carga.
+const EXERCISE_DIFFICULTY_OPTIONS = [
+  { value: "1", label: "1 · Qualquer pessoa consegue" },
+  { value: "2", label: "2 · Fácil" },
+  { value: "3", label: "3 · Fácil, mas requer atenção" },
+  { value: "4", label: "4 · Desafiador" },
+  { value: "5", label: "5 · Avançado" }
+] as const;
 
 export function AdminExerciseForm({
   initialValues,
@@ -92,6 +106,8 @@ export function AdminExerciseForm({
       equipment: getExerciseEquipment(initialValues),
       required_equipment: getExerciseRequiredEquipment(initialValues),
       training_styles: initialValues.training_styles ?? [],
+      difficulty: initialValues.difficulty ? String(initialValues.difficulty) : "",
+      can_warmup: Boolean(initialValues.can_warmup),
       video_url: initialValues.video_url ?? ""
     });
   }, [initialValues]);
@@ -135,6 +151,12 @@ export function AdminExerciseForm({
       return;
     }
 
+    if (!values.difficulty) {
+      setStatus("Selecione a dificuldade do exercício (de 1 a 5).");
+      setStatusTone("error");
+      return;
+    }
+
     setLoading(true);
 
     // Combina primário + secundários em muscle_groups (primário sempre primeiro)
@@ -150,6 +172,8 @@ export function AdminExerciseForm({
       equipment: normalizeExerciseEquipmentList(values.equipment),
       required_equipment: normalizeExerciseEquipmentList(values.required_equipment),
       training_styles: values.training_styles,
+      difficulty: Number(values.difficulty),
+      can_warmup: values.can_warmup,
       video_url: values.video_url || null
     };
 
@@ -338,6 +362,23 @@ export function AdminExerciseForm({
           onToggle={(value) => toggleArrayValue("training_styles", value)}
         />
 
+        <RadioGroup
+          name="difficulty"
+          title="Dificuldade"
+          description="O que a pessoa precisa para executar o exercício bem: técnica, força, coordenação e equilíbrio. Não considere a carga (cadeira extensora é 1 mesmo para quem treina pesado)."
+          options={EXERCISE_DIFFICULTY_OPTIONS}
+          selected={values.difficulty}
+          onChange={(value) => setValues((current) => ({ ...current, difficulty: value }))}
+        />
+
+        <CheckboxGroup
+          title="Aquecimento"
+          description="Marque se este exercício pode entrar na vaga de aquecimento do treino."
+          options={[{ value: "warmup", label: "Pode ser usado como aquecimento" }]}
+          selected={values.can_warmup ? ["warmup"] : []}
+          onToggle={() => setValues((current) => ({ ...current, can_warmup: !current.can_warmup }))}
+        />
+
         <div className="flex flex-wrap gap-3">
           <Button disabled={loading || Boolean(duplicateExercise)}>
             {loading ? "Salvando..." : values.id ? "Atualizar exercício" : "Salvar exercício"}
@@ -401,12 +442,14 @@ function SelectField({
 }
 
 function RadioGroup({
+  name,
   title,
   description,
   options,
   selected,
   onChange
 }: {
+  name?: string;
   title: string;
   description?: string;
   options: ReadonlyArray<{ value: string; label: string }>;
@@ -431,7 +474,7 @@ function RadioGroup({
           >
             <input
               type="radio"
-              name="muscle_primary"
+              name={name ?? "muscle_primary"}
               checked={selected === option.value}
               onChange={() => onChange(option.value)}
               className="h-4 w-4 accent-[#22c55e]"

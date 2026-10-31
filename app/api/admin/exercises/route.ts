@@ -38,6 +38,8 @@ type ExerciseRequestBody = {
   required_equipment?: string[] | string;
   level?: string[] | string;
   training_styles?: string[];
+  difficulty?: number | string | null;
+  can_warmup?: boolean;
   video_url?: string | null;
   videoUrl?: string | null;
 };
@@ -188,6 +190,8 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     const required_equipment = normalizeExerciseEquipmentList(body.required_equipment);
     const level = normalizeExerciseLevelList(body.level);
     const training_styles = Array.isArray(body.training_styles) ? body.training_styles : [];
+    const difficulty = normalizeExerciseDifficulty(body.difficulty);
+    const can_warmup = typeof body.can_warmup === "boolean" ? body.can_warmup : undefined;
 
     if (method === "PATCH" && !body.id) {
       return jsonError("Exercício inválido.", 400);
@@ -195,6 +199,10 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
 
     if (!name || !normalizedName || !muscleGroups.length || !type) {
       return jsonError("Preencha os campos obrigatórios: nome, grupo muscular e tipo.", 400);
+    }
+
+    if (difficulty === null) {
+      return jsonError("Informe a dificuldade do exercício (de 1 a 5).", 400);
     }
 
     const duplicateCheck = await supabase.from("exercises").select("id, name").order("name");
@@ -226,6 +234,8 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       required_equipment,
       level,
       training_styles,
+      difficulty,
+      can_warmup,
       metadata: {
         muscle: primaryMuscle ?? "",
         muscle_groups: muscleGroups,
@@ -297,6 +307,17 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
 
 function sanitizeExerciseName(value?: string | null) {
   return value?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+// Dificuldade: número inteiro de 1 a 5 (aceita texto "3"). Qualquer outro valor vira null.
+function normalizeExerciseDifficulty(value?: number | string | null) {
+  const parsed = typeof value === "string" ? Number(value) : value;
+
+  if (typeof parsed !== "number" || !Number.isInteger(parsed) || parsed < 1 || parsed > 5) {
+    return null;
+  }
+
+  return parsed;
 }
 
 function normalizeExerciseLevelList(value?: string[] | string | null) {

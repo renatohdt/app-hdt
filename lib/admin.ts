@@ -43,7 +43,6 @@ type AdminWorkout = {
 export type AdminExercise = {
   id: string;
   name: string;
-  tags?: string[];
   muscle?: string;
   muscle_groups?: string[];
   type?: string;
@@ -1246,7 +1245,7 @@ export function getExerciseMetaSummary(exercise: AdminExercise) {
     ...(exercise.equipment ?? exercise.metadata?.equipment ?? [])
   ]
     .filter(Boolean)
-    .join(", ") || (exercise.tags ?? []).join(", ");
+    .join(", ");
 }
 
 export function getTodayCount(values: Array<{ created_at?: string }>) {
