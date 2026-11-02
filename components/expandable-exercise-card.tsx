@@ -212,8 +212,16 @@ export function ExpandableExerciseCard({
   const panelId = `exercise-panel-${exercise.id}`;
   const posterUrl = resolveVideoPoster(exercise.videoUrl);
   const isMobilityExercise = exercise.isMobility;
+  // Aquecimento (ex.: manguito): amarelo + etiqueta, para o aluno entender que ainda não é o treino.
+  const isWarmupExercise = exercise.blockType === "warmup";
+  // Mobilidade/aquecimento: sem carga; podem ser trocados (premium: troca livre).
+  const isPrepExercise = isMobilityExercise || isWarmupExercise;
+  const replacementFree = isPrepExercise && isPremiumUser;
+  const replaceReasonOptions = isPrepExercise
+    ? REPLACE_REASONS.filter((option) => option.value === "dont_like" || option.value === "no_equipment")
+    : REPLACE_REASONS;
   const isCombinedExercise = matchesCombinedTechnique(exercise.blockType ?? exercise.technique);
-  const hasTechniqueTag = shouldShowTechniqueTag(exercise.technique, exercise.isMobility);
+  const hasTechniqueTag = shouldShowTechniqueTag(exercise.technique, exercise.isMobility || isWarmupExercise);
   const techniqueDescription = getTechniqueDescription(exercise.technique);
   const combinedBadgeLabel = isCombinedExercise
     ? [exercise.blockOrder, exercise.technique].filter(Boolean).join(" · ") || "Bloco combinado"
@@ -418,6 +426,8 @@ export function ExpandableExerciseCard({
           // Concluído: card mais escuro e "apagado", deixando claro o que já foi feito.
           isExerciseComplete
             ? "border border-white/[0.05] bg-[#070807]"
+            : isWarmupExercise
+            ? "border border-[#facc15]/20 bg-[linear-gradient(180deg,rgba(250,204,21,0.09),rgba(18,20,16,0.96))]"
             : isCombinedExercise
             ? "border border-[#f59e0b]/18 bg-[linear-gradient(180deg,rgba(245,158,11,0.1),rgba(18,20,16,0.96))]"
             : isMobilityExercise
@@ -425,7 +435,9 @@ export function ExpandableExerciseCard({
               : "border border-white/10 bg-[#0d100d]/80",
           expanded &&
             !isExerciseComplete &&
-            (isCombinedExercise
+            (isWarmupExercise
+              ? "border-[#facc15]/30 bg-[linear-gradient(180deg,rgba(250,204,21,0.13),rgba(18,20,16,0.98))]"
+              : isCombinedExercise
               ? "border-[#f59e0b]/28 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(18,20,16,0.98))]"
               : isMobilityExercise
                 ? "border-[#38bdf8]/28 bg-[linear-gradient(180deg,rgba(56,189,248,0.13),rgba(18,20,16,0.98))]"
@@ -444,7 +456,9 @@ export function ExpandableExerciseCard({
             <div
               className={clsx(
                 "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border text-base font-semibold",
-                isCombinedExercise
+                isWarmupExercise
+                  ? "border-[#facc15]/25 bg-[#facc15]/10 text-[#fde047]"
+                  : isCombinedExercise
                   ? "border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#f7b955]"
                   : isMobilityExercise
                     ? "border-[#38bdf8]/22 bg-[#38bdf8]/10 text-[#67d3ff]"
@@ -469,6 +483,11 @@ export function ExpandableExerciseCard({
                     {wasReplaced || isReplaced ? (
                       <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
                         Substituído
+                      </span>
+                    ) : null}
+                    {isWarmupExercise ? (
+                      <span className="inline-flex items-center rounded-full border border-[#facc15]/25 bg-[#facc15]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#fde047]">
+                        Aquecimento
                       </span>
                     ) : null}
                     {combinedBadgeLabel ? (
@@ -529,8 +548,8 @@ export function ExpandableExerciseCard({
         </button>
         </div>
 
-        {/* Ações rápidas — escondidas em exercícios de mobilidade (não há carga nem substituição) */}
-        {!isMobilityExercise ? (
+        {/* Ações rápidas — mobilidade/aquecimento não têm carga, mas podem ser substituídos */}
+        {(
           <div
             className={clsx(
               "mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3 transition-opacity duration-300",
@@ -538,20 +557,22 @@ export function ExpandableExerciseCard({
               isExerciseComplete && "opacity-35 hover:opacity-80"
             )}
           >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowWeightChart(true);
-              }}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
-              aria-label="Ver evolução de carga"
-            >
-              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
-              Evolução de carga
-            </button>
+            {!isPrepExercise ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowWeightChart(true);
+                }}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/12 bg-white/[0.05] py-2 text-[12px] font-semibold text-white/62 transition hover:border-primary/30 hover:bg-primary/[0.08] hover:text-primary"
+                aria-label="Ver evolução de carga"
+              >
+                <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+                Evolução de carga
+              </button>
+            ) : null}
 
-            {replacementLimitReached ? (
+            {replacementLimitReached && !replacementFree ? (
               <button
                 type="button"
                 onClick={(e) => {
@@ -591,7 +612,7 @@ export function ExpandableExerciseCard({
               </button>
             )}
           </div>
-        ) : null}
+        )}
 
         {expanded ? (
           <div id={panelId} className="fade-in mt-4 space-y-4 rounded-[24px] border border-white/10 bg-black/20 p-3 min-[380px]:p-4">
@@ -799,7 +820,9 @@ export function ExpandableExerciseCard({
                     Esta ação é irreversível
                   </p>
                   <p className="text-xs leading-4 text-white/50">
-                    {(replacementsRemaining ?? (2 - replacementCount)) === 1
+                    {replacementFree
+                      ? "Mobilidade e aquecimento têm troca livre: não contam nas suas substituições."
+                      : (replacementsRemaining ?? (2 - replacementCount)) === 1
                       ? isPremiumUser
                         ? "Resta 1 substituição nesta sessão de treino."
                         : "Resta apenas 1 substituição disponível neste programa."
@@ -812,7 +835,7 @@ export function ExpandableExerciseCard({
             </div>
 
             <div className="space-y-2">
-              {REPLACE_REASONS.map((option) => (
+              {replaceReasonOptions.map((option) => (
                 <button
                   key={option.value}
                   type="button"

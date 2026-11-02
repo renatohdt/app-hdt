@@ -176,8 +176,9 @@ BLOCOS COMBINADOS (use o tipo de bloco indicado pelo ESTILO de cada treino):
 - Une exercicios muscularmente compativeis; descanso so ao final da volta
 - Iniciante: superset simples ou circuit leve | Intermediario: bi-set moderado | Avancado: bi-set/tri-set/drop-set com parcimonia
 
-AQUECIMENTO (OPCIONAL):
-- Voce PODE incluir 0 ou 1 exercicio de aquecimento por sessao, nunca mais de 1
+AQUECIMENTO:
+- Quando houver a lista AQUECIMENTOS DISPONIVEIS, inclua exatamente 1 exercicio de aquecimento por sessao (o app completa se faltar), nunca mais de 1
+- Escolha o aquecimento que prepare os musculos principais da sessao
 - Se incluir, deve vir DEPOIS da mobilidade (adicionada pelo app) e ANTES de qualquer composto ou isolador
 - Nao conta no total de exercicios da sessao
 - Use blockType 'warmup' e sets/reps adequados para ativacao (ex: 2 series, 12-15 reps, sem descanso)
@@ -384,12 +385,23 @@ function selectExercisesForAiCatalog(
   const excludedIds = new Set(options.excludedExerciseIds ?? []);
 
   // Filtros base (independentes do estilo de treino).
-  const baseLibrary = exerciseLibrary
+  const preLevelLibrary = exerciseLibrary
     .filter((exercise) => !excludedIds.has(exercise.id))
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment))
-    .filter((exercise) => matchesExerciseLevel(exercise, strategy.level))
     .filter((exercise) => matchesGoalExerciseType(exercise, strategy.goalStyle));
+
+  // Regra estrita de nível: só entra o exercício cuja lista de níveis contém o nível do
+  // aluno. Se um músculo ficar com poucas opções, completa com o nível vizinho (opção B).
+  const levelResult = applyStrictLevelRule(preLevelLibrary, strategy.level);
+  const baseLibrary = levelResult.exercises;
+  if (levelResult.fallbackByMuscle.length) {
+    logInfo("AI", "Fallback de nivel aplicado (poucas opcoes no nivel do aluno)", {
+      user_level: strategy.level,
+      min_pool: MIN_LEVEL_POOL,
+      muscles: levelResult.fallbackByMuscle
+    });
+  }
 
   // Filtro por estilo de treino. Multi-estilo: filtra pela UNIÃO dos estilos do plano.
   const styledLibrary = baseLibrary.filter((exercise) =>
@@ -605,12 +617,15 @@ export async function generateWorkoutWithAI(
 
   // Aquecimentos: separados do catálogo principal, enviados como lista opcional ao prompt
   const allowedEquipmentForWarmup = buildAllowedEquipment(answers);
-  const warmupExercises = exerciseLibrary
+  const warmupRecords = exerciseLibrary
     .filter((ex) => normalizeStoredExerciseType(ex.type ?? ex.metadata?.type) === "warmup")
     .filter((ex) => matchesLocation(ex, answers.location))
-    .filter((ex) => matchesEquipment(ex, allowedEquipmentForWarmup))
-    .filter((ex) => matchesExerciseLevel(ex, strategy.level))
-    .map(buildAiCatalogExercise);
+    .filter((ex) => matchesEquipment(ex, allowedEquipmentForWarmup));
+  const warmupExercises = warmupRecords.map(buildAiCatalogExercise);
+  // O aquecimento é enviado à IA numa lista própria (fora da cota por músculo do catálogo).
+  // Por isso também precisa estar na lista de nomes permitidos, senão a validação o descarta.
+  const filteredIds = new Set(filteredLibrary.map((ex) => ex.id));
+  const allowedLibrary = [...filteredLibrary, ...warmupRecords.filter((ex) => !filteredIds.has(ex.id))];
 
   const mainExercises = filteredLibrary.filter(
     (ex) => normalizeStoredExerciseType(ex.type ?? ex.metadata?.type) !== "warmup"
@@ -757,7 +772,7 @@ export async function generateWorkoutWithAI(
       answers,
       diagnosis,
       exerciseLibrary,
-      filteredLibrary,
+      allowedLibrary,
       strategy,
       mobilityContext
     );
@@ -851,7 +866,7 @@ export async function generateWorkoutWithAI(
       answers,
       diagnosis,
       exerciseLibrary,
-      filteredLibrary,
+      allowedLibrary,
       strategy,
       mobilityContext
     );
@@ -1138,19 +1153,31 @@ function validateAndBuildWorkoutPlan(
       continue;
     }
 
+    // Garantia do app: todo treino de musculação/personal tem 1 aquecimento. Se a IA não
+    // mandou (a lista era opcional), o app escolhe um que combine com os músculos da sessão.
+    const exercisesWithWarmup = ensureSessionWarmup({
+      exercises,
+      strategy,
+      blueprint,
+      exerciseMap,
+      answers,
+      excludedExerciseIds: mobilityContext.excludedExerciseIds ?? [],
+      usedAcrossSessions
+    });
+
     const mobility = selectLocalMobilityExercises({
       answers,
       strategy,
       blueprint,
       exerciseMap,
-      sectionExercises: exercises,
+      sectionExercises: exercisesWithWarmup,
       previousWorkout: mobilityContext.previousWorkout,
       lastCompletedWorkoutKey: mobilityContext.lastCompletedWorkoutKey
     });
 
     const fittedSession = fitSessionToTimeBudget({
       mobility,
-      exercises,
+      exercises: exercisesWithWarmup,
       strategy,
       blueprint,
       exerciseMap,
@@ -1514,44 +1541,94 @@ function matchesMobilityTargets(profile: ExerciseLookup["profile"], targetMuscle
   return primaryMuscles.some((muscle) => targetSet.has(muscle));
 }
 
+// Mobilidade é preparatória (sempre fácil de executar): não há regra de nível.
+// A preferência por nível continua só como desempate em compareMobilityCandidates.
 function matchesMobilityLevel(
-  exercise: ExerciseRecord,
-  userLevel: WorkoutStrategy["level"],
-  relaxLevel: boolean,
-  allowAnyLevel: boolean
+  _exercise: ExerciseRecord,
+  _userLevel: WorkoutStrategy["level"],
+  _relaxLevel: boolean,
+  _allowAnyLevel: boolean
 ) {
-  const levels = getExerciseLevels(exercise);
-
-  if (!levels.length || allowAnyLevel) {
-    return true;
-  }
-
-  const allowedLevels = relaxLevel ? getMobilityFallbackLevels(userLevel) : [userLevel];
-  return levels.some((level) => allowedLevels.includes(level));
-}
-
-function getMobilityFallbackLevels(userLevel: WorkoutStrategy["level"]) {
-  if (userLevel === "advanced") {
-    return ["advanced", "intermediate", "beginner"];
-  }
-
-  if (userLevel === "intermediate") {
-    return ["intermediate", "beginner"];
-  }
-
-  return ["beginner"];
+  return true;
 }
 
 /**
- * Verifica se um exercício é compatível com o nível do usuário.
- * - Exercícios sem nível definido são sempre aceitos.
- * - Usa o mesmo fallback da mobilidade: advanced→todos, intermediate→intermediate+beginner, beginner→beginner.
+ * Regra estrita de nível: o exercício só serve se o nível do aluno estiver na lista de
+ * níveis dele (a lista cadastrada no admin é a verdade). Sem nível definido = aceito.
  */
 function matchesExerciseLevel(exercise: ExerciseRecord, userLevel: WorkoutStrategy["level"]): boolean {
   const levels = getExerciseLevels(exercise);
   if (!levels.length) return true;
-  const allowedLevels = getMobilityFallbackLevels(userLevel);
-  return levels.some((level) => allowedLevels.includes(level));
+  return levels.includes(userLevel);
+}
+
+// Mínimo de opções por músculo antes de recorrer ao nível vizinho.
+const MIN_LEVEL_POOL = 4;
+
+/**
+ * Opção B: quando um músculo tem menos de MIN_LEVEL_POOL exercícios no nível do aluno,
+ * completa com exercícios do nível vizinho, respeitando a dificuldade (1-5):
+ * - iniciante: intermediário com dificuldade até 3 (do mais fácil para o mais difícil)
+ * - intermediário: iniciante, ou avançado com dificuldade até 4 (mais perto de 3 primeiro)
+ * - avançado: só intermediário (os mais difíceis primeiro). NUNCA recebe exercício de iniciante.
+ */
+function getNeighborLevelRank(exercise: ExerciseRecord, userLevel: WorkoutStrategy["level"]): number | null {
+  const levels = getExerciseLevels(exercise);
+  if (!levels.length) return null;
+  const d = exercise.difficulty ?? 3;
+  if (userLevel === "beginner") return levels.includes("intermediate") && d <= 3 ? d : null;
+  if (userLevel === "intermediate") {
+    if (levels.includes("beginner")) return Math.abs(d - 3);
+    return levels.includes("advanced") && d <= 4 ? Math.abs(d - 3) + 0.5 : null;
+  }
+  return levels.includes("intermediate") ? 5 - d : null;
+}
+
+function applyStrictLevelRule(pool: ExerciseRecord[], userLevel: WorkoutStrategy["level"]) {
+  const exempt = (exercise: ExerciseRecord) => {
+    const type = buildExerciseProfile(exercise).movementType;
+    return type === "mobility" || normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type) === "warmup";
+  };
+  // Mobilidade e aquecimento são preparatórios (sempre fáceis): não têm regra de nível.
+  const strict = pool.filter((exercise) => exempt(exercise) || matchesExerciseLevel(exercise, userLevel));
+  const strictIds = new Set(strict.map((exercise) => exercise.id));
+  const neighbors = (exercise: ExerciseRecord) => getNeighborLevelRank(exercise, userLevel);
+
+  const countByMuscle = new Map<string, number>();
+  for (const exercise of strict) {
+    if (exempt(exercise)) continue;
+    for (const muscle of buildExerciseProfile(exercise).primaryMuscles) {
+      countByMuscle.set(muscle, (countByMuscle.get(muscle) ?? 0) + 1);
+    }
+  }
+
+  const candidatesByMuscle = new Map<string, Array<{ exercise: ExerciseRecord; rank: number }>>();
+  for (const exercise of pool) {
+    if (strictIds.has(exercise.id) || exempt(exercise)) continue;
+    const rank = neighbors(exercise);
+    if (rank === null) continue;
+    for (const muscle of buildExerciseProfile(exercise).primaryMuscles) {
+      const list = candidatesByMuscle.get(muscle) ?? [];
+      list.push({ exercise, rank });
+      candidatesByMuscle.set(muscle, list);
+    }
+  }
+
+  const added = new Map<string, ExerciseRecord>();
+  const fallbackByMuscle: Array<{ muscle: string; strict: number; added: number }> = [];
+  for (const [muscle, candidates] of candidatesByMuscle) {
+    let count = countByMuscle.get(muscle) ?? 0;
+    if (count >= MIN_LEVEL_POOL) continue;
+    const startCount = count;
+    for (const { exercise } of [...candidates].sort((a, b) => a.rank - b.rank)) {
+      if (count >= MIN_LEVEL_POOL) break;
+      if (!added.has(exercise.id)) added.set(exercise.id, exercise);
+      count += 1;
+    }
+    fallbackByMuscle.push({ muscle, strict: startCount, added: count - startCount });
+  }
+
+  return { exercises: [...strict, ...added.values()], fallbackByMuscle };
 }
 
 /**
@@ -1652,6 +1729,75 @@ function getMobilityLevelPriority(exercise: ExerciseRecord, userLevel: WorkoutSt
     .filter((value) => value >= 0);
 
   return priorities.length ? Math.min(...priorities) : order.length + 1;
+}
+
+function ensureSessionWarmup(input: {
+  exercises: SanitizedExercise[];
+  strategy: WorkoutStrategy;
+  blueprint: SessionBlueprint;
+  exerciseMap: Map<string, ExerciseLookup>;
+  answers: QuizAnswers;
+  excludedExerciseIds: string[];
+  usedAcrossSessions: Set<string>;
+}): SanitizedExercise[] {
+  const style = input.blueprint.trainingStyle ?? input.strategy.trainingStyle;
+  if (style !== "musculacao" && style !== "personal") return input.exercises;
+  if (input.exercises.some((exercise) => exercise.blockType === "warmup" || exercise.movementType === "warmup")) {
+    return input.exercises;
+  }
+
+  const allowedEquipment = buildAllowedEquipment(input.answers);
+  const excluded = new Set(input.excludedExerciseIds);
+  const primary = new Set(input.blueprint.primaryMuscles);
+  const session = new Set([...input.blueprint.primaryMuscles, ...input.blueprint.secondaryMuscles]);
+
+  const scored = [...input.exerciseMap.values()]
+    .filter((lookup) => normalizeStoredExerciseType(lookup.source.type ?? lookup.source.metadata?.type) === "warmup")
+    .filter((lookup) => !excluded.has(lookup.source.id))
+    .filter((lookup) => !input.usedAcrossSessions.has(lookup.source.name.trim().toLowerCase()))
+    .filter((lookup) => matchesLocation(lookup.source, input.answers.location))
+    .filter((lookup) => matchesEquipment(lookup.source, allowedEquipment))
+    .filter((lookup) => matchesTrainingStyle(lookup.source, [style]))
+    .map((lookup) => {
+      const own = lookup.profile.primaryMuscles ?? [];
+      const sec = lookup.profile.secondaryMuscles ?? [];
+      const score = own.some((m) => primary.has(m)) ? 2 : [...own, ...sec].some((m) => session.has(m)) ? 1 : 0;
+      return { lookup, score };
+    })
+    .filter((entry) => entry.score > 0);
+
+  if (!scored.length) return input.exercises;
+
+  const best = Math.max(...scored.map((entry) => entry.score));
+  const pool = scored.filter((entry) => entry.score === best);
+  const { lookup } = pool[Math.floor(Math.random() * pool.length)];
+  input.usedAcrossSessions.add(lookup.source.name.trim().toLowerCase());
+
+  logInfo("AI", "Aquecimento adicionado pelo app (a IA nao enviou)", {
+    session: input.blueprint.day,
+    warmup: lookup.source.name
+  });
+
+  const warmup: SanitizedExercise = {
+    name: lookup.source.name,
+    sets: "2",
+    reps: "15",
+    rest: "0s",
+    type: "normal",
+    method: "tradicional",
+    technique: "tradicional",
+    blockType: "warmup",
+    trainingTechnique: "tradicional",
+    rationale: buildExerciseRationale("warmup", input.blueprint, lookup.profile.primaryMuscles[0]),
+    notes: buildExerciseNotes("warmup", "warmup", input.strategy.level),
+    muscleGroups: getExerciseMuscleGroups(lookup.source),
+    primaryMuscles: lookup.profile.primaryMuscles,
+    secondaryMuscles: lookup.profile.secondaryMuscles,
+    videoUrl: lookup.source.video_url,
+    movementType: "warmup"
+  };
+
+  return [warmup, ...input.exercises];
 }
 
 function buildCatalogMobilityExercise(
@@ -2616,6 +2762,12 @@ function sanitizeAiDayExercises(
         // 'isometria' (reps em tempo) só faz sentido em exercícios isométricos.
         // A IA às vezes marca um exercício dinâmico como isometria — rebaixa p/ normal.
         blockType = "normal";
+      }
+
+      // Aquecimento do catálogo SEMPRE vira bloco 'warmup', mesmo que a IA tenha mandado
+      // outro blockType (ex.: 'normal') ou que o tipo não esteja na lista de blocos permitidos.
+      if (isWarmup) {
+        blockType = "warmup";
       }
 
       // Exercício ISOMÉTRICO sempre prescrito como 'isometria' (reps em tempo).
@@ -3886,12 +4038,66 @@ function formatLevel(level: WorkoutStrategy["level"]) {
   return labels[level];
 }
 
+/**
+ * Substituição: respeita o NÍVEL do aluno e a DIFICULDADE (1-5) do exercício original.
+ * A dificuldade não limita o nível: um exercício do mesmo nível pode ter dificuldades diferentes.
+ * - Muito difícil: mesmo nível, dificuldade MENOR (a mais próxima primeiro)
+ * - Muito fácil: mesmo nível, dificuldade MAIOR (a mais próxima primeiro)
+ * - Outros motivos: mesmo nível, dificuldade parecida (±1)
+ * Se não houver, tenta o nível vizinho na mesma direção (avançado nunca recebe iniciante),
+ * depois o mesmo nível com qualquer dificuldade. Original de aquecimento: sem regra.
+ */
+function selectReplacementByLevelAndDifficulty(
+  pool: ExerciseRecord[],
+  original: ExerciseRecord,
+  userLevel: WorkoutStrategy["level"],
+  reason?: string
+): ExerciseRecord[] {
+  if (normalizeStoredExerciseType(original.type ?? original.metadata?.type ?? null) === "warmup") return pool;
+
+  const origDiff = original.difficulty ?? 3;
+  const diff = (exercise: ExerciseRecord) => exercise.difficulty ?? 3;
+  const closeness = (a: ExerciseRecord, b: ExerciseRecord) => Math.abs(diff(a) - origDiff) - Math.abs(diff(b) - origDiff);
+  const inDirection = (exercise: ExerciseRecord) =>
+    reason === "too_hard" ? diff(exercise) < origDiff
+    : reason === "too_easy" ? diff(exercise) > origDiff
+    : Math.abs(diff(exercise) - origDiff) <= 1;
+  const MAX_CANDIDATES = 20;
+
+  const sameLevel = pool.filter((exercise) => matchesExerciseLevel(exercise, userLevel));
+  const stages: Array<{ label: string; list: ExerciseRecord[] }> = [
+    { label: "mesmo_nivel_direcao", list: sameLevel.filter(inDirection) },
+    {
+      label: "nivel_vizinho_direcao",
+      list: pool.filter((exercise) => !sameLevel.includes(exercise) && getNeighborLevelRank(exercise, userLevel) !== null && inDirection(exercise))
+    },
+    { label: "mesmo_nivel_qualquer", list: sameLevel }
+  ];
+
+  for (const stage of stages) {
+    if (stage.list.length) {
+      if (stage.label !== "mesmo_nivel_direcao") {
+        logInfo("AI", "Substituicao usando fallback de nivel/dificuldade", {
+          user_level: userLevel,
+          reason: reason ?? null,
+          original_difficulty: origDiff,
+          stage: stage.label,
+          candidates: stage.list.length
+        });
+      }
+      return [...stage.list].sort(closeness).slice(0, MAX_CANDIDATES);
+    }
+  }
+  return [];
+}
+
 export function filterReplacementCandidates(
   originalExercise: ExerciseRecord,
   exercisesInWorkoutDay: string[],
   answers: QuizAnswers,
   exerciseLibrary: ExerciseRecord[],
-  excludedExerciseIds: string[] = []
+  excludedExerciseIds: string[] = [],
+  reason?: string
 ) {
   const primaryMuscle = getPrimaryExerciseMuscle(originalExercise);
   const allowedEquipment = buildAllowedEquipment(answers);
@@ -3909,19 +4115,76 @@ export function filterReplacementCandidates(
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment));
 
-  return candidates.map((exercise) => ({
+  const selectedCandidates = selectReplacementByLevelAndDifficulty(
+    candidates,
+    originalExercise,
+    buildWorkoutStrategy(answers).level,
+    reason
+  );
+
+  return selectedCandidates.map((exercise) => ({
     id: exercise.id,
     name: exercise.name,
+    difficulty: exercise.difficulty ?? null,
     primaryMuscle: getPrimaryExerciseMuscle(exercise),
     type: normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null),
     equipment: normalizeExerciseEquipmentList(exercise.equipment ?? exercise.metadata?.equipment)
   }));
 }
 
+/**
+ * Troca de mobilidade/aquecimento: escolha local (sem IA, sem regra de nível/dificuldade —
+ * são exercícios preparatórios). Mantém o MESMO tipo (mobilidade→mobilidade, aquecimento→aquecimento),
+ * respeita local/equipamento, não repete exercício já no treino nem os descartados pelo aluno,
+ * e prefere o mesmo músculo principal. "Equipamento indisponível" evita o mesmo material.
+ */
+export function pickPrepReplacement(
+  original: ExerciseRecord,
+  namesInWorkout: string[],
+  answers: QuizAnswers,
+  exerciseLibrary: ExerciseRecord[],
+  excludedExerciseIds: string[] = [],
+  reason?: string
+): ExerciseRecord | null {
+  const prepType = normalizeStoredExerciseType(original.type ?? original.metadata?.type ?? null);
+  const used = new Set(namesInWorkout.map((name) => name.trim().toLowerCase()));
+  const excluded = new Set(excludedExerciseIds);
+  const allowedEquipment = buildAllowedEquipment(answers);
+  const primary = getPrimaryExerciseMuscle(original);
+
+  let pool = exerciseLibrary
+    .filter((exercise) => exercise.id !== original.id)
+    .filter((exercise) => !excluded.has(exercise.id))
+    .filter((exercise) => !used.has(exercise.name.trim().toLowerCase()))
+    .filter((exercise) => normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null) === prepType)
+    .filter((exercise) => matchesLocation(exercise, answers.location))
+    .filter((exercise) => matchesEquipment(exercise, allowedEquipment));
+
+  if (reason === "no_equipment") {
+    const blocked = new Set(
+      normalizeExerciseEquipmentList(original.equipment ?? original.metadata?.equipment).filter(
+        (item) => item !== "bodyweight" && item !== "machine"
+      )
+    );
+    if (blocked.size) {
+      const different = pool.filter(
+        (exercise) =>
+          !normalizeExerciseEquipmentList(exercise.equipment ?? exercise.metadata?.equipment).some((item) => blocked.has(item))
+      );
+      if (different.length) pool = different;
+    }
+  }
+
+  const samePrimary = pool.filter((exercise) => getPrimaryExerciseMuscle(exercise) === primary);
+  const finalPool = samePrimary.length ? samePrimary : pool;
+  if (!finalPool.length) return null;
+  return finalPool[Math.floor(Math.random() * finalPool.length)];
+}
+
 type ReplacementCandidate = ReturnType<typeof filterReplacementCandidates>[number];
 
 export async function callAIForReplacement(
-  originalExercise: { id: string; name: string; primaryMuscle: string | null; type: string | null },
+  originalExercise: { id: string; name: string; primaryMuscle: string | null; type: string | null; difficulty?: number | null },
   reason: string,
   candidates: ReplacementCandidate[],
   answers: QuizAnswers
@@ -3963,12 +4226,14 @@ EXERCÍCIO A SUBSTITUIR:
 - Nome: ${originalExercise.name}
 - Músculo principal: ${originalExercise.primaryMuscle}
 - Tipo: ${originalExercise.type ?? ""}
+- Dificuldade (1 a 5): ${originalExercise.difficulty ?? "não informada"}
 
 MOTIVO DA SUBSTITUICAO: ${reasonPt}
 
 CRITERIO DE SELECAO POR MOTIVO:
-- "Muito difícil": escolha variação mais simples do mesmo grupo muscular.
-- "Muito fácil": escolha variação mais desafiadora do mesmo grupo muscular.
+- Os candidatos já foram filtrados pelo nível do aluno e pela dificuldade (campo "difficulty", de 1 a 5). Não escolha fora da lista.
+- "Muito difícil": os candidatos têm dificuldade menor; escolha a variação mais próxima em movimento/função (prefira a de dificuldade imediatamente menor).
+- "Muito fácil": os candidatos têm dificuldade maior; escolha a variação mais próxima em movimento/função (prefira a de dificuldade imediatamente maior).
 - "Equipamento indisponível": escolha exercício com equipamento diferente, mesmo grupo muscular.
 - "Não gostei": escolha alternativa equivalente em função e grupo muscular.
 

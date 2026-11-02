@@ -14,7 +14,7 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import { isPremium } from "@/lib/subscription";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
-import { callAIForReplacement, filterReplacementCandidates } from "@/lib/workout-ai";
+import { callAIForReplacement, filterReplacementCandidates, pickPrepReplacement } from "@/lib/workout-ai";
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 import { getUserLevelRow } from "@/lib/user-level-store";
 import { applyPhaseLevel } from "@/lib/user-level";
@@ -114,11 +114,17 @@ export async function POST(request: NextRequest) {
     }
 
     const normalizedTargetName = exerciseName.trim().toLowerCase();
-    const exerciseIndex = section.exercises.findIndex(
+    let exerciseIndex = section.exercises.findIndex(
       (ex) => ex.name.trim().toLowerCase() === normalizedTargetName
     );
+    // Mobilidade fica numa lista própria da sessão (section.mobility).
+    const mobilityIndex =
+      exerciseIndex === -1
+        ? (section.mobility ?? []).findIndex((ex) => ex.name.trim().toLowerCase() === normalizedTargetName)
+        : -1;
+    const isMobilityTarget = mobilityIndex !== -1;
 
-    if (exerciseIndex === -1) {
+    if (exerciseIndex === -1 && !isMobilityTarget) {
       logWarn("REPLACE_EXERCISE", "Exercise not found in section by name", {
         user_id: userId,
         workout_id: workoutId,
@@ -127,11 +133,14 @@ export async function POST(request: NextRequest) {
       return jsonError(EXERCISE_NOT_FOUND_MESSAGE, 404);
     }
 
-    const originalExercise = section.exercises[exerciseIndex];
+    const originalExercise = isMobilityTarget ? (section.mobility ?? [])[mobilityIndex] : section.exercises[exerciseIndex];
 
-    // --- Bloquear mobilidade ---
-    if (originalExercise.blockType === "mobility" || originalExercise.type === "mobility") {
-      return jsonError("Não é possível substituir exercícios de mobilidade.", 400);
+    // Mobilidade e aquecimento: troca local (mesmo tipo), só "não gostei" / "equipamento indisponível".
+    // Premium: troca livre (não conta no limite). Free: conta e segue o mesmo fluxo (anúncio premiado).
+    const isPrepOriginal =
+      isMobilityTarget || originalExercise.blockType === "mobility" || originalExercise.type === "mobility" || originalExercise.blockType === "warmup";
+    if (isPrepOriginal && reason !== "dont_like" && reason !== "no_equipment") {
+      return jsonError("Para mobilidade e aquecimento use: no_equipment ou dont_like.", 400);
     }
 
     // --- Verificar limite de substituições baseado no plano real do usuário ---
@@ -177,7 +186,7 @@ export async function POST(request: NextRequest) {
         });
         return NextResponse.json({ success: false, error: "replacement_limit_reached", plan: "free" }, { status: 403 });
       }
-    } else {
+    } else if (!isPrepOriginal) {
       // Premium: conta substituições apenas desta sessão (Treino A, B, C... independentes)
       let dayCountQuery = supabase
         .from("workout_exercise_replacements")
@@ -266,88 +275,106 @@ export async function POST(request: NextRequest) {
 
     const excludedExerciseIds = (excludedRows ?? []).map((row) => row.exercise_id as string);
 
-    // --- Filtrar candidatos (removendo também os já descartados) ---
-    let candidates = filterReplacementCandidates(
-      originalRecord,
-      sessionExerciseIds,
-      answers,
-      exerciseLibrary,
-      excludedExerciseIds
-    );
+    let replacementRecord: ExerciseRecord | undefined;
 
-    // --- "Aparelho/material indisponível": evitar o MESMO equipamento ---
-    // Ex.: original usa halteres → prioriza substitutos sem halteres. "machine" é
-    // IGNORADO de propósito: a categoria não distingue qual máquina (faltar o leg
-    // press não significa faltar a cadeira extensora), então outra máquina continua
-    // valendo como substituta. Se não sobrar nenhum candidato, volta para a lista
-    // completa para nunca travar a troca.
-    if (reason === "no_equipment" && candidates.length) {
-      const originalEquipment = normalizeExerciseEquipmentList(
-        (originalRecord.equipment ?? originalRecord.metadata?.equipment) as string | string[] | null | undefined
-      ).filter((item) => item !== "bodyweight" && item !== "machine");
+    if (isPrepOriginal) {
+      const namesInWorkout = [...section.exercises, ...(section.mobility ?? [])].map((ex) => ex.name);
+      const picked = pickPrepReplacement(originalRecord, namesInWorkout, answers, exerciseLibrary, excludedExerciseIds, reason);
+      if (!picked) {
+        logWarn("REPLACE_EXERCISE", "No prep replacement candidates found", {
+          user_id: userId,
+          workout_id: workoutId,
+          exercise_name: originalExercise.name
+        });
+        return jsonError(NO_CANDIDATES_MESSAGE, 422);
+      }
+      replacementRecord = picked;
+    } else {
+      // --- Filtrar candidatos (removendo também os já descartados) ---
+      let candidates = filterReplacementCandidates(
+        originalRecord,
+        sessionExerciseIds,
+        answers,
+        exerciseLibrary,
+        excludedExerciseIds,
+        reason
+      );
 
-      if (originalEquipment.length) {
-        const blocked = new Set(originalEquipment);
-        const withDifferentEquipment = candidates.filter(
-          (candidate) => !candidate.equipment.some((item) => blocked.has(item))
-        );
-        if (withDifferentEquipment.length) {
-          candidates = withDifferentEquipment;
-        } else {
-          logInfo("REPLACE_EXERCISE", "No candidate with different equipment, using full list", {
-            user_id: userId,
-            exercise_name: originalExercise.name,
-            original_equipment: originalEquipment
-          });
+      // --- "Aparelho/material indisponível": evitar o MESMO equipamento ---
+      // Ex.: original usa halteres → prioriza substitutos sem halteres. "machine" é
+      // IGNORADO de propósito: a categoria não distingue qual máquina (faltar o leg
+      // press não significa faltar a cadeira extensora), então outra máquina continua
+      // valendo como substituta. Se não sobrar nenhum candidato, volta para a lista
+      // completa para nunca travar a troca.
+      if (reason === "no_equipment" && candidates.length) {
+        const originalEquipment = normalizeExerciseEquipmentList(
+          (originalRecord.equipment ?? originalRecord.metadata?.equipment) as string | string[] | null | undefined
+        ).filter((item) => item !== "bodyweight" && item !== "machine");
+
+        if (originalEquipment.length) {
+          const blocked = new Set(originalEquipment);
+          const withDifferentEquipment = candidates.filter(
+            (candidate) => !candidate.equipment.some((item) => blocked.has(item))
+          );
+          if (withDifferentEquipment.length) {
+            candidates = withDifferentEquipment;
+          } else {
+            logInfo("REPLACE_EXERCISE", "No candidate with different equipment, using full list", {
+              user_id: userId,
+              exercise_name: originalExercise.name,
+              original_equipment: originalEquipment
+            });
+          }
         }
       }
-    }
 
-    if (!candidates.length) {
-      logWarn("REPLACE_EXERCISE", "No replacement candidates found", {
-        user_id: userId,
-        workout_id: workoutId,
-        exercise_name: originalExercise.name
-      });
-      return jsonError(NO_CANDIDATES_MESSAGE, 422);
-    }
+      if (!candidates.length) {
+        logWarn("REPLACE_EXERCISE", "No replacement candidates found", {
+          user_id: userId,
+          workout_id: workoutId,
+          exercise_name: originalExercise.name
+        });
+        return jsonError(NO_CANDIDATES_MESSAGE, 422);
+      }
 
-    const originalForAI = {
-      id: originalRecord.id,
-      name: originalRecord.name,
-      primaryMuscle: getPrimaryExerciseMuscle(originalRecord) ?? "",
-      type: originalRecord.type ?? null
-    };
+      const originalForAI = {
+        id: originalRecord.id,
+        name: originalRecord.name,
+        primaryMuscle: getPrimaryExerciseMuscle(originalRecord) ?? "",
+        type: originalRecord.type ?? null,
+        difficulty: originalRecord.difficulty ?? null
+      };
 
-    // --- Chamar a IA (validar contra a lista de candidatos, não o catálogo inteiro) ---
-    const candidateIdSet = new Set(candidates.map((c) => c.id));
+      // --- Chamar a IA (validar contra a lista de candidatos, não o catálogo inteiro) ---
+      const candidateIdSet = new Set(candidates.map((c) => c.id));
 
-    let aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
-
-    if (!candidateIdSet.has(aiResult.replacementExerciseId)) {
-      logWarn("REPLACE_EXERCISE", "AI returned exercise outside candidate list, retrying", {
-        user_id: userId,
-        workout_id: workoutId,
-        returned_id: aiResult.replacementExerciseId,
-        returned_name: aiResult.replacementExerciseName,
-        candidates_count: candidates.length
-      });
-
-      aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
+      let aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
 
       if (!candidateIdSet.has(aiResult.replacementExerciseId)) {
-        logError("REPLACE_EXERCISE", "AI replacement not in candidate list after retry", {
+        logWarn("REPLACE_EXERCISE", "AI returned exercise outside candidate list, retrying", {
           user_id: userId,
           workout_id: workoutId,
           returned_id: aiResult.replacementExerciseId,
+          returned_name: aiResult.replacementExerciseName,
           candidates_count: candidates.length
         });
-        return NextResponse.json({ success: false, error: "replacement_not_found" }, { status: 422 });
+
+        aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
+
+        if (!candidateIdSet.has(aiResult.replacementExerciseId)) {
+          logError("REPLACE_EXERCISE", "AI replacement not in candidate list after retry", {
+            user_id: userId,
+            workout_id: workoutId,
+            returned_id: aiResult.replacementExerciseId,
+            candidates_count: candidates.length
+          });
+          return NextResponse.json({ success: false, error: "replacement_not_found" }, { status: 422 });
+        }
       }
+
+      replacementRecord = exerciseLibrary.find((exercise) => exercise.id === aiResult.replacementExerciseId);
     }
 
-    // --- Buscar ExerciseRecord completo do substituto ---
-    const replacementRecord = exerciseLibrary.find((exercise) => exercise.id === aiResult.replacementExerciseId);
     if (!replacementRecord) {
       return NextResponse.json({ success: false, error: "replacement_not_found" }, { status: 422 });
     }
@@ -369,16 +396,20 @@ export async function POST(request: NextRequest) {
     const updatedSections = workout.sections.map((section, index) => {
       if (index !== dayIndex) return section;
 
-      const updatedExercises = section.exercises.map((exercise, exIndex) =>
-        exIndex === exerciseIndex ? updatedExercise : exercise
-      );
+      const updatedExercises = isMobilityTarget
+        ? section.exercises
+        : section.exercises.map((exercise, exIndex) => (exIndex === exerciseIndex ? updatedExercise : exercise));
+      const updatedMobility = isMobilityTarget
+        ? (section.mobility ?? []).map((exercise, mobIndex) => (mobIndex === mobilityIndex ? updatedExercise : exercise))
+        : section.mobility ?? [];
 
       // Reconstruir items a partir dos exercises atualizados para manter
       // consistência com buildTrainingExerciseRows, que usa items quando presentes.
-      const updatedItems = buildWorkoutSectionItems(section.mobility ?? [], updatedExercises);
+      const updatedItems = buildWorkoutSectionItems(updatedMobility, updatedExercises);
 
       return {
         ...section,
+        mobility: updatedMobility,
         exercises: updatedExercises,
         items: updatedItems
       };
@@ -412,15 +443,20 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Registrar histórico de substituição ---
-    const { error: historyError } = await supabase.from("workout_exercise_replacements").insert({
-      user_id: userId,
-      workout_id: workoutId,
-      workout_day_id: workoutDayId,
-      original_exercise_id: originalRecord.id,
-      replacement_exercise_id: replacementRecord.id,
-      reason,
-      plan_type_at_time: userIsPremium ? "premium" : "free"
-    });
+    // Premium + mobilidade/aquecimento = troca livre: não grava o histórico, que é o que
+    // alimenta o contador do limite (assim não consome as 2 trocas da sessão).
+    const skipHistory = isPrepOriginal && userIsPremium;
+    const { error: historyError } = skipHistory
+      ? { error: null }
+      : await supabase.from("workout_exercise_replacements").insert({
+          user_id: userId,
+          workout_id: workoutId,
+          workout_day_id: workoutDayId,
+          original_exercise_id: originalRecord.id,
+          replacement_exercise_id: replacementRecord.id,
+          reason,
+          plan_type_at_time: userIsPremium ? "premium" : "free"
+        });
 
     if (historyError) {
       logWarn("REPLACE_EXERCISE", "Replacement history insert failed (non-blocking)", {
