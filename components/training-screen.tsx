@@ -260,6 +260,25 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
   const workout = data.workouts[activeWorkoutKey] ?? data.workouts[data.workoutOrder[0] ?? ""];
   const exerciseRows = useMemo(() => buildTrainingExerciseRows(workout), [workout]);
+  // Agrupa exercícios consecutivos do mesmo bloco combinado (bi-set, tri-set...) para exibi-los "juntos".
+  const exerciseGroups = useMemo(() => {
+    const groups: { exercise: (typeof exerciseRows)[number]; index: number }[][] = [];
+    exerciseRows.forEach((exercise, index) => {
+      const isCombinable =
+        Boolean(exercise.blockId) &&
+        !exercise.isMobility &&
+        exercise.blockType !== "normal" &&
+        exercise.blockType !== "warmup";
+      const last = groups[groups.length - 1];
+      const lastItem = last?.[last.length - 1];
+      if (isCombinable && lastItem && lastItem.exercise.blockId === exercise.blockId) {
+        last.push({ exercise, index });
+      } else {
+        groups.push([{ exercise, index }]);
+      }
+    });
+    return groups;
+  }, [exerciseRows]);
 
   // Totais da barra de progresso: anda a cada SÉRIE marcada.
   const progressStats = useMemo(() => {
@@ -723,8 +742,36 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     trackEvent("cta_click", data.user.id, { source: "workout_start_exploring", workout_key: activeWorkoutKey });
   }
 
-  function handleSetActivity(exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) {
+  // Bloco combinado: após marcar uma série, vai direto ao próximo exercício do bloco
+  // (no último, volta ao primeiro que ainda tem série pendente).
+  function findNextInCombinedGroup(exerciseId: string) {
+    const group = exerciseGroups.find((items) => items.length > 1 && items.some((item) => item.exercise.id === exerciseId));
+    if (!group) return null;
+    const position = group.findIndex((item) => item.exercise.id === exerciseId);
+    for (let step = 1; step < group.length; step += 1) {
+      const candidate = group[(position + step) % group.length].exercise;
+      if (!isExerciseDone(candidate.id)) return candidate.id;
+    }
+    return null;
+  }
+
+  function handleSetActivity(
+    exerciseId: string,
+    info: { completedSets: number; totalSets: number; isComplete: boolean; marked?: boolean }
+  ) {
     if (!startOrTouchWorkout(true)) return;
+    if (info.marked) {
+      const nextInBlock = findNextInCombinedGroup(exerciseId);
+      if (nextInBlock) {
+        try {
+          navigator.vibrate?.(20);
+        } catch {
+          // sem vibração neste aparelho
+        }
+        setOpenExerciseId(nextInBlock);
+        return;
+      }
+    }
     if (!info.isComplete) return;
     try {
       navigator.vibrate?.(20);
@@ -1089,38 +1136,76 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       </Card>
 
       <div className="space-y-3">
-        {exerciseRows.map((exercise, index) => {
-          // Exibe anúncio após o 4º e o 8º exercício — apenas para usuários free (máx. 2 anúncios)
-          const adPosition = (index + 1) / 4;
-          const showAd = showAds && (index + 1) % 4 === 0 && adPosition <= 2;
+        {exerciseGroups.map((group) => {
+          const isCombinedGroup = group.length > 1;
+          // Exibe anúncio após o 4º e o 8º exercício — apenas para usuários free (máx. 2 anúncios).
+          // Em bloco combinado, o anúncio vem depois do grupo inteiro (nunca no meio).
+          const showAd = showAds && group.some((item) => (item.index + 1) % 4 === 0 && (item.index + 1) / 4 <= 2);
+
+          const cards = group.map(({ exercise, index }, position) => {
+            const partners = isCombinedGroup ? group.filter((_, i) => i !== position) : [];
+            const nextInGroup = isCombinedGroup ? group[(position + 1) % group.length] : null;
+
+            return (
+              <Fragment key={`${exercise.id}:${cardsResetToken}`}>
+                <ExpandableExerciseCard
+                  data={data}
+                  workoutKey={activeWorkoutKey}
+                  exercise={exercise}
+                  index={index}
+                  expanded={openExerciseId === exercise.id}
+                  onToggle={handleToggleExercise}
+                  workoutId={data.workoutId}
+                  workoutDayId={workoutDayId}
+                  exerciseIndex={index}
+                  exerciseName={exercise.name}
+                  replacementLimitReached={replacementLimitReached}
+                  replacementCount={replacementCount}
+                  replacementsRemaining={replacementsRemaining}
+                  isPremiumUser={isPremiumUser}
+                  isReplaced={replacedExerciseNames.has(exercise.name)}
+                  onExerciseReplaced={handleExerciseReplaced}
+                  initialWeightKg={lastWeightsMap[normalizeExerciseName(exercise.name)] ?? null}
+                  onCompletionChange={handleExerciseCompletionChange}
+                  onProgressChange={handleExerciseProgressChange}
+                  onSetActivity={handleSetActivity}
+                  onBeforeSetActivity={handleBeforeSetActivity}
+                  coachTip={sessionForUser ? coach.exerciseTipFor(exercise.name) : null}
+                  onCoachTipDismiss={coach.markShown}
+                  combinedPartnerNames={partners.map((item) => item.exercise.name)}
+                  nextCombinedExerciseId={nextInGroup?.exercise.id ?? null}
+                  combinedRestHint={
+                    isCombinedGroup && nextInGroup
+                      ? position === group.length - 1
+                        ? { kind: "rest", backToName: nextInGroup.exercise.name }
+                        : { kind: "pending", nextName: nextInGroup.exercise.name }
+                      : null
+                  }
+                />
+              </Fragment>
+            );
+          });
 
           return (
-            <Fragment key={`${exercise.id}:${cardsResetToken}`}>
-              <ExpandableExerciseCard
-                data={data}
-                workoutKey={activeWorkoutKey}
-                exercise={exercise}
-                index={index}
-                expanded={openExerciseId === exercise.id}
-                onToggle={handleToggleExercise}
-                workoutId={data.workoutId}
-                workoutDayId={workoutDayId}
-                exerciseIndex={index}
-                exerciseName={exercise.name}
-                replacementLimitReached={replacementLimitReached}
-                replacementCount={replacementCount}
-                replacementsRemaining={replacementsRemaining}
-                isPremiumUser={isPremiumUser}
-                isReplaced={replacedExerciseNames.has(exercise.name)}
-                onExerciseReplaced={handleExerciseReplaced}
-                initialWeightKg={lastWeightsMap[normalizeExerciseName(exercise.name)] ?? null}
-                onCompletionChange={handleExerciseCompletionChange}
-                onProgressChange={handleExerciseProgressChange}
-                onSetActivity={handleSetActivity}
-                onBeforeSetActivity={handleBeforeSetActivity}
-                coachTip={sessionForUser ? coach.exerciseTipFor(exercise.name) : null}
-                onCoachTipDismiss={coach.markShown}
-              />
+            <Fragment key={group.map((item) => item.exercise.id).join("|")}>
+              {isCombinedGroup ? (
+                <div className="space-y-2 rounded-[30px] border border-[#a855f7]/30 bg-[#a855f7]/[0.05] p-2">
+                  <p className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d8b4fe]">
+                    {[
+                      group[0].exercise.technique || "Combinado",
+                      group[0].exercise.plannedSetsCount
+                        ? `${group[0].exercise.plannedSetsCount} ${group[0].exercise.plannedSetsCount === 1 ? "rodada" : "rodadas"}`
+                        : null,
+                      "descanse só no final"
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                  {cards}
+                </div>
+              ) : (
+                cards
+              )}
               {showAd ? <TrainingInlineAd /> : null}
             </Fragment>
           );

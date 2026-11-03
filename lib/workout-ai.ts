@@ -32,6 +32,7 @@ import {
   summarizeWorkoutDurations
 } from "@/lib/workout-time";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
+import { planCombinedGroups } from "@/lib/workout-combined-blocks";
 import type {
   CombinedBlockType,
   DiagnosisResult,
@@ -1846,7 +1847,7 @@ function fitSessionToTimeBudget(input: {
     input.allowedNames,
     input.usedAcrossSessions
   );
-  let draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+  let draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint, input.exerciseMap);
 
   // Estilos da IA: respeita a lista da IA — não ajusta o nº de exercícios por
   // tempo (sem expandir nem simplificar). O HIIT (app) segue o ajuste por voltas.
@@ -1869,7 +1870,7 @@ function fitSessionToTimeBudget(input: {
         input.allowedNames,
         input.usedAcrossSessions
       );
-      draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+      draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint, input.exerciseMap);
       continue;
     }
 
@@ -1893,7 +1894,7 @@ function fitSessionToTimeBudget(input: {
         input.allowedNames,
         input.usedAcrossSessions
       );
-      draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint);
+      draft = buildSessionDraft(mobility, exercises, input.strategy, input.blueprint, input.exerciseMap);
       continue;
     }
 
@@ -1907,9 +1908,10 @@ function buildSessionDraft(
   mobility: SanitizedExercise[],
   exercises: SanitizedExercise[],
   strategy: WorkoutStrategy,
-  blueprint: SessionBlueprint
+  blueprint: SessionBlueprint,
+  exerciseMap?: Map<string, ExerciseLookup>
 ) {
-  const structuredExercises = structureSessionExercises(exercises, strategy, blueprint);
+  const structuredExercises = structureSessionExercises(exercises, strategy, blueprint, exerciseMap);
   const items = buildWorkoutSectionItems(mobility, structuredExercises);
   const flattened = flattenWorkoutSectionItems(items);
   const estimate = estimateWorkoutSectionDuration(items, strategy.timeBudget.availableTimeMinutes);
@@ -2994,17 +2996,19 @@ function applyHiitFormat(
 function structureSessionExercises(
   exercises: SanitizedExercise[],
   strategy: WorkoutStrategy,
-  blueprint: SessionBlueprint
+  blueprint: SessionBlueprint,
+  exerciseMap?: Map<string, ExerciseLookup>
 ) {
   const ordered = [...exercises].sort((left, right) => scoreExerciseOrder(right, blueprint) - scoreExerciseOrder(left, blueprint));
-  const withExistingBlocks = annotateExistingCombinedBlocks(ordered, strategy, blueprint);
 
-  // Estilos da IA: NÃO inventa bi-sets/técnicas — mantém só os blocos que a
-  // própria IA pediu. (Era isso que gerava os "B1/B2 · Bi-set" indevidos.)
+  // Estilos da IA: o app é dono da estrutura dos blocos combinados (método do Renato).
+  // A IA escolhe os exercícios; as regras de pareamento ficam em lib/workout-combined-blocks.ts.
   const respectAi = (blueprint.trainingStyle ?? strategy.trainingStyle) !== "hiit";
   if (respectAi) {
-    return enforceCombinedRuns(withExistingBlocks);
+    return applyRuleBasedCombinedBlocks(ordered, strategy, blueprint, exerciseMap);
   }
+
+  const withExistingBlocks = annotateExistingCombinedBlocks(ordered, strategy, blueprint);
 
   const withContextualBlocks = addContextualCombinedBlocks(withExistingBlocks, strategy, blueprint);
   const withTechniques = applyStandaloneIntensityTechniques(withContextualBlocks, strategy, blueprint);
@@ -3012,6 +3016,123 @@ function structureSessionExercises(
   // separado um circuito/bi-set, deixando um bloco "solto" (ex.: circuito de 1).
   // enforceCombinedRuns rebaixa para 'normal' qualquer bloco abaixo do mínimo.
   return enforceCombinedRuns(withTechniques);
+}
+
+function isMachineExercise(name: string, exerciseMap?: Map<string, ExerciseLookup>) {
+  const lookup = exerciseMap?.get(name.trim().toLowerCase());
+  if (!lookup) return false;
+  return normalizeExerciseEquipmentList(lookup.source.equipment ?? lookup.source.metadata?.equipment).some(
+    (item) => item === "machine" || item.includes("maquina")
+  );
+}
+
+function parseSecondsValue(value: unknown) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+const COMBINED_TECHNIQUE_LABEL: Record<CombinedBlockType, string> = {
+  superset: "superset",
+  "bi-set": "bi-set",
+  "tri-set": "tri-set",
+  circuit: "circuito"
+};
+
+/**
+ * Monta os blocos combinados do treino pelas regras do método (ver
+ * lib/workout-combined-blocks.ts). Descarta os blocos que a IA tenha proposto
+ * e refaz tudo, para o padrão ser o mesmo em todos os treinos do programa.
+ */
+function applyRuleBasedCombinedBlocks(
+  ordered: SanitizedExercise[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap?: Map<string, ExerciseLookup>
+) {
+  // 1) Zera blocos combinados vindos da IA (viram exercícios normais).
+  const base = ordered.map((exercise) => {
+    if (!isCombinedBlockType(exercise.blockType)) return exercise;
+    return {
+      ...exercise,
+      type: "normal",
+      blockType: "normal" as WorkoutBlockType,
+      method: "tradicional",
+      technique: "tradicional",
+      trainingTechnique: "tradicional",
+      blockId: undefined,
+      blockLabel: undefined,
+      rounds: undefined,
+      restAfterRound: undefined,
+      blockNotes: undefined,
+      order: undefined
+    } satisfies SanitizedExercise;
+  });
+
+  const groups = planCombinedGroups(
+    base.map((exercise) => ({
+      movementType: exercise.movementType,
+      blockType: exercise.blockType ?? null,
+      primaryMuscles: exercise.primaryMuscles ?? [],
+      secondaryMuscles: exercise.secondaryMuscles ?? [],
+      isMachine: isMachineExercise(exercise.name, exerciseMap)
+    })),
+    {
+      level: strategy.level,
+      style: blueprint.trainingStyle ?? strategy.trainingStyle,
+      availableMinutes: strategy.timeBudget.availableTimeMinutes,
+      goalStyle: strategy.goalStyle
+    }
+  );
+
+  // Rest de exercício vindo de circuito da IA pode ser ~0: não serve como descanso de fim de rodada.
+  const normalizeIsolatedRest = (exercise: SanitizedExercise) =>
+    parseSecondsValue(exercise.rest) > 15 ? exercise : { ...exercise, rest: "45s" };
+
+  if (!groups.length) {
+    return base.map(normalizeIsolatedRest);
+  }
+
+  const result = base.map(normalizeIsolatedRest);
+
+  groups.forEach((group, groupIndex) => {
+    const members = group.indexes.map((index) => result[index]);
+    // Regra fixa: mesmo nº de séries no bloco = o MENOR valor.
+    const setsList = members.map((member) => parseSecondsValue(member.sets)).filter((value) => value > 0);
+    const sets = setsList.length ? Math.min(...setsList) : 3;
+    // Descanso só no fim da rodada: o maior descanso entre os exercícios do bloco.
+    const roundRest = Math.max(45, ...members.map((member) => parseSecondsValue(member.rest)));
+
+    applyCombinedBlockMetadata(result, group.indexes, group.blockType, groupIndex + 1, strategy, blueprint);
+
+    group.indexes.forEach((index, position) => {
+      const label = COMBINED_TECHNIQUE_LABEL[group.blockType];
+      result[index] = {
+        ...result[index],
+        sets: String(sets),
+        rest: position === group.indexes.length - 1 ? `${roundRest}s` : "0s",
+        rounds: String(sets),
+        restAfterRound: `${roundRest} segundos`,
+        method: label,
+        technique: label,
+        trainingTechnique: label
+      };
+    });
+  });
+
+  // 2) Deixa os exercícios do mesmo bloco colados, na posição do primeiro deles.
+  const firstOfGroup = new Map(groups.map((group) => [group.indexes[0], group]));
+  const inGroup = new Set(groups.flatMap((group) => group.indexes));
+  const output: SanitizedExercise[] = [];
+  result.forEach((exercise, index) => {
+    const group = firstOfGroup.get(index);
+    if (group) {
+      group.indexes.forEach((memberIndex) => output.push(result[memberIndex]));
+    } else if (!inGroup.has(index)) {
+      output.push(exercise);
+    }
+  });
+
+  return output;
 }
 
 function scoreExerciseOrder(exercise: SanitizedExercise, blueprint: SessionBlueprint) {

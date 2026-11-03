@@ -152,6 +152,8 @@ export type TrainingExerciseRow = {
   technique: string | null;
   blockType: string | null;
   blockOrder: string | null;
+  /** Identificador do bloco combinado (exercícios do mesmo bloco compartilham o valor). */
+  blockId: string | null;
   eyebrow: string;
   note: string | null;
   videoUrl: string | null;
@@ -329,6 +331,7 @@ export function buildTrainingExerciseRows(section?: WorkoutSection | null) {
       technique: techniqueLabel,
       blockType: normalizedBlockType,
       blockOrder: exercise.order?.trim() || null,
+      blockId: exercise.blockId?.trim() || null,
       eyebrow: buildExerciseEyebrow(exercise.order, exercise.blockLabel, normalizedBlockType),
       note: exercise.notes?.trim() || exercise.blockNotes?.trim() || null,
       videoUrl: exercise.videoUrl ?? null,

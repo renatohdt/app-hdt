@@ -5,6 +5,8 @@ import { ChevronDown, ChevronUp, Pause, Play, RotateCcw, Timer } from "lucide-re
 import { formatElapsedClock } from "@/lib/active-workout-session";
 import {
   SET_COMPLETED_EVENT,
+  type CombinedRestHint,
+  type SetCompletedDetail,
   formatTimerClock,
   sendRestTimerCommand,
   useRestTimerStatus
@@ -49,17 +51,25 @@ export function WorkoutProgressDock({
   const [now, setNow] = useState(() => Date.now());
   const [collapsed, setCollapsed] = useState(false);
   const lastScrollY = useRef(0);
+  // Ao marcar série, o app rola até o próximo exercício; essa rolagem automática não pode recolher a barra.
+  const keepOpenUntil = useRef(0);
   const timer = useRestTimerStatus();
   const timerActiveRef = useRef(timer.active);
   timerActiveRef.current = timer.active;
-  /** Oferta "Série feita! Cronômetro 1:30 · Iniciar" (segundos) */
+  /** Oferta "Série feita! Cronômetro 1:30 · Iniciar" (segundos). hint = série de bloco combinado. */
   const [offerSeconds, setOfferSeconds] = useState<number | null>(null);
+  const [offerHint, setOfferHint] = useState<CombinedRestHint | null>(null);
 
   useEffect(() => {
     function handleSetCompleted(event: Event) {
-      const seconds = (event as CustomEvent<{ seconds: number | null }>).detail?.seconds;
-      if (!seconds || timerActiveRef.current) return;
-      setOfferSeconds(seconds);
+      const detail = (event as CustomEvent<SetCompletedDetail>).detail;
+      const seconds = detail?.seconds;
+      const hint = detail?.combined ?? null;
+      if (timerActiveRef.current) return;
+      if (!seconds && hint?.kind !== "pending") return;
+      keepOpenUntil.current = Date.now() + 4000;
+      setOfferHint(hint);
+      setOfferSeconds(seconds ?? 0);
       setCollapsed(false);
     }
     window.addEventListener(SET_COMPLETED_EVENT, handleSetCompleted);
@@ -73,14 +83,17 @@ export function WorkoutProgressDock({
       setOfferSeconds(null);
       return;
     }
+    // "Realize o exercício combinado" fica na tela até a próxima série (não some em 20 s).
+    if (offerHint?.kind === "pending") return;
     const id = window.setTimeout(() => setOfferSeconds(null), OFFER_VISIBLE_MS);
     return () => window.clearTimeout(id);
-  }, [offerSeconds, timer.active]);
+  }, [offerSeconds, offerHint, timer.active]);
 
   const showOffer = offerSeconds !== null && !timer.active && setsDone < setsTotal;
   const offer = showOffer ? (
     <TimerOffer
       seconds={offerSeconds as number}
+      hint={offerHint}
       onStart={() => {
         sendRestTimerCommand({ type: "start", seconds: offerSeconds });
         setOfferSeconds(null);
@@ -101,7 +114,9 @@ export function WorkoutProgressDock({
       const y = window.scrollY;
       const delta = y - lastScrollY.current;
       lastScrollY.current = y;
-      if (delta > 8 && y > 80) setCollapsed(true);
+      if (delta > 8 && y > 80) {
+        if (Date.now() >= keepOpenUntil.current) setCollapsed(true);
+      }
       else if (delta < -8) setCollapsed(false);
     }
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -233,12 +248,42 @@ function ProgressBar({ pct, ticks }: { pct: number; ticks: number[] }) {
   );
 }
 
-function TimerOffer({ seconds, onStart, onDismiss }: { seconds: number; onStart: () => void; onDismiss: () => void }) {
+function TimerOffer({
+  seconds,
+  hint,
+  onStart,
+  onDismiss
+}: {
+  seconds: number;
+  hint: CombinedRestHint | null;
+  onStart: () => void;
+  onDismiss: () => void;
+}) {
+  // Bloco combinado, falta o outro exercício: nada de descanso ainda.
+  if (hint?.kind === "pending") {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-[#a855f7]/30 bg-[#a855f7]/10 py-2 pl-3 pr-1.5 text-[0.8rem] text-white/80" role="status">
+        <Timer className="h-4 w-4 shrink-0 text-[#d8b4fe]" aria-hidden />
+        <span className="min-w-0 flex-1">
+          Realize o exercício combinado para iniciar o descanso
+          <span className="block text-[0.72rem] text-white/50">Próximo: {hint.nextName}</span>
+        </span>
+        <button type="button" onClick={onDismiss} className="h-8 rounded-xl px-2 text-xs font-medium text-white/55 hover:text-white">
+          Ok
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 flex items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 py-1.5 pl-3 pr-1.5 text-[0.8rem] text-white/80" role="status">
       <Timer className="h-4 w-4 shrink-0 text-primary" aria-hidden />
       <span className="min-w-0 flex-1">
-        Série feita! Cronômetro <b className="tabular-nums text-white">{formatTimerClock(seconds)}</b>
+        {hint?.kind === "rest" ? "Descanse" : "Série feita! Cronômetro"}{" "}
+        <b className="tabular-nums text-white">{formatTimerClock(seconds)}</b>
+        {hint?.kind === "rest" ? (
+          <span className="block text-[0.72rem] text-white/50">Depois volte para: {hint.backToName}</span>
+        ) : null}
       </span>
       <button type="button" onClick={onDismiss} className="h-8 rounded-xl px-2 text-xs font-medium text-white/55 hover:text-white">
         Agora não

@@ -9,7 +9,7 @@ import { useConsentPreferences } from "@/components/consent-provider";
 import { useAdMobAvailable } from "@/components/RewardedAdButton";
 import { preloadRewardedAd, showRewardedAd } from "@/lib/admob";
 import { trackEvent } from "@/lib/analytics-client";
-import { announceSetCompleted } from "@/lib/rest-timer-store";
+import { announceSetCompleted, type CombinedRestHint } from "@/lib/rest-timer-store";
 import { type AppWorkoutData, type TrainingExerciseRow } from "@/lib/app-workout";
 import { WeightChartModal } from "@/components/weight-chart-modal";
 import { CoachTipInline } from "@/components/coach-tips";
@@ -64,7 +64,10 @@ export function ExpandableExerciseCard({
   onSetActivity,
   onBeforeSetActivity,
   coachTip = null,
-  onCoachTipDismiss
+  onCoachTipDismiss,
+  combinedPartnerNames = null,
+  nextCombinedExerciseId = null,
+  combinedRestHint = null
 }: {
   data: AppWorkoutData;
   workoutKey: string;
@@ -89,13 +92,22 @@ export function ExpandableExerciseCard({
   // Quantas séries estão marcadas (inclusive na carga inicial). Alimenta a barra de progresso.
   onProgressChange?: (exerciseId: string, completedSets: number, totalSets: number) => void;
   // Chamado só quando a PESSOA marca/desmarca séries (inicia o treino e conta como atividade).
-  onSetActivity?: (exerciseId: string, info: { completedSets: number; totalSets: number; isComplete: boolean }) => void;
+  onSetActivity?: (
+    exerciseId: string,
+    info: { completedSets: number; totalSets: number; isComplete: boolean; marked?: boolean }
+  ) => void;
   // Chamado ANTES de MARCAR série(s): o pai pode pedir confirmação ("Vai começar o
   // treino agora?"). A marcação só acontece quando o pai chama proceed().
   onBeforeSetActivity?: (proceed: () => void) => void;
   // Dica do Renato de carga (aumentar/diminuir), só com o treino em andamento.
   coachTip?: CoachTip | null;
   onCoachTipDismiss?: (tipId: string) => void;
+  // Nomes dos outros exercícios do mesmo bloco combinado (vazio/null = exercício isolado).
+  combinedPartnerNames?: string[] | null;
+  // Próximo exercício do bloco combinado: ao tocar em "Exercício combinado com", abre este.
+  nextCombinedExerciseId?: string | null;
+  // Mensagem do cronômetro ao marcar série neste exercício (só em bloco combinado).
+  combinedRestHint?: CombinedRestHint | null;
 }) {
   const storageKey = useMemo(
     () => exerciseDraftKey(data.user.id, workoutKey, exercise.id),
@@ -221,11 +233,22 @@ export function ExpandableExerciseCard({
     ? REPLACE_REASONS.filter((option) => option.value === "dont_like" || option.value === "no_equipment")
     : REPLACE_REASONS;
   const isCombinedExercise = matchesCombinedTechnique(exercise.blockType ?? exercise.technique);
-  const hasTechniqueTag = shouldShowTechniqueTag(exercise.technique, exercise.isMobility || isWarmupExercise);
+  const hasTechniqueTag = shouldShowTechniqueTag(exercise.technique, exercise.isMobility || isWarmupExercise || isCombinedExercise);
   const techniqueDescription = getTechniqueDescription(exercise.technique);
-  const combinedBadgeLabel = isCombinedExercise
-    ? [exercise.blockOrder, exercise.technique].filter(Boolean).join(" · ") || "Bloco combinado"
-    : null;
+  // Bloco combinado: etiqueta com a técnica (Bi-set, Tri-set...) e a frase "Exercício combinado com: ...".
+  const combinedPartners = combinedPartnerNames?.filter(Boolean) ?? [];
+  const combinedBadgeLabel = isCombinedExercise ? exercise.technique || "Combinado" : null;
+  const combinedWithLabel =
+    isCombinedExercise && combinedPartners.length
+      ? `Combinado com: ${combinedPartners.join(" + ")}`
+      : null;
+  // Descanso dentro do bloco: só existe no fim da rodada (no último exercício do bloco).
+  const combinedRestLabel =
+    isCombinedExercise && combinedRestHint
+      ? combinedRestHint.kind === "pending"
+        ? "Sem descanso, vá para o próximo"
+        : `Descanso: ${exercise.rest} ao final da rodada`
+      : null;
   const plannedRepsLabel = exercise.plannedRepsLabel?.trim() || "-";
   const isIsometric = exercise.blockType === "isometria";
 
@@ -294,7 +317,8 @@ export function ExpandableExerciseCard({
     onSetActivity?.(exercise.id, {
       completedSets,
       totalSets: nextEntries.length,
-      isComplete: nextEntries.length > 0 && nextEntries.every((entry) => entry.completed)
+      isComplete: nextEntries.length > 0 && nextEntries.every((entry) => entry.completed),
+      marked: nextCompleted
     });
     // Sem mensagem no card ao marcar/desmarcar: a confirmação de série feita
     // aparece na barra do treino (junto com o cronômetro).
@@ -302,7 +326,7 @@ export function ExpandableExerciseCard({
 
     if (nextCompleted) {
       // Avisa a barra do treino para oferecer o cronômetro com o tempo deste exercício.
-      announceSetCompleted(draftState.preferredRestSeconds ?? exercise.plannedRestSeconds ?? 60);
+      announceSetCompleted(draftState.preferredRestSeconds ?? exercise.plannedRestSeconds ?? 60, combinedRestHint);
       trackEvent("cta_click", data.user.id, {
         source: "complete_set_inline",
         workout_key: workoutKey,
@@ -429,7 +453,7 @@ export function ExpandableExerciseCard({
             : isWarmupExercise
             ? "border border-[#facc15]/20 bg-[linear-gradient(180deg,rgba(250,204,21,0.09),rgba(18,20,16,0.96))]"
             : isCombinedExercise
-            ? "border border-[#f59e0b]/18 bg-[linear-gradient(180deg,rgba(245,158,11,0.1),rgba(18,20,16,0.96))]"
+            ? "border border-[#a855f7]/25 bg-[linear-gradient(180deg,rgba(168,85,247,0.1),rgba(18,20,16,0.96))]"
             : isMobilityExercise
               ? "border border-[#38bdf8]/18 bg-[linear-gradient(180deg,rgba(56,189,248,0.09),rgba(18,20,16,0.96))]"
               : "border border-white/10 bg-[#0d100d]/80",
@@ -438,7 +462,7 @@ export function ExpandableExerciseCard({
             (isWarmupExercise
               ? "border-[#facc15]/30 bg-[linear-gradient(180deg,rgba(250,204,21,0.13),rgba(18,20,16,0.98))]"
               : isCombinedExercise
-              ? "border-[#f59e0b]/28 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(18,20,16,0.98))]"
+              ? "border-[#a855f7]/40 bg-[linear-gradient(180deg,rgba(168,85,247,0.14),rgba(18,20,16,0.98))]"
               : isMobilityExercise
                 ? "border-[#38bdf8]/28 bg-[linear-gradient(180deg,rgba(56,189,248,0.13),rgba(18,20,16,0.98))]"
                 : "border-primary/18 bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(255,255,255,0.02))]")
@@ -459,7 +483,7 @@ export function ExpandableExerciseCard({
                 isWarmupExercise
                   ? "border-[#facc15]/25 bg-[#facc15]/10 text-[#fde047]"
                   : isCombinedExercise
-                  ? "border-[#f59e0b]/20 bg-[#f59e0b]/10 text-[#f7b955]"
+                  ? "border-[#a855f7]/25 bg-[#a855f7]/10 text-[#d8b4fe]"
                   : isMobilityExercise
                     ? "border-[#38bdf8]/22 bg-[#38bdf8]/10 text-[#67d3ff]"
                   : "border-primary/15 bg-primary/10 text-primary"
@@ -491,7 +515,7 @@ export function ExpandableExerciseCard({
                       </span>
                     ) : null}
                     {combinedBadgeLabel ? (
-                      <span className="inline-flex items-center rounded-full border border-[#f59e0b]/18 bg-[#f59e0b]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f7b955]">
+                      <span className="inline-flex items-center rounded-full border border-[#a855f7]/25 bg-[#a855f7]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d8b4fe]">
                         {combinedBadgeLabel}
                       </span>
                     ) : null}
@@ -515,9 +539,28 @@ export function ExpandableExerciseCard({
                     <span className={isMobilityExercise ? "ml-2.5 min-[380px]:ml-3" : "mx-2.5 min-[380px]:mx-3"}>
                       {isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}
                     </span>
-                    {!isMobilityExercise ? <span>Descanso: {exercise.rest}</span> : null}
+                    {!isMobilityExercise && !combinedRestLabel ? <span>Descanso: {exercise.rest}</span> : null}
                   </p>
                 </div>
+                {combinedRestLabel ? (
+                  <p className={clsx("mt-1 text-[11px] font-medium leading-5 min-[380px]:text-[12px]", isExerciseComplete ? "text-white/30" : "text-white/62")}>
+                    {combinedRestLabel}
+                  </p>
+                ) : null}
+                {combinedWithLabel ? (
+                  <span
+                    role={nextCombinedExerciseId ? "link" : undefined}
+                    onClick={(event) => {
+                      if (!nextCombinedExerciseId) return;
+                      event.stopPropagation();
+                      onToggle(nextCombinedExerciseId);
+                    }}
+                    className="mt-2 block text-[12px] font-semibold leading-snug text-[#d8b4fe]"
+                  >
+                    {combinedWithLabel}
+                    {nextCombinedExerciseId ? "\u00A0→" : ""}
+                  </span>
+                ) : null}
                 {hasTechniqueTag ? (
                   <span className="mt-2 inline-flex rounded-full border border-[#f59e0b]/18 bg-[#f59e0b]/10 px-3 py-1 text-[12px] font-semibold leading-none text-[#f7b955]">
                     Técnica: {exercise.technique}

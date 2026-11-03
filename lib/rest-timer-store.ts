@@ -110,10 +110,23 @@ export function sendRestTimerCommand(command: RestTimerCommand) {
 }
 
 /** A tela de treino avisa que uma série foi marcada (com o tempo planejado do exercício). */
-export function announceSetCompleted(seconds?: number | null) {
+export function announceSetCompleted(seconds?: number | null, combined?: CombinedRestHint | null) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent<{ seconds: number | null }>(SET_COMPLETED_EVENT, { detail: { seconds: normalizeTimerSeconds(seconds) } }));
+  window.dispatchEvent(
+    new CustomEvent<SetCompletedDetail>(SET_COMPLETED_EVENT, {
+      detail: { seconds: normalizeTimerSeconds(seconds), combined: combined ?? null }
+    })
+  );
 }
+
+/**
+ * Série marcada dentro de um bloco combinado:
+ * - "pending": ainda falta fazer o(s) outro(s) exercício(s) do bloco → sem descanso ainda;
+ * - "rest": era o último exercício da rodada → descanso, depois volta ao primeiro do bloco.
+ */
+export type CombinedRestHint = { kind: "pending"; nextName: string } | { kind: "rest"; backToName: string };
+
+export type SetCompletedDetail = { seconds: number | null; combined: CombinedRestHint | null };
 
 /** Só leitura: para outras telas mostrarem o tempo (ex.: Treino Extra, que cobre o menu). */
 export function useRestTimerStatus() {
