@@ -15,7 +15,6 @@ import { NativePushProvider } from "@/components/native-push-provider";
 import { NotificationOptInHost } from "@/components/notification-optin-modal";
 import { getCurrentConsentVersion } from "@/lib/consents";
 import { getSiteUrl } from "@/lib/site-url";
-import { SchemaOrg } from "@/components/schema-org";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -83,9 +82,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <head>
-        <SchemaOrg />
-      </head>
       <body className={`${jakarta.className} bg-background text-white antialiased`}>
         {/*
           Consent Mode v2: deve rodar ANTES do gtag.js carregar.
