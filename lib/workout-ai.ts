@@ -33,6 +33,13 @@ import {
 } from "@/lib/workout-time";
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import { planCombinedGroups } from "@/lib/workout-combined-blocks";
+import {
+  buildTemplatePromptLines,
+  matchesTemplateSlot,
+  selectSessionTemplates,
+  type TemplateSlot,
+  type WorkoutTemplate
+} from "@/lib/workout-templates";
 import type {
   CombinedBlockType,
   DiagnosisResult,
@@ -229,6 +236,8 @@ type AiWorkoutExercise = {
   rest?: number | string;
   notes?: string;
   rationale?: string;
+  // Número da vaga do modelo (treinos com modelo).
+  slot?: number | string;
 };
 
 type AiWorkoutDay = {
@@ -264,6 +273,11 @@ type ExerciseLookup = {
 
 type SanitizedExercise = WorkoutExercise & {
   movementType: string;
+  // Treinos com modelo: dados da vaga, usados na montagem dos blocos e no corte
+  // por tempo. São removidos antes de salvar (stripTemplateFields).
+  templateSlot?: number;
+  templateBlock?: string;
+  templateCut?: number;
 };
 
 type MobilitySelectionContext = {
@@ -682,6 +696,27 @@ export async function generateWorkoutWithAI(
     .map((session) => `Treino ${session.day}`)
     .join(", ");
 
+  // MODELOS DE TREINO (piloto): quando o perfil tem modelo, a IA preenche as vagas
+  // e o app valida/monta os blocos. Treinos sem modelo seguem o fluxo atual.
+  const sessionTemplates = selectSessionTemplates(strategy, aiSessions);
+  const allSessionsTemplated = aiSessions.length > 0 && aiSessions.every((session) => sessionTemplates.has(session.day));
+  if (sessionTemplates.size) {
+    logInfo("AI", "Modelos de treino selecionados", {
+      templates: Object.fromEntries([...sessionTemplates].map(([day, template]) => [day, template.id]))
+    });
+  }
+  const templatePromptLines = sessionTemplates.size
+    ? [
+        "",
+        "MODELOS DE TREINO (obrigatorio nos treinos listados abaixo):",
+        "- Nesses treinos o numero de exercicios e o numero de vagas; siga a ordem das vagas.",
+        "- Use blockType 'normal' (o app monta os blocos combinados e as tecnicas); aquecimento 'warmup', isometrico 'isometria'.",
+        "- A vaga de abdomen vale mesmo que abs nao seja musculo primario da sessao.",
+        "- Nunca repita um exercicio entre os treinos; se nao houver opcao para uma vaga, escolha o mais proximo do mesmo musculo.",
+        ...[...sessionTemplates].flatMap(([day, template]) => ["", ...buildTemplatePromptLines(day, template)])
+      ]
+    : [];
+
   // User message: exercícios primeiro (semi-estático, maximiza prefixo cacheável),
   // depois os dados dinâmicos (restrições, estratégia, usuário).
   // Formato YAML reduz ~30% dos tokens vs JSON formatado.
@@ -699,8 +734,12 @@ export async function generateWorkoutWithAI(
     "RESTRIÇÕES OBRIGATÓRIAS:",
     `- Sessoes: exatamente ${sessionCountTarget} (${expectedSessionLabels}), focos distintos conforme sessions abaixo`,
     "- Cada treino deve ser COMPLETO e NAO repetir exercicios dos outros treinos.",
-    `- Exercicios/sessao: OBRIGATORIO ${exerciseRangeLabel} exercicios por treino (alvo ${exerciseTarget}); mobilidade NAO conta.`,
-    ...(promptStrategy.trainingStyles.some((style) => style === "funcional")
+    ...(allSessionsTemplated
+      ? []
+      : [
+          `- Exercicios/sessao${sessionTemplates.size ? " (treinos SEM modelo)" : ""}: OBRIGATORIO ${exerciseRangeLabel} exercicios por treino (alvo ${exerciseTarget}); mobilidade NAO conta.`
+        ]),
+    ...(promptStrategy.trainingStyles.some((style) => style === "funcional") || allSessionsTemplated
       ? []
       : [`- Blocos combinados/sessao: ${combinedRangeLabel} (alvo ${combinedTarget})`]),
     `- Tempo-alvo: ${targetDurationMinutes} min (janela ${durationWindowLabel} min, disponivel: ${availableMinutes} min)`,
@@ -708,6 +747,7 @@ export async function generateWorkoutWithAI(
       ? [`- Treino A OBRIGATORIAMENTE deve ser o primeiro treino da semana e DEVE priorizar os músculos de muscle_focus (${strategy.focusRegion}); os exercícios desse grupo muscular devem ocupar a maior parte do volume do Treino A`]
       : []),
     ...buildTrainingStylePromptLines(promptStrategy),
+    ...templatePromptLines,
     "",
     "ESTRATEGIA BASE OBRIGATORIA:",
     toWorkoutYaml(buildCoachBrief(promptStrategy)),
@@ -869,7 +909,8 @@ export async function generateWorkoutWithAI(
       exerciseLibrary,
       allowedLibrary,
       strategy,
-      mobilityContext
+      mobilityContext,
+      sessionTemplates
     );
 
     if (!validated) {
@@ -1057,7 +1098,8 @@ function validateAndBuildWorkoutPlan(
   exerciseLibrary: ExerciseRecord[],
   allowedLibrary: ExerciseRecord[],
   strategy: WorkoutStrategy,
-  mobilityContext: MobilitySelectionContext
+  mobilityContext: MobilitySelectionContext,
+  sessionTemplates: Map<string, WorkoutTemplate> = new Map()
 ): WorkoutPlan | null {
   const responseData = aiResponse as AiWorkoutResponse & {
     workout?: AiWorkoutDay[] | AiWorkoutExercise[];
@@ -1130,9 +1172,12 @@ function validateAndBuildWorkoutPlan(
       : ((normalizedPlan[aiCursor++] as AiWorkoutDay | undefined) ??
           ({ day: blueprint.day, title: `Treino ${blueprint.day}`, splitType: strategy.splitType, exercises: [] } as AiWorkoutDay));
     const rawExercises = Array.isArray(day.exercises) ? day.exercises : [];
+    const template = isHiitSession ? undefined : sessionTemplates.get(blueprint.day);
     const sanitized = isHiitSession
       ? buildLocalHiitExercises(strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
-      : sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
+      : template
+        ? fillTemplateSlots(rawExercises, template, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
+        : sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
 
     if (!sanitized.length) {
       logWarn("AI", "Workout session adjusted after sanitization", { session_index: index + 1, hiit: isHiitSession });
@@ -1839,6 +1884,28 @@ function fitSessionToTimeBudget(input: {
   usedAcrossSessions?: Set<string>;
 }) {
   const mobility = normalizeMobilityForTime(input.mobility, input.blueprint, input.strategy);
+
+  // Treino com modelo: se passar do tempo, as vagas saem pela coluna Corte
+  // (1 = primeira a sair). Vaga sem corte nunca sai.
+  if (input.exercises.some((exercise) => exercise.templateSlot != null)) {
+    let templated = input.exercises.map((exercise) => applyExerciseTimePrescription(exercise, input.strategy));
+    let templatedDraft = buildSessionDraft(mobility, templated, input.strategy, input.blueprint, input.exerciseMap);
+    while (templatedDraft.estimate.totalMinutesExact > input.strategy.timeBudget.maxDurationMinutes) {
+      const removable = templated
+        .filter((exercise) => typeof exercise.templateCut === "number")
+        .sort((left, right) => (left.templateCut ?? 0) - (right.templateCut ?? 0))[0];
+      if (!removable) break;
+      templated = templated.filter((exercise) => exercise !== removable);
+      logInfo("AI", "Vaga do modelo cortada por tempo", {
+        session: input.blueprint.day,
+        slot: removable.templateSlot,
+        exercise: removable.name
+      });
+      templatedDraft = buildSessionDraft(mobility, templated, input.strategy, input.blueprint, input.exerciseMap);
+    }
+    return templatedDraft;
+  }
+
   let exercises = alignExercisesToTimeBudget(
     input.exercises,
     input.strategy,
@@ -2637,7 +2704,10 @@ function sanitizeAiDayExercises(
   blueprint: SessionBlueprint,
   exerciseMap: Map<string, ExerciseLookup>,
   allowedNames: Set<string>,
-  usedAcrossSessions?: Set<string>
+  usedAcrossSessions?: Set<string>,
+  // Treinos com modelo: a vaga já define o músculo, então as travas de músculo
+  // da sessão (abs só se primário, funcional com músculo da sessão) não se aplicam.
+  options: { templateMode?: boolean } = {}
 ) {
   const seen = new Set<string>();
   let advancedBlocks = 0;
@@ -2703,7 +2773,7 @@ function sanitizeAiDayExercises(
       // abs está nos músculos PRIMÁRIOS da sessão. Em sessões de push/pull/etc.
       // onde abs é apenas secundário, exercícios abdominais isolados não fazem sentido.
       const isAbsExercise = (lookup.profile.primaryMuscles ?? []).every((m) => m === "abs" || m === "lower_back");
-      if (isAbsExercise && !blueprint.primaryMuscles.includes("abs")) {
+      if (isAbsExercise && !options.templateMode && !blueprint.primaryMuscles.includes("abs")) {
         logWarn("AI", "Abs exercise rejected — abs is not primary in this session", {
           exercise_name: lookup.source.name,
           session_primary_muscles: blueprint.primaryMuscles
@@ -2715,7 +2785,7 @@ function sanitizeAiDayExercises(
       // em comum com os músculos primários ou secundários da sessão.
       // Sem isso, a IA pode colocar um funcional de costas num dia de perna, por ex.
       const isFunctional = lookup.profile.movementType === "functional";
-      if (isFunctional) {
+      if (isFunctional && !options.templateMode) {
         const sessionMuscles = new Set([...blueprint.primaryMuscles, ...blueprint.secondaryMuscles]);
         const exerciseMuscles = [...(lookup.profile.primaryMuscles ?? []), ...(lookup.profile.secondaryMuscles ?? [])];
         const hasOverlap = exerciseMuscles.some((m) => sessionMuscles.has(m));
@@ -2835,6 +2905,241 @@ function sanitizeAiDayExercises(
     .filter(Boolean) as SanitizedExercise[];
 
   return enforceCombinedRuns(sanitized);
+}
+
+// ─── MODELOS DE TREINO (piloto) ────────────────────────────────────────────
+
+function lookupSlotCandidate(name: string, exerciseMap: Map<string, ExerciseLookup>) {
+  const lookup = exerciseMap.get(name.trim().toLowerCase());
+  if (!lookup) return null;
+  return {
+    primaryMuscles: lookup.profile.primaryMuscles ?? [],
+    movementType: lookup.profile.movementType,
+    isWarmup: normalizeStoredExerciseType(lookup.source.type ?? lookup.source.metadata?.type) === "warmup"
+  };
+}
+
+/**
+ * Escolhe localmente um exercício para uma vaga que a IA deixou vazia ou
+ * preencheu errado. Prefere não repetir; se não houver opção, repete (e loga).
+ */
+function pickTemplateSlotFallback(
+  slot: TemplateSlot,
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>,
+  usedAcrossSessions: Set<string>,
+  options: { avoidMachine?: boolean } = {}
+): SanitizedExercise | null {
+  const sessionStyle: TrainingStyle = blueprint.trainingStyle ?? strategy.trainingStyle;
+  const collect = (target: TemplateSlot) =>
+    Array.from(exerciseMap.values()).filter((lookup) => {
+      const key = lookup.source.name.trim().toLowerCase();
+      if (!allowedNames.has(key)) return false;
+      if (sessionStyle !== "personal" && !matchesTrainingStyle(lookup.source, [sessionStyle])) return false;
+      if (options.avoidMachine && isMachineExercise(lookup.source.name, exerciseMap)) return false;
+      const candidate = lookupSlotCandidate(lookup.source.name, exerciseMap);
+      return Boolean(candidate && matchesTemplateSlot(target, candidate));
+    });
+
+  let eligible = collect(slot);
+  // Sem opção do tipo pedido (ex.: nenhum abdômen isométrico no catálogo do aluno):
+  // aceita o mesmo músculo com outro tipo, para a vaga não ficar vazia.
+  if (!eligible.length && slot.type !== "warmup") {
+    eligible = collect({ ...slot, type: "core" });
+    if (eligible.length) {
+      logInfo("AI", "Vaga do modelo relaxada (mesmo musculo, outro tipo)", { session: blueprint.day, slot: slot.n });
+    }
+  }
+
+  const fresh = eligible.filter((lookup) => !usedAcrossSessions.has(lookup.source.name.trim().toLowerCase()));
+  const pool = fresh.length ? fresh : eligible;
+  if (!pool.length) return null;
+
+  const scored = pool.map((lookup) => ({
+    lookup,
+    score: slot.machine && isMachineExercise(lookup.source.name, exerciseMap) ? 1 : 0
+  }));
+  const best = Math.max(...scored.map((entry) => entry.score));
+  const top = scored.filter((entry) => entry.score === best);
+  const { lookup } = top[Math.floor(Math.random() * top.length)];
+
+  if (!fresh.length) {
+    logInfo("AI", "Vaga do modelo repetiu exercicio (sem outra opcao no catalogo)", {
+      session: blueprint.day,
+      slot: slot.n,
+      exercise: lookup.source.name
+    });
+  }
+  usedAcrossSessions.add(lookup.source.name.trim().toLowerCase());
+  return buildFallbackExercise(lookup, strategy, blueprint);
+}
+
+/** Marca o exercício com os dados da vaga e aplica tipo/técnica definidos pelo modelo. */
+function applyTemplateSlot(
+  exercise: SanitizedExercise,
+  slot: TemplateSlot,
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+): SanitizedExercise {
+  let blockType: WorkoutBlockType = "normal";
+  if (exercise.blockType === "warmup" || slot.type === "warmup") blockType = "warmup";
+  else if (exercise.movementType === "isometric") blockType = "isometria";
+  else if (slot.technique && exercise.movementType !== "compound" && strategy.level !== "beginner") {
+    blockType = slot.technique;
+  }
+
+  const trainingTechnique = resolveTrainingTechnique({}, blockType, blueprint, exercise.primaryMuscles?.[0]);
+  return {
+    ...exercise,
+    type: "normal",
+    blockType,
+    method: trainingTechnique,
+    technique: trainingTechnique,
+    trainingTechnique,
+    blockId: undefined,
+    blockLabel: undefined,
+    rounds: undefined,
+    restAfterRound: undefined,
+    blockNotes: undefined,
+    order: undefined,
+    templateSlot: slot.n,
+    templateBlock: slot.block,
+    templateCut: slot.cut
+  };
+}
+
+/**
+ * Preenche as vagas do modelo com a resposta da IA. Cada exercício passa pela
+ * sanitização normal (catálogo permitido, estilo, nível) e precisa servir à
+ * vaga (músculo + tipo). Vaga inválida ou vazia → escolha local. Bloco com
+ * máquina + máquina → troca o segundo por um sem máquina (ou desfaz o bloco).
+ */
+function fillTemplateSlots(
+  rawExercises: AiWorkoutExercise[],
+  template: WorkoutTemplate,
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint,
+  exerciseMap: Map<string, ExerciseLookup>,
+  allowedNames: Set<string>,
+  usedAcrossSessions: Set<string>
+): SanitizedExercise[] {
+  // 1) Liga cada exercício da IA à vaga (campo "slot"; sem ele, pela posição).
+  const validSlots = new Set(template.slots.map((slot) => slot.n));
+  const bySlot = new Map<number, AiWorkoutExercise>();
+  const unassigned: AiWorkoutExercise[] = [];
+  for (const raw of rawExercises) {
+    const n = Number.parseInt(String(raw.slot ?? ""), 10);
+    if (Number.isFinite(n) && validSlots.has(n) && !bySlot.has(n)) bySlot.set(n, raw);
+    else unassigned.push(raw);
+  }
+  for (const slot of template.slots) {
+    if (!bySlot.has(slot.n) && unassigned.length) bySlot.set(slot.n, unassigned.shift() as AiWorkoutExercise);
+  }
+
+  // 2) Valida vaga a vaga.
+  const report: Record<string, string> = {};
+  const filled: SanitizedExercise[] = [];
+  for (const slot of template.slots) {
+    const raw = bySlot.get(slot.n);
+    let exercise: SanitizedExercise | null = null;
+
+    if (raw) {
+      const [candidate] = sanitizeAiDayExercises(
+        [raw],
+        strategy,
+        blueprint,
+        exerciseMap,
+        allowedNames,
+        usedAcrossSessions,
+        { templateMode: true }
+      );
+      const info = candidate ? lookupSlotCandidate(candidate.name, exerciseMap) : null;
+      if (candidate && info && matchesTemplateSlot(slot, info)) {
+        exercise = candidate;
+        report[slot.n] = "ia";
+      } else if (candidate) {
+        // Não serve para a vaga: libera o nome para outra vaga/treino.
+        usedAcrossSessions.delete(candidate.name.trim().toLowerCase());
+        report[slot.n] = `invalida (${candidate.name})`;
+      } else {
+        report[slot.n] = `rejeitada (${typeof raw.name === "string" ? raw.name : "?"})`;
+      }
+    }
+
+    // Aquecimento vazio: o app completa depois (ensureSessionWarmup).
+    if (!exercise && slot.type !== "warmup") {
+      exercise = pickTemplateSlotFallback(slot, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
+      if (exercise) report[slot.n] = `${report[slot.n] ?? "vazia"} → local (${exercise.name})`;
+    }
+
+    if (!exercise) {
+      report[slot.n] = `${report[slot.n] ?? "vazia"} → sem exercicio`;
+      continue;
+    }
+    filled.push(applyTemplateSlot(exercise, slot, strategy, blueprint));
+  }
+
+  // 3) Regra fixa: nunca máquina com máquina no mesmo bloco.
+  const blockIds = Array.from(new Set(filled.map((exercise) => exercise.templateBlock).filter(Boolean))) as string[];
+  for (const blockId of blockIds) {
+    const members = filled.filter((exercise) => exercise.templateBlock === blockId);
+    const machines = members.filter((exercise) => isMachineExercise(exercise.name, exerciseMap));
+    if (machines.length < 2) continue;
+
+    const target = machines[machines.length - 1];
+    const slot = template.slots.find((entry) => entry.n === target.templateSlot);
+    const replacement = slot
+      ? pickTemplateSlotFallback(slot, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions, { avoidMachine: true })
+      : null;
+    const index = filled.indexOf(target);
+    if (replacement && slot) {
+      usedAcrossSessions.delete(target.name.trim().toLowerCase());
+      filled[index] = applyTemplateSlot(replacement, slot, strategy, blueprint);
+      report[slot.n] = `maquina+maquina → ${replacement.name}`;
+    } else {
+      members.forEach((member) => {
+        filled[filled.indexOf(member)] = { ...member, templateBlock: undefined };
+      });
+      report[`bloco ${blockId}`] = "desfeito (maquina+maquina sem alternativa)";
+    }
+  }
+
+  logInfo("AI", "Vagas do modelo preenchidas", { session: blueprint.day, template: template.id, slots: report });
+  return filled;
+}
+
+/** Ordem e blocos do modelo: aquecimento, depois as vagas na ordem; blocos pelos pares. */
+function applyTemplateStructure(exercises: SanitizedExercise[], strategy: WorkoutStrategy, blueprint: SessionBlueprint) {
+  const orderKey = (exercise: SanitizedExercise) =>
+    exercise.blockType === "warmup" ? 0 : exercise.templateSlot ?? Number.MAX_SAFE_INTEGER;
+  const ordered = [...exercises].sort((left, right) => orderKey(left) - orderKey(right)).map(normalizeIsolatedRest);
+
+  const groups: { blockType: CombinedBlockType; indexes: number[] }[] = [];
+  let index = 0;
+  while (index < ordered.length) {
+    const blockId = ordered[index].templateBlock;
+    let end = index + 1;
+    while (blockId && end < ordered.length && ordered[end].templateBlock === blockId) end += 1;
+    const indexes = Array.from({ length: end - index }, (_, offset) => index + offset);
+    if (blockId && indexes.length >= 2 && indexes.length <= 3) {
+      const muscles = new Set(indexes.map((position) => ordered[position].primaryMuscles?.[0] ?? ""));
+      const sameMuscle = muscles.size === 1;
+      const blockType: CombinedBlockType =
+        indexes.length === 2 ? (sameMuscle ? "bi-set" : "superset") : sameMuscle ? "tri-set" : "circuit";
+      groups.push({ blockType, indexes });
+    }
+    index = end;
+  }
+
+  const structured = groups.length ? applyCombinedGroups(ordered, groups, strategy, blueprint) : ordered;
+  return structured.map(stripTemplateFields);
+}
+
+function stripTemplateFields(exercise: SanitizedExercise): SanitizedExercise {
+  const { templateSlot: _slot, templateBlock: _block, templateCut: _cut, ...rest } = exercise;
+  return rest;
 }
 
 // Reordena para intercalar grupos musculares: evita 2 exercícios seguidos do
@@ -2999,6 +3304,11 @@ function structureSessionExercises(
   blueprint: SessionBlueprint,
   exerciseMap?: Map<string, ExerciseLookup>
 ) {
+  // Treino com modelo: a ordem e os blocos vêm do modelo (sem reordenar).
+  if (exercises.some((exercise) => exercise.templateSlot != null)) {
+    return applyTemplateStructure(exercises, strategy, blueprint);
+  }
+
   const ordered = [...exercises].sort((left, right) => scoreExerciseOrder(right, blueprint) - scoreExerciseOrder(left, blueprint));
 
   // Estilos da IA: o app é dono da estrutura dos blocos combinados (método do Renato).
@@ -3084,16 +3394,29 @@ function applyRuleBasedCombinedBlocks(
     }
   );
 
-  // Rest de exercício vindo de circuito da IA pode ser ~0: não serve como descanso de fim de rodada.
-  const normalizeIsolatedRest = (exercise: SanitizedExercise) =>
-    parseSecondsValue(exercise.rest) > 15 ? exercise : { ...exercise, rest: "45s" };
-
   if (!groups.length) {
     return base.map(normalizeIsolatedRest);
   }
 
-  const result = base.map(normalizeIsolatedRest);
+  return applyCombinedGroups(base.map(normalizeIsolatedRest), groups, strategy, blueprint);
+}
 
+// Rest de exercício vindo de circuito da IA pode ser ~0: não serve como descanso de fim de rodada.
+function normalizeIsolatedRest(exercise: SanitizedExercise) {
+  return parseSecondsValue(exercise.rest) > 15 ? exercise : { ...exercise, rest: "45s" };
+}
+
+/**
+ * Aplica as regras fixas de bloco combinado a grupos já decididos: mesmo nº de
+ * séries (o menor), 0 s dentro do bloco, descanso no fim da rodada, e deixa os
+ * exercícios do bloco colados na posição do primeiro.
+ */
+function applyCombinedGroups(
+  result: SanitizedExercise[],
+  groups: { blockType: CombinedBlockType; indexes: number[] }[],
+  strategy: WorkoutStrategy,
+  blueprint: SessionBlueprint
+) {
   groups.forEach((group, groupIndex) => {
     const members = group.indexes.map((index) => result[index]);
     // Regra fixa: mesmo nº de séries no bloco = o MENOR valor.

@@ -262,8 +262,8 @@ function TimerOffer({
   // Bloco combinado, falta o outro exercício: nada de descanso ainda.
   if (hint?.kind === "pending") {
     return (
-      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-[#a855f7]/30 bg-[#a855f7]/10 py-2 pl-3 pr-1.5 text-[0.8rem] text-white/80" role="status">
-        <Timer className="h-4 w-4 shrink-0 text-[#d8b4fe]" aria-hidden />
+      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-[#4ade80]/30 bg-[#4ade80]/10 py-2 pl-3 pr-1.5 text-[0.8rem] text-white/80" role="status">
+        <Timer className="h-4 w-4 shrink-0 text-[#bbf7d0]" aria-hidden />
         <span className="min-w-0 flex-1">
           Realize o exercício combinado para iniciar o descanso
           <span className="block text-[0.72rem] text-white/50">Próximo: {hint.nextName}</span>

@@ -1189,8 +1189,8 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
           return (
             <Fragment key={group.map((item) => item.exercise.id).join("|")}>
               {isCombinedGroup ? (
-                <div className="space-y-2 rounded-[30px] border border-[#a855f7]/30 bg-[#a855f7]/[0.05] p-2">
-                  <p className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d8b4fe]">
+                <div className="space-y-2 rounded-[30px] border border-[#4ade80]/30 bg-[#4ade80]/[0.05] p-2">
+                  <p className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#bbf7d0]">
                     {[
                       group[0].exercise.technique || "Combinado",
                       group[0].exercise.plannedSetsCount
