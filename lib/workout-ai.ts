@@ -34,7 +34,9 @@ import {
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import { planCombinedGroups } from "@/lib/workout-combined-blocks";
 import {
+  buildSlimCatalogLines,
   buildTemplatePromptLines,
+  collectTemplateMuscles,
   matchesTemplateSlot,
   selectSessionTemplates,
   type TemplateSlot,
@@ -218,6 +220,39 @@ RETORNE APENAS ESTE JSON (preencha splitType e sessionCount conforme a estrategi
           "reps": 15,
           "rest": 45
         }
+      ]
+    }
+  ]
+}`;
+
+// System message ENXUTA para treinos 100% com modelo: o app já define estrutura, blocos,
+// técnicas, mobilidade e corte por tempo; a IA só escolhe 1 exercício por vaga e a dose.
+const WORKOUT_TEMPLATE_SYSTEM_PROMPT = `Você é um personal trainer experiente. Responda em português do Brasil (UTF-8). Retorne APENAS o JSON especificado abaixo — sem texto extra, sem markdown.
+
+Voce recebe MODELOS de treino. Cada vaga define papel, musculo e tipo (C = composto, I = isolador, T = isometrico). Escolha 1 exercicio por vaga, com o nome EXATO da lista EXERCICIOS (nao invente, nao traduza), na ordem das vagas, e devolva o numero da vaga em "slot". O app monta blocos combinados, tecnicas, mobilidade e ajusta ao tempo.
+
+SERIES, REPETICOES E DESCANSO (sets, reps e rest sao inteiros):
+| Objetivo        | Nivel         | Composto   | Isolador   |
+| hipertrofia     | iniciante     | 12-15 reps | 15-20 reps |
+| hipertrofia     | intermediario | 8-12 reps  | 10-15 reps |
+| hipertrofia     | avancado      | 6-10 reps  | 8-12 reps  |
+| condicionamento | todos         | 12-20 reps | 15-25 reps |
+| outros          | todos         | 10-15 reps | 12-15 reps |
+- NUNCA mais de 20 reps em forca/hipertrofia; varie as reps entre exercicios.
+- Composto principal: limite INFERIOR da faixa; isoladores: limite SUPERIOR.
+- Descanso: composto 90s (hipertrofia) ou 60s (outros); isolador 45s.
+- Isometrico (T): "reps" e o tempo em segundos como texto, ex.: "30s", "45s".
+
+AQUECIMENTO (vaga 1): escolha 1 da lista AQUECIMENTOS que prepare os musculos do treino; sets 2, reps 12, rest 0.
+
+RETORNE APENAS ESTE JSON:
+{
+  "plan": [
+    {
+      "day": "A",
+      "exercises": [
+        { "slot": 1, "name": "nome exato", "sets": 2, "reps": 12, "rest": 0 },
+        { "slot": 2, "name": "nome exato", "sets": 4, "reps": 8, "rest": 90 }
       ]
     }
   ]
@@ -509,7 +544,7 @@ type FeedbackContext = {
   timedSessionCount?: number;
 };
 
-function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
+function buildFeedbackPromptLines(ctx: FeedbackContext, templateMode = false): string[] {
   const lines: string[] = [];
   const { avgLiked: liked, avgIntensity: intensity } = ctx;
 
@@ -530,7 +565,8 @@ function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
 
   // Tempo real de treino (registrado pelo "Treino em andamento"). Só entra com
   // pelo menos 3 sessões de tempo confiável, para não reagir a um dia atípico.
-  if ((ctx.timedSessionCount ?? 0) >= 3 && ctx.avgRealDurationMinutes) {
+  // Com modelo, o tempo é ajustado pelo app (corte por vaga); não vai para a IA.
+  if (!templateMode && (ctx.timedSessionCount ?? 0) >= 3 && ctx.avgRealDurationMinutes) {
     const completion =
       typeof ctx.avgCompletionRatio === "number" ? ` e concluiu em media ${Math.round(ctx.avgCompletionRatio * 100)}% das series` : "";
     lines.push(
@@ -544,7 +580,9 @@ function buildFeedbackPromptLines(ctx: FeedbackContext): string[] {
   if (ctx.previousWorkoutSummary) {
     lines.push(
       "",
-      "TREINO ANTERIOR (apenas para NAO repetir estes exercicios; NAO use como referencia de quantidade — siga o numero de Exercicios/sessao acima):",
+      templateMode
+        ? "TREINO ANTERIOR (apenas para NAO repetir estes exercicios):"
+        : "TREINO ANTERIOR (apenas para NAO repetir estes exercicios; NAO use como referencia de quantidade — siga o numero de Exercicios/sessao acima):",
       ctx.previousWorkoutSummary
     );
   }
@@ -706,16 +744,41 @@ export async function generateWorkoutWithAI(
     });
   }
   const templatePromptLines = sessionTemplates.size
-    ? [
-        "",
-        "MODELOS DE TREINO (obrigatorio nos treinos listados abaixo):",
-        "- Nesses treinos o numero de exercicios e o numero de vagas; siga a ordem das vagas.",
-        "- Use blockType 'normal' (o app monta os blocos combinados e as tecnicas); aquecimento 'warmup', isometrico 'isometria'.",
-        "- A vaga de abdomen vale mesmo que abs nao seja musculo primario da sessao.",
-        "- Nunca repita um exercicio entre os treinos; se nao houver opcao para uma vaga, escolha o mais proximo do mesmo musculo.",
-        ...[...sessionTemplates].flatMap(([day, template]) => ["", ...buildTemplatePromptLines(day, template)])
-      ]
+    ? allSessionsTemplated
+      ? [...sessionTemplates].flatMap(([day, template]) => ["", ...buildTemplatePromptLines(day, template)])
+      : [
+          "",
+          "MODELOS DE TREINO (obrigatorio nos treinos listados abaixo):",
+          "- Nesses treinos o numero de exercicios e o numero de vagas; siga a ordem das vagas.",
+          "- Use blockType 'normal' (o app monta os blocos combinados e as tecnicas); aquecimento 'warmup', isometrico 'isometria'.",
+          "- A vaga de abdomen vale mesmo que abs nao seja musculo primario da sessao.",
+          "- Nunca repita um exercicio entre os treinos; se nao houver opcao para uma vaga, escolha o mais proximo do mesmo musculo.",
+          ...[...sessionTemplates].flatMap(([day, template]) => ["", ...buildTemplatePromptLines(day, template)])
+        ]
     : [];
+
+  // MODO MODELO (todos os treinos com modelo): prompt enxuto. Catálogo só com os músculos
+  // das vagas (uma linha por músculo), sem estratégia/estilos/dados corporais que não mudam a escolha.
+  const templateMuscles = collectTemplateMuscles(sessionTemplates.values());
+  const promptModelo = [
+    "EXERCICIOS (C = composto, I = isolador, T = isometrico):",
+    ...buildSlimCatalogLines(availableExercises, templateMuscles),
+    ...(warmupExercises.length > 0 ? ["", `AQUECIMENTOS: ${warmupExercises.map((exercise) => exercise.name).join(", ")}`] : []),
+    "",
+    `Treinos: ${expectedSessionLabels}. Nao repita exercicio entre os treinos; se faltar opcao para uma vaga, use o mais proximo do mesmo musculo.`,
+    ...templatePromptLines,
+    "",
+    "USUARIO:",
+    toWorkoutYaml({
+      goal: answers.goal,
+      nivel: formatLevel(strategy.level),
+      gender: answers.gender,
+      age: answers.age,
+      ...(strategy.focusRegion && strategy.focusRegion !== "balanced" ? { muscle_focus: strategy.focusRegion } : {})
+    }),
+    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext, true) : []),
+    ...(mobilityContext.extraInstructions ?? [])
+  ].join("\n");
 
   // User message: exercícios primeiro (semi-estático, maximiza prefixo cacheável),
   // depois os dados dinâmicos (restrições, estratégia, usuário).
@@ -773,11 +836,13 @@ export async function generateWorkoutWithAI(
     ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext) : []),
     ...(mobilityContext.extraInstructions ?? [])
   ].join("\n");
+  const systemPrompt = allSessionsTemplated ? WORKOUT_TEMPLATE_SYSTEM_PROMPT : WORKOUT_SYSTEM_PROMPT;
+  const userPrompt = allSessionsTemplated ? promptModelo : promptMontagemTreino;
 
   logInfo("AI", "AI prompt payload diagnostics", {
-    system_prompt_chars: WORKOUT_SYSTEM_PROMPT.length,
-    user_prompt_chars: promptMontagemTreino.length,
-    total_prompt_chars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
+    system_prompt_chars: systemPrompt.length,
+    user_prompt_chars: userPrompt.length,
+    total_prompt_chars: systemPrompt.length + userPrompt.length,
     prompt_catalog_chars_before_mobility_filter: promptCatalogCharsBeforeMobilityFilter,
     prompt_catalog_chars_after_mobility_filter: promptCatalogCharsAfterMobilityFilter
   });
@@ -857,11 +922,11 @@ export async function generateWorkoutWithAI(
       messages: [
         {
           role: "system",
-          content: WORKOUT_SYSTEM_PROMPT
+          content: systemPrompt
         },
         {
           role: "user",
-          content: promptMontagemTreino
+          content: userPrompt
         }
       ]
     });
@@ -886,11 +951,11 @@ export async function generateWorkoutWithAI(
         promptTokens: telemetryUsage?.prompt_tokens ?? null,
         completionTokens: telemetryUsage?.completion_tokens ?? null,
         totalTokens: telemetryUsage?.total_tokens ?? null,
-        promptChars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
+        promptChars: systemPrompt.length + userPrompt.length,
         responseChars: 0,
         catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
         catalogSizeAfterFilter: filteredLibrary.length,
-        promptBody: promptMontagemTreino,
+        promptBody: userPrompt,
         responseBody: "",
         splitType: strategy.splitType ?? null,
         dayCount: strategy.dayCount ?? null,
@@ -920,11 +985,11 @@ export async function generateWorkoutWithAI(
         promptTokens: telemetryUsage?.prompt_tokens ?? null,
         completionTokens: telemetryUsage?.completion_tokens ?? null,
         totalTokens: telemetryUsage?.total_tokens ?? null,
-        promptChars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
+        promptChars: systemPrompt.length + userPrompt.length,
         responseChars: telemetryResponseBody.length,
         catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
         catalogSizeAfterFilter: filteredLibrary.length,
-        promptBody: promptMontagemTreino,
+        promptBody: userPrompt,
         responseBody: telemetryResponseBody,
         splitType: strategy.splitType ?? null,
         dayCount: strategy.dayCount ?? null,
@@ -941,11 +1006,11 @@ export async function generateWorkoutWithAI(
       promptTokens: telemetryUsage?.prompt_tokens ?? null,
       completionTokens: telemetryUsage?.completion_tokens ?? null,
       totalTokens: telemetryUsage?.total_tokens ?? null,
-      promptChars: promptMontagemTreino.length,
+      promptChars: userPrompt.length,
       responseChars: telemetryResponseBody.length,
       catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
       catalogSizeAfterFilter: filteredLibrary.length,
-      promptBody: promptMontagemTreino,
+      promptBody: userPrompt,
       responseBody: telemetryResponseBody,
       splitType: strategy.splitType ?? null,
       dayCount: strategy.dayCount ?? null,
@@ -976,11 +1041,11 @@ export async function generateWorkoutWithAI(
         promptTokens: null,
         completionTokens: null,
         totalTokens: null,
-        promptChars: WORKOUT_SYSTEM_PROMPT.length + promptMontagemTreino.length,
+        promptChars: systemPrompt.length + userPrompt.length,
         responseChars: 0,
         catalogSizeBeforeFilter: catalogBeforeMobilityFilter.length,
         catalogSizeAfterFilter: filteredLibrary.length,
-        promptBody: promptMontagemTreino,
+        promptBody: userPrompt,
         responseBody: "",
         splitType: strategy.splitType ?? null,
         dayCount: strategy.dayCount ?? null,

@@ -252,3 +252,43 @@ export function buildTemplatePromptLines(day: string, template: WorkoutTemplate)
     })
   ];
 }
+
+export type SlimCatalogExercise = {
+  name: string;
+  primaryMuscles: string[];
+  movementType: string;
+};
+
+const MOVEMENT_CODE: Record<string, string> = {
+  compound: "C",
+  functional: "C",
+  isolation: "I",
+  isometric: "T"
+};
+
+/** Músculos que aparecem em alguma vaga dos modelos (só esses vão para o catálogo). */
+export function collectTemplateMuscles(templates: Iterable<WorkoutTemplate>): Set<string> {
+  const muscles = new Set<string>();
+  for (const template of templates) {
+    for (const slot of template.slots) slot.muscles.forEach((muscle) => muscles.add(muscle));
+  }
+  return muscles;
+}
+
+/**
+ * Catálogo enxuto para treinos com modelo: só músculos usados nas vagas, uma linha por
+ * músculo, sem campos que o app já define (estilo, músculos secundários).
+ * Ex.: "chest: Supino Reto (C), Crucifixo (I)".
+ */
+export function buildSlimCatalogLines(exercises: SlimCatalogExercise[], muscles: Set<string>): string[] {
+  const byMuscle = new Map<string, string[]>();
+  for (const exercise of exercises) {
+    const primary = exercise.primaryMuscles[0] ?? "";
+    if (!muscles.has(primary)) continue;
+    const code = MOVEMENT_CODE[exercise.movementType] ?? "C";
+    const list = byMuscle.get(primary) ?? [];
+    list.push(`${exercise.name} (${code})`);
+    byMuscle.set(primary, list);
+  }
+  return [...byMuscle].map(([muscle, names]) => `${muscle}: ${names.join(", ")}`);
+}
