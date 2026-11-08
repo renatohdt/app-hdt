@@ -34,8 +34,11 @@ function loadPostHog() {
         defaults: "2026-05-30",
         // So cria perfil de pessoa para usuarios identificados (economiza cota, first-party).
         person_profiles: "identified_only",
-        // Ja gravamos sessao com Microsoft Clarity - nao duplicar aqui.
-        disable_session_recording: true,
+        // Gravacao de sessao (replay) do PostHog. Substituiu o Microsoft Clarity.
+        // Campos de formulario ficam mascarados (senha, e-mail, medidas do usuario).
+        session_recording: {
+          maskAllInputs: true,
+        },
       });
 
       // Carimba todo evento com a plataforma (ios/android/web) e se e app nativo,

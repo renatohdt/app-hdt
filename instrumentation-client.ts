@@ -8,7 +8,7 @@ Sentry.init({
   // Captura 10% das transações para performance
   tracesSampleRate: 0.1,
 
-  // Replay de sessão do Sentry desligado: o Microsoft Clarity já grava as
+  // Replay de sessão do Sentry desligado: o PostHog já grava as
   // sessões, e o Replay pesava ~100 KB+ de JS e CPU em todo celular.
   // Para religar: replaysOnErrorSampleRate + integrations: [Sentry.replayIntegration()].
 
@@ -36,11 +36,6 @@ Sentry.init({
     // "ResizeObserver loop" cobre as duas variações de texto do navegador.
     "ResizeObserver loop"
   ],
-
-  // Erros que nascem em scripts de terceiros (não é código nosso).
-  // Microsoft Clarity: falhas internas do clarity.js (ex.: "reading 'sequence'")
-  // não afetam o usuário — o Clarity só grava a sessão.
-  denyUrls: [/clarity\.js/i, /clarity\.ms/i],
 
   // Robôs (navegador headless): ex. a checagem automática que a Vercel faz em
   // cada deploy (URLs *.vercel.app). Não são usuários reais.
