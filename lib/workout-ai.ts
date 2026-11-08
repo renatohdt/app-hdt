@@ -42,6 +42,14 @@ import {
   type TemplateSlot,
   type WorkoutTemplate
 } from "@/lib/workout-templates";
+import {
+  buildGenderRulePromptLines,
+  enforceGenderRulesOnSession,
+  focusRegionFromExtraFocus,
+  isArmIsolatorExercise,
+  isBlockedByGenderRules,
+  resolveGenderRules
+} from "@/lib/gender-rules";
 import type {
   CombinedBlockType,
   DiagnosisResult,
@@ -381,6 +389,10 @@ export function buildWorkoutHash(answers: QuizAnswers) {
   return createHmac("sha256", secret).update(JSON.stringify(cacheKey)).digest("hex");
 }
 
+function isWorkoutTemplatesEnabled() {
+  return process.env.WORKOUT_TEMPLATES_ENABLED?.trim().toLowerCase() === "true";
+}
+
 export function filterExercisesForAI(
   answers: QuizAnswers,
   exerciseLibrary: ExerciseRecord[],
@@ -433,13 +445,16 @@ function selectExercisesForAiCatalog(
   const strategy = buildWorkoutStrategy(answers);
   const allowedEquipment = buildAllowedEquipment(answers);
   const excludedIds = new Set(options.excludedExerciseIds ?? []);
+  const genderRules = resolveGenderRules(answers);
 
   // Filtros base (independentes do estilo de treino).
   const preLevelLibrary = exerciseLibrary
     .filter((exercise) => !excludedIds.has(exercise.id))
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment))
-    .filter((exercise) => matchesGoalExerciseType(exercise, strategy.goalStyle));
+    .filter((exercise) => matchesGoalExerciseType(exercise, strategy.goalStyle))
+    // Regras por gênero: homem sem glúteo isolado (exceto ênfase Pernas e Glúteo).
+    .filter((exercise) => !isBlockedByGenderRules(exercise, genderRules));
 
   // Regra estrita de nível: só entra o exercício cuja lista de níveis contém o nível do
   // aluno. Se um músculo ficar com poucas opções, completa com o nível vizinho (opção B).
@@ -736,7 +751,11 @@ export async function generateWorkoutWithAI(
 
   // MODELOS DE TREINO (piloto): quando o perfil tem modelo, a IA preenche as vagas
   // e o app valida/monta os blocos. Treinos sem modelo seguem o fluxo atual.
-  const sessionTemplates = selectSessionTemplates(strategy, aiSessions);
+  // Liga/desliga por ambiente: WORKOUT_TEMPLATES_ENABLED=true (DEV). Em produção fica
+  // desligado até os modelos ficarem prontos — o treino segue o fluxo atual.
+  const sessionTemplates = isWorkoutTemplatesEnabled()
+    ? selectSessionTemplates(strategy, aiSessions)
+    : new Map<string, WorkoutTemplate>();
   const allSessionsTemplated = aiSessions.length > 0 && aiSessions.every((session) => sessionTemplates.has(session.day));
   if (sessionTemplates.size) {
     logInfo("AI", "Modelos de treino selecionados", {
@@ -777,6 +796,7 @@ export async function generateWorkoutWithAI(
       ...(strategy.focusRegion && strategy.focusRegion !== "balanced" ? { muscle_focus: strategy.focusRegion } : {})
     }),
     ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext, true) : []),
+    ...buildGenderRulePromptLines(resolveGenderRules(answers)),
     ...(mobilityContext.extraInstructions ?? [])
   ].join("\n");
 
@@ -834,6 +854,7 @@ export async function generateWorkoutWithAI(
         : {})
     }),
     ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext) : []),
+    ...buildGenderRulePromptLines(resolveGenderRules(answers)),
     ...(mobilityContext.extraInstructions ?? [])
   ].join("\n");
   const systemPrompt = allSessionsTemplated ? WORKOUT_TEMPLATE_SYSTEM_PROMPT : WORKOUT_SYSTEM_PROMPT;
@@ -1228,6 +1249,8 @@ function validateAndBuildWorkoutPlan(
   // Cursor na resposta da IA: a IA só devolve as sessões NÃO-HIIT (o HIIT é do app),
   // então mapeamos cada sessão não-HIIT da estratégia ao próximo item da resposta.
   let aiCursor = 0;
+  // Regras por gênero (glúteo isolado p/ homem, máx. 1 isolador de braço p/ mulher).
+  const genderRules = resolveGenderRules(answers);
 
   for (const [index, blueprint] of strategy.sessions.slice(0, strategy.uniqueSessionCount).entries()) {
     // HIIT: o app monta o treino inteiro. Demais estilos: usa a resposta da IA.
@@ -1238,11 +1261,19 @@ function validateAndBuildWorkoutPlan(
           ({ day: blueprint.day, title: `Treino ${blueprint.day}`, splitType: strategy.splitType, exercises: [] } as AiWorkoutDay));
     const rawExercises = Array.isArray(day.exercises) ? day.exercises : [];
     const template = isHiitSession ? undefined : sessionTemplates.get(blueprint.day);
-    const sanitized = isHiitSession
+    const sanitizedRaw = isHiitSession
       ? buildLocalHiitExercises(strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
       : template
         ? fillTemplateSlots(rawExercises, template, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
         : sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
+    const genderCheck = enforceGenderRulesOnSession(sanitizedRaw, genderRules);
+    if (genderCheck.removed.length) {
+      logInfo("AI", "Regra por genero removeu exercicios", {
+        session: blueprint.day,
+        removed: genderCheck.removed.map((exercise) => exercise.name)
+      });
+    }
+    const sanitized = genderCheck.kept;
 
     if (!sanitized.length) {
       logWarn("AI", "Workout session adjusted after sanitization", { session_index: index + 1, hiit: isHiitSession });
@@ -4614,8 +4645,19 @@ export function filterReplacementCandidates(
   // Exercícios já descartados pelo usuário (lista user_excluded_exercises).
   // Nunca devem voltar como substitutos até o usuário removê-los da lista.
   const excludedSet = new Set(excludedExerciseIds);
+  // Regras por gênero: homem não recebe glúteo isolado; mulher só recebe isolador de
+  // braço se o treino ainda não tiver outro (o exercício trocado não conta).
+  const genderRules = resolveGenderRules(answers);
+  const otherArmIsolators =
+    genderRules.maxArmIsolatorsPerSession === null
+      ? 0
+      : exerciseLibrary.filter(
+          (exercise) => daySet.has(exercise.id) && exercise.id !== originalExercise.id && isArmIsolatorExercise(exercise)
+        ).length;
+  const armIsolatorsFull =
+    genderRules.maxArmIsolatorsPerSession !== null && otherArmIsolators >= genderRules.maxArmIsolatorsPerSession;
 
-  const candidates = exerciseLibrary
+  const baseCandidates = exerciseLibrary
     .filter((exercise) => exercise.id !== originalExercise.id)
     .filter((exercise) => !daySet.has(exercise.id))
     .filter((exercise) => !excludedSet.has(exercise.id))
@@ -4623,6 +4665,11 @@ export function filterReplacementCandidates(
     .filter((exercise) => getPrimaryExerciseMuscle(exercise) === primaryMuscle)
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment));
+  const genderCandidates = baseCandidates
+    .filter((exercise) => !isBlockedByGenderRules(exercise, genderRules))
+    .filter((exercise) => !(armIsolatorsFull && isArmIsolatorExercise(exercise)));
+  // Nunca trava a troca: se a regra zerar as opções (plano antigo), usa a lista sem ela.
+  const candidates = genderCandidates.length ? genderCandidates : baseCandidates;
 
   const selectedCandidates = selectReplacementByLevelAndDifficulty(
     candidates,
@@ -4827,6 +4874,8 @@ export async function generateExtraWorkoutWithAI(
       ? []
       : extraContext.availableEquipment,
     focusRegion: "balanced" as import("@/lib/types").FocusRegion,
+    // O foco escolhido no Treino Extra (Glúteos, Bíceps, Tríceps) libera a regra por gênero.
+    genderRuleFocus: focusRegionFromExtraFocus(extraContext.focusMuscleGroup),
     // Estilo do treino extra (1 estilo). Reusa toda a engine de estilo da geração
     // regular: filtro de catálogo, HIIT montado pelo app + formatos, etc.
     trainingStyle: extraContext.trainingStyle ?? answers.trainingStyle ?? "personal",

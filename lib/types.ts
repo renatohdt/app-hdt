@@ -59,6 +59,8 @@ export type QuizAnswers = {
   time: number;
   structuredPlan?: StructuredPlan;
   focusRegion?: FocusRegion;
+  /** Uso interno (Treino Extra): foco que libera as regras por gênero. Não vem do quiz. */
+  genderRuleFocus?: FocusRegion;
   trainingStyle?: TrainingStyle;
   // Conjunto de estilos para plano multi-estilo (premium). Quando tem 2+ estilos
   // concretos, a IA distribui pelos treinos. Gratuito usa só trainingStyle (1 estilo).
