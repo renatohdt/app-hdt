@@ -65,6 +65,18 @@ export async function POST(request: NextRequest) {
       return jsonError("Não foi possível salvar seu feedback agora.", 500);
     }
 
+    // Trava no servidor: quem já avaliou não grava uma segunda avaliação
+    // (ex.: duas abas abertas, app nativo + navegador, envio duplicado)
+    const { data: existing, error: existingError } = await supabase
+      .from("user_feedbacks")
+      .select("id")
+      .eq("user_id", auth.user.id)
+      .limit(1);
+
+    if (!existingError && existing && existing.length > 0) {
+      return jsonSuccess({ id: existing[0].id, alreadySubmitted: true }, 200);
+    }
+
     const { data, error } = await supabase
       .from("user_feedbacks")
       .insert({

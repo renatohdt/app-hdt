@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 // Quantos dias o usuário precisa usar o app antes do modal aparecer
 const DAYS_UNTIL_PROMPT = 5;
@@ -17,7 +18,47 @@ function storageKeys(userId: string) {
     count: `feedback_page_count:${userId}`,
     firstAccess: `feedback_first_access:${userId}`,
     lastShown: `feedback_last_shown_at:${userId}`,
+    submitted: `feedback_submitted:${userId}`,
   };
+}
+
+/**
+ * Pergunta ao banco se este usuário já enviou alguma avaliação.
+ * O localStorage só vale para um aparelho; o banco vale para todos
+ * (app nativo, navegador, outro celular).
+ *
+ * Se a consulta falhar, devolve true (não mostra o modal): o pop-up não é
+ * crítico, e é melhor não incomodar quem pode já ter avaliado.
+ */
+async function hasAlreadySubmittedFeedback(userId: string): Promise<boolean> {
+  const keys = storageKeys(userId);
+
+  // Atalho: já descobrimos antes, neste aparelho, que ele avaliou
+  try {
+    if (localStorage.getItem(keys.submitted)) return true;
+  } catch {
+    // Ignora falhas de localStorage
+  }
+
+  if (!supabase) return true;
+
+  const { data, error } = await supabase
+    .from("user_feedbacks")
+    .select("id")
+    .eq("user_id", userId)
+    .limit(1);
+
+  if (error) return true;
+
+  const already = Array.isArray(data) && data.length > 0;
+  if (already) {
+    try {
+      localStorage.setItem(keys.submitted, "1");
+    } catch {
+      // Ignora falhas de localStorage
+    }
+  }
+  return already;
 }
 
 /**
@@ -30,8 +71,10 @@ function storageKeys(userId: string) {
  * Lógica:
  *  1. No primeiro acesso, registra a data de início de uso do app.
  *  2. A cada montagem (nova página visitada), incrementa o contador (para análise).
- *  3. Quando DAYS_UNTIL_PROMPT dias tiverem passado desde o primeiro acesso, exibe o modal.
- *  4. Após enviar ou dispensar, registra a data e o modal só reaparece após COOLDOWN_DAYS dias.
+ *  3. Quando DAYS_UNTIL_PROMPT dias tiverem passado desde o primeiro acesso, exibe o modal
+ *     — mas só se o banco confirmar que o usuário nunca enviou uma avaliação.
+ *  4. Quem já avaliou nunca mais vê o modal (em nenhum aparelho).
+ *  5. Quem apenas dispensou ("Agora não") só vê o modal de novo após COOLDOWN_DAYS dias.
  */
 export function useFeedbackPrompt(userId: string | null) {
   const [shouldShow, setShouldShow] = useState(false);
@@ -91,10 +134,21 @@ export function useFeedbackPrompt(userId: string | null) {
       // Ignora falhas de localStorage
     }
 
-    // Mostra o modal com um pequeno delay para não competir com o carregamento da página
+    // Mostra o modal com um pequeno delay para não competir com o carregamento da página,
+    // mas só depois de confirmar no banco que o usuário ainda não avaliou
     if (daysElapsed >= DAYS_UNTIL_PROMPT) {
-      const timer = window.setTimeout(() => setShouldShow(true), 1500);
-      return () => window.clearTimeout(timer);
+      let cancelled = false;
+      let timer: number | undefined;
+
+      void hasAlreadySubmittedFeedback(userId).then((alreadySubmitted) => {
+        if (cancelled || alreadySubmitted) return;
+        timer = window.setTimeout(() => setShouldShow(true), 1500);
+      });
+
+      return () => {
+        cancelled = true;
+        if (timer !== undefined) window.clearTimeout(timer);
+      };
     }
   // Roda quando o userId fica disponível ou quando monta (nova página visitada)
   // eslint-disable-next-line react-hooks/exhaustive-deps
