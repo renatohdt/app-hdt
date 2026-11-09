@@ -453,7 +453,7 @@ export function ExpandableExerciseCard({
             : isWarmupExercise
             ? "border border-[#facc15]/20 bg-[linear-gradient(180deg,rgba(250,204,21,0.09),rgba(18,20,16,0.96))]"
             : isCombinedExercise
-            ? "border border-[#4ade80]/25 bg-[linear-gradient(180deg,rgba(74,222,128,0.1),rgba(18,20,16,0.96))]"
+            ? "border border-primary/25 bg-[linear-gradient(180deg,rgba(34,197,94,0.1),rgba(18,20,16,0.96))]"
             : isMobilityExercise
               ? "border border-[#38bdf8]/18 bg-[linear-gradient(180deg,rgba(56,189,248,0.09),rgba(18,20,16,0.96))]"
               : "border border-white/10 bg-[#0d100d]/80",
@@ -462,7 +462,7 @@ export function ExpandableExerciseCard({
             (isWarmupExercise
               ? "border-[#facc15]/30 bg-[linear-gradient(180deg,rgba(250,204,21,0.13),rgba(18,20,16,0.98))]"
               : isCombinedExercise
-              ? "border-[#4ade80]/40 bg-[linear-gradient(180deg,rgba(74,222,128,0.14),rgba(18,20,16,0.98))]"
+              ? "border-primary/40 bg-[linear-gradient(180deg,rgba(34,197,94,0.14),rgba(18,20,16,0.98))]"
               : isMobilityExercise
                 ? "border-[#38bdf8]/28 bg-[linear-gradient(180deg,rgba(56,189,248,0.13),rgba(18,20,16,0.98))]"
                 : "border-primary/18 bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(255,255,255,0.02))]")
@@ -483,7 +483,7 @@ export function ExpandableExerciseCard({
                 isWarmupExercise
                   ? "border-[#facc15]/25 bg-[#facc15]/10 text-[#fde047]"
                   : isCombinedExercise
-                  ? "border-[#4ade80]/25 bg-[#4ade80]/10 text-[#bbf7d0]"
+                  ? "border-primary/25 bg-primary/10 text-primary"
                   : isMobilityExercise
                     ? "border-[#38bdf8]/22 bg-[#38bdf8]/10 text-[#67d3ff]"
                   : "border-primary/15 bg-primary/10 text-primary"
@@ -515,7 +515,7 @@ export function ExpandableExerciseCard({
                       </span>
                     ) : null}
                     {combinedBadgeLabel ? (
-                      <span className="inline-flex items-center rounded-full border border-[#4ade80]/25 bg-[#4ade80]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#bbf7d0]">
+                      <span className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
                         {combinedBadgeLabel}
                       </span>
                     ) : null}
@@ -555,7 +555,7 @@ export function ExpandableExerciseCard({
                       event.stopPropagation();
                       onToggle(nextCombinedExerciseId);
                     }}
-                    className="mt-2 block text-[12px] font-semibold leading-snug text-[#bbf7d0]"
+                    className="mt-2 block text-[12px] font-semibold leading-snug text-primary"
                   >
                     {combinedWithLabel}
                     {nextCombinedExerciseId ? "\u00A0→" : ""}
