@@ -43,7 +43,7 @@ type WorkoutModelRow = {
 const CACHE_TTL_MS = 60_000;
 let cache: { at: number; models: WorkoutModel[] } | null = null;
 
-const SLOT_TYPES = new Set<TemplateSlotType>(["warmup", "compound", "isolation", "isometric", "core"]);
+const SLOT_TYPES = new Set<TemplateSlotType>(["warmup", "compound", "isolation", "isometric", "cardio", "functional", "core"]);
 
 function normalizeSlots(value: unknown): TemplateSlot[] {
   if (!Array.isArray(value)) return [];

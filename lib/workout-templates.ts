@@ -11,8 +11,15 @@
 import type { TrainingStyle } from "@/lib/types";
 import type { SessionBlueprint, WorkoutStrategy } from "@/lib/workout-strategy";
 
-export type TemplateSlotType = "warmup" | "compound" | "isolation" | "isometric" | "core";
-export type TemplateTechnique = "drop-set" | "rest-pause";
+export type TemplateSlotType = "warmup" | "compound" | "isolation" | "isometric" | "cardio" | "functional" | "core";
+export type TemplateTechnique =
+  | "drop-set"
+  | "rest-pause"
+  | "cluster"
+  | "tempo_controlado"
+  | "parciais"
+  | "pre-exaustao"
+  | "pos-exaustao";
 
 export type TemplateSlot = {
   /** Posição na sessão (ordem do treino). */
@@ -31,7 +38,7 @@ export type TemplateSlot = {
    * Outros tipos aceitos na vaga, opcionalmente só para alguns músculos. Ex.: posterior
    * aceita stiff (isolador de posterior), mas NÃO isolador de glúteo (regra do homem).
    */
-  alsoAccept?: { type: TemplateSlotType; muscles?: string[] }[];
+  alsoAccept?: { type?: TemplateSlotType; muscles?: string[] }[];
   /** Preferência por máquina (só orienta a IA; não é obrigatório). */
   machine?: boolean;
 };
@@ -207,12 +214,13 @@ export function matchesTemplateSlot(slot: TemplateSlot, candidate: SlotCandidate
   if (candidate.isWarmup || candidate.movementType === "mobility") return false;
 
   const primary = candidate.primaryMuscles[0] ?? "";
-  if (!slot.muscles.includes(primary)) return false;
-
-  if (matchesSlotType(slot.type, candidate)) return true;
-  return (slot.alsoAccept ?? []).some(
-    (extra) => (!extra.muscles || extra.muscles.includes(primary)) && matchesSlotType(extra.type, candidate)
-  );
+  if (slot.muscles.includes(primary) && matchesSlotType(slot.type, candidate)) return true;
+  // "Também aceita": outro tipo do mesmo músculo, ou outro músculo (ex.: bíceps OU glúteo).
+  // Sem músculos na alternativa, vale para os músculos da própria vaga.
+  return (slot.alsoAccept ?? []).some((extra) => {
+    const muscles = extra.muscles?.length ? extra.muscles : slot.muscles;
+    return muscles.includes(primary) && matchesSlotType(extra.type ?? slot.type, candidate);
+  });
 }
 
 function matchesSlotType(type: TemplateSlotType, candidate: SlotCandidate) {
@@ -224,6 +232,10 @@ function matchesSlotType(type: TemplateSlotType, candidate: SlotCandidate) {
       return candidate.movementType === "isolation";
     case "isometric":
       return candidate.movementType === "isometric";
+    // O catálogo trata cardio como "functional" no perfil do exercício.
+    case "cardio":
+    case "functional":
+      return candidate.movementType === "functional";
     case "core":
       return true;
     default:
@@ -236,7 +248,9 @@ const TYPE_LABEL: Record<TemplateSlotType, string> = {
   compound: "composto",
   isolation: "isolador",
   isometric: "isométrico",
-  core: "core"
+  cardio: "cardio",
+  functional: "funcional",
+  core: "qualquer tipo"
 };
 
 /** Linhas do prompt que descrevem o modelo de um treino. */
@@ -246,7 +260,12 @@ export function buildTemplatePromptLines(day: string, template: WorkoutTemplate)
     ...template.slots.map((slot) => {
       const parts = [`${slot.n}. ${slot.role}`];
       if (slot.type !== "warmup") parts.push(`musculo: ${slot.muscles.join(" ou ")}`);
-      parts.push([TYPE_LABEL[slot.type], ...(slot.alsoAccept ?? []).map((extra) => TYPE_LABEL[extra.type])].join(" ou "));
+      parts.push(TYPE_LABEL[slot.type]);
+      for (const extra of slot.alsoAccept ?? []) {
+        const muscles = extra.muscles?.length ? extra.muscles.join(" ou ") : slot.muscles.join(" ou ");
+        parts.push(`ou ${muscles} ${TYPE_LABEL[extra.type ?? slot.type]}`);
+      }
+      if (slot.technique) parts.push(`tecnica: ${slot.technique}`);
       if (slot.machine) parts.push("de preferencia maquina");
       return `- ${parts.join(" · ")}`;
     })
@@ -270,7 +289,10 @@ const MOVEMENT_CODE: Record<string, string> = {
 export function collectTemplateMuscles(templates: Iterable<WorkoutTemplate>): Set<string> {
   const muscles = new Set<string>();
   for (const template of templates) {
-    for (const slot of template.slots) slot.muscles.forEach((muscle) => muscles.add(muscle));
+    for (const slot of template.slots) {
+      slot.muscles.forEach((muscle) => muscles.add(muscle));
+      (slot.alsoAccept ?? []).forEach((extra) => (extra.muscles ?? []).forEach((muscle) => muscles.add(muscle)));
+    }
   }
   return muscles;
 }

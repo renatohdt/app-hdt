@@ -11,7 +11,10 @@ type AdminAuditAction =
   | "exercise_updated"
   | "exercise_deleted"
   | "program_created"
-  | "program_updated";
+  | "program_updated"
+  | "workout_model_created"
+  | "workout_model_updated"
+  | "workout_model_deleted";
 
 export async function recordAdminAuditLog({
   adminId,
