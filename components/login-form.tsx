@@ -18,7 +18,7 @@ export function LoginForm() {
   const [resetLoading, setResetLoading] = useState(false);
   // Preserva a intencao (ex.: ?next=/premium?checkout=annual) no link "Criar conta",
   // para quem caiu no login sem ter conta nao perder o plano escolhido.
-  const [criarContaHref, setCriarContaHref] = useState("/");
+  const [criarContaHref, setCriarContaHref] = useState("/criar-conta");
   useEffect(() => {
     const nextParam = new URLSearchParams(window.location.search).get("next");
     if (nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")) {
