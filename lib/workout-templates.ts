@@ -54,7 +54,7 @@ type TemplateGroup = {
 const W: TemplateSlot = { n: 1, role: "Aquecimento", muscles: [], type: "warmup" };
 const POSTERIOR = ["hamstrings", "glutes"];
 
-const FULL_BODY_A: WorkoutTemplate[] = [
+export const FULL_BODY_A: WorkoutTemplate[] = [
   {
     id: "FB-A1",
     label: "Agachamento livre sozinho, peito com posterior",
@@ -99,7 +99,7 @@ const FULL_BODY_A: WorkoutTemplate[] = [
   }
 ];
 
-const FULL_BODY_B: WorkoutTemplate[] = [
+export const FULL_BODY_B: WorkoutTemplate[] = [
   {
     id: "FB-B1",
     label: "Stiff sozinho, ombro com bíceps, tríceps com abdômen",

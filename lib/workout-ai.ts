@@ -38,7 +38,6 @@ import {
   buildTemplatePromptLines,
   collectTemplateMuscles,
   matchesTemplateSlot,
-  selectSessionTemplates,
   type TemplateSlot,
   type WorkoutTemplate
 } from "@/lib/workout-templates";
@@ -50,6 +49,7 @@ import {
   isBlockedByGenderRules,
   resolveGenderRules
 } from "@/lib/gender-rules";
+import { selectPlanTemplates } from "@/lib/workout-models";
 import type {
   CombinedBlockType,
   DiagnosisResult,
@@ -754,7 +754,7 @@ export async function generateWorkoutWithAI(
   // Liga/desliga por ambiente: WORKOUT_TEMPLATES_ENABLED=true (DEV). Em produção fica
   // desligado até os modelos ficarem prontos — o treino segue o fluxo atual.
   const sessionTemplates = isWorkoutTemplatesEnabled()
-    ? selectSessionTemplates(strategy, aiSessions)
+    ? await selectPlanTemplates(strategy, aiSessions)
     : new Map<string, WorkoutTemplate>();
   const allSessionsTemplated = aiSessions.length > 0 && aiSessions.every((session) => sessionTemplates.has(session.day));
   if (sessionTemplates.size) {
