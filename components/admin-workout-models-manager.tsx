@@ -165,7 +165,7 @@ function toBody(draft: Draft) {
 }
 
 const inputClass =
-  "w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[13px] text-white outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/20";
+  "w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-[13px] text-white outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/20 [&_option]:bg-white [&_option]:text-black";
 const labelClass = "text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55";
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
