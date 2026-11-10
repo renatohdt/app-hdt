@@ -756,13 +756,18 @@ export async function generateWorkoutWithAI(
   // e o app valida/monta os blocos. Treinos sem modelo seguem o fluxo atual.
   // Liga/desliga por ambiente: WORKOUT_TEMPLATES_ENABLED=true (DEV). Em produção fica
   // desligado até os modelos ficarem prontos — o treino segue o fluxo atual.
-  const sessionTemplates = isWorkoutTemplatesEnabled()
-    ? await selectPlanTemplates(strategy, aiSessions)
-    : new Map<string, WorkoutTemplate>();
+  // Novo programa pega a PRÓXIMA variação do modelo que o aluno tinha (ex.: "não gostei").
+  const previousModelCode = mobilityContext.previousWorkout?.templateModelCode ?? null;
+  const planSelection = isWorkoutTemplatesEnabled()
+    ? await selectPlanTemplates(strategy, aiSessions, previousModelCode)
+    : { templates: new Map<string, WorkoutTemplate>(), modelCode: null };
+  const sessionTemplates = planSelection.templates;
   const allSessionsTemplated = aiSessions.length > 0 && aiSessions.every((session) => sessionTemplates.has(session.day));
   if (sessionTemplates.size) {
     logInfo("AI", "Modelos de treino selecionados", {
-      templates: Object.fromEntries([...sessionTemplates].map(([day, template]) => [day, template.id]))
+      templates: Object.fromEntries([...sessionTemplates].map(([day, template]) => [day, template.id])),
+      model: planSelection.modelCode,
+      previous_model: previousModelCode
     });
   }
   const templatePromptLines = sessionTemplates.size
@@ -1042,6 +1047,7 @@ export async function generateWorkoutWithAI(
       status: "success"
     });
 
+    validated.templateModelCode = planSelection.modelCode;
     return validated;
   } catch (error) {
     logError("AI", "OpenAI request failed", {

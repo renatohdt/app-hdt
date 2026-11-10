@@ -198,6 +198,8 @@ export type WorkoutPlan = {
   sessionStrategyReason?: string | null;
   planCycleId?: string | null;
   progressionNotes?: string | null;
+  /** Código do modelo de treino usado (admin › Modelos). Vazio = gerado sem modelo. */
+  templateModelCode?: string | null;
   sections: WorkoutSection[];
   exercises: WorkoutExercise[];
 };

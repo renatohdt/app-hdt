@@ -123,19 +123,33 @@ export function modelToSessionTemplates(model: WorkoutModel, sessions: SessionBl
 }
 
 /**
- * Escolhe UM modelo para o plano e devolve os treinos dele por dia.
- * `pick` permite fixar a escolha (ex.: "não gostei" → próximo modelo); sem ele, sorteia.
+ * Próxima variação: o modelo seguinte (ordem do código) ao que o aluno tinha.
+ * Sem modelo anterior entre as opções, sorteia evitando o anterior. Só 1 opção: repete.
+ */
+export function pickNextModel(options: WorkoutModel[], previousCode?: string | null): WorkoutModel {
+  const sorted = [...options].sort((left, right) => left.code.localeCompare(right.code));
+  if (sorted.length === 1) return sorted[0];
+  const currentIndex = previousCode ? sorted.findIndex((model) => model.code === previousCode) : -1;
+  if (currentIndex >= 0) return sorted[(currentIndex + 1) % sorted.length];
+  const pool = sorted.filter((model) => model.code !== previousCode);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/**
+ * Escolhe UM modelo para o plano e devolve os treinos dele por dia + o código do modelo.
+ * `previousCode`: modelo do programa atual do aluno — o novo programa pega a próxima variação.
  */
 export async function selectPlanTemplates(
   strategy: WorkoutStrategy,
   sessions: SessionBlueprint[],
-  pick: (options: WorkoutModel[]) => WorkoutModel = (options) => options[Math.floor(Math.random() * options.length)]
-): Promise<Map<string, WorkoutTemplate>> {
-  if (!sessions.length) return new Map();
+  previousCode?: string | null
+): Promise<{ templates: Map<string, WorkoutTemplate>; modelCode: string | null }> {
+  if (!sessions.length) return { templates: new Map(), modelCode: null };
   const models = await loadReadyWorkoutModels();
   // Banco indisponível ou ainda sem modelos prontos: vale o piloto do código.
-  if (!models || models.length === 0) return selectSessionTemplates(strategy, sessions);
+  if (!models || models.length === 0) return { templates: selectSessionTemplates(strategy, sessions), modelCode: null };
   const options = findModelsForPlan(models, strategy, sessions);
-  if (!options.length) return new Map();
-  return modelToSessionTemplates(pick(options), sessions);
+  if (!options.length) return { templates: new Map(), modelCode: null };
+  const model = pickNextModel(options, previousCode);
+  return { templates: modelToSessionTemplates(model, sessions), modelCode: model.code };
 }
