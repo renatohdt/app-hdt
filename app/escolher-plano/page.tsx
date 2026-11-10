@@ -1,11 +1,17 @@
 "use client";
 
-import { Check, Sparkles, X, Zap } from "lucide-react";
+import clsx from "clsx";
+import { Check, Lock, Shield, Sparkles, X, Zap } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trackEvent } from "@/lib/analytics-client";
+import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { BrandFooter } from "@/components/brand-footer";
-import { useIsNativeApp } from "@/lib/is-native-app";
+import { IosPremiumPurchase } from "@/components/ios-premium-purchase";
+import { useNativePlatform } from "@/lib/is-native-app";
+import { getWebPricePerDayLabel, type PremiumPeriod } from "@/lib/premium-pricing";
+import { useStripeCheckout } from "@/lib/use-stripe-checkout";
 
 const FEATURES = [
   { label: "Evolução de programa de treino com IA",          free: false,         premium: true          },
@@ -29,8 +35,12 @@ function CellValue({ value, isPremium }: { value: boolean | string; isPremium?: 
 
 export default function EscolherPlanoPage() {
   const router = useRouter();
-  const isNative = useIsNativeApp();
+  const platform = useNativePlatform();
+  const isNative = platform !== "web";
   const trackedRef = useRef(false);
+  const [selectedPlan, setSelectedPlan] = useState<PremiumPeriod>("annual");
+  const [interested, setInterested] = useState(false);
+  const { startCheckout, loading, error } = useStripeCheckout("escolher-plano");
 
   useEffect(() => {
     if (!trackedRef.current) {
@@ -44,9 +54,22 @@ export default function EscolherPlanoPage() {
     router.push("/dashboard");
   }
 
-  function handlePremium() {
-    trackEvent("plan_selected", null, { plan: "premium" });
-    router.push("/premium");
+  // Web: vai direto para o checkout do Stripe com o plano escolhido.
+  function handlePremiumCheckout() {
+    if (isNative || loading) return; // dentro do app nunca usamos o Stripe (regra das lojas)
+    trackEvent("plan_selected", null, { plan: "premium", period: selectedPlan });
+    void startCheckout(selectedPlan);
+  }
+
+  // Android sem planos carregados: registra interesse (mesmo fallback da /premium).
+  function handleInterest() {
+    trackEvent("premium_interest", null, { source: "escolher-plano" });
+    setInterested(true);
+    void fetchWithAuth("/api/interest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "premium" }),
+    }).catch(() => {});
   }
 
   return (
@@ -103,25 +126,152 @@ export default function EscolherPlanoPage() {
           ))}
         </div>
 
-        {/* Botões de ação */}
-        <div className="space-y-3">
-
-          {/* Botão Premium — destaque */}
-          <button
-            onClick={handlePremium}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
-          >
-            <Zap size={16} strokeWidth={2.5} />
-            {isNative ? "Assinar Premium" : <>Assinar Premium — R$&nbsp;9,90/mês</>}
-          </button>
-          {!isNative && (
-            <p className="text-center text-[11px] text-white/60">
-              Plano anual · R$ 118,80/ano · Economize 33%
+        {/* ── Assinatura Premium ── */}
+        {platform === "ios" ? (
+          /* App iOS: compra nativa (Apple / RevenueCat) direto aqui */
+          <IosPremiumPurchase />
+        ) : platform === "android" ? (
+          /* App Android: compra nativa (Google Play / RevenueCat) direto aqui */
+          <IosPremiumPurchase
+            fallback={
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 text-center">
+                {!interested ? (
+                  <>
+                    <p className="text-sm leading-relaxed text-white/70">
+                      A ativação do Premium é feita pela nossa equipe. Deixe seu
+                      interesse e enviamos por e-mail as novidades e como desbloquear
+                      todos os recursos.
+                    </p>
+                    <button
+                      onClick={handleInterest}
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99]"
+                    >
+                      <Zap size={16} strokeWidth={2.5} />
+                      Tenho interesse no Premium
+                    </button>
+                  </>
+                ) : (
+                  <p className="py-2 text-sm font-semibold text-primary">
+                    Recebemos seu interesse! ✨ Em breve entramos em contato por e-mail.
+                  </p>
+                )}
+              </div>
+            }
+          />
+        ) : (
+          /* Navegador: escolhe o plano e vai direto para o Stripe */
+          <>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/40">
+              Escolha seu plano
             </p>
-          )}
+            <div className="mb-5 grid grid-cols-2 gap-3">
+              {/* Plano Anual */}
+              <button
+                type="button"
+                onClick={() => setSelectedPlan("annual")}
+                className={clsx(
+                  "relative flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
+                  selectedPlan === "annual"
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-3 py-0.5 text-[10px] font-black text-black">
+                  Mais popular
+                </span>
+                <div className="mt-1 w-full text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Anual</p>
+                  <p className="mt-1 text-2xl font-black text-white">R$&nbsp;9,90</p>
+                  <p className="text-[11px] text-white/40">/mês · R$&nbsp;118,80/ano</p>
+                  <p className="mt-1.5 text-[11px] font-bold text-premium">só {getWebPricePerDayLabel("annual")} por dia</p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-primary">Economize 33%</p>
+                </div>
+                {selectedPlan === "annual" && (
+                  <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                    <Check size={11} className="text-black" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
 
-          {/* Botão Grátis — secundário */}
+              {/* Plano Mensal */}
+              <button
+                type="button"
+                onClick={() => setSelectedPlan("monthly")}
+                className={clsx(
+                  "flex flex-col items-center rounded-3xl border-2 p-4 transition-all",
+                  selectedPlan === "monthly"
+                    ? "border-primary bg-primary/10 shadow-glow"
+                    : "border-white/10 bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div className="w-full text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Mensal</p>
+                  <p className="mt-1 text-2xl font-black text-white">R$&nbsp;14,90</p>
+                  <p className="text-[11px] text-white/40">/mês</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-white/55">{getWebPricePerDayLabel("monthly")} por dia</p>
+                  <p className="mt-0.5 text-[11px] text-white/30">Cartão de crédito</p>
+                </div>
+                {selectedPlan === "monthly" && (
+                  <div className="mt-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+                    <Check size={11} className="text-black" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handlePremiumCheckout}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong px-5 py-4 text-sm font-bold text-black shadow-glow transition hover:opacity-95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                  Redirecionando...
+                </>
+              ) : (
+                <>
+                  <Zap size={16} strokeWidth={2.5} />
+                  {selectedPlan === "annual" ? "Assinar por R$ 118,80/ano" : "Assinar por R$ 14,90/mês"}
+                </>
+              )}
+            </button>
+
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Shield size={13} className="shrink-0 text-primary/70" />
+                Pagamento seguro processado pelo Stripe
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Lock size={13} className="shrink-0 text-primary/70" />
+                Garantia de 7 dias — reembolso sem burocracia
+              </div>
+              <div className="flex items-center gap-2.5 text-xs text-white/60">
+                <Check size={13} className="shrink-0 text-primary/70" />
+                Cancele quando quiser, sem multas
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-[11px] text-white/45">
+              Ao assinar, você concorda com os{" "}
+              <Link href="/termos-de-uso" className="underline hover:text-white/70">Termos de Uso</Link>{" "}
+              e{" "}
+              <Link href="/politica-de-privacidade" className="underline hover:text-white/70">Política de Privacidade</Link>.
+            </p>
+          </>
+        )}
+
+        {/* ── Opção gratuita ── */}
+        <div className="mt-6 space-y-3">
           <button
+            type="button"
             onClick={handleFree}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-semibold text-white/70 transition hover:border-white/20 hover:text-white active:scale-[0.99]"
           >

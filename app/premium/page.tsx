@@ -11,7 +11,7 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { useNativePlatform } from "@/lib/is-native-app";
 import { BrandFooter } from "@/components/brand-footer";
 import { IosPremiumPurchase } from "@/components/ios-premium-purchase";
-import { getWebPricePerDayLabel } from "@/lib/premium-pricing";
+import { getWebPricePerDayLabel, WEB_PREMIUM_PRICES } from "@/lib/premium-pricing";
 
 type Plan = "annual" | "monthly";
 
@@ -110,7 +110,7 @@ function PremiumPageContent() {
     setError(null);
     setLoading(true);
 
-    const value = plan === "annual" ? 118.9 : 14.9;
+    const value = WEB_PREMIUM_PRICES[plan];
     trackEvent("checkout_started", null, { plan, value });
     trackMetaInitiateCheckout({ value, currency: "BRL", content_name: `Premium ${plan}` });
 
