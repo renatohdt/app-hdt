@@ -20,7 +20,16 @@ import {
   labelOf,
   muscleLabel
 } from "@/lib/workout-model-options";
-import type { TemplateSlot } from "@/lib/workout-templates";
+import { matchesTemplateSlot, type TemplateSlot } from "@/lib/workout-templates";
+
+type CoverageItem = {
+  name: string;
+  primaryMuscles: string[];
+  movementType: string;
+  isWarmup: boolean;
+  levels: string[];
+  locations: string[];
+};
 
 type ModelRow = {
   id: string;
@@ -133,21 +142,68 @@ function toDraft(model: ModelRow): Draft {
   };
 }
 
+function draftSlotToTemplate(slot: SlotDraft, n: number): TemplateSlot {
+  return {
+    n,
+    role: slot.role,
+    muscles: slot.type === "warmup" ? [] : slot.muscle.split(",").filter(Boolean),
+    type: slot.type as TemplateSlot["type"],
+    block: slot.block || undefined,
+    cut: slot.cut ? Number(slot.cut) : undefined,
+    technique: (slot.technique || undefined) as TemplateSlot["technique"],
+    alsoAccept:
+      slot.altMuscle || slot.altType
+        ? [{ muscles: slot.altMuscle.split(",").filter(Boolean), type: (slot.altType || undefined) as TemplateSlot["type"] | undefined }]
+        : undefined
+  };
+}
+
+/** Quantos exercícios do catálogo servem para a vaga no nível do modelo (casa x academia/condomínio). */
+function slotCoverage(slot: SlotDraft, level: string, catalog: CoverageItem[]) {
+  if (slot.type !== "warmup" && !slot.muscle) return null;
+  const target = draftSlotToTemplate(slot, 1);
+  const matches = catalog.filter(
+    (item) => (slot.type === "warmup" || item.levels.includes(level)) && matchesTemplateSlot(target, item)
+  );
+  return {
+    home: matches.filter((item) => item.locations.includes("home")).length,
+    gym: matches.filter((item) => item.locations.some((location) => location === "gym" || location === "condo_gym")).length,
+    names: matches.map((item) => item.name)
+  };
+}
+
+function coverageTone(count: number) {
+  if (count === 0) return "border-red-400/40 bg-red-500/10 text-red-200";
+  if (count <= 2) return "border-amber-400/40 bg-amber-500/10 text-amber-200";
+  return "border-primary/30 bg-primary/10 text-primary";
+}
+
+function dayWarnings(slots: SlotDraft[], level: string, catalog: CoverageItem[] | null) {
+  const warnings: string[] = [];
+  const work = slots.filter((slot) => slot.type !== "warmup");
+  if (work.length >= 5 && !slots.some((slot) => slot.cut)) {
+    warnings.push("Nenhuma vaga tem Corte: se o tempo do aluno for curto, o app não tem vaga para tirar e o treino passa do tempo.");
+  }
+  const counts = new Map<string, number>();
+  slots.forEach((slot) => slot.block && counts.set(slot.block, (counts.get(slot.block) ?? 0) + 1));
+  counts.forEach((count, block) => {
+    if (count < 2) warnings.push(`O bloco ${block} tem só 1 exercício.`);
+  });
+  if (catalog) {
+    slots.forEach((slot, index) => {
+      const coverage = slotCoverage(slot, level, catalog);
+      if (coverage && coverage.home === 0 && coverage.gym === 0) {
+        warnings.push(`Vaga ${index + 1} (${slot.role || "sem papel"}): nenhum exercício no catálogo para este nível. O app vai relaxar o tipo ou deixar a vaga vazia.`);
+      }
+    });
+  }
+  return warnings;
+}
+
 function toBody(draft: Draft) {
   const days: Record<string, unknown[]> = {};
   for (const { day, slots } of draft.days) {
-    days[day] = slots.map((slot) => ({
-      role: slot.role,
-      muscles: slot.type === "warmup" ? [] : slot.muscle.split(",").filter(Boolean),
-      type: slot.type,
-      block: slot.block || undefined,
-      cut: slot.cut ? Number(slot.cut) : undefined,
-      technique: slot.technique || undefined,
-      alsoAccept:
-        slot.altMuscle || slot.altType
-          ? [{ muscles: slot.altMuscle.split(",").filter(Boolean), type: slot.altType || undefined }]
-          : undefined
-    }));
+    days[day] = slots.map((slot, index) => draftSlotToTemplate(slot, index + 1));
   }
   return {
     id: draft.id,
@@ -197,6 +253,24 @@ export function AdminWorkoutModelsManager() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<CoverageItem[] | null>(null);
+
+  useEffect(() => {
+    if (!draft || catalog) return;
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetchWithAuth(`${ENDPOINT}?catalog=1`, { headers: { "Content-Type": "application/json" } });
+        const result = await parseJsonResponse<{ success: boolean; data?: CoverageItem[] }>(response);
+        if (active && response.ok && result.success) setCatalog(result.data ?? []);
+      } catch {
+        // Cobertura é só ajuda visual; sem ela o editor continua funcionando.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [draft, catalog]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -406,8 +480,16 @@ export function AdminWorkoutModelsManager() {
               </button>
             </div>
 
+            {(() => {
+              const warnings = dayWarnings(entry.slots, draft.level, catalog);
+              return warnings.length ? (
+                <ul className="space-y-1 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100">
+                  {warnings.map((warning) => <li key={warning}>• {warning}</li>)}
+                </ul>
+              ) : null;
+            })()}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] border-separate border-spacing-y-1.5 text-left">
+              <table className="w-full min-w-[1220px] border-separate border-spacing-y-1.5 text-left">
                 <thead>
                   <tr className={labelClass}>
                     <th className="w-8 px-1 font-semibold">#</th>
@@ -419,6 +501,7 @@ export function AdminWorkoutModelsManager() {
                     <th className="w-36 px-1 font-semibold">Técnica</th>
                     <th className="w-40 px-1 font-semibold">Também aceita</th>
                     <th className="w-32 px-1 font-semibold">Tipo (alt.)</th>
+                    <th className="w-36 px-1 font-semibold" title="Exercícios do catálogo que servem para a vaga, no nível do modelo">No catálogo</th>
                     <th className="w-24 px-1" />
                   </tr>
                 </thead>
@@ -496,6 +579,19 @@ export function AdminWorkoutModelsManager() {
                               <option key={type.value} value={type.value}>{type.label}</option>
                             ))}
                           </select>
+                        </td>
+                        <td className="px-1">
+                          {(() => {
+                            if (!catalog) return <span className="text-[11px] text-white/35">carregando…</span>;
+                            const coverage = slotCoverage(slot, draft.level, catalog);
+                            if (!coverage) return <span className="text-[11px] text-white/35">—</span>;
+                            return (
+                              <div className="flex flex-wrap gap-1" title={coverage.names.length ? coverage.names.join("\n") : "Nenhum exercício"}>
+                                <span className={clsx("rounded-full border px-2 py-0.5 text-[11px] font-semibold", coverageTone(coverage.home))}>Casa {coverage.home}</span>
+                                <span className={clsx("rounded-full border px-2 py-0.5 text-[11px] font-semibold", coverageTone(coverage.gym))}>Acad {coverage.gym}</span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-1">
                           <div className="flex justify-end gap-1">

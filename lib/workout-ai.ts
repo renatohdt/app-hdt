@@ -42,6 +42,9 @@ import {
   type WorkoutTemplate
 } from "@/lib/workout-templates";
 import {
+  type GenderRules,
+  isArmIsolatorInfo,
+  isIsolatedGluteInfo,
   buildGenderRulePromptLines,
   enforceGenderRulesOnSession,
   focusRegionFromExtraFocus,
@@ -1264,7 +1267,7 @@ function validateAndBuildWorkoutPlan(
     const sanitizedRaw = isHiitSession
       ? buildLocalHiitExercises(strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
       : template
-        ? fillTemplateSlots(rawExercises, template, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions)
+        ? fillTemplateSlots(rawExercises, template, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions, genderRules)
         : sanitizeAiDayExercises(rawExercises, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
     const genderCheck = enforceGenderRulesOnSession(sanitizedRaw, genderRules);
     if (genderCheck.removed.length) {
@@ -3119,7 +3122,8 @@ function fillTemplateSlots(
   blueprint: SessionBlueprint,
   exerciseMap: Map<string, ExerciseLookup>,
   allowedNames: Set<string>,
-  usedAcrossSessions: Set<string>
+  usedAcrossSessions: Set<string>,
+  genderRules: GenderRules = { blockIsolatedGlutes: false, maxArmIsolatorsPerSession: null }
 ): SanitizedExercise[] {
   // 1) Liga cada exercício da IA à vaga (campo "slot"; sem ele, pela posição).
   const validSlots = new Set(template.slots.map((slot) => slot.n));
@@ -3175,6 +3179,51 @@ function fillTemplateSlots(
       continue;
     }
     filled.push(applyTemplateSlot(exercise, slot, strategy, blueprint));
+  }
+
+  // 2b) Regras por gênero: em vez de só tirar o exercício, tenta a alternativa da vaga
+  //     ("também aceita"); ex.: tríceps → adutor quando a aluna já tem 1 isolador de braço.
+  let armIsolators = 0;
+  for (let index = 0; index < filled.length; index += 1) {
+    const current = filled[index];
+    const slot = template.slots.find((entry) => entry.n === current.templateSlot);
+    if (!slot || current.blockType === "warmup") continue;
+    const breaksRule = (exercise: SanitizedExercise) =>
+      (genderRules.blockIsolatedGlutes && isIsolatedGluteInfo(exercise)) ||
+      (genderRules.maxArmIsolatorsPerSession !== null &&
+        isArmIsolatorInfo(exercise) &&
+        armIsolators >= genderRules.maxArmIsolatorsPerSession);
+    if (breaksRule(current)) {
+      usedAcrossSessions.delete(current.name.trim().toLowerCase());
+      const targets: TemplateSlot[] = [
+        ...(slot.alsoAccept ?? []).map((extra) => ({
+          ...slot,
+          muscles: extra.muscles?.length ? extra.muscles : slot.muscles,
+          type: extra.type ?? slot.type,
+          alsoAccept: undefined
+        })),
+        { ...slot, alsoAccept: undefined }
+      ];
+      let replacement: SanitizedExercise | null = null;
+      for (const target of targets) {
+        const candidate = pickTemplateSlotFallback(target, strategy, blueprint, exerciseMap, allowedNames, usedAcrossSessions);
+        if (candidate && !breaksRule(candidate)) {
+          replacement = candidate;
+          break;
+        }
+        if (candidate) usedAcrossSessions.delete(candidate.name.trim().toLowerCase());
+      }
+      if (replacement) {
+        filled[index] = applyTemplateSlot(replacement, slot, strategy, blueprint);
+        report[slot.n] = `${report[slot.n] ?? ""} → regra de genero: ${replacement.name}`;
+      } else {
+        report[slot.n] = `${report[slot.n] ?? ""} → regra de genero: vaga removida`;
+        filled.splice(index, 1);
+        index -= 1;
+        continue;
+      }
+    }
+    if (genderRules.maxArmIsolatorsPerSession !== null && isArmIsolatorInfo(filled[index])) armIsolators += 1;
   }
 
   // 3) Regra fixa: nunca máquina com máquina no mesmo bloco.

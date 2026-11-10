@@ -18,6 +18,29 @@ import {
   MODEL_TECHNIQUES
 } from "@/lib/workout-model-options";
 import type { TemplateSlot } from "@/lib/workout-templates";
+import { getExerciseLevels, getExerciseLocations, normalizeStoredExerciseType } from "@/lib/exercise-library";
+import { buildExerciseProfile } from "@/lib/workout-strategy";
+import type { ExerciseRecord } from "@/lib/types";
+
+/** Catálogo enxuto para a cobertura por vaga no editor (sem nomes, só o que o filtro usa). */
+async function loadCoverageCatalog(supabase: NonNullable<ReturnType<typeof createSupabaseAdminClient>>) {
+  const { data, error } = await supabase.from("exercises").select("*");
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as ExerciseRecord[])
+    .map((exercise) => {
+      const profile = buildExerciseProfile(exercise);
+      const type = normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null);
+      return {
+        name: exercise.name,
+        primaryMuscles: profile.primaryMuscles,
+        movementType: profile.movementType,
+        isWarmup: type === "warmup",
+        levels: getExerciseLevels(exercise),
+        locations: getExerciseLocations(exercise)
+      };
+    })
+    .filter((item) => item.movementType !== "mobility");
+}
 
 export const dynamic = "force-dynamic";
 
@@ -152,6 +175,9 @@ export async function GET(request: Request) {
     if (admin.response) return admin.response;
     const supabase = createSupabaseAdminClient();
     if (!supabase) return jsonError("Não foi possível carregar os modelos.", 500);
+    if (new URL(request.url).searchParams.get("catalog") === "1") {
+      return jsonSuccess(await loadCoverageCatalog(supabase), 200);
+    }
     const { data, error } = await supabase.from("workout_models").select(SELECT).order("code");
     if (error) {
       logError("ADMIN", "Workout models fetch failed", { error: error.message });
