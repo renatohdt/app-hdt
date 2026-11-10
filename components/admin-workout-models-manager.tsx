@@ -304,6 +304,23 @@ export function AdminWorkoutModelsManager() {
 
   const readyCount = models.filter((model) => model.status === "ready").length;
 
+  // Perfis cobertos: nível × estilo × objetivo com pelo menos 1 modelo Pronto.
+  const profileCoverage = useMemo(() => {
+    const cells = new Map<string, ModelRow[]>();
+    for (const model of models) {
+      if (model.status !== "ready") continue;
+      for (const style of model.training_styles) {
+        for (const goal of model.goals) {
+          const key = `${model.level}|${style}|${goal}`;
+          cells.set(key, [...(cells.get(key) ?? []), model]);
+        }
+      }
+    }
+    return cells;
+  }, [models]);
+  const coveredProfiles = profileCoverage.size;
+  const totalProfiles = MODEL_LEVELS.length * MODEL_STYLES.length * MODEL_GOALS.length;
+
   async function save() {
     if (!draft) return;
     setSaving(true);
@@ -641,6 +658,61 @@ export function AdminWorkoutModelsManager() {
   // ---------- Lista ----------
   return (
     <div className="space-y-5">
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-base font-semibold text-white">Perfis com modelo pronto</h3>
+          <p className="text-[12px] text-white/55">
+            <span className="text-primary">{coveredProfiles}</span> de {totalProfiles} combinações de nível, estilo e objetivo
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-separate border-spacing-1 text-left text-[12px]">
+            <thead>
+              <tr className={labelClass}>
+                <th className="px-2 py-1 font-semibold">Nível · Estilo</th>
+                {MODEL_GOALS.map((goal) => (
+                  <th key={goal.value} className="px-2 py-1 font-semibold">{goal.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {MODEL_LEVELS.flatMap((level) =>
+                MODEL_STYLES.map((style, styleIndex) => (
+                  <tr key={`${level.value}-${style.value}`}>
+                    <td className={clsx("whitespace-nowrap px-2 py-1.5 text-white/75", styleIndex === 0 && "border-t border-white/10")}>
+                      <span className="font-semibold text-white">{level.label}</span> · {style.label}
+                    </td>
+                    {MODEL_GOALS.map((goal) => {
+                      const cellModels = profileCoverage.get(`${level.value}|${style.value}|${goal.value}`) ?? [];
+                      const splits = [...new Set(cellModels.map((model) => labelOf(MODEL_SPLITS, model.split_type)))];
+                      return (
+                        <td
+                          key={goal.value}
+                          title={cellModels.map((model) => `${model.code} · ${labelOf(MODEL_SPLITS, model.split_type)} · ${model.durations.length ? model.durations.join("/") + " min" : "qualquer tempo"}`).join("\n")}
+                          className={clsx(
+                            "rounded-lg px-2 py-1.5 align-top",
+                            cellModels.length ? "bg-primary/10 text-primary" : "bg-white/[0.03] text-white/25"
+                          )}
+                        >
+                          {cellModels.length ? (
+                            <>
+                              <span className="font-semibold">{cellModels.length} {cellModels.length === 1 ? "modelo" : "modelos"}</span>
+                              <span className="block text-[11px] text-primary/75">{splits.join(", ")}</span>
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-white/45">Passe o mouse numa célula para ver os modelos, a divisão e os tempos. Só contam modelos marcados como Pronto.</p>
+      </Card>
       <Card className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[13px] text-white/60">
