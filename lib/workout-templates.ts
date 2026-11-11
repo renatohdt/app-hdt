@@ -223,6 +223,25 @@ export function matchesTemplateSlot(slot: TemplateSlot, candidate: SlotCandidate
   });
 }
 
+/** O tipo de movimento do exercício serve para o tipo da vaga? (usado também na troca) */
+export function matchesSlotTypeForMovement(type: string, movementType: string) {
+  return matchesSlotType(type as TemplateSlotType, { primaryMuscles: [], movementType, isWarmup: false });
+}
+
+/**
+ * Tipo que o exercício cumpriu na vaga: o tipo principal, ou o da alternativa ("também aceita")
+ * que ele atendeu. Fica salvo no exercício para a troca manter o desenho do modelo.
+ */
+export function resolveMatchedSlotType(slot: TemplateSlot, candidate: SlotCandidate): TemplateSlotType {
+  const primary = candidate.primaryMuscles[0] ?? "";
+  if (slot.muscles.includes(primary) && matchesSlotType(slot.type, candidate)) return slot.type;
+  const extra = (slot.alsoAccept ?? []).find((item) => {
+    const muscles = item.muscles?.length ? item.muscles : slot.muscles;
+    return muscles.includes(primary) && matchesSlotType(item.type ?? slot.type, candidate);
+  });
+  return extra?.type ?? slot.type;
+}
+
 function matchesSlotType(type: TemplateSlotType, candidate: SlotCandidate) {
   switch (type) {
     case "compound":

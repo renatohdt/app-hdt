@@ -353,6 +353,7 @@ function normalizeExercise(value: unknown): WorkoutExercise | null {
     secondaryMuscles: normalizeMuscleStringList(exercise.secondaryMuscles ?? exercise.secondary_muscles),
     order: typeof exercise.order === "string" ? exercise.order : null,
     blockId: typeof exercise.blockId === "string" ? exercise.blockId : null,
+    slotType: typeof exercise.slotType === "string" ? exercise.slotType : null,
     blockLabel:
       typeof exercise.blockLabel === "string"
         ? exercise.blockLabel

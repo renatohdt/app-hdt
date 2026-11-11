@@ -122,6 +122,8 @@ export type WorkoutExercise = {
   method?: string | null;
   technique?: string | null;
   blockType?: WorkoutBlockType;
+  /** Tipo da vaga do modelo (composto, isolador...). A troca de exercício mantém esse tipo. */
+  slotType?: string | null;
   trainingTechnique?: string | null;
   rationale?: string | null;
   notes?: string | null;

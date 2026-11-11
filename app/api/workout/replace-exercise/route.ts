@@ -291,13 +291,25 @@ export async function POST(request: NextRequest) {
       replacementRecord = picked;
     } else {
       // --- Filtrar candidatos (removendo também os já descartados) ---
+      // Treino com modelo: a troca mantém o tipo da vaga e, se o parceiro do bloco
+      // combinado for máquina, evita outra máquina (regra: nunca máquina + máquina).
+      const blockPartners = originalExercise.blockId
+        ? section.exercises.filter((exercise, index) => index !== exerciseIndex && exercise.blockId === originalExercise.blockId)
+        : [];
+      const partnerIsMachine = blockPartners.some((partner) => {
+        const record = exerciseLibrary.find((exercise) => exercise.name.trim().toLowerCase() === partner.name.trim().toLowerCase());
+        return normalizeExerciseEquipmentList(
+          (record?.equipment ?? record?.metadata?.equipment) as string | string[] | null | undefined
+        ).some((item) => item === "machine" || item.includes("maquina"));
+      });
       let candidates = filterReplacementCandidates(
         originalRecord,
         sessionExerciseIds,
         answers,
         exerciseLibrary,
         excludedExerciseIds,
-        reason
+        reason,
+        { slotType: originalExercise.slotType ?? null, avoidMachine: partnerIsMachine }
       );
 
       // --- "Aparelho/material indisponível": evitar o MESMO equipamento ---

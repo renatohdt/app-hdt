@@ -38,6 +38,8 @@ import {
   buildTemplatePromptLines,
   collectTemplateMuscles,
   matchesTemplateSlot,
+  matchesSlotTypeForMovement,
+  resolveMatchedSlotType,
   type TemplateSlot,
   type WorkoutTemplate
 } from "@/lib/workout-templates";
@@ -3193,8 +3195,17 @@ function applyTemplateSlot(
   }
 
   const trainingTechnique = resolveTrainingTechnique({}, blockType, blueprint, exercise.primaryMuscles?.[0]);
+  const slotType =
+    slot.type === "warmup"
+      ? null
+      : resolveMatchedSlotType(slot, {
+          primaryMuscles: exercise.primaryMuscles ?? [],
+          movementType: exercise.movementType,
+          isWarmup: false
+        });
   return {
     ...exercise,
+    slotType,
     type: "normal",
     blockType,
     method: trainingTechnique,
@@ -4789,7 +4800,10 @@ export function filterReplacementCandidates(
   answers: QuizAnswers,
   exerciseLibrary: ExerciseRecord[],
   excludedExerciseIds: string[] = [],
-  reason?: string
+  reason?: string,
+  // Treino com modelo: mantém o tipo da vaga (isolador continua isolador) e, em bloco
+  // combinado com máquina, evita outra máquina. O músculo é sempre o do exercício trocado.
+  options: { slotType?: string | null; avoidMachine?: boolean } = {}
 ) {
   const primaryMuscle = getPrimaryExerciseMuscle(originalExercise);
   const allowedEquipment = buildAllowedEquipment(answers);
@@ -4814,6 +4828,8 @@ export function filterReplacementCandidates(
     .filter((exercise) => !daySet.has(exercise.id))
     .filter((exercise) => !excludedSet.has(exercise.id))
     .filter((exercise) => normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null) !== "mobility")
+    // Exercício principal nunca vira aquecimento (aquecimento tem troca própria: pickPrepReplacement).
+    .filter((exercise) => normalizeStoredExerciseType(exercise.type ?? exercise.metadata?.type ?? null) !== "warmup")
     .filter((exercise) => getPrimaryExerciseMuscle(exercise) === primaryMuscle)
     .filter((exercise) => matchesLocation(exercise, answers.location))
     .filter((exercise) => matchesEquipment(exercise, allowedEquipment));
@@ -4821,7 +4837,22 @@ export function filterReplacementCandidates(
     .filter((exercise) => !isBlockedByGenderRules(exercise, genderRules))
     .filter((exercise) => !(armIsolatorsFull && isArmIsolatorExercise(exercise)));
   // Nunca trava a troca: se a regra zerar as opções (plano antigo), usa a lista sem ela.
-  const candidates = genderCandidates.length ? genderCandidates : baseCandidates;
+  let candidates = genderCandidates.length ? genderCandidates : baseCandidates;
+  if (options.slotType) {
+    const sameSlotType = candidates.filter((exercise) =>
+      matchesSlotTypeForMovement(options.slotType as string, buildExerciseProfile(exercise).movementType)
+    );
+    if (sameSlotType.length) candidates = sameSlotType;
+  }
+  if (options.avoidMachine) {
+    const notMachine = candidates.filter(
+      (exercise) =>
+        !normalizeExerciseEquipmentList(exercise.equipment ?? exercise.metadata?.equipment).some(
+          (item) => item === "machine" || item.includes("maquina")
+        )
+    );
+    if (notMachine.length) candidates = notMachine;
+  }
 
   const selectedCandidates = selectReplacementByLevelAndDifficulty(
     candidates,
