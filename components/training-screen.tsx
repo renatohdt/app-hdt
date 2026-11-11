@@ -37,6 +37,7 @@ import { useAdMobAvailable } from "@/components/RewardedAdButton";
 import { WorkoutTabGate } from "@/components/workout-tab-gate";
 import { isWorkoutTabsUnlocked } from "@/lib/workout-tabs-unlock";
 import { RegenerateProgramFlow } from "@/components/regenerate-program-flow";
+import { DislikeNewWorkoutPopup, claimDislikePopup } from "@/components/dislike-new-workout-popup";
 import { WorkoutProgressDock } from "@/components/workout-progress-dock";
 import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
 import { StartWorkoutConfirm } from "@/components/start-workout-confirm";
@@ -138,6 +139,9 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const isProgram = Boolean(data.raw.program);
   // "Gerar novo programa" (botão discreto no topo). Regras no RegenerateProgramFlow.
   const [showRegenerate, setShowRegenerate] = useState(false);
+  // "Não gostei" no treino: depois do popup de concluído, recomenda um treino novo (1x por programa).
+  const [pendingDislikePopup, setPendingDislikePopup] = useState(false);
+  const [showDislikePopup, setShowDislikePopup] = useState(false);
   // Se existe um treino em andamento salvo no aparelho, reabre direto nele.
   const [restoredWorkoutKey] = useState<string | null>(() => {
     const saved = readActiveWorkout();
@@ -479,6 +483,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     Boolean(phaseUpPopup) ||
     Boolean(newAchievement) ||
     showRegenerate ||
+    showDislikePopup ||
     showLocationPicker ||
     showLocationUpsell;
   useEffect(() => {
@@ -870,6 +875,7 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
       const cycleJustCompleted = Boolean(result.data.program_completed) && !isProgram;
 
       setLevelReviewHint(getLevelReviewHint(sessionLiked, sessionIntensity));
+      setPendingDislikePopup(sessionLiked === false && !cycleJustCompleted && !isProgram);
       setConfirmCompletion(false);
       if (cycleJustCompleted) {
         setShowCycleCelebration(true);
@@ -1392,7 +1398,13 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       {showCompletionPopup ? (
         <WorkoutCompletionPopup
-          onClose={() => setShowCompletionPopup(false)}
+          onClose={() => {
+            setShowCompletionPopup(false);
+            if (pendingDislikePopup) {
+              setPendingDislikePopup(false);
+              if (claimDislikePopup(data.user.id, data.lastWorkoutGeneratedAt)) setShowDislikePopup(true);
+            }
+          }}
           showAd={showAds}
           summary={completionSummary}
           premiumNudgeWorkouts={premiumNudgeWorkouts}
@@ -1445,6 +1457,16 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
       {showLocationUpsell ? (
         <UpsellModal reason="unlock_location" onClose={() => setShowLocationUpsell(false)} />
+      ) : null}
+      {showDislikePopup ? (
+        <DislikeNewWorkoutPopup
+          onClose={() => setShowDislikePopup(false)}
+          onCreate={() => {
+            setShowDislikePopup(false);
+            trackEvent("cta_click", data.user.id, { source: "dislike_new_workout_popup" });
+            setShowRegenerate(true);
+          }}
+        />
       ) : null}
       {showRegenerate ? (
         <RegenerateProgramFlow

@@ -53,6 +53,13 @@ import {
   resolveGenderRules
 } from "@/lib/gender-rules";
 import { selectPlanTemplates } from "@/lib/workout-models";
+import {
+  adjustRepsForDifficulty,
+  adjustRestForDifficulty,
+  buildProgressionPromptLines,
+  resolveProgressionPlan,
+  type ProgressionPlan
+} from "@/lib/workout-progression";
 import type {
   CombinedBlockType,
   DiagnosisResult,
@@ -324,6 +331,8 @@ type SanitizedExercise = WorkoutExercise & {
   templateSlot?: number;
   templateBlock?: string;
   templateCut?: number;
+  /** Repetições/descanso já ajustados pela progressão (evita aplicar duas vezes). */
+  progressionApplied?: boolean;
 };
 
 type MobilitySelectionContext = {
@@ -562,11 +571,15 @@ type FeedbackContext = {
   timedSessionCount?: number;
 };
 
-function buildFeedbackPromptLines(ctx: FeedbackContext, templateMode = false): string[] {
+function buildFeedbackPromptLines(ctx: FeedbackContext, templateMode = false, progression?: ProgressionPlan): string[] {
   const lines: string[] = [];
   const { avgLiked: liked, avgIntensity: intensity } = ctx;
 
-  if (ctx.sessionCount > 0 && liked !== null && intensity !== null) {
+  // Com progressão decidida pelo app (programa novo), ela substitui as orientações
+  // genéricas de gosto/intensidade e de tempo (o app ajusta ±1 exercício sozinho).
+  if (progression) {
+    lines.push(...buildProgressionPromptLines(progression));
+  } else if (ctx.sessionCount > 0 && liked !== null && intensity !== null) {
     lines.push("", "HISTÓRICO E PREFERÊNCIAS DO USUÁRIO:");
     if (liked >= 0.7 && intensity >= 3.5) {
       lines.push("Usuário gosta de treinos desafiadores. Manter ou aumentar levemente intensidade e volume.");
@@ -584,7 +597,7 @@ function buildFeedbackPromptLines(ctx: FeedbackContext, templateMode = false): s
   // Tempo real de treino (registrado pelo "Treino em andamento"). Só entra com
   // pelo menos 3 sessões de tempo confiável, para não reagir a um dia atípico.
   // Com modelo, o tempo é ajustado pelo app (corte por vaga); não vai para a IA.
-  if (!templateMode && (ctx.timedSessionCount ?? 0) >= 3 && ctx.avgRealDurationMinutes) {
+  if (!progression && !templateMode && (ctx.timedSessionCount ?? 0) >= 3 && ctx.avgRealDurationMinutes) {
     const completion =
       typeof ctx.avgCompletionRatio === "number" ? ` e concluiu em media ${Math.round(ctx.avgCompletionRatio * 100)}% das series` : "";
     lines.push(
@@ -673,6 +686,15 @@ export async function generateWorkoutWithAI(
 ): Promise<WorkoutPlan> {
   const openai = getOpenAIClient();
   const strategy = buildWorkoutStrategy(answers);
+  // Progressão: só em programa NOVO de quem já tinha programa (não no 1º nem no Treino Extra).
+  if (mobilityContext.previousWorkout && !mobilityContext.extraInstructions?.length) {
+    strategy.progression = resolveProgressionPlan(
+      feedbackContext ?? null,
+      strategy.timeAvailable,
+      averageProgramDifficulty(mobilityContext.previousWorkout, exerciseLibrary)
+    );
+    logInfo("AI", "Progressao do programa", { ...strategy.progression });
+  }
   const catalogBeforeMobilityFilter = selectExercisesForAiCatalog(answers, exerciseLibrary, {
     excludeMobility: false
   });
@@ -701,7 +723,11 @@ export async function generateWorkoutWithAI(
   const mainExercises = filteredLibrary.filter(
     (ex) => normalizeStoredExerciseType(ex.type ?? ex.metadata?.type) !== "warmup"
   );
-  const availableExercises = mainExercises.map(buildAiCatalogExercise);
+  const availableExercises = mainExercises.map((exercise) => ({
+    ...buildAiCatalogExercise(exercise),
+    // Dificuldade 1–5 só quando a progressão precisa (economiza tokens no 1º programa).
+    ...(strategy.progression && typeof exercise.difficulty === "number" ? { d: exercise.difficulty } : {})
+  }));
   const mobilityExercisesExcludedFromCatalog = Math.max(0, catalogBeforeMobilityFilter.length - filteredLibrary.length);
   const promptCatalogCharsBeforeMobilityFilter = JSON.stringify(availableExercisesBeforeMobilityFilter).length;
   const promptCatalogCharsAfterMobilityFilter = JSON.stringify(availableExercises).length;
@@ -788,7 +814,9 @@ export async function generateWorkoutWithAI(
   // das vagas (uma linha por músculo), sem estratégia/estilos/dados corporais que não mudam a escolha.
   const templateMuscles = collectTemplateMuscles(sessionTemplates.values());
   const promptModelo = [
-    "EXERCICIOS (C = composto, I = isolador, T = isometrico):",
+    strategy.progression
+      ? "EXERCICIOS (C = composto, I = isolador, T = isometrico; o numero e a dificuldade 1-5):"
+      : "EXERCICIOS (C = composto, I = isolador, T = isometrico):",
     ...buildSlimCatalogLines(availableExercises, templateMuscles),
     ...(warmupExercises.length > 0 ? ["", `AQUECIMENTOS: ${warmupExercises.map((exercise) => exercise.name).join(", ")}`] : []),
     "",
@@ -803,7 +831,8 @@ export async function generateWorkoutWithAI(
       age: answers.age,
       ...(strategy.focusRegion && strategy.focusRegion !== "balanced" ? { muscle_focus: strategy.focusRegion } : {})
     }),
-    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext, true) : []),
+    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext, true, strategy.progression) : []),
+    ...(!feedbackContext && strategy.progression ? buildProgressionPromptLines(strategy.progression) : []),
     ...buildGenderRulePromptLines(resolveGenderRules(answers)),
     ...(mobilityContext.extraInstructions ?? [])
   ].join("\n");
@@ -861,7 +890,8 @@ export async function generateWorkoutWithAI(
         ? { muscle_focus: strategy.focusRegion }
         : {})
     }),
-    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext) : []),
+    ...(feedbackContext ? buildFeedbackPromptLines(feedbackContext, false, strategy.progression) : []),
+    ...(!feedbackContext && strategy.progression ? buildProgressionPromptLines(strategy.progression) : []),
     ...buildGenderRulePromptLines(resolveGenderRules(answers)),
     ...(mobilityContext.extraInstructions ?? [])
   ].join("\n");
@@ -1994,6 +2024,27 @@ function fitSessionToTimeBudget(input: {
   // (1 = primeira a sair). Vaga sem corte nunca sai.
   if (input.exercises.some((exercise) => exercise.templateSlot != null)) {
     let templated = input.exercises.map((exercise) => applyExerciseTimePrescription(exercise, input.strategy));
+    // Progressão por tempo real: treino ficou longo → sai 1 vaga a mais (pela coluna Corte);
+    // ficou curto → nenhuma vaga sai e entra 1 exercício a mais. Séries não mudam.
+    const timePlan = input.strategy.progression?.time ?? "keep";
+    if (timePlan === "shorter") {
+      const removable = templated
+        .filter((exercise) => typeof exercise.templateCut === "number")
+        .sort((left, right) => (left.templateCut ?? 0) - (right.templateCut ?? 0))[0];
+      if (removable) {
+        templated = templated.filter((exercise) => exercise !== removable);
+        logInfo("AI", "Progressao: treino longo, vaga cortada", { session: input.blueprint.day, slot: removable.templateSlot, exercise: removable.name });
+      }
+    }
+    if (timePlan === "longer") {
+      const extra = pickNextFallbackExercise(templated, input.strategy, input.blueprint, input.exerciseMap, input.allowedNames, input.usedAcrossSessions);
+      if (extra) {
+        input.usedAcrossSessions?.add(extra.name.trim().toLowerCase());
+        templated = [...templated, applyExerciseTimePrescription(extra, input.strategy)];
+        logInfo("AI", "Progressao: treino curto, exercicio a mais", { session: input.blueprint.day, exercise: extra.name });
+      }
+      return buildSessionDraft(mobility, templated, input.strategy, input.blueprint, input.exerciseMap);
+    }
     let templatedDraft = buildSessionDraft(mobility, templated, input.strategy, input.blueprint, input.exerciseMap);
     while (templatedDraft.estimate.totalMinutesExact > input.strategy.timeBudget.maxDurationMinutes) {
       const removable = templated
@@ -2025,6 +2076,26 @@ function fitSessionToTimeBudget(input: {
   // tempo (sem expandir nem simplificar). O HIIT (app) segue o ajuste por voltas.
   const respectAi = (input.blueprint.trainingStyle ?? input.strategy.trainingStyle) !== "hiit";
   if (respectAi) {
+    // Progressão por tempo real (programa novo): ±1 exercício. Séries não mudam.
+    const timePlan = input.strategy.progression?.time ?? "keep";
+    const mainCount = exercises.filter((exercise) => exercise.blockType !== "warmup").length;
+    if (timePlan === "shorter" && mainCount > 4) {
+      const removal = exercises
+        .filter((exercise) => exercise.blockType !== "warmup")
+        .sort((left, right) => buildRetentionScore(left, input.strategy, input.blueprint) - buildRetentionScore(right, input.strategy, input.blueprint))[0];
+      exercises = exercises.filter((exercise) => exercise !== removal);
+      logInfo("AI", "Progressao: treino longo, exercicio removido", { session: input.blueprint.day, exercise: removal?.name });
+      return buildSessionDraft(mobility, exercises, input.strategy, input.blueprint, input.exerciseMap);
+    }
+    if (timePlan === "longer") {
+      const extra = pickNextFallbackExercise(exercises, input.strategy, input.blueprint, input.exerciseMap, input.allowedNames, input.usedAcrossSessions);
+      if (extra) {
+        input.usedAcrossSessions?.add(extra.name.trim().toLowerCase());
+        exercises = [...exercises, applyExerciseTimePrescription(extra, input.strategy)];
+        logInfo("AI", "Progressao: treino curto, exercicio a mais", { session: input.blueprint.day, exercise: extra.name });
+        return buildSessionDraft(mobility, exercises, input.strategy, input.blueprint, input.exerciseMap);
+      }
+    }
     return draft;
   }
 
@@ -2564,11 +2635,32 @@ function applyExerciseTimePrescription(exercise: SanitizedExercise, strategy: Wo
     restBounds.max
   );
 
+  // Progressão: dificultar/facilitar mexe em repetições e descanso (não em séries).
+  // Aplica uma vez só: nas chamadas seguintes mantém reps/descanso já ajustados.
+  const difficulty = strategy.progression?.difficulty ?? "keep";
+  if (exercise.progressionApplied) return { ...exercise, sets: String(sets) };
+  const isPrep = exercise.movementType === "mobility" || exercise.blockType === "warmup" || exercise.blockType === "mobility";
+  if (isPrep || (difficulty !== "harder" && difficulty !== "easier")) {
+    return { ...exercise, sets: String(sets), rest: `${rest}s` };
+  }
   return {
     ...exercise,
     sets: String(sets),
-    rest: `${rest}s`
+    reps: adjustRepsForDifficulty(exercise.reps, difficulty),
+    rest: `${adjustRestForDifficulty(rest, difficulty)}s`,
+    progressionApplied: true
   };
+}
+
+/** Dificuldade média (1–5) dos exercícios principais de um programa. */
+function averageProgramDifficulty(workout: WorkoutPlan, exerciseLibrary: ExerciseRecord[]): number | null {
+  const byName = new Map(exerciseLibrary.map((exercise) => [exercise.name.trim().toLowerCase(), exercise.difficulty]));
+  const values = workout.sections
+    .flatMap((section) => section.exercises)
+    .filter((exercise) => exercise.blockType !== "warmup")
+    .map((exercise) => byName.get(exercise.name.trim().toLowerCase()))
+    .filter((value): value is number => typeof value === "number");
+  return values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null;
 }
 
 function resolveSetBounds(
@@ -3062,9 +3154,14 @@ function pickTemplateSlotFallback(
   const pool = fresh.length ? fresh : eligible;
   if (!pool.length) return null;
 
+  // Progressão: perto da dificuldade-alvo primeiro; preferência por máquina desempata.
+  const targetDifficulty = strategy.progression?.targetDifficulty ?? null;
   const scored = pool.map((lookup) => ({
     lookup,
-    score: slot.machine && isMachineExercise(lookup.source.name, exerciseMap) ? 1 : 0
+    score:
+      (targetDifficulty !== null && typeof lookup.source.difficulty === "number"
+        ? -Math.round(Math.abs(lookup.source.difficulty - targetDifficulty)) * 10
+        : 0) + (slot.machine && isMachineExercise(lookup.source.name, exerciseMap) ? 1 : 0)
   }));
   const best = Math.max(...scored.map((entry) => entry.score));
   const top = scored.filter((entry) => entry.score === best);
@@ -3289,7 +3386,7 @@ function applyTemplateStructure(exercises: SanitizedExercise[], strategy: Workou
 }
 
 function stripTemplateFields(exercise: SanitizedExercise): SanitizedExercise {
-  const { templateSlot: _slot, templateBlock: _block, templateCut: _cut, ...rest } = exercise;
+  const { templateSlot: _slot, templateBlock: _block, templateCut: _cut, progressionApplied: _progression, ...rest } = exercise;
   return rest;
 }
 

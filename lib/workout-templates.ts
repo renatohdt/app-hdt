@@ -276,6 +276,8 @@ export type SlimCatalogExercise = {
   name: string;
   primaryMuscles: string[];
   movementType: string;
+  /** Dificuldade 1–5 (só vai no prompt quando a progressão usa). */
+  d?: number | null;
 };
 
 const MOVEMENT_CODE: Record<string, string> = {
@@ -309,7 +311,7 @@ export function buildSlimCatalogLines(exercises: SlimCatalogExercise[], muscles:
     if (!muscles.has(primary)) continue;
     const code = MOVEMENT_CODE[exercise.movementType] ?? "C";
     const list = byMuscle.get(primary) ?? [];
-    list.push(`${exercise.name} (${code})`);
+    list.push(`${exercise.name} (${code}${exercise.d ?? ""})`);
     byMuscle.set(primary, list);
   }
   return [...byMuscle].map(([muscle, names]) => `${muscle}: ${names.join(", ")}`);

@@ -58,6 +58,8 @@ export type WorkoutStrategy = {
   allowedBlockTypes: WorkoutBlockType[];
   maxAdvancedBlocksPerSession: number;
   sessions: SessionBlueprint[];
+  /** Progressão do novo programa (intensidade/tempo do anterior). Definida na geração. */
+  progression?: import("@/lib/workout-progression").ProgressionPlan;
 };
 
 type ExerciseProfile = {
