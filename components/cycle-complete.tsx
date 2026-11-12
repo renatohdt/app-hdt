@@ -21,7 +21,9 @@ import type { CycleSummary } from "@/lib/cycle-summary";
 // Modos:
 //  - "renew"        → Premium (ilimitado) ou Free com o 2º programa disponível:
 //                     botão "Montar meu próximo programa" (POST /api/workout).
-//  - "upsell"       → Free que já usou os 2 programas: convite ao Premium.
+//  - "upsell"       → Free que já usou os 2 programas: convite ao Premium e,
+//                     como alternativa, "Gerar treino novo sem evolução"
+//                     (modo básico: POST /api/workout com `basic: true`).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CycleCompleteMode = "renew" | "upsell";
@@ -64,6 +66,8 @@ export function CycleCompleteCelebration({
   const router = useRouter();
   const [mode, setMode] = useState<CycleCompleteMode>(resolveCycleCompleteMode(isPremium, freeRenewalAvailable));
   const [renewing, setRenewing] = useState(false);
+  // Gerando no modo básico (sem evolução): muda o texto do carregamento.
+  const [renewingBasic, setRenewingBasic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isFreeRenewal = !isPremium && mode === "renew";
   // Resumo do ciclo (cargas, nível, conquistas). Carrega ao abrir; se falhar,
@@ -103,11 +107,16 @@ export function CycleCompleteCelebration({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleRenew() {
+  // basic = true → Free que já usou os 2 programas escolheu seguir sem a evolução da IA.
+  async function handleRenew(basic = false) {
     if (renewing) return;
     setRenewing(true);
+    setRenewingBasic(basic);
     setError(null);
-    trackEvent("cta_click", userId, { source: `cycle_complete_renew_${source}`, plan: isPremium ? "premium" : "free" });
+    trackEvent("cta_click", userId, {
+      source: basic ? `cycle_complete_basic_${source}` : `cycle_complete_renew_${source}`,
+      plan: isPremium ? "premium" : "free"
+    });
 
     // Um programa, vários locais: renova todos os locais com programa (outros
     // primeiro, o ativo por último). Depois da 1ª chamada o ciclo já recomeçou,
@@ -125,7 +134,8 @@ export function CycleCompleteCelebration({
           body: JSON.stringify({
             userId,
             ...(location && order.length > 1 ? { location } : {}),
-            ...(index > 0 ? { force: true } : {})
+            ...(index > 0 ? { force: true } : {}),
+            ...(basic ? { basic: true } : {})
           })
         });
         const result = await parseJsonResponse<{ success: boolean; error?: string; code?: string }>(response);
@@ -139,7 +149,7 @@ export function CycleCompleteCelebration({
         }
       }
 
-      trackEvent("workout_generated", userId, { source: "cycle_renewal" });
+      trackEvent("workout_generated", userId, { source: basic ? "cycle_basic" : "cycle_renewal" });
       await onRenewed();
       onClose();
     } catch (err) {
@@ -168,7 +178,9 @@ export function CycleCompleteCelebration({
               {isPremium && (locations?.length ?? 0) > 1 ? "Montando seus próximos programas…" : "Montando seu próximo programa…"}
             </p>
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/65">
-              Usando a sua evolução deste ciclo para criar novos estímulos. Leva só alguns segundos.
+              {renewingBasic
+                ? "Montando a partir do seu questionário e do seu nível atual. Leva só alguns segundos."
+                : "Usando a sua evolução deste ciclo para criar novos estímulos. Leva só alguns segundos."}
             </p>
           </div>
         ) : (
@@ -215,9 +227,13 @@ export function CycleCompleteCelebration({
                 </>
               ) : (
                 <>
-                  <p className="mt-1 text-base font-bold text-white">Continue evoluindo com o Premium</p>
+                  <p className="mt-1 text-base font-bold text-white">Você concluiu seus 2 programas gratuitos! 🏆</p>
                   <p className="mt-1 text-sm leading-relaxed text-white/65">
-                    Você já concluiu seus 2 programas gratuitos. Assine o Premium e receba um novo programa personalizado a cada ciclo.
+                    Para continuar evoluindo com a IA, que monta o próximo programa a partir do seu progresso, dos seus
+                    feedbacks e do seu ritmo, assine o Premium.
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-white/45">
+                    Prefere seguir no plano gratuito? Você pode gerar um treino novo, só que sem a evolução da IA.
                   </p>
                 </>
               )}
@@ -237,14 +253,24 @@ export function CycleCompleteCelebration({
                   {error ? "Tentar novamente" : "Montar meu próximo programa"}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleUpsell}
-                  className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong text-base font-bold text-black shadow-[0_8px_28px_rgba(34,197,94,0.35)] transition active:scale-[0.99]"
-                >
-                  <Sparkles className="h-5 w-5" />
-                  Quero continuar evoluindo
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleUpsell}
+                    className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong text-base font-bold text-black shadow-[0_8px_28px_rgba(34,197,94,0.35)] transition active:scale-[0.99]"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    Quero continuar evoluindo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRenew(true)}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] text-sm font-semibold text-white/80 transition hover:text-white active:scale-[0.99]"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    {error ? "Tentar novamente" : "Gerar treino novo sem evolução"}
+                  </button>
+                </>
               )}
 
               {mode === "renew" ? (
@@ -386,7 +412,7 @@ export function CycleCompleteCard({
           <p className="mt-1 text-sm leading-relaxed text-white/70">
             {mode === "renew"
               ? `Você fechou as ${completedSessions} sessões. Hora de começar um novo ciclo com novos estímulos.`
-              : `Você fechou as ${completedSessions} sessões. Continue evoluindo com um novo programa no Premium.`}
+              : `Você fechou as ${completedSessions} sessões e concluiu seus 2 programas gratuitos. Continue evoluindo com o Premium ou gere um treino novo sem evolução.`}
           </p>
         </div>
       </div>
@@ -396,7 +422,8 @@ export function CycleCompleteCard({
         className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong text-sm font-bold text-black transition active:scale-[0.99]"
       >
         {mode === "renew" ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-        {mode === "renew" ? "Montar meu próximo programa" : "Quero continuar evoluindo"}
+        {/* Upsell: o card abre a tela com as duas opções (Premium ou treino sem evolução). */}
+        {mode === "renew" ? "Montar meu próximo programa" : "Ver como continuar"}
       </button>
     </div>
   );

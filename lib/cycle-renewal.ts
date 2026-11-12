@@ -21,6 +21,23 @@ export function hasFreeCycleRenewalAvailable(savedAnswers: unknown): boolean {
   return getCycleRenewalsUsed(savedAnswers) < FREE_MAX_CYCLE_RENEWALS;
 }
 
+// ── Modo básico (free que já usou os 2 programas) ───────────────────────────
+// Ao concluir o 2º programa, o free pode assinar o Premium (evolução com a IA)
+// ou seguir gerando programas no modo BÁSICO: a IA monta o programa só a partir
+// do questionário e do nível atual do selo, SEM o programa anterior, feedbacks
+// e tempo real das sessões. O ↻ (regenerar) de quem está no modo básico também
+// gera no básico. Contador em `user_answers.basicProgramsCount`.
+
+export function getBasicProgramsGenerated(savedAnswers: unknown): number {
+  const raw = (savedAnswers as { basicProgramsCount?: unknown } | null | undefined)?.basicProgramsCount;
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
+}
+
+// Já gerou algum programa no modo básico (ou seja, está no modo básico)?
+export function isInBasicMode(savedAnswers: unknown): boolean {
+  return getBasicProgramsGenerated(savedAnswers) > 0;
+}
+
 // Já concluiu algum ciclo antes do atual? (registrado a partir da renovação de ciclo)
 export function hasCompletedCycleBefore(savedAnswers: unknown): boolean {
   const answers = savedAnswers as { lastCycleCompletedAt?: unknown } | null | undefined;

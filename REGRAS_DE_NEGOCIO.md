@@ -76,8 +76,12 @@ Implementação: `components/cycle-complete.tsx`, regra em `lib/cycle-renewal.ts
 
 - Usuários **premium**: ciclo de geração é **ilimitado** — sempre receberão um novo programa ao concluir o atual
 - Usuários **freemium**: recebem **até 2 programas** (1 no cadastro + 1 após concluir o primeiro)
-  - Ao concluir o 2º programa, ao invés de gerar um novo, o app exibe o gatilho de upsell (ver Seção 8)
-  - Controle: `cycleRenewalsCount` em `user_answers` (free pode renovar 1 vez). O servidor bloqueia com `403 free_cycle_limit`
+  - Ao concluir o 2º programa, o app avisa que o limite de 2 programas gratuitos foi atingido e oferece duas opções:
+    1. **Assinar o Premium** para continuar evoluindo com a IA (gatilho de upsell, ver Seção 8)
+    2. **Gerar treino novo sem evolução** (modo básico): a IA monta o programa só a partir do questionário e do **nível atual do selo** (iniciante/intermediário/avançado), sem o programa anterior, feedbacks e tempo real das sessões. Pode repetir a cada programa concluído
+  - O ↻ (regeneração manual) de quem já está no modo básico também gera no modo básico
+  - Com o programa concluído, o app não deixa iniciar treino (marcar série / Iniciar / Finalizar abrem a tela de fim de programa), para a pessoa não treinar sem o treino ser salvo
+  - Controle: `cycleRenewalsCount` em `user_answers` (free pode renovar 1 vez). Sem renovação, o servidor bloqueia com `403 free_cycle_limit`, exceto quando o pedido vem com `basic: true` (modo básico). Programas básicos contam em `basicProgramsCount` e não consomem renovação
   - A regeneração manual (ícone ↻ / perfil, 1x a cada 30 dias no free) é separada e serve para mudança de perfil no meio do ciclo
 
 ### Minha semana (Premium) — página Evolução

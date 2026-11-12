@@ -16,7 +16,14 @@ import type { Experience, ExerciseRecord, Location, QuizAnswers, WorkoutPlan } f
 import { getUserAnswersByUserId, saveUserAnswers } from "@/lib/user-answers";
 import { isPremium } from "@/lib/subscription";
 import { sanitizeWeekdays } from "@/lib/weekly-plan";
-import { FREE_CYCLE_LIMIT_ERROR_CODE, getCycleRenewalsUsed, hasCompletedCycleBefore, hasFreeCycleRenewalAvailable } from "@/lib/cycle-renewal";
+import {
+  FREE_CYCLE_LIMIT_ERROR_CODE,
+  getBasicProgramsGenerated,
+  getCycleRenewalsUsed,
+  hasCompletedCycleBefore,
+  hasFreeCycleRenewalAvailable,
+  isInBasicMode
+} from "@/lib/cycle-renewal";
 import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
 // lib/workout-ai (OpenAI, ~4 mil linhas) é carregado só dentro do POST
@@ -474,7 +481,13 @@ export async function POST(request: Request) {
       return jsonError(GENERATE_WORKOUT_ERROR_MESSAGE, 500);
     }
 
-    const body = (await request.json().catch(() => ({}))) as { userId?: string; force?: boolean; location?: unknown };
+    const body = (await request.json().catch(() => ({}))) as {
+      userId?: string;
+      force?: boolean;
+      location?: unknown;
+      // Free que já usou os 2 programas escolheu "gerar treino novo sem evolução".
+      basic?: boolean;
+    };
     const userId = auth.user.id;
     let forceRegenerate = body.force === true;
 
@@ -614,7 +627,21 @@ export async function POST(request: Request) {
     // Ciclo concluído + free sem renovação disponível → não gera; o app mostra
     // o upsell. Vale também para `force`, senão o limite seria contornável.
     const isRenewingCompletedCycle = Boolean(existingWorkout && existingSessionProgress?.cycleCompleted);
-    if (isRenewingCompletedCycle && !isPremiumUser && !hasFreeCycleRenewalAvailable(savedAnswers)) {
+    const freeLimitReached = !isPremiumUser && !hasFreeCycleRenewalAvailable(savedAnswers);
+
+    // ── Modo básico (free que já usou os 2 programas) ────────────────────────
+    // Gera SEM a evolução da IA: sem programa anterior, feedbacks e tempo real.
+    // O nível continua sendo o atual do selo (effectiveAnswers), pela regra de
+    // segurança do iniciante. Vale em dois casos:
+    //  1. Renovação de ciclo concluído com pedido explícito (`basic: true`),
+    //     escolhido pelo usuário na tela de fim de programa;
+    //  2. ↻ (regeneração manual) de quem já está no modo básico.
+    const basicMode =
+      !isPremiumUser &&
+      ((isRenewingCompletedCycle && freeLimitReached && body.basic === true) ||
+        (!isRenewingCompletedCycle && forceRegenerate && isInBasicMode(savedAnswers)));
+
+    if (isRenewingCompletedCycle && freeLimitReached && !basicMode) {
       logInfo("AI", "Free cycle renewal limit reached", { user_id: userId });
       return NextResponse.json(
         {
@@ -685,7 +712,7 @@ export async function POST(request: Request) {
     let workout = null as WorkoutPlan | null;
 
     try {
-      logInfo("AI", "Workout generation started", { user_id: userId });
+      logInfo("AI", "Workout generation started", { user_id: userId, basic_mode: basicMode });
 
       const { data: feedbackRows } = await supabase
         .from("workout_session_feedbacks")
@@ -739,11 +766,12 @@ export async function POST(request: Request) {
 
       workout = normalizeWorkoutPayload(
         await generateWorkoutWithAI(effectiveAnswers, diagnosis, normalizedExercises, {
-          previousWorkout: existingWorkoutState?.workout ?? null,
-          lastCompletedWorkoutKey: existingSessionStats?.lastLog?.workoutKey ?? null,
+          // Modo básico: monta como um 1º programa (sem progressão a partir do anterior).
+          previousWorkout: basicMode ? null : existingWorkoutState?.workout ?? null,
+          lastCompletedWorkoutKey: basicMode ? null : existingSessionStats?.lastLog?.workoutKey ?? null,
           excludedExerciseIds,
           userId
-        }, feedbackContext),
+        }, basicMode ? undefined : feedbackContext),
         {
           diagnosis,
           answers: effectiveAnswers
@@ -821,14 +849,18 @@ export async function POST(request: Request) {
         ...(regeneratedExisting ? { programCycleStartedAt: new Date().toISOString() } : {}),
         // Fase no início do ciclo → a celebração sabe se a pessoa subiu de fase no ciclo
         ...(regeneratedExisting && levelRow ? { cycleStartPhase: levelRow.currentPhase } : {}),
-        // Conta renovações de ciclo concluído (limite do free: FREE_MAX_CYCLE_RENEWALS)
-        ...(isRenewingCompletedCycle
+        // Conta renovações de ciclo concluído (limite do free: FREE_MAX_CYCLE_RENEWALS).
+        // Programa básico não consome renovação: conta em basicProgramsCount.
+        ...(isRenewingCompletedCycle && !basicMode
           ? { cycleRenewalsCount: getCycleRenewalsUsed(savedAnswers) + 1, lastCycleCompletedAt: new Date().toISOString() }
-          : {})
+          : {}),
+        ...(isRenewingCompletedCycle && basicMode ? { lastCycleCompletedAt: new Date().toISOString() } : {}),
+        ...(basicMode ? { basicProgramsCount: getBasicProgramsGenerated(savedAnswers) + 1 } : {})
       } as QuizAnswers & {
         lastRegeneratedAt?: string;
         programCycleStartedAt?: string;
         cycleRenewalsCount?: number;
+        basicProgramsCount?: number;
         lastCycleCompletedAt?: string;
         cycleStartPhase?: string;
       });

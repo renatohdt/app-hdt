@@ -433,7 +433,23 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
     return isCompletedTodaySaoPaulo(sessionProgress.lastCompletedAt) || hasTrainedTodayLocally(data.user.id);
   }
 
+  // Programa de IA concluído: nenhum treino novo é salvo até montar o próximo
+  // programa (Premium) ou gerar um treino sem evolução (free após os 2 programas).
+  // Em vez de deixar a pessoa treinar à toa, encerra o "em andamento" e abre a
+  // tela de fim de programa com as opções.
+  function openCycleCompleteBlocked(reason: string) {
+    clearRegularActiveWorkout();
+    setPendingStartAction(null);
+    setConfirmCompletion(false);
+    setShowCycleCelebration(true);
+    trackEvent("cta_click", data.user.id, { source: `workout_blocked_cycle_complete_${reason}`, workout_key: activeWorkoutKey });
+  }
+
   function requestCompletion() {
+    if (isCycleComplete && !isProgram) {
+      openCycleCompleteBlocked("finish");
+      return;
+    }
     if (trainedTodayAnyType()) {
       // Já treinou hoje: este treino não vai contar, então encerramos o "em andamento".
       clearRegularActiveWorkout();
@@ -656,6 +672,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   // Cria (ou atualiza) o treino em andamento. hadActivity = veio de uma série marcada.
   // Retorna false quando não pôde iniciar (já treinou hoje).
   function startOrTouchWorkout(hadActivity: boolean, fromStartButton = false): boolean {
+    if (isCycleComplete && !isProgram) {
+      openCycleCompleteBlocked("start");
+      return false;
+    }
     const now = Date.now();
     const saved = readActiveWorkout();
     const savedActive = saved && saved.userId === data.user.id && !isAutoFinishDue(saved, now) ? saved : null;
@@ -720,6 +740,10 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   // e, ao concluir um exercício, já abre o próximo que falta.
   // Antes de MARCAR uma série sem treino em andamento: pergunta se vai começar agora.
   function handleBeforeSetActivity(proceed: () => void) {
+    if (isCycleComplete && !isProgram) {
+      openCycleCompleteBlocked("set");
+      return;
+    }
     const saved = readActiveWorkout();
     const hasSession = Boolean(saved && saved.userId === data.user.id && !isAutoFinishDue(saved));
     // Treino já aberto, ou a pessoa disse que está explorando: marca direto.
@@ -829,6 +853,17 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
 
         setConfirmCompletion(false);
         setShowAlreadyTrainedPopup(true);
+        return;
+      }
+
+      // 409 sem "já treinou hoje" = todas as sessões do programa já foram feitas
+      // (ex.: tela aberta desde antes de concluir o ciclo). Mostra as opções.
+      if (response.status === 409 && !isProgram) {
+        openCycleCompleteBlocked("server");
+        setFeedback({
+          tone: "error",
+          text: "Seu programa já foi concluído. Escolha como continuar para registrar seus próximos treinos."
+        });
         return;
       }
 
