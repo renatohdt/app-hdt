@@ -103,7 +103,8 @@ function validateModel(body: ModelBody): { error: string } | { data: Record<stri
       const label = `Treino ${day}, vaga ${index + 1}`;
       const type = String(slot.type ?? "");
       if (!SLOT_TYPES.has(type)) return { error: `${label}: escolha o tipo.` };
-      const muscles = type === "warmup" ? [] : cleanMuscles(slot.muscles);
+      // Aquecimento: músculo opcional (vazio = o app escolhe pelos músculos do treino).
+      const muscles = cleanMuscles(slot.muscles);
       if (type !== "warmup" && !muscles.length) return { error: `${label}: escolha o músculo.` };
       const clean: TemplateSlot = {
         n: index + 1,

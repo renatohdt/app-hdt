@@ -86,9 +86,8 @@ export function enforceGenderRulesOnSession<T extends MovementInfo & { blockType
 /** Linha do prompt da IA (só quando alguma regra está ativa). */
 export function buildGenderRulePromptLines(rules: GenderRules): string[] {
   const lines: string[] = [];
-  if (rules.blockIsolatedGlutes) {
-    lines.push("- Aluno homem: NAO use exercicio isolador de gluteo.");
-  }
+  // Homem/glúteo isolado não vai no prompt: o catálogo enviado à IA já vem sem esses
+  // exercícios (isBlockedByGenderRules). Só o limite da aluna precisa de instrução.
   if (rules.maxArmIsolatorsPerSession !== null) {
     lines.push(`- Aluna: no maximo ${rules.maxArmIsolatorsPerSession} isolador de biceps OU triceps por treino (somando os dois).`);
   }

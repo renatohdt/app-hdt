@@ -1345,7 +1345,8 @@ function validateAndBuildWorkoutPlan(
       exerciseMap,
       answers,
       excludedExerciseIds: mobilityContext.excludedExerciseIds ?? [],
-      usedAcrossSessions
+      usedAcrossSessions,
+      template
     });
 
     const mobility = selectLocalMobilityExercises({
@@ -1922,9 +1923,14 @@ function ensureSessionWarmup(input: {
   answers: QuizAnswers;
   excludedExerciseIds: string[];
   usedAcrossSessions: Set<string>;
+  /** Treino com modelo: aquecimento só se o modelo tiver a vaga (é opcional no modelo). */
+  template?: WorkoutTemplate;
 }): SanitizedExercise[] {
   const style = input.blueprint.trainingStyle ?? input.strategy.trainingStyle;
   if (style !== "musculacao" && style !== "personal") return input.exercises;
+  const warmupSlot = input.template?.slots.find((slot) => slot.type === "warmup");
+  if (input.template && !warmupSlot) return input.exercises;
+  const preferred = new Set(warmupSlot?.muscles ?? []);
   if (input.exercises.some((exercise) => exercise.blockType === "warmup" || exercise.movementType === "warmup")) {
     return input.exercises;
   }
@@ -1944,7 +1950,13 @@ function ensureSessionWarmup(input: {
     .map((lookup) => {
       const own = lookup.profile.primaryMuscles ?? [];
       const sec = lookup.profile.secondaryMuscles ?? [];
-      const score = own.some((m) => primary.has(m)) ? 2 : [...own, ...sec].some((m) => session.has(m)) ? 1 : 0;
+      const score = own.some((m) => preferred.has(m))
+        ? 3
+        : own.some((m) => primary.has(m))
+          ? 2
+          : [...own, ...sec].some((m) => session.has(m))
+            ? 1
+            : 0;
       return { lookup, score };
     })
     .filter((entry) => entry.score > 0);

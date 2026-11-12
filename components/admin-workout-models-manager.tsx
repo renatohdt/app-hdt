@@ -146,7 +146,7 @@ function draftSlotToTemplate(slot: SlotDraft, n: number): TemplateSlot {
   return {
     n,
     role: slot.role,
-    muscles: slot.type === "warmup" ? [] : slot.muscle.split(",").filter(Boolean),
+    muscles: slot.muscle.split(",").filter(Boolean),
     type: slot.type as TemplateSlot["type"],
     block: slot.block || undefined,
     cut: slot.cut ? Number(slot.cut) : undefined,
@@ -506,11 +506,11 @@ export function AdminWorkoutModelsManager() {
               ) : null;
             })()}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1220px] border-separate border-spacing-y-1.5 text-left">
+              <table className="w-full min-w-[1380px] border-separate border-spacing-y-1.5 text-left">
                 <thead>
                   <tr className={labelClass}>
                     <th className="w-8 px-1 font-semibold">#</th>
-                    <th className="px-1 font-semibold">Papel</th>
+                    <th className="min-w-[240px] px-1 font-semibold">Papel</th>
                     <th className="w-40 px-1 font-semibold">Músculo</th>
                     <th className="w-32 px-1 font-semibold">Tipo</th>
                     <th className="w-20 px-1 font-semibold">Bloco</th>
@@ -533,8 +533,8 @@ export function AdminWorkoutModelsManager() {
                           <input id={`${id}-role`} className={inputClass} value={slot.role} placeholder="Ex.: Peito composto" onChange={(e) => updateSlot(dayIndex, slotIndex, { role: e.target.value })} />
                         </td>
                         <td className="px-1">
-                          <select id={`${id}-muscle`} className={inputClass} value={slot.muscle} disabled={isWarmup} onChange={(e) => updateSlot(dayIndex, slotIndex, { muscle: e.target.value })}>
-                            <option value="">{isWarmup ? "—" : "Escolha"}</option>
+                          <select id={`${id}-muscle`} className={inputClass} value={slot.muscle} onChange={(e) => updateSlot(dayIndex, slotIndex, { muscle: e.target.value })}>
+                            <option value="">{isWarmup ? "Automático" : "Escolha"}</option>
                             {MODEL_MUSCLES.map((muscle) => (
                               <option key={muscle.value} value={muscle.value}>{muscle.label}</option>
                             ))}
@@ -548,7 +548,7 @@ export function AdminWorkoutModelsManager() {
                             onChange={(e) =>
                               updateSlot(dayIndex, slotIndex, {
                                 type: e.target.value,
-                                ...(e.target.value === "warmup" ? { muscle: "", block: "", altMuscle: "", altType: "", role: slot.role || "Aquecimento" } : {})
+                                ...(e.target.value === "warmup" ? { block: "", altMuscle: "", altType: "", role: slot.role || "Aquecimento" } : {})
                               })
                             }
                           >

@@ -210,7 +210,11 @@ export type SlotCandidate = {
 
 /** O exercício serve para a vaga? (músculo primário + tipo de movimento) */
 export function matchesTemplateSlot(slot: TemplateSlot, candidate: SlotCandidate) {
-  if (slot.type === "warmup") return candidate.isWarmup;
+  if (slot.type === "warmup") {
+    // Aquecimento com músculo definido (ex.: ombro): só serve o aquecimento desse músculo.
+    if (!candidate.isWarmup) return false;
+    return !slot.muscles.length || slot.muscles.includes(candidate.primaryMuscles[0] ?? "");
+  }
   if (candidate.isWarmup || candidate.movementType === "mobility") return false;
 
   const primary = candidate.primaryMuscles[0] ?? "";
@@ -278,7 +282,7 @@ export function buildTemplatePromptLines(day: string, template: WorkoutTemplate)
     `MODELO DO TREINO ${day} (${template.id}) — 1 exercicio por vaga, NA ORDEM, e devolva o campo "slot" com o numero da vaga:`,
     ...template.slots.map((slot) => {
       const parts = [`${slot.n}. ${slot.role}`];
-      if (slot.type !== "warmup") parts.push(`musculo: ${slot.muscles.join(" ou ")}`);
+      if (slot.muscles.length) parts.push(`musculo: ${slot.muscles.join(" ou ")}`);
       parts.push(TYPE_LABEL[slot.type]);
       for (const extra of slot.alsoAccept ?? []) {
         const muscles = extra.muscles?.length ? extra.muscles.join(" ou ") : slot.muscles.join(" ou ");
