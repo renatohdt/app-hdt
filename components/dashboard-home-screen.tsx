@@ -35,6 +35,7 @@ import { HomeWeekCard } from "@/components/home-week-card";
 import { useAllSessionLogs } from "@/lib/session-logs-cache";
 import { RecommendationsCard } from "@/components/recommendations-card";
 import { ReferralCard } from "@/components/referral-card";
+import { PremiumShareCard } from "@/components/premium-share-card";
 import { useIsNativeApp } from "@/lib/is-native-app";
 import { PremiumHomeBanner } from "@/components/premium-home-banner";
 import { MissingOutPopup } from "@/components/missing-out-popup";
@@ -431,6 +432,9 @@ export function DashboardHomeScreen({
 
       {/* Indique e Ganhe — só plano free (Premium não ganha nada indicando) */}
       {isFreePlan ? <ReferralCard /> : null}
+
+      {/* Premium: convite para compartilhar o app (UTM utm_medium=premium_share) */}
+      {!subscriptionLoading && subscription?.isPremium ? <PremiumShareCard /> : null}
 
       <RecommendationsCard
         goal={data.user.goal}

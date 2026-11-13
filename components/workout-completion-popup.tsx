@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ShareButton } from "@/components/share-button";
+import { useSubscription } from "@/components/use-subscription";
 import GoogleAd from "@/components/GoogleAd";
 import { registerWorkoutAndMaybeAskReview } from "@/lib/app-review";
 import { WorkoutPremiumNudge } from "@/components/workout-premium-nudge";
@@ -90,6 +91,9 @@ export function WorkoutCompletionPopup({
   /** Não curtiu + fácil/difícil: convida a rever o nível (tem prioridade sobre os outros pedidos). */
   levelReviewHint?: LevelReviewHint | null;
 }) {
+  // Premium não recebe a frase que brinca com "uso o app free".
+  const { subscription } = useSubscription();
+  const isPremiumUser = Boolean(subscription?.isPremium);
   // Um pedido por vez: o convite de rever nível substitui Premium, lembrete e anúncio.
   const showPremiumNudge = Boolean(premiumNudgeWorkouts) && !levelReviewHint;
   const showMilestone = Boolean(milestone) && !premiumNudgeWorkouts && !levelReviewHint;
@@ -255,7 +259,7 @@ export function WorkoutCompletionPopup({
             className="mt-5"
             style={{ animation: "wcp-fade-up 0.5s ease-out 0.5s both" }}
           >
-            <ShareButton context="workout" />
+            <ShareButton context="workout" isPremium={isPremiumUser} />
           </div>
 
           {/* Convite Premium no pico de motivação (substitui o anúncio nesses treinos) */}

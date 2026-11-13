@@ -9,7 +9,7 @@ import type { NextRequest } from "next/server";
  *
  * Parâmetros aceitos:
  *   s (source): threads | x | wa | bsky
- *   m (medium): treino | conquista
+ *   m (medium): treino | conquista | premium
  */
 
 const SOURCE_MAP: Record<string, string> = {
@@ -24,6 +24,7 @@ const MEDIUM_MAP: Record<string, string> = {
   treino: "workout",
   conquista: "achievement",
   rodape: "footer_share",
+  premium: "premium_share", // compartilhamento feito por usuário Premium (card do Dashboard)
 };
 
 const BASE_URL = "https://app.horadotreino.com.br";

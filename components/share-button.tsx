@@ -24,10 +24,17 @@ const BASE_URL = "https://app.horadotreino.com.br";
 
 // Parâmetros curtos que a rota /go entende:
 //   s: threads | x | wa | bsky
-//   m: treino | conquista
-function buildShortUrl(source: "threads" | "x" | "wa" | "bsky", medium: "treino" | "conquista") {
+//   m: treino | conquista | premium
+type ShareMedium = "treino" | "conquista" | "premium";
+
+function buildShortUrl(source: "threads" | "x" | "wa" | "bsky", medium: ShareMedium) {
   return `${BASE_URL}/go?s=${source}&m=${medium}`;
 }
+
+// Frases que só fazem sentido para quem usa o plano free (não sorteadas para Premium).
+const FREE_ONLY_PHRASES = new Set<string>([
+  "Treino feito! Tá Pago! O treino, porque o app eu uso free mesmo! hahaha #horadotreino",
+]);
 
 function randomPhrase(phrases: string[]): string {
   const idx = Math.floor(Math.random() * phrases.length);
@@ -68,14 +75,20 @@ interface ShareButtonProps {
   achievementTitle?: string;
   /** Substitui todas as frases geradas pelo componente */
   customText?: string;
+  /** Origem do compartilhamento para o UTM (padrão: deduzido do context).
+   *  "premium" marca utm_medium=premium_share na rota /go. */
+  medium?: ShareMedium;
+  /** Usuário Premium: não sorteia frases que brincam com o plano free. */
+  isPremium?: boolean;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export function ShareButton({ context, achievementTitle, customText }: ShareButtonProps) {
+export function ShareButton({ context, achievementTitle, customText, medium: mediumOverride, isPremium = false }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const phrases = context === "workout" ? WORKOUT_SHARE_PHRASES : ACHIEVEMENT_SHARE_PHRASES;
+  const allPhrases = context === "workout" ? WORKOUT_SHARE_PHRASES : ACHIEVEMENT_SHARE_PHRASES;
+  const phrases = isPremium ? allPhrases.filter((phrase) => !FREE_ONLY_PHRASES.has(phrase)) : allPhrases;
 
   // Monta o texto base, incluindo o título da conquista se fornecido
   const basePhrase = randomPhrase(phrases);
@@ -84,7 +97,7 @@ export function ShareButton({ context, achievementTitle, customText }: ShareButt
     : basePhrase);
 
   function handleShare(platform: "threads" | "twitter" | "whatsapp" | "bluesky") {
-    const medium = context === "workout" ? "treino" : "conquista";
+    const medium: ShareMedium = mediumOverride ?? (context === "workout" ? "treino" : "conquista");
 
     if (platform === "threads") {
       shareToThreads(shareText, buildShortUrl("threads", medium));
@@ -100,7 +113,7 @@ export function ShareButton({ context, achievementTitle, customText }: ShareButt
   }
 
   async function handleCopy() {
-    const medium = context === "workout" ? "treino" : "conquista";
+    const medium: ShareMedium = mediumOverride ?? (context === "workout" ? "treino" : "conquista");
     const url = buildShortUrl("threads", medium);
     try {
       await navigator.clipboard.writeText(`${shareText}\n${url}`);
