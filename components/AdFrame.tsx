@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import type { ReactNode } from "react";
+import { UpsellModal } from "@/components/upsell-modal";
+import { useState, type ReactNode } from "react";
 import { trackEvent } from "@/lib/analytics-client";
 
 /**
@@ -22,21 +22,26 @@ export function AdFrame({
   showRemoveLink?: boolean;
   className?: string;
 }) {
+  const [showUpsell, setShowUpsell] = useState(false);
   return (
     <div className={["hdt-ad-frame w-full", className].filter(Boolean).join(" ")}>
       <div className="mb-1 flex items-center justify-between px-1">
         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/32">Publicidade</span>
         {showRemoveLink ? (
-          <Link
-            href="/premium"
-            onClick={() => trackEvent("cta_click", null, { source: "remove_ads_link", placement })}
+          <button
+            type="button"
+            onClick={() => {
+              trackEvent("cta_click", null, { source: "remove_ads_link", placement });
+              setShowUpsell(true);
+            }}
             className="text-[11px] font-semibold text-primary/80 transition hover:text-primary"
           >
             Remover anúncios
-          </Link>
+          </button>
         ) : null}
       </div>
       {children}
+      {showUpsell ? <UpsellModal reason="remove_ads" onClose={() => setShowUpsell(false)} /> : null}
     </div>
   );
 }

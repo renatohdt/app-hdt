@@ -1,8 +1,8 @@
 "use client";
 
+import { UpsellModal } from "@/components/upsell-modal";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw, Sparkles, Trophy } from "lucide-react";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
@@ -63,7 +63,8 @@ export function CycleCompleteCelebration({
   onClose,
   onRenewed
 }: CelebrationProps) {
-  const router = useRouter();
+  // Popup padrão de assinatura (planos + pagamento direto), por cima desta tela.
+  const [showUpsell, setShowUpsell] = useState(false);
   const [mode, setMode] = useState<CycleCompleteMode>(resolveCycleCompleteMode(isPremium, freeRenewalAvailable));
   const [renewing, setRenewing] = useState(false);
   // Gerando no modo básico (sem evolução): muda o texto do carregamento.
@@ -161,8 +162,7 @@ export function CycleCompleteCelebration({
 
   function handleUpsell() {
     trackEvent("cta_click", userId, { source: `cycle_complete_upsell_cta_${source}` });
-    router.push("/premium");
-    onClose();
+    setShowUpsell(true);
   }
 
   return (
@@ -262,6 +262,7 @@ export function CycleCompleteCelebration({
                     <Sparkles className="h-5 w-5" />
                     Quero continuar evoluindo
                   </button>
+                  {showUpsell ? <UpsellModal reason="program_completed" onClose={() => setShowUpsell(false)} /> : null}
                   <button
                     type="button"
                     onClick={() => void handleRenew(true)}

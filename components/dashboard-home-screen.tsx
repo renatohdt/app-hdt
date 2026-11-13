@@ -1,5 +1,6 @@
 "use client";
 
+import { UpsellModal } from "@/components/upsell-modal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -66,6 +67,7 @@ export function DashboardHomeScreen({
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const isNative = useIsNativeApp();
   const router = useRouter();
+  const [showBannerUpsell, setShowBannerUpsell] = useState(false);
   const coverage = useMemo(() => getPlanCoverage(data), [data]);
 
   // ── Sistema de nível/XP ──────────────────────────────────────────────────
@@ -368,13 +370,13 @@ export function DashboardHomeScreen({
         <PremiumHomeBanner
           isNative={isNative}
           onOpen={() => {
-            // O banner já mostra benefícios e preço: vai direto para a página
-            // Premium (plano anual pré-selecionado), sem pop-up no meio.
-            trackEvent("cta_click", data.user.id, { source: "upsell_modal_cta_home_banner" });
-            router.push("/premium");
+            // Abre o popup padrão: planos + botão verde direto para o pagamento.
+            trackEvent("cta_click", data.user.id, { source: "home_banner_open" });
+            setShowBannerUpsell(true);
           }}
         />
       ) : null}
+      {showBannerUpsell ? <UpsellModal reason="home_banner" onClose={() => setShowBannerUpsell(false)} /> : null}
 
       {/* Anúncio responsivo entre os cards — somente plano free com anúncios liberados */}
       {isFreePlan ? <GoogleAd placement="home_meio" /> : null}

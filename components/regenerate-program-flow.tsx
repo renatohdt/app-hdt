@@ -8,8 +8,8 @@
 //  - Premium: livre, e gera um programa para CADA local marcado.
 //  - Mostra a tela "Montando seu treino" enquanto a IA trabalha.
 
+import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, PlayCircle, RefreshCw } from "lucide-react";
 import { RewardedAdButton, useAdMobAvailable } from "@/components/RewardedAdButton";
 import { useConsentPreferences } from "@/components/consent-provider";
@@ -50,7 +50,6 @@ export function RegenerateProgramFlow({
   // Chamado depois que o programa novo foi salvo (recarregar treino, navegar...).
   onGenerated: () => void | Promise<void>;
 }) {
-  const router = useRouter();
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const isPremium = Boolean(subscription?.isPremium);
   const adMobAvailable = useAdMobAvailable();
@@ -184,19 +183,15 @@ export function RegenerateProgramFlow({
           </strong>
           .
         </p>
-        <p className="mb-5 text-sm leading-5 text-white/56">Assine o Premium e gere programas livremente.</p>
+        <p className="mb-4 text-sm leading-5 text-white/56">Assine o Premium e gere programas livremente.</p>
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              trackEvent("cta_click", userId, { source: `regenerate_limit_${source}` });
-              onClose();
-              router.push("/premium");
-            }}
-            className="flex h-12 w-full items-center justify-center rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
-          >
-            Assinar o Premium
-          </button>
+          {/* Planos + botão verde direto para o pagamento (bloco padrão) */}
+          <PremiumCheckoutPanel
+            origin={`regenerate_limit_${source}`}
+            ctaSource={`regenerate_limit_${source}`}
+            onNavigate={onClose}
+            onDone={onClose}
+          />
           {/* Só no app com AdMob: libera gerar agora em troca de um vídeo */}
           <RewardedAdButton purpose="generate_workout" label="Assistir um vídeo e gerar agora" onRewarded={() => void generate()} />
           <button
@@ -259,7 +254,7 @@ export function RegenerateProgramFlow({
 function Sheet({ children }: { children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center">
-      <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">{children}</div>
+      <div className="max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">{children}</div>
     </div>
   );
 }

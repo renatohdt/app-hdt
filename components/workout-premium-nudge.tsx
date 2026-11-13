@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { UpsellModal } from "@/components/upsell-modal";
+import { useEffect, useState } from "react";
 import { PremiumBadge } from "@/components/premium-badge";
 import { trackEvent } from "@/lib/analytics-client";
 import { useIsNativeApp } from "@/lib/is-native-app";
@@ -23,8 +23,9 @@ const COPY: Record<number, { title: string; text: string }> = {
 };
 
 // Cartão Premium dentro do popup de treino concluído (só plano free).
+// onNavigate: mantido na assinatura; agora só é chamado se a compra levar para outra tela.
 export function WorkoutPremiumNudge({ totalWorkouts, onNavigate }: { totalWorkouts: number; onNavigate: () => void }) {
-  const router = useRouter();
+  const [showUpsell, setShowUpsell] = useState(false);
   const isNative = useIsNativeApp();
   const copy = COPY[totalWorkouts] ?? COPY[2]!;
 
@@ -33,9 +34,8 @@ export function WorkoutPremiumNudge({ totalWorkouts, onNavigate }: { totalWorkou
   }, [totalWorkouts]);
 
   function handleClick() {
-    trackEvent("cta_click", null, { source: "upsell_modal_cta_workout_complete", total_workouts: totalWorkouts });
-    onNavigate();
-    router.push("/premium");
+    trackEvent("cta_click", null, { source: "workout_complete_nudge_open", total_workouts: totalWorkouts });
+    setShowUpsell(true);
   }
 
   return (
@@ -50,6 +50,12 @@ export function WorkoutPremiumNudge({ totalWorkouts, onNavigate }: { totalWorkou
       >
         Conhecer o Premium
       </button>
+      {showUpsell ? (
+        <UpsellModal
+          reason="workout_complete"
+          onClose={() => setShowUpsell(false)}
+        />
+      ) : null}
       <p className="mt-2 text-center text-[11px] text-white/35">
         {isNative
           ? "Menos que uma dose de whey por dia (e bem mais gostoso 😄)"

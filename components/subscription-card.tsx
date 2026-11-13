@@ -1,7 +1,7 @@
 "use client";
 
+import { UpsellModal } from "@/components/upsell-modal";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check, ChevronRight, CreditCard, ExternalLink } from "lucide-react";
 import { PremiumBadge } from "@/components/premium-badge";
 import type { SubscriptionSummary } from "@/components/use-subscription";
@@ -52,7 +52,9 @@ function openExternal(url: string) {
 }
 
 export function SubscriptionCard({ subscription, isNative, formatDate, onManageStripe, isManagingStripe }: Props) {
-  const router = useRouter();
+  // Popup padrão de assinatura (planos + pagamento direto).
+  const [upsellReason, setUpsellReason] = useState<"profile_card" | "referral_courtesy" | null>(null);
+  const upsellModal = upsellReason ? <UpsellModal reason={upsellReason} onClose={() => setUpsellReason(null)} /> : null;
 
   // Estado local da assinatura Stripe (cancelar/reativar dentro do app).
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(subscription?.cancelAtPeriodEnd ?? false);
@@ -78,14 +80,15 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
         <button
           type="button"
           onClick={() => {
-            trackEvent("cta_click", null, { source: "upsell_modal_cta_profile_card" });
-            router.push("/premium");
+            trackEvent("cta_click", null, { source: "profile_card_open" });
+            setUpsellReason("profile_card");
           }}
           className="premium-shine flex w-full items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3 text-sm font-black text-[#2b1d00] transition hover:opacity-95 active:scale-[0.99]"
         >
           Conhecer o Premium
           <ChevronRight className="h-4 w-4" strokeWidth={2.75} />
         </button>
+        {upsellModal}
         <p className="text-center text-[11px] text-white/35">
           {isNative
             ? "Menos que uma dose de whey por dia (e bem mais gostoso 😄)"
@@ -253,14 +256,15 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
         <button
           type="button"
           onClick={() => {
-            trackEvent("cta_click", null, { source: "upsell_modal_cta_profile_referral" });
-            router.push("/premium");
+            trackEvent("cta_click", null, { source: "profile_referral_open" });
+            setUpsellReason("referral_courtesy");
           }}
           className="w-full rounded-2xl border border-premium/30 bg-premium/10 py-3 text-sm font-bold text-premium transition hover:bg-premium/15"
         >
           Garantir o Premium depois da cortesia
         </button>
       ) : null}
+      {source === "referral" ? upsellModal : null}
     </div>
   );
 }

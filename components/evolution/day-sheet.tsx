@@ -1,9 +1,11 @@
 "use client";
 
+import { UpsellModal } from "@/components/upsell-modal";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowUp, Dumbbell, Loader2, Sparkles, X, Zap } from "lucide-react";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { trackEvent } from "@/lib/analytics-client";
 import type { SessionDetailExercise } from "@/app/api/workout/session-detail/route";
 
 export type DaySheetSession = {
@@ -46,6 +48,7 @@ export function DaySheet({
   nextProgramLocked?: boolean;
   onClose: () => void;
 }) {
+  const [showUpsell, setShowUpsell] = useState(false);
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -104,13 +107,18 @@ export function DaySheet({
                 <p className="mt-3 text-xs leading-relaxed text-white/50">
                   No plano gratuito você já usou seus 2 programas. Com o Premium, você ganha um novo programa a cada ciclo.
                 </p>
-                <Link
-                  href="/premium"
+                <button
+                  type="button"
+                  onClick={() => {
+                    trackEvent("cta_click", null, { source: "calendar_next_program_open" });
+                    setShowUpsell(true);
+                  }}
                   className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-primaryStrong text-sm font-bold text-black"
                 >
                   <Sparkles className="h-4 w-4" />
                   Conhecer o Premium
-                </Link>
+                </button>
+                {showUpsell ? <UpsellModal reason="next_program" onClose={() => setShowUpsell(false)} /> : null}
               </>
             ) : null}
           </div>

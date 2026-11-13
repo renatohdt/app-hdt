@@ -1,7 +1,7 @@
 "use client";
 
+import { UpsellModal } from "@/components/upsell-modal";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Crown, Loader2, PlayCircle } from "lucide-react";
 import { useConsentPreferences } from "@/components/consent-provider";
 import { trackEvent } from "@/lib/analytics-client";
@@ -25,7 +25,7 @@ export function WorkoutTabGate({
   onUnlocked: () => void;
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const [showUpsell, setShowUpsell] = useState(false);
   const { preferences } = useConsentPreferences();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export function WorkoutTabGate({
 
   function handlePremium() {
     trackEvent("cta_click", userId, { source: "workout_tab_gate_premium", workout_key: workoutKey });
-    router.push("/premium");
+    setShowUpsell(true);
   }
 
   return (
@@ -85,6 +85,7 @@ export function WorkoutTabGate({
             <Crown className="h-4 w-4 text-yellow-300" />
             Premium: veja sempre, sem anúncios
           </button>
+          {showUpsell ? <UpsellModal reason="workout_tabs" onClose={() => setShowUpsell(false)} /> : null}
           <button
             type="button"
             onClick={onClose}

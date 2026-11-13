@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 
 export function ReferralExpiryPopup({ onClose }: { onClose: () => void }) {
   function handleClose() {
@@ -70,13 +70,13 @@ export function ReferralExpiryPopup({ onClose }: { onClose: () => void }) {
             className="mt-7 flex flex-col gap-3"
             style={{ animation: "rep-fade-up 0.5s ease-out 0.4s both" }}
           >
-            <Link
-              href="/premium"
-              onClick={handleClose}
-              className="flex w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-primary to-primaryStrong py-3.5 text-sm font-bold text-black transition hover:opacity-90 active:scale-[0.98]"
-            >
-              Assinar Premium
-            </Link>
+            {/* Planos + botão verde direto para o pagamento (bloco padrão) */}
+            <PremiumCheckoutPanel
+              origin="referral_expiry_popup"
+              ctaSource="referral_expiry_popup_cta"
+              onNavigate={handleClose}
+              onDone={handleClose}
+            />
 
             <button
               type="button"

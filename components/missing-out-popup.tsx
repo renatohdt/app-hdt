@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { Lock, X } from "lucide-react";
 import { PremiumBadge, PremiumIcon } from "@/components/premium-badge";
 import { trackEvent } from "@/lib/analytics-client";
-import { getWebPricePerDayLabel } from "@/lib/premium-pricing";
+import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 
 // Pop-up "o que você está perdendo" (plano free). Usa os números do próprio
 // usuário (aversão à perda: é algo que já é dele) e uma prévia borrada do
@@ -27,8 +26,10 @@ type Props = {
   onClose: () => void;
 };
 
-export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, daysUsing, isNative, onClose }: Props) {
-  const router = useRouter();
+export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, daysUsing, onClose }: Props) {
+  // Enquanto paga/ativa, o popup não fecha por toque fora.
+  const [locked, setLocked] = useState(false);
+  const handleLockChange = useCallback((value: boolean) => setLocked(value), []);
   const hasProgress = totalWorkouts > 0;
 
   useEffect(() => {
@@ -39,13 +40,8 @@ export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, day
     };
   }, [totalWorkouts]);
 
-  function handleCta() {
-    trackEvent("cta_click", null, { source: "upsell_modal_cta_missing_out", total_workouts: totalWorkouts });
-    onClose();
-    router.push("/premium");
-  }
-
   function handleDismiss() {
+    if (locked) return;
     trackEvent("cta_click", null, { source: "upsell_modal_dismiss_missing_out" });
     onClose();
   }
@@ -63,14 +59,14 @@ export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, day
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleDismiss} />
 
       <div className="relative z-10 max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-t-[32px] border border-premium/20 bg-[#0f0f0d] px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-6 shadow-2xl sm:rounded-[32px]">
-        <button
+        {!locked && <button
           type="button"
           onClick={handleDismiss}
           className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/50 transition hover:bg-white/10 hover:text-white"
           aria-label="Fechar"
         >
           <X size={16} />
-        </button>
+        </button>}
 
         <div className="mb-4 flex items-center gap-3">
           <PremiumIcon />
@@ -116,18 +112,17 @@ export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, day
           ))}
         </ul>
 
-        <button
-          type="button"
-          onClick={handleCta}
-          className="premium-shine mt-5 w-full rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3.5 text-sm font-black text-[#2b1d00] shadow-[0_10px_40px_rgba(245,196,81,0.25)] transition hover:opacity-95 active:scale-[0.99]"
-        >
-          Desbloquear meu Premium
-        </button>
-        <p className="mt-2 text-center text-[11.5px] text-white/40">
-          {isNative
-            ? "Menos que uma dose de whey por dia (e bem mais gostoso 😄)"
-            : `${getWebPricePerDayLabel("annual")} por dia: menos que uma dose de whey 😄`}
-        </p>
+        {/* Planos + botão verde direto para o pagamento (bloco padrão) */}
+        <div className="mt-5">
+          <PremiumCheckoutPanel
+            origin="upsell_modal_missing_out"
+            ctaSource="upsell_modal_cta_missing_out"
+            ctaLabel="Desbloquear meu Premium"
+            onNavigate={onClose}
+            onDone={onClose}
+            onLockChange={handleLockChange}
+          />
+        </div>
         <button
           type="button"
           onClick={handleDismiss}

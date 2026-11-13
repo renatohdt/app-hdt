@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { Crown, Zap, X, ChevronRight, Clock, CheckCircle2, Loader2, Play } from "lucide-react";
 import { clsx } from "clsx";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
@@ -18,6 +17,7 @@ import { WorkoutCompletionPopup } from "@/components/workout-completion-popup";
 import { FeedbackFields, StatsRow } from "@/components/active-workout-watcher";
 import { AlreadyTrainedTodayPopup } from "@/components/already-trained-today-popup";
 import { StartWorkoutConfirm } from "@/components/start-workout-confirm";
+import { UpsellModal } from "@/components/upsell-modal";
 import { scheduleIdleWorkoutNotification } from "@/lib/workout-idle-notification";
 import {
   AUTO_FINISHED_EVENT,
@@ -105,7 +105,6 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
   defaultLocation?: string;
   availableLocations?: string[];
 }) {
-  const router = useRouter();
   const [status, setStatus] = useState<ExtraStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [modalState, setModalState] = useState<ModalState>("closed");
@@ -394,17 +393,17 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
       )}
 
       {/* Overlay com card (upsell, intro, questionário, gerando) */}
-      {mounted && modalState !== "closed" && modalState !== "view" && createPortal(
+      {/* Upsell: popup padrão de assinatura (preços + checkout direto) */}
+      {mounted && modalState === "upsell" && (
+        <UpsellModal reason="extra_workout" onClose={closeModal} />
+      )}
+
+      {mounted && modalState !== "closed" && modalState !== "view" && modalState !== "upsell" && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center"
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
           <div className="w-full max-w-md rounded-t-[28px] border border-white/10 bg-[#0f0f0f] p-6 sm:rounded-[28px]">
-
-            {/* ── UPSELL ── */}
-            {modalState === "upsell" && (
-              <ModalUpsell onClose={closeModal} onUpgrade={() => router.push("/escolher-plano")} />
-            )}
 
             {/* ── INTRO ── */}
             {modalState === "intro" && (
@@ -487,38 +486,6 @@ export function ExtraWorkoutButton({ userId, defaultEquipment, defaultLocation, 
 }
 
 // ── Sub-componentes de modal ─────────────────────────────────────────────────
-
-function ModalUpsell({ onClose, onUpgrade }: { onClose: () => void; onUpgrade: () => void }) {
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-yellow-400" />
-          <h2 className="text-[18px] font-bold text-white">Treino Extra!</h2>
-        </div>
-        <button onClick={onClose} className="text-white/40 hover:text-white"><X className="h-5 w-5" /></button>
-      </div>
-      <p className="text-sm leading-6 text-white/64">
-        Crie um treino extra quando você estiver treinando em outro local, com outros materiais, mais ou menos tempo disponível ou se quer algo diferente. Esse treino é excluído do seu programa após 4 horas.
-      </p>
-      <div className="space-y-2">
-        <button
-          onClick={onUpgrade}
-          className="premium-shine flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-gradient-to-r from-premium to-premiumStrong text-sm font-black text-[#2b1d00] transition hover:brightness-110"
-        >
-          <Crown className="h-4 w-4" strokeWidth={2.5} />
-          Assine o Premium
-        </button>
-        <button
-          onClick={onClose}
-          className="flex h-10 w-full items-center justify-center rounded-[16px] text-sm font-semibold text-white/50 hover:text-white"
-        >
-          Fechar
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function ModalIntro({ usedThisMonth, monthlyLimit, onClose, onStart }: {
   usedThisMonth: number;
