@@ -1,5 +1,6 @@
 ﻿import { unstable_noStore as noStore } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { WEB_PREMIUM_PRICES } from "@/lib/premium-pricing";
 import type {
   AdminDashboardData,
   AdminErrorLog,
@@ -138,6 +139,57 @@ export async function getAdminData() {
   };
 }
 
+const EMPTY_DASHBOARD_EXTRAS = {
+  mrrEstimate: { total: 0, stripe: 0, stores: 0 },
+  stripePlans: { monthly: 0, annual: 0 },
+  courtesyPremium: { total: 0, referral: 0, ambassadors: 0, program: 0 },
+  newUsersPrev7Days: 0,
+  signupsLast30Days: [] as Array<{ date: string; label: string; value: number }>
+};
+
+type AdminSupabase = NonNullable<ReturnType<typeof createSupabaseAdminClient>>;
+
+// Filtro "não é admin" (role nulo conta como usuário comum).
+const NOT_ADMIN_FILTER = "role.is.null,role.neq.admin";
+
+// Busca as datas de cadastro desde `from`, em páginas de 1000 (limite do PostgREST).
+async function fetchSignupDates(supabase: AdminSupabase, from: Date): Promise<string[]> {
+  const pageSize = 1000;
+  const dates: string[] = [];
+  for (let page = 0; page < 50; page += 1) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("created_at")
+      .gte("created_at", from.toISOString())
+      .is("deleted_at", null)
+      .or(NOT_ADMIN_FILTER)
+      .order("created_at", { ascending: true })
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (error || !data) break;
+    dates.push(...(data as { created_at: string }[]).map((row) => row.created_at));
+    if (data.length < pageSize) break;
+  }
+  return dates;
+}
+
+// Agrupa cadastros por dia no fuso de Brasília, preenchendo dias sem cadastro com 0.
+function buildDailySeries(dates: string[], days: number) {
+  const toKey = (date: Date) => date.toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const counts = new Map<string, number>();
+  for (const value of dates) {
+    const key = toKey(new Date(value));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const start = startOfLastDays(days);
+  return Array.from({ length: days }, (_, index) => {
+    const day = new Date(start);
+    day.setUTCDate(day.getUTCDate() + index);
+    const key = toKey(day);
+    const [, month, dayOfMonth] = key.split("-");
+    return { date: key, label: `${dayOfMonth}/${month}`, value: counts.get(key) ?? 0 };
+  });
+}
+
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   noStore();
   const supabase = createSupabaseAdminClient();
@@ -186,7 +238,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       trainingStyleDistribution: [],
       focusRegionDistribution: [],
       locationDistribution: [],
-      premiumPotentialCount: 0
+      premiumPotentialCount: 0,
+      ...EMPTY_DASHBOARD_EXTRAS
     };
   }
 
@@ -266,7 +319,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         trainingStyleDistribution: [],
         focusRegionDistribution: [],
         locationDistribution: [],
-        premiumPotentialCount: 0
+        premiumPotentialCount: 0,
+        ...EMPTY_DASHBOARD_EXTRAS
       };
     }
 
@@ -289,12 +343,23 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     const completionRate = null;
 
     // RPCs paralelos: engajamento, retenção precisa (banco), premium
-    const [featureUsageRpcQuery, premiumSubscriptionsQuery, applePremiumQuery] = await Promise.all([
+    const nowIso = new Date().toISOString();
+    const [
+      featureUsageRpcQuery,
+      premiumSubscriptionsQuery,
+      applePremiumQuery,
+      referralPremiumQuery,
+      programPremiumQuery,
+      deletedCountQuery,
+      newUsersCountQuery,
+      prevNewUsersCountQuery,
+      signupDates
+    ] = await Promise.all([
       supabase.rpc("get_feature_usage_counts"),
       // Usuários com assinatura ativa (active) ou dentro do período de graça (past_due)
       supabase
         .from("subscriptions")
-        .select("user_id")
+        .select("user_id, plan")
         .in("status", ["active", "past_due"]),
       // Assinantes das lojas (Apple e Google Play via RevenueCat): o webhook grava a
       // data de expiração em users.apple_premium_expires_at (nome histórico) e a loja
@@ -302,7 +367,31 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       supabase
         .from("users")
         .select("id, store_premium_source, store_premium_sandbox")
-        .gt("apple_premium_expires_at", new Date().toISOString())
+        .gt("apple_premium_expires_at", nowIso),
+      // Cortesia (indicação, embaixadores, suporte): referral_premium_until no futuro
+      supabase.from("users").select("id, referral_premium_until").gt("referral_premium_until", nowIso),
+      // Premium incluso em programa comprado
+      supabase.from("program_entitlements").select("user_id").eq("status", "active").gt("expires_at", nowIso),
+      // Contagens exatas no banco (sem o limite de linhas da lista de usuários)
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .not("deleted_at", "is", null)
+        .or(NOT_ADMIN_FILTER),
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .is("deleted_at", null)
+        .or(NOT_ADMIN_FILTER)
+        .gte("created_at", startOfLastDays(7).toISOString()),
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .is("deleted_at", null)
+        .or(NOT_ADMIN_FILTER)
+        .gte("created_at", startOfLastDays(14).toISOString())
+        .lt("created_at", startOfLastDays(7).toISOString()),
+      fetchSignupDates(supabase, startOfLastDays(30))
     ]);
 
     type FeatureUsageCounts = {
@@ -355,9 +444,59 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     // Fallback para dashboardUsers.length caso a query de count falhe.
     const totalUsers = totalUsersCountQuery.count ?? dashboardUsers.length;
 
+    // ── Etapa 2: planos, MRR estimado, cortesia e cadastros por dia ──
+    // Plano por usuário no Stripe (um usuário conta uma vez; anual prevalece).
+    const stripePlanByUser = new Map<string, "monthly" | "annual">();
+    for (const row of (premiumSubscriptionsQuery.data ?? []) as { user_id: string; plan: string | null }[]) {
+      const plan = row.plan === "annual" ? "annual" : "monthly";
+      if (stripePlanByUser.get(row.user_id) !== "annual") stripePlanByUser.set(row.user_id, plan);
+    }
+    const stripePlans = { monthly: 0, annual: 0 };
+    stripePlanByUser.forEach((plan) => {
+      stripePlans[plan] += 1;
+    });
+    const monthlyValue = WEB_PREMIUM_PRICES.monthly;
+    const annualMonthlyValue = WEB_PREMIUM_PRICES.annual / 12;
+    const stripeMrr = stripePlans.monthly * monthlyValue + stripePlans.annual * annualMonthlyValue;
+    // Lojas não gravam o plano: estima com a mesma proporção mensal/anual do Stripe
+    // (sem assinantes no Stripe, considera mensal).
+    const stripeTotal = stripePlans.monthly + stripePlans.annual;
+    const annualShare = stripeTotal ? stripePlans.annual / stripeTotal : 0;
+    const storeSubscribers = premiumByStore.apple + premiumByStore.google;
+    const storesMrr = storeSubscribers * ((1 - annualShare) * monthlyValue + annualShare * annualMonthlyValue);
+    const roundMoney = (value: number) => Math.round(value * 100) / 100;
+    const mrrEstimate = {
+      total: roundMoney(stripeMrr + storesMrr),
+      stripe: roundMoney(stripeMrr),
+      stores: roundMoney(storesMrr)
+    };
+
+    // Cortesia = premium sem pagar (quem também paga não entra).
+    const payingIds = new Set([...stripePremiumIds, ...applePremiumIds, ...googlePremiumIds]);
+    const oneYearAhead = Date.now() + 365 * 24 * 60 * 60 * 1000;
+    const referralRows = ((referralPremiumQuery.data ?? []) as { id: string; referral_premium_until: string }[]).filter(
+      (row) => !payingIds.has(row.id)
+    );
+    const referralIds = new Set(referralRows.map((row) => row.id));
+    // Cortesia com mais de 1 ano pela frente = embaixadores / contas internas.
+    const ambassadors = referralRows.filter((row) => new Date(row.referral_premium_until).getTime() > oneYearAhead).length;
+    const programIds = new Set(
+      ((programPremiumQuery.data ?? []) as { user_id: string }[])
+        .map((row) => row.user_id)
+        .filter((id) => !payingIds.has(id) && !referralIds.has(id))
+    );
+    const courtesyPremium = {
+      total: referralIds.size + programIds.size,
+      referral: referralIds.size - ambassadors,
+      ambassadors,
+      program: programIds.size
+    };
+
+    const signupsLast30Days = buildDailySeries(signupDates, 30);
+
     return {
       totalUsers,
-      deletedUsers,
+      deletedUsers: deletedCountQuery.count ?? deletedUsers,
       premiumUsers,
       premiumByStore,
       activeUsers: {
@@ -381,7 +520,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         weekly: buildLegacyFunnelPeriod([], startOfLastDays(7), "Semanal")
       },
       errors: dashboardQueryErrors,
-      newUsersLast7Days,
+      newUsersLast7Days: newUsersCountQuery.count ?? newUsersLast7Days,
+      newUsersPrev7Days: prevNewUsersCountQuery.count ?? 0,
+      mrrEstimate,
+      stripePlans,
+      courtesyPremium,
+      signupsLast30Days,
       workoutsGenerated,
       workoutsLast7Days,
       completionRate,
@@ -421,252 +565,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       premiumPotentialCount: featureCounts.premium_potential_count
     };
   }
-
-  const [usersResult, userAnswersResult, dashboardEventsResult, errorEventsResult] = await Promise.all([
-    supabase!.from("users").select("id, name, role, created_at, deleted_at").order("created_at", { ascending: false }),
-    supabase!.from("user_answers").select("user_id, answers, created_at").order("created_at", { ascending: false }),
-    supabase!
-      .from("analytics_events")
-      .select("id, event_name, user_id, metadata, created_at")
-      .in("event_name", DASHBOARD_EVENT_NAMES)
-      .order("created_at", { ascending: false }),
-    supabase!
-      .from("analytics_events")
-      .select("id, event_name, user_id, metadata, created_at")
-      .ilike("event_name", "%error%")
-      .order("created_at", { ascending: false })
-      .limit(10)
-  ]);
-
-  const queryErrors = [
-    buildQueryError("users-error", usersResult.error?.message, "users"),
-    buildQueryError("answers-error", userAnswersResult.error?.message, "user_answers"),
-    buildQueryError("events-error", dashboardEventsResult.error?.message, "analytics_events"),
-    buildQueryError("error-events-error", errorEventsResult.error?.message, "analytics_events")
-  ].filter(Boolean) as AdminErrorLog[];
-
-  if (queryErrors.length) {
-    return {
-      totalUsers: 0,
-      deletedUsers: 0,
-      premiumUsers: 0,
-      premiumByStore: { stripe: 0, apple: 0, google: 0, test: 0 },
-      activeUsers: { daily: 0, weekly: 0 },
-      activeUsersLast7d: 0,
-      activeUsersLast30d: 0,
-      ageDistribution: [],
-      genderDistribution: [],
-      goalDistribution: [],
-      retention: buildRetentionMetrics([], []),
-      funnel: {
-        daily: buildFunnelPeriod([], startOfToday(), "Diário"),
-        weekly: buildFunnelPeriod([], startOfLastDays(7), "Semanal")
-      },
-      errors: queryErrors,
-      newUsersLast7Days: 0,
-      workoutsGenerated: 0,
-      workoutsLast7Days: 0,
-      completionRate: null,
-      featureUsage: {
-        usersWithReplacement: 0,
-        usersWithNewWorkout: 0,
-        usersWithCompletedSession: 0,
-        usersWithExtraWorkout: 0,
-        usersWithGoals: 0,
-        usersRegisteredViaReferral: 0
-      },
-      daysDistribution: [],
-      levelDistribution: [],
-      equipmentDistribution: [],
-      durationDistribution: [],
-      trainingStyleDistribution: [],
-      focusRegionDistribution: [],
-      locationDistribution: [],
-      premiumPotentialCount: 0
-    };
-  }
-
-  const allUsers = ((usersResult.data ?? []) as DashboardUserRow[]).filter(isRegisteredDashboardUser);
-  const users = allUsers.filter((user) => !user.deleted_at);
-  const deletedUsers = allUsers.filter((user) => Boolean(user.deleted_at)).length;
-  const userAnswers = (userAnswersResult.data ?? []) as UserAnswerRow[];
-  const dashboardEvents = (dashboardEventsResult.data ?? []) as AdminEvent[];
-  const errorEvents = (errorEventsResult.data ?? []) as AdminEvent[];
-  const events = [...dashboardEvents, ...errorEvents];
-  const answersList = userAnswers.map((row) => normalizeAnswers(row.answers)).filter(Boolean) as Array<Partial<QuizAnswers> & Record<string, unknown>>;
-  const activeUsers = new Set([
-    ...users.map((user) => user.id),
-    ...userAnswers.map((answer) => answer.user_id)
-  ]).size;
-
-  return {
-    totalUsers: users.length,
-    deletedUsers,
-    premiumUsers: 0,
-    premiumByStore: { stripe: 0, apple: 0, google: 0, test: 0 },
-    activeUsers: {
-      daily: activeUsers,
-      weekly: activeUsers
-    },
-    activeUsersLast7d: 0,
-    activeUsersLast30d: 0,
-    ageDistribution: toDistribution(answersList.map(getAgeBucket)),
-    genderDistribution: toDistribution(answersList.map((answers) => getGenderLabel(answers.gender))),
-    goalDistribution: toDistribution(answersList.map((answers) => getGoalLabel(answers.goal))),
-    retention: buildRetentionMetrics(users, dashboardEvents),
-    funnel: {
-      daily: buildFunnelPeriod(events, startOfToday(), "Diário"),
-      weekly: buildFunnelPeriod(events, startOfLastDays(7), "Semanal")
-    },
-    errors: [...queryErrors, ...getRecentSystemErrors(events)].slice(0, 10),
-    newUsersLast7Days: 0,
-    workoutsGenerated: 0,
-    workoutsLast7Days: 0,
-    completionRate: null,
-    featureUsage: {
-      usersWithReplacement: 0,
-      usersWithNewWorkout: 0,
-      usersWithCompletedSession: 0,
-      usersWithExtraWorkout: 0,
-      usersWithGoals: 0,
-      usersRegisteredViaReferral: 0
-    },
-    daysDistribution: toDistribution(
-      answersList.map((a) => {
-        const days = typeof a.days === "number" ? a.days : null;
-        return days !== null ? getDaysLabel(days) : "";
-      })
-    ),
-    levelDistribution: toDistribution(
-      answersList.map((a) =>
-        a.experience ? getLevelLabel(a.experience as QuizAnswers["experience"]) : ""
-      )
-    ),
-    equipmentDistribution: toEquipmentDistribution(answersList),
-    durationDistribution: toDistribution(
-      answersList.map((a) => {
-        const time = typeof a.time === "number" ? a.time : null;
-        return time !== null ? getDurationLabel(time) : "";
-      })
-    ),
-    trainingStyleDistribution: [],
-    focusRegionDistribution: [],
-    locationDistribution: toLocationDistribution(answersList),
-    premiumPotentialCount: 0
-  };
-}
-
-export async function getMonthlyDashboardCsv() {
-  const supabase = createSupabaseAdminClient();
-
-  const EMPTY_CSV = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_prem\n";
-
-  if (!supabase) {
-    return EMPTY_CSV;
-  }
-
-  // Início do mês corrente em horário de Brasília (UTC-3)
-  // Meia-noite do dia 1 em BRT = 03:00 UTC
-  const nowInBrasilia = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-  const [brtYear, brtMonth] = nowInBrasilia.split("-");
-  const monthStart = new Date(`${brtYear}-${brtMonth}-01T03:00:00.000Z`);
-
-  // Usa RPC (função SQL no banco) em vez de supabase.from().select().
-  // Motivo: o PostgREST tem um max_rows de 1000 linhas que não pode ser
-  // sobrescrito pelo .limit() do cliente JS. Com ~8000+ eventos/mês, a query
-  // retornava apenas os primeiros 1000 eventos (aprox. os 12 primeiros dias),
-  // deixando o restante do mês sem dados e ativando o fallback erroneamente.
-  // Chamadas via .rpc() rodam SQL direto no banco e não sofrem essa limitação.
-  const { data: funnelRows, error: funnelError } = await supabase
-    .rpc("get_monthly_funnel_data", { p_month_start: monthStart.toISOString() });
-
-  if (funnelError || !funnelRows) {
-    console.error("MONTHLY CSV RPC ERROR:", funnelError);
-    return EMPTY_CSV;
-  }
-
-  type FunnelRow = {
-    day_brt: string;
-    home_count: number;
-    quiz_count: number;
-    signup_count: number;
-    premium_count: number;
-  };
-
-  const rows = funnelRows as FunnelRow[];
-
-  // Mês formatado para o cabeçalho, ex: "abril de 2026"
-  const monthLabel = new Date(monthStart).toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo"
-  });
-  const exportedAt = new Date().toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: "America/Sao_Paulo"
-  });
-
-  // Bloco de legenda — aparece como texto nas primeiras linhas do arquivo.
-  // Linhas com # são convenção de comentário em CSV; Excel mostra na coluna A.
-  const legend = [
-    `# Hora do Treino — Relatorio de Metricas`,
-    `# Exportado em: ${exportedAt} (horario de Brasilia)`,
-    `# Periodo: ${monthLabel}`,
-    `#`,
-    `# LEGENDA DAS COLUNAS:`,
-    `# data             — Dia no formato DD/MM/AAAA (horario de Brasilia)`,
-    `# dia_semana       — Dia da semana`,
-    `# pagina_inicial   — Visitantes unicos que acessaram a landing page`,
-    `# quiz_iniciado    — Usuarios unicos que iniciaram o questionario`,
-    `# conta_criada     — Usuarios unicos que criaram conta no app`,
-    `# visitou_premium  — Usuarios unicos que visitaram a pagina de planos ou iniciaram o checkout`,
-    `# conv_home_quiz   — Conversao de pagina inicial para quiz (%)`,
-    `# conv_quiz_conta  — Conversao de quiz para criacao de conta (%)`,
-    `# conv_conta_prem  — Conversao de conta criada para visita ao premium (%)`,
-    `# -----`
-  ].join("\n");
-
-  const dataHeader = "data,dia_semana,pagina_inicial,quiz_iniciado,conta_criada,visitou_premium,conv_home_quiz,conv_quiz_conta,conv_conta_prem";
-
-  let totalHome = 0, totalQuiz = 0, totalSignup = 0, totalPremium = 0;
-
-  const DAYS_PT = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
-
-  const lines = rows
-    .filter((row) => {
-      // Ignora dias onde todos os valores são 0 (normalmente dia 1 sem dados reais)
-      return row.home_count > 0 || row.quiz_count > 0 || row.signup_count > 0 || row.premium_count > 0;
-    })
-    .map((row) => {
-      const home    = Number(row.home_count);
-      const quiz    = Number(row.quiz_count);
-      const signup  = Number(row.signup_count);
-      const premium = Number(row.premium_count);
-
-      totalHome    += home;
-      totalQuiz    += quiz;
-      totalSignup  += signup;
-      totalPremium += premium;
-
-      const convHomeQuiz  = home   > 0 ? `${Math.round((quiz    / home)   * 100)}%` : "—";
-      const convQuizConta = quiz   > 0 ? `${Math.round((signup  / quiz)   * 100)}%` : "—";
-      const convContaPrem = signup > 0 ? `${Math.round((premium / signup) * 100)}%` : "—";
-
-      // row.day_brt vem como "YYYY-MM-DD"
-      const [year, month, day] = row.day_brt.split("-");
-      const formattedDate = `${day}/${month}/${year}`;
-      const dayOfWeek = DAYS_PT[new Date(`${row.day_brt}T12:00:00.000Z`).getUTCDay()];
-
-      return `${formattedDate},${dayOfWeek},${home},${quiz},${signup},${premium},${convHomeQuiz},${convQuizConta},${convContaPrem}`;
-    });
-
-  const totalConvHomeQuiz  = totalHome    > 0 ? `${Math.round((totalQuiz    / totalHome)    * 100)}%` : "—";
-  const totalConvQuizConta = totalQuiz    > 0 ? `${Math.round((totalSignup  / totalQuiz)    * 100)}%` : "—";
-  const totalConvContaPrem = totalSignup  > 0 ? `${Math.round((totalPremium / totalSignup)  * 100)}%` : "—";
-  const totalRow = `TOTAL,,${totalHome},${totalQuiz},${totalSignup},${totalPremium},${totalConvHomeQuiz},${totalConvQuizConta},${totalConvContaPrem}`;
-
-  return [legend, dataHeader, ...lines, totalRow].join("\n");
 }
 
 async function attachUserData(users: AdminUser[], supabase: ReturnType<typeof createSupabaseAdminClient>) {

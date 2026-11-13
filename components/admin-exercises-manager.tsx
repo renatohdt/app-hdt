@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AdminExerciseForm } from "@/components/admin-exercise-form";
 import { AdminTable } from "@/components/admin-table";
 import { Button, Card } from "@/components/ui";
@@ -45,7 +45,7 @@ type CoverageSection = {
   covered: number;
 };
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
 const emptyFilters: FilterState = {
   muscleGroup: "",
@@ -68,7 +68,11 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const formRef = useRef<HTMLDivElement | null>(null);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Formulário abre num painel lateral por cima da lista (não perde a posição ao editar).
+  const [formOpen, setFormOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedSearch = useMemo(() => search.trim(), [search]);
   const hasActiveFilters = Boolean(
@@ -80,18 +84,40 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
     exercises.find((exercise) => exercise.id === editingExerciseId) ??
     null;
   const totalExercises = exercises.length;
-  const totalPages = Math.max(1, Math.ceil(totalExercises / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalExercises / pageSize));
   const safeCurrentPage = Math.min(currentPage, totalPages);
-  const pageStart = totalExercises ? (safeCurrentPage - 1) * PAGE_SIZE : 0;
-  const pageEnd = totalExercises ? Math.min(pageStart + PAGE_SIZE, totalExercises) : 0;
+  const pageStart = totalExercises ? (safeCurrentPage - 1) * pageSize : 0;
+  const pageEnd = totalExercises ? Math.min(pageStart + pageSize, totalExercises) : 0;
+  const sortedExercises = useMemo(() => {
+    const list = [...exercises].sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+    return sortDir === "asc" ? list : list.reverse();
+  }, [exercises, sortDir]);
   const paginatedExercises = useMemo(
-    () => exercises.slice(pageStart, pageEnd),
-    [exercises, pageEnd, pageStart]
+    () => sortedExercises.slice(pageStart, pageEnd),
+    [sortedExercises, pageEnd, pageStart]
   );
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [normalizedSearch, filters.equipment, filters.level, filters.muscleGroup, filters.location, filters.trainingStyle, filters.type]);
+  }, [normalizedSearch, filters.equipment, filters.level, filters.muscleGroup, filters.location, filters.trainingStyle, filters.type, pageSize, sortDir]);
+
+  // Painel aberto: Esc fecha e a página de trás não rola.
+  useEffect(() => {
+    if (!formOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFormOpen(false);
+        setEditingExerciseId(null);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [formOpen]);
 
   useEffect(() => {
     if (currentPage !== safeCurrentPage) {
@@ -240,10 +266,14 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
   );
 
   function handleSaved(savedExercise: ExerciseRecord) {
+    const wasEditing = Boolean(editingExerciseId);
     setCatalogExercises((current) => upsertExercise(current, savedExercise));
-    setStatus("Biblioteca atualizada com sucesso.");
+    setStatus(wasEditing ? "Exercício atualizado." : "Exercício salvo.");
     setError(null);
     setEditingExerciseId(null);
+    // Edição: fecha o painel e volta para a lista onde estava.
+    // Novo: mantém o painel aberto (o formulário já limpa) para cadastrar o próximo.
+    if (wasEditing) setFormOpen(false);
     setRefreshKey((current) => current + 1);
   }
 
@@ -275,6 +305,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
 
       if (editingExerciseId === exercise.id) {
         setEditingExerciseId(null);
+        setFormOpen(false);
       }
 
       setRefreshKey((current) => current + 1);
@@ -292,102 +323,100 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
 
   function handleEditExercise(id: string) {
     setEditingExerciseId(id);
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
+    setFormOpen(true);
   }
 
-  return (
-    <div className="space-y-6">
-      <div ref={formRef}>
-        <AdminExerciseForm
-          initialValues={editingExercise}
-          existingExercises={catalogExercises}
-          onSaved={handleSaved}
-          onCancel={() => setEditingExerciseId(null)}
-        />
-      </div>
+  function handleNewExercise() {
+    setEditingExerciseId(null);
+    setFormOpen(true);
+  }
 
-      <Card className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-white">Busca e filtros</p>
-            <p className="text-sm text-white/60">
-              Combine busca textual com grupo muscular, nível e material para enxergar melhor a cobertura da
-              biblioteca.
-            </p>
-          </div>
+  function handleCloseForm() {
+    setFormOpen(false);
+    setEditingExerciseId(null);
+  }
+
+  function goToPage(page: number) {
+    setCurrentPage(Math.min(totalPages, Math.max(1, page)));
+    // Volta para o topo da lista (evita rolar de volta manualmente).
+    window.setTimeout(() => {
+      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  const coverageSummary = `${exercises.length} exercício(s) · ${overviewStats[1]?.value ?? 0} grupos · ${
+    overviewStats[2]?.value ?? 0
+  } níveis · ${overviewStats[3]?.value ?? 0} materiais`;
+
+  return (
+    <div className="space-y-4">
+      {/* Busca e filtros — ficam fixos no topo ao rolar a lista */}
+      <Card className="sticky top-0 z-30 space-y-3 !p-4 sm:!p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por nome, grupo, nível ou material..."
+            aria-label="Busca textual"
+            className="min-h-11 min-w-[12rem] flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-primary"
+          />
           {hasActiveFilters ? (
-            <Button type="button" variant="secondary" onClick={handleClearFilters}>
+            <Button type="button" variant="secondary" className="min-h-11 px-4" onClick={handleClearFilters}>
               Limpar filtros
             </Button>
           ) : null}
+          <Button type="button" className="min-h-11 px-4" onClick={handleNewExercise}>
+            + Novo exercício
+          </Button>
         </div>
 
-        <div className="space-y-3">
-          <label className="grid gap-2">
-            <span className="text-sm text-white/72">Busca textual</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por nome, grupo, nível ou material..."
-              className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-white outline-none transition focus:border-primary"
-            />
-          </label>
-
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6 items-end">
-            <FilterSelect
-              label="Grupo muscular"
-              value={filters.muscleGroup}
-              options={EXERCISE_MUSCLE_OPTIONS}
-              placeholder="Todos"
-              onChange={(value) => setFilters((current) => ({ ...current, muscleGroup: value }))}
-            />
-
-            <FilterSelect
-              label="Nível"
-              value={filters.level}
-              options={EXERCISE_LEVEL_OPTIONS}
-              placeholder="Todos"
-              onChange={(value) => setFilters((current) => ({ ...current, level: value }))}
-            />
-
-            <FilterSelect
-              label="Material"
-              value={filters.equipment}
-              options={EXERCISE_EQUIPMENT_OPTIONS}
-              placeholder="Todos"
-              onChange={(value) => setFilters((current) => ({ ...current, equipment: value }))}
-            />
-
-            <FilterSelect
-              label="Local de treino"
-              value={filters.location}
-              options={EXERCISE_LOCATION_OPTIONS}
-              placeholder="Todos"
-              onChange={(value) => setFilters((current) => ({ ...current, location: value }))}
-            />
-
-            <FilterSelect
-              label="Estilo de treino"
-              value={filters.trainingStyle}
-              options={EXERCISE_TRAINING_STYLE_OPTIONS}
-              placeholder="Todos"
-              onChange={(value) => setFilters((current) => ({ ...current, trainingStyle: value }))}
-            />
-
-            <FilterSelect
-              label="Tipo"
-              value={filters.type}
-              options={EXERCISE_TYPE_OPTIONS}
-              placeholder="Todos"
-              onChange={(value) => setFilters((current) => ({ ...current, type: value }))}
-            />
-          </div>
+        <div className="grid grid-cols-2 items-end gap-2 md:grid-cols-3 lg:grid-cols-6">
+          <FilterSelect
+            label="Grupo muscular"
+            value={filters.muscleGroup}
+            options={EXERCISE_MUSCLE_OPTIONS}
+            placeholder="Todos"
+            onChange={(value) => setFilters((current) => ({ ...current, muscleGroup: value }))}
+          />
+          <FilterSelect
+            label="Nível"
+            value={filters.level}
+            options={EXERCISE_LEVEL_OPTIONS}
+            placeholder="Todos"
+            onChange={(value) => setFilters((current) => ({ ...current, level: value }))}
+          />
+          <FilterSelect
+            label="Material"
+            value={filters.equipment}
+            options={EXERCISE_EQUIPMENT_OPTIONS}
+            placeholder="Todos"
+            onChange={(value) => setFilters((current) => ({ ...current, equipment: value }))}
+          />
+          <FilterSelect
+            label="Local de treino"
+            value={filters.location}
+            options={EXERCISE_LOCATION_OPTIONS}
+            placeholder="Todos"
+            onChange={(value) => setFilters((current) => ({ ...current, location: value }))}
+          />
+          <FilterSelect
+            label="Estilo de treino"
+            value={filters.trainingStyle}
+            options={EXERCISE_TRAINING_STYLE_OPTIONS}
+            placeholder="Todos"
+            onChange={(value) => setFilters((current) => ({ ...current, trainingStyle: value }))}
+          />
+          <FilterSelect
+            label="Tipo"
+            value={filters.type}
+            options={EXERCISE_TYPE_OPTIONS}
+            placeholder="Todos"
+            onChange={(value) => setFilters((current) => ({ ...current, type: value }))}
+          />
         </div>
 
-        <div className="min-h-6 text-sm">
+        <div className="min-h-5 text-sm">
           {error ? <p className="text-red-300">{error}</p> : null}
           {!error && status ? <p className="text-primary">{status}</p> : null}
           {!error && !status ? (
@@ -402,113 +431,241 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
         </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {overviewStats.map((stat) => (
-          <Card key={stat.label} className="flex min-h-[8.5rem] flex-col justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">{stat.label}</p>
-            <p className="text-3xl font-semibold text-white">{stat.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        {coverageSections.map((section) => (
-          <CoverageCard
-            key={section.key}
-            section={section}
-            emptyState={loading ? "Carregando contagens..." : "Nenhum exercício encontrado neste recorte."}
-          />
-        ))}
-      </div>
-
-      <AdminTable headers={["Nome", "Grupo muscular", "Tipo", "Nível", "Material", "Ação"]}>
-        {loading ? (
-          <tr>
-            <td colSpan={6} className="px-5 py-8 text-sm text-white/60">
-              Carregando exercícios...
-            </td>
-          </tr>
-        ) : paginatedExercises.length ? (
-          paginatedExercises.map((exercise) => (
-            <tr key={exercise.id} className="border-b border-white/8 last:border-b-0">
-              <td className="px-5 py-4 text-sm text-white">{exercise.name}</td>
-              <td className="px-5 py-4 text-sm text-white/72">{formatExerciseMuscleGroups(exercise)}</td>
-              <td className="px-5 py-4 text-sm text-white/72">
-                {formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null)}
-              </td>
-              <td className="px-5 py-4 text-sm text-white/72">{getLevelSummary(exercise)}</td>
-              <td className="px-5 py-4 text-sm text-white/72">{getEquipmentSummary(exercise)}</td>
-              <td className="px-5 py-4 text-sm">
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="px-0 py-0"
-                    onClick={() => handleEditExercise(exercise.id)}
-                  >
-                    Editar
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(exercise)}
-                    disabled={deletingId === exercise.id}
-                    className="text-xs font-semibold text-red-300 transition hover:text-red-200 disabled:opacity-50"
-                  >
-                    {deletingId === exercise.id ? "Deletando..." : "Deletar"}
-                  </button>
-                </div>
+      <div ref={listRef} className="scroll-mt-64">
+        <AdminTable headers={["Nome", "Grupo muscular", "Tipo", "Nível", "Material", "Ação"]}>
+          {loading ? (
+            <tr>
+              <td colSpan={6} className="px-5 py-8 text-sm text-white/60">
+                Carregando exercícios...
               </td>
             </tr>
-          ))
-        ) : (
-          <tr>
-            <td colSpan={6} className="px-5 py-8 text-sm text-white/60">
-              Nenhum exercício encontrado.
-            </td>
-          </tr>
-        )}
-      </AdminTable>
+          ) : paginatedExercises.length ? (
+            paginatedExercises.map((exercise) => (
+              <tr key={exercise.id} className="border-b border-white/8 last:border-b-0 hover:bg-white/[0.02]">
+                <td className="px-5 py-2.5 text-sm text-white">{exercise.name}</td>
+                <td className="px-5 py-2.5 text-sm text-white/72">{formatExerciseMuscleGroups(exercise)}</td>
+                <td className="px-5 py-2.5 text-sm text-white/72">
+                  {formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null)}
+                </td>
+                <td className="px-5 py-2.5 text-sm text-white/72">{getLevelSummary(exercise)}</td>
+                <td className="px-5 py-2.5 text-sm text-white/72">{getEquipmentSummary(exercise)}</td>
+                <td className="px-5 py-2.5 text-sm">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleEditExercise(exercise.id)}
+                      className="text-xs font-semibold text-white/72 transition hover:text-white"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(exercise)}
+                      disabled={deletingId === exercise.id}
+                      className="text-xs font-semibold text-red-300 transition hover:text-red-200 disabled:opacity-50"
+                    >
+                      {deletingId === exercise.id ? "Deletando..." : "Deletar"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={6} className="px-5 py-8 text-sm text-white/60">
+                Nenhum exercício encontrado.
+              </td>
+            </tr>
+          )}
+        </AdminTable>
+      </div>
 
       {totalExercises ? (
-        <Card className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="flex flex-col gap-3 !p-4 sm:!p-4 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm text-white/60">
             Exibindo{" "}
             <span className="font-semibold text-white">
               {pageStart + 1}-{pageEnd}
             </span>{" "}
             de <span className="font-semibold text-white">{totalExercises}</span>
-            {totalPages > 1 ? (
-              <>
-                {" "}
-                <span className="text-white/28">⬢</span>{" "}
-                Página <span className="font-semibold text-white">{safeCurrentPage}</span> de{" "}
-                <span className="font-semibold text-white">{totalPages}</span>
-              </>
-            ) : null}
           </p>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={safeCurrentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-            >
-              Página anterior
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={safeCurrentPage >= totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-            >
-              Próxima página
-            </Button>
+          {totalPages > 1 ? (
+            <div className="flex flex-wrap items-center gap-1">
+              <PageButton label="‹" ariaLabel="Página anterior" disabled={safeCurrentPage === 1} onClick={() => goToPage(safeCurrentPage - 1)} />
+              {getPageNumbers(safeCurrentPage, totalPages).map((page, index) =>
+                page === "gap" ? (
+                  <span key={`gap-${index}`} className="px-1 text-sm text-white/35">
+                    …
+                  </span>
+                ) : (
+                  <PageButton
+                    key={page}
+                    label={String(page)}
+                    active={page === safeCurrentPage}
+                    onClick={() => goToPage(page)}
+                  />
+                )
+              )}
+              <PageButton label="›" ariaLabel="Próxima página" disabled={safeCurrentPage >= totalPages} onClick={() => goToPage(safeCurrentPage + 1)} />
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-white/60">
+            <label className="flex items-center gap-2">
+              Ordem
+              <select
+                value={sortDir}
+                onChange={(event) => setSortDir(event.target.value === "desc" ? "desc" : "asc")}
+                className="min-h-9 rounded-xl border border-white/10 bg-black/20 px-2 text-sm text-white outline-none focus:border-primary"
+              >
+                <option value="asc">A → Z</option>
+                <option value="desc">Z → A</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              Por página
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                className="min-h-9 rounded-xl border border-white/10 bg-black/20 px-2 text-sm text-white outline-none focus:border-primary"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </Card>
       ) : null}
+
+      {/* Cobertura — recolhida por padrão, abre quando precisar */}
+      <details className="group rounded-[28px] border border-white/10 bg-black/20">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+          <span className="text-sm font-semibold text-white">Cobertura da biblioteca</span>
+          <span className="flex items-center gap-2 text-xs text-white/50">
+            {loading ? "Carregando..." : coverageSummary}
+            <span className="inline-block transition group-open:rotate-180">▾</span>
+          </span>
+        </summary>
+        <div className="space-y-4 border-t border-white/10 p-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {overviewStats.map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">{stat.label}</p>
+                <p className="mt-1 text-2xl font-semibold text-white">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-4 xl:grid-cols-3">
+            {coverageSections.map((section) => (
+              <CoverageCard
+                key={section.key}
+                section={section}
+                emptyState={loading ? "Carregando contagens..." : "Nenhum exercício encontrado neste recorte."}
+              />
+            ))}
+          </div>
+        </div>
+      </details>
+
+      {formOpen ? (
+        <FormDrawer title={editingExerciseId ? "Editar exercício" : "Novo exercício"} onClose={handleCloseForm}>
+          <AdminExerciseForm
+            key={editingExerciseId ?? "new"}
+            initialValues={editingExercise}
+            existingExercises={catalogExercises}
+            onSaved={handleSaved}
+            onCancel={handleCloseForm}
+          />
+        </FormDrawer>
+      ) : null}
     </div>
   );
+}
+
+function FormDrawer({
+  title,
+  onClose,
+  children
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
+      <button
+        type="button"
+        aria-label="Fechar painel"
+        onClick={onClose}
+        className="absolute inset-0 cursor-default bg-black/70 backdrop-blur-sm"
+      />
+      <div className="relative flex h-full w-full max-w-2xl flex-col border-l border-white/10 bg-[#0b0b0b] shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <p className="text-sm font-semibold text-white">{title}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-white/70 transition hover:bg-white/10"
+          >
+            Fechar ✕
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function PageButton({
+  label,
+  ariaLabel,
+  active = false,
+  disabled = false,
+  onClick
+}: {
+  label: string;
+  ariaLabel?: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel ?? `Página ${label}`}
+      aria-current={active ? "page" : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className={`min-h-9 min-w-9 rounded-xl border px-2 text-sm font-semibold transition disabled:opacity-40 ${
+        active
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+// Ex.: página 6 de 13 → [1, "gap", 5, 6, 7, "gap", 13]
+function getPageNumbers(current: number, total: number): Array<number | "gap"> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1);
+  }
+  const pages = [...new Set([1, total, current - 1, current, current + 1])]
+    .filter((page) => page >= 1 && page <= total)
+    .sort((left, right) => left - right);
+  const result: Array<number | "gap"> = [];
+  pages.forEach((page, index) => {
+    const previous = pages[index - 1];
+    if (previous !== undefined && page - previous > 1) result.push("gap");
+    result.push(page);
+  });
+  return result;
 }
 
 function CoverageCard({

@@ -1,26 +1,42 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
-import {
-  AdminDashboardData,
-  DashboardPeriod,
-  DashboardWindowKey,
-  DistributionDatum,
-  RetentionMetric,
-  formatDate
-} from "@/lib/admin-shared";
-import { clientLogError } from "@/lib/client-logger";
+import { AdminDashboardData, DistributionDatum, formatDate } from "@/lib/admin-shared";
+import { formatBRL } from "@/lib/premium-pricing";
+
+// Painel do PostHog (funil, retenção e atividade saíram do admin em out/2026).
+const POSTHOG_DASHBOARDS_URL = "https://us.posthog.com/project/620910/dashboard";
+
+type ProfileTab = "demografia" | "treino" | "local" | "enfase";
+
+const PROFILE_TABS: Array<{ key: ProfileTab; label: string }> = [
+  { key: "demografia", label: "Demografia" },
+  { key: "treino", label: "Treino" },
+  { key: "local", label: "Local e material" },
+  { key: "enfase", label: "Ênfase muscular" }
+];
+
+function formatPercent(value: number) {
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+}
 
 export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
-  const [period, setPeriod] = useState<DashboardWindowKey>("daily");
-  const [exporting, setExporting] = useState(false);
-  const activeUsers = data.activeUsers[period];
+  const router = useRouter();
+  const [isRefreshing, startRefresh] = useTransition();
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [profileTab, setProfileTab] = useState<ProfileTab>("demografia");
   const totalUsers = data.totalUsers;
-  const deletedUsers = data.deletedUsers;
-  const premiumUsers = data.premiumUsers;
-  const funnel = data.funnel[period];
+
+  // Horário calculado no navegador (evita diferença de fuso entre servidor e cliente).
+  useEffect(() => {
+    setUpdatedAt(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+  }, [data]);
+
+  const conversion = totalUsers ? (data.premiumUsers / totalUsers) * 100 : null;
+
   const totalForPie = useMemo(
     () => ({
       gender: data.genderDistribution.reduce((sum, item) => sum + item.value, 0),
@@ -29,182 +45,169 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
     [data.genderDistribution, data.goalDistribution]
   );
 
-  async function handleExportMonthly() {
-    try {
-      setExporting(true);
-      const response = await fetchWithAuth("/api/admin/dashboard/export-monthly");
-
-      if (!response.ok) {
-        throw new Error("Não foi possível exportar o CSV mensal.");
+  const engagement = useMemo(() => {
+    const usage = data.featureUsage;
+    return [
+      {
+        label: "Concluíram sessão",
+        value: usage.usersWithCompletedSession,
+        help: "Usuários únicos que marcaram ao menos uma sessão de treino como concluída."
+      },
+      {
+        label: "Substituíram exercício",
+        value: usage.usersWithReplacement,
+        help: "Usuários únicos que usaram substituição de exercício pelo menos 1 vez."
+      },
+      {
+        label: "Geraram novo treino",
+        value: usage.usersWithNewWorkout,
+        help: "Usuários únicos com 2 ou mais programas de treino gerados."
+      },
+      {
+        label: "Treino Extra",
+        value: usage.usersWithExtraWorkout,
+        help: "Usuários únicos que geraram pelo menos 1 treino extra."
+      },
+      {
+        label: "Criaram meta",
+        value: usage.usersWithGoals,
+        help: "Usuários únicos que criaram ao menos uma meta de treino."
       }
+    ]
+      .map((item) => ({ ...item, percentage: totalUsers ? (item.value / totalUsers) * 100 : 0 }))
+      .sort((left, right) => right.value - left.value);
+  }, [data.featureUsage, totalUsers]);
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = window.document.createElement("a");
-      link.href = url;
-      link.download = "dashboard-mensal.csv";
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      clientLogError("ADMIN CSV EXPORT ERROR", error);
-    } finally {
-      setExporting(false);
-    }
-  }
+  const store = data.premiumByStore ?? { stripe: 0, apple: 0, google: 0, test: 0 };
+  const courtesy = data.courtesyPremium;
+
+  // Novos 7 dias vs 7 dias anteriores
+  const newUsersTrend = useMemo(() => {
+    const previous = data.newUsersPrev7Days;
+    const current = data.newUsersLast7Days;
+    if (!previous) return { text: `vs 0 nos 7 dias anteriores`, tone: "flat" as const };
+    const change = ((current - previous) / previous) * 100;
+    const sign = change > 0 ? "+" : "";
+    return {
+      text: `${sign}${formatPercent(change)}% vs 7 dias anteriores (${previous})`,
+      tone: change > 0 ? ("up" as const) : change < 0 ? ("down" as const) : ("flat" as const)
+    };
+  }, [data.newUsersLast7Days, data.newUsersPrev7Days]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end">
+    <div className="space-y-5">
+      {/* Barra de ações */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <span className="text-[11px] text-white/45">
+          {isRefreshing ? "Atualizando..." : updatedAt ? `Atualizado às ${updatedAt}` : ""}
+        </span>
         <button
           type="button"
-          onClick={() => window.location.reload()}
-          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10"
+          disabled={isRefreshing}
+          onClick={() => startRefresh(() => router.refresh())}
+          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10 disabled:opacity-50"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-          Atualizar dados
+          <svg className={isRefreshing ? "animate-spin" : ""} xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          Atualizar
         </button>
+        <a
+          href={POSTHOG_DASHBOARDS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-white/10"
+        >
+          Ver funil no PostHog ↗
+        </a>
       </div>
-      <section className="grid gap-4 sm:grid-cols-3">
-        <SummaryMetricCard
-          label="Usuários totais"
-          value={String(totalUsers)}
-          description="Total de cadastros realizados no app."
-        />
-        <SummaryMetricCard
-          label="Contas excluídas"
-          value={String(deletedUsers)}
-          description="Usuários que deletaram a conta."
-        />
-        <SummaryMetricCard
-          label="Usuários premium"
-          value={String(premiumUsers)}
-          description={`Assinaturas ativas · Stripe: ${data.premiumByStore?.stripe ?? 0} · Apple: ${data.premiumByStore?.apple ?? 0} · Google Play: ${data.premiumByStore?.google ?? 0}${data.premiumByStore?.test ? ` · Testes (fora do total): ${data.premiumByStore.test}` : ""}`}
-        />
-      </section>
 
+      {/* Negócio — o que olhar primeiro */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryMetricCard
+        <HeroMetricCard
+          highlight
+          label="MRR estimado"
+          value={formatBRL(data.mrrEstimate.total)}
+          detail={`Stripe ${formatBRL(data.mrrEstimate.stripe)} · lojas ~${formatBRL(data.mrrEstimate.stores)}`}
+          help="Receita mensal recorrente estimada, bruta (antes de taxas do Stripe e das lojas). Usa o preço de tabela da web: mensal R$ 14,90 e anual R$ 118,80 ÷ 12. As lojas não gravam o plano, então são estimadas na mesma proporção mensal/anual do Stripe."
+        />
+        <HeroMetricCard
+          label="Premium pagantes"
+          value={String(data.premiumUsers)}
+          detail={`Stripe ${store.stripe} · Apple ${store.apple} · Google ${store.google}`}
+          help="Assinaturas ativas (Stripe ativa ou em período de graça + lojas com expiração no futuro). Cortesias e compras de teste não entram."
+        />
+        <HeroMetricCard
+          label="Conversão"
+          value={conversion === null ? "—" : `${formatPercent(conversion)}%`}
+          detail="premium pagantes ÷ usuários"
+          help="Percentual da base de usuários ativos que paga o Premium hoje."
+        />
+        <HeroMetricCard
           label="Novos (7 dias)"
           value={String(data.newUsersLast7Days)}
-          description="Cadastros nos últimos 7 dias."
+          detail={newUsersTrend.text}
+          detailTone={newUsersTrend.tone}
+          help="Contas criadas nos últimos 7 dias (hoje incluso, fuso de Brasília), sem contar as excluídas, comparadas com os 7 dias anteriores."
         />
       </section>
 
-      <section className="space-y-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-          Engajamento com as ferramentas
-        </p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <SummaryMetricCard
-            label="Substituíram exercício"
-            value={String(data.featureUsage.usersWithReplacement)}
-            description="Usuários únicos que usaram substituição de exercício pelo menos 1 vez."
-          />
-          <SummaryMetricCard
-            label="Geraram novo treino"
-            value={String(data.featureUsage.usersWithNewWorkout)}
-            description="Usuários únicos com 2 ou mais programas de treino gerados."
-          />
-          <SummaryMetricCard
-            label="Concluíram sessão"
-            value={String(data.featureUsage.usersWithCompletedSession)}
-            description="Usuários únicos que marcaram ao menos uma sessão de treino como concluída."
-          />
-          <SummaryMetricCard
-            label="Treino Extra"
-            value={String(data.featureUsage.usersWithExtraWorkout)}
-            description="Usuários únicos que geraram pelo menos 1 treino extra."
-          />
-          <SummaryMetricCard
-            label="Criaram meta"
-            value={String(data.featureUsage.usersWithGoals)}
-            description="Usuários únicos que criaram ao menos uma meta de treino."
-          />
-          <SummaryMetricCard
-            label="Vieram por indicação"
-            value={String(data.featureUsage.usersRegisteredViaReferral)}
-            description="Usuários que se cadastraram usando o cupom de outro usuário."
-          />
+      {/* Resumo secundário em uma linha */}
+      <p className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-[12px] text-white/50">
+        <span>
+          <span className="font-semibold text-white/80">{totalUsers}</span> usuários
+        </span>
+        <span>
+          <span className="font-semibold text-white/80">{data.deletedUsers}</span> contas excluídas
+        </span>
+        <span>
+          Stripe: <span className="font-semibold text-white/80">{data.stripePlans.monthly}</span> mensal ·{" "}
+          <span className="font-semibold text-white/80">{data.stripePlans.annual}</span> anual
+        </span>
+        <span title="Premium sem pagar. Embaixadores = cortesia com mais de 1 ano pela frente (inclui contas internas).">
+          <span className="font-semibold text-white/80">{courtesy.total}</span> com Premium cortesia (indicação{" "}
+          {courtesy.referral} · embaixadores {courtesy.ambassadors} · programa {courtesy.program})
+        </span>
+        <span>
+          <span className="font-semibold text-white/80">{data.workoutsGenerated}</span> treinos gerados
+        </span>
+        <span>
+          <span className="font-semibold text-white/80">{data.featureUsage.usersRegisteredViaReferral}</span> vieram por
+          indicação
+        </span>
+        {store.test ? (
+          <span>
+            <span className="font-semibold text-white/80">{store.test}</span> compras de teste (fora do total)
+          </span>
+        ) : null}
+      </p>
+
+      <SignupsChart days={data.signupsLast30Days} />
+
+      {/* Engajamento — lista única com % da base */}
+      <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-[1rem] font-semibold text-white">Engajamento com as ferramentas</h2>
+          <span className="text-[10px] text-white/40">% da base de {totalUsers} usuários</span>
         </div>
-      </section>
-
-      <section className="grid gap-4">
-        <DistributionBarCard
-          title="Distribuição por idade"
-          data={data.ageDistribution}
-          baseCount={totalUsers}
-          emptyLabel="Sem faixa etaria registrada."
-        />
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2">
-        <DistributionPieCard
-          title="Distribuição por gênero"
-          data={data.genderDistribution}
-          total={totalForPie.gender}
-          baseCount={totalUsers}
-          emptyLabel="Sem gênero registrado."
-        />
-        <DistributionPieCard
-          title="Distribuição por objetivo"
-          data={data.goalDistribution}
-          total={totalForPie.goal}
-          baseCount={totalUsers}
-          emptyLabel="Sem objetivo registrado."
-        />
-      </section>
-
-      <section className="space-y-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-          Perfil dos usuários
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <DistributionBarCard
-            title="Dias por semana"
-            data={data.daysDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de dias registrados."
-          />
-          <DistributionBarCard
-            title="Nível"
-            data={data.levelDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de nível registrados."
-          />
-          <DistributionBarCard
-            title="Materiais"
-            data={data.equipmentDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de materiais registrados."
-          />
-          <DistributionBarCard
-            title="Tempo de treino"
-            data={data.durationDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de duração registrados."
-          />
+        <div className="space-y-3">
+          {engagement.map((item) => (
+            <div key={item.label} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] items-center gap-3 text-[12px] sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto]">
+              <span className="flex min-w-0 items-center gap-1.5 text-white/72">
+                <span className="truncate">{item.label}</span>
+                <InfoHint text={item.help} />
+              </span>
+              <div className="h-2 rounded-full bg-white/8">
+                <div
+                  className="h-2 rounded-full bg-gradient-to-r from-primary to-primaryStrong"
+                  style={{ width: `${Math.min(100, Math.max(item.percentage, 2))}%` }}
+                />
+              </div>
+              <span className="w-[5.5rem] text-right text-white">
+                {formatPercent(item.percentage)}% <span className="text-white/45">({item.value})</span>
+              </span>
+            </div>
+          ))}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <DistributionBarCard
-            title="Método de treino"
-            data={data.trainingStyleDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de método de treino registrados."
-          />
-          <DistributionBarCard
-            title="Ênfase muscular"
-            data={data.focusRegionDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de ênfase muscular registrados."
-          />
-          <DistributionBarCard
-            title="Local de treino"
-            data={data.locationDistribution}
-            baseCount={totalUsers}
-            emptyLabel="Sem dados de local de treino registrados."
-          />
-        </div>
-      </section>
+      </Card>
 
       {data.premiumPotentialCount > 0 && (
         <section className="space-y-3">
@@ -229,65 +232,157 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
         </section>
       )}
 
+      {/* Perfil do quiz — recolhido, com abas */}
+      <details className="group rounded-[28px] border border-white/10 bg-black/20">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+          <span className="text-sm font-semibold text-white">Perfil dos usuários (respostas do quiz)</span>
+          <span className="flex items-center gap-2 text-xs text-white/50">
+            idade, gênero, objetivo, nível, local e mais
+            <span className="inline-block transition group-open:rotate-180">▾</span>
+          </span>
+        </summary>
+        <div className="space-y-4 border-t border-white/10 p-4">
+          <div className="flex flex-wrap gap-2" role="tablist">
+            {PROFILE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={profileTab === tab.key}
+                onClick={() => setProfileTab(tab.key)}
+                className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+                  profileTab === tab.key
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-white/10 text-white/55 hover:text-white/85"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {profileTab === "demografia" ? (
+            <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+              <DistributionBarCard title="Idade" data={data.ageDistribution} baseCount={totalUsers} emptyLabel="Sem faixa etária registrada." />
+              <DistributionPieCard title="Gênero" data={data.genderDistribution} total={totalForPie.gender} baseCount={totalUsers} emptyLabel="Sem gênero registrado." />
+              <DistributionPieCard title="Objetivo" data={data.goalDistribution} total={totalForPie.goal} baseCount={totalUsers} emptyLabel="Sem objetivo registrado." />
+            </div>
+          ) : null}
+
+          {profileTab === "treino" ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <DistributionBarCard title="Dias por semana" data={data.daysDistribution} baseCount={totalUsers} emptyLabel="Sem dados de dias registrados." />
+              <DistributionBarCard title="Nível" data={data.levelDistribution} baseCount={totalUsers} emptyLabel="Sem dados de nível registrados." />
+              <DistributionBarCard title="Tempo de treino" data={data.durationDistribution} baseCount={totalUsers} emptyLabel="Sem dados de duração registrados." />
+              <DistributionBarCard title="Método de treino" data={data.trainingStyleDistribution} baseCount={totalUsers} emptyLabel="Sem dados de método de treino registrados." />
+            </div>
+          ) : null}
+
+          {profileTab === "local" ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DistributionBarCard title="Local de treino" data={data.locationDistribution} baseCount={totalUsers} emptyLabel="Sem dados de local de treino registrados." />
+              <DistributionBarCard title="Materiais" data={data.equipmentDistribution} baseCount={totalUsers} emptyLabel="Sem dados de materiais registrados." />
+            </div>
+          ) : null}
+
+          {profileTab === "enfase" ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DistributionBarCard title="Ênfase muscular" data={data.focusRegionDistribution} baseCount={totalUsers} emptyLabel="Sem dados de ênfase muscular registrados." />
+            </div>
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }
 
-function SummaryMetricCard({
+function HeroMetricCard({
   label,
   value,
-  description
+  detail,
+  help,
+  highlight = false,
+  detailTone = "flat"
 }: {
   label: string;
   value: string;
-  description: string;
+  detail: string;
+  help: string;
+  highlight?: boolean;
+  detailTone?: "up" | "down" | "flat";
 }) {
+  const detailColor = detailTone === "up" ? "text-primary" : detailTone === "down" ? "text-red-300" : "text-white/55";
   return (
-    <Card className="min-w-0 space-y-2.5 overflow-hidden p-4 sm:p-[1.15rem]">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{label}</p>
-      <p className="text-[1.85rem] font-semibold leading-none text-white">{value}</p>
-      <p className="text-[12px] leading-5 text-white/58">{description}</p>
-    </Card>
-  );
-}
-
-function RetentionMetricCard({ metric }: { metric: RetentionMetric }) {
-  const valueLabel = metric.percentage === null ? "Sem base" : `${metric.percentage}%`;
-
-  return (
-    <Card className="min-w-0 space-y-2.5 overflow-hidden p-4 sm:p-[1.15rem]">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{metric.label}</p>
-        <span className="rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/58">
-          {metric.windowLabel}
-        </span>
-      </div>
-
-      <p className="text-[1.85rem] font-semibold leading-none text-white">{valueLabel}</p>
-      <p className="text-[12px] leading-5 text-white/58">{metric.detail}</p>
-    </Card>
-  );
-}
-
-function PeriodButton({
-  active,
-  children,
-  onClick
-}: {
-  active: boolean;
-  children: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
-        active ? "bg-primary text-white" : "bg-white/5 text-white/62 hover:bg-white/10 hover:text-white"
+    <Card
+      className={`min-w-0 space-y-3 overflow-hidden p-4 sm:p-5 ${
+        highlight ? "!border-primary/35 !bg-primary/[0.06]" : ""
       }`}
     >
-      {children}
-    </button>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">{label}</p>
+        <InfoHint text={help} />
+      </div>
+      <p className={`text-[2.3rem] font-semibold leading-none ${highlight ? "text-primary" : "text-white"}`}>{value}</p>
+      <p className={`text-[12px] ${detailColor}`}>{detail}</p>
+    </Card>
+  );
+}
+
+// Cadastros por dia (30 dias) — barras simples; passe o mouse para ver o dia.
+function SignupsChart({ days }: { days: Array<{ date: string; label: string; value: number }> }) {
+  const total = days.reduce((sum, day) => sum + day.value, 0);
+  const max = Math.max(1, ...days.map((day) => day.value));
+  const average = days.length ? total / days.length : 0;
+
+  return (
+    <Card className="min-w-0 space-y-4 overflow-hidden p-4 sm:p-[1.15rem]">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[1rem] font-semibold text-white">Cadastros por dia</h2>
+        <span className="text-[11px] text-white/45">
+          últimos 30 dias · <span className="font-semibold text-white/80">{total}</span> no total · média{" "}
+          <span className="font-semibold text-white/80">{formatPercent(average)}</span>/dia
+        </span>
+      </div>
+      {days.length ? (
+        <div>
+          <div className="flex h-36 items-end gap-[3px]">
+            {days.map((day) => (
+              <div
+                key={day.date}
+                title={`${day.label}: ${day.value} cadastro(s)`}
+                className="group relative flex h-full min-w-0 flex-1 items-end"
+              >
+                <div
+                  className="w-full rounded-t-[3px] bg-primary/70 transition group-hover:bg-primary"
+                  style={{ height: day.value ? `${Math.max((day.value / max) * 100, 4)}%` : "2px", opacity: day.value ? 1 : 0.25 }}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex justify-between text-[10px] text-white/40">
+            <span>{days[0]?.label}</span>
+            <span>{days[Math.floor(days.length / 2)]?.label}</span>
+            <span>{days[days.length - 1]?.label}</span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-[12px] text-white/52">Sem cadastros no período.</p>
+      )}
+    </Card>
+  );
+}
+
+// Ícone "i": mostra a explicação da métrica ao passar o mouse.
+function InfoHint({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      role="img"
+      className="inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-white/20 text-[9px] font-semibold text-white/45"
+    >
+      i
+    </span>
   );
 }
 
@@ -389,22 +484,6 @@ function DistributionPieCard({
   );
 }
 
-function FunnelView({ funnel }: { funnel: DashboardPeriod }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-      {funnel.steps.map((step) => (
-        <div key={step.key} className="min-w-0 rounded-[18px] border border-white/8 bg-black/20 p-3.5 sm:p-4">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">{step.label}</p>
-          <p className="mt-2.5 text-[1.85rem] font-semibold leading-none text-white">{step.value}</p>
-          <p className="mt-2 text-[12px] leading-5 text-white/56">
-            {step.conversion === null ? "Base inicial" : `${step.conversion}% de conversão`}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const PIE_COLORS = ["#22c55e", "#84cc16", "#facc15", "#38bdf8", "#f97316"];
 
 function buildPieGradient(data: DistributionDatum[]) {
@@ -417,14 +496,6 @@ function buildPieGradient(data: DistributionDatum[]) {
   });
 
   return `conic-gradient(${segments.join(", ")})`;
-}
-
-function getTotalUsersDescription(period: DashboardWindowKey, activeUsers: number) {
-  if (period === "daily") {
-    return `${activeUsers} com atividade ou onboarding salvo hoje.`;
-  }
-
-  return `${activeUsers} com atividade ou onboarding salvo nos últimos 7 dias.`;
 }
 
 type PremiumPotentialUser = {

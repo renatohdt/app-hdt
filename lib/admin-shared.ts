@@ -78,6 +78,17 @@ export type AdminDashboardData = {
   focusRegionDistribution: DistributionDatum[];
   locationDistribution: DistributionDatum[];
   premiumPotentialCount: number;
+  // Etapa 2 (nov/2026): receita, planos, cortesia e cadastros por dia
+  /** Receita mensal recorrente ESTIMADA (bruta, preço de tabela da web). */
+  mrrEstimate: { total: number; stripe: number; stores: number };
+  /** Assinaturas Stripe ativas por plano (lojas não registram o plano no banco). */
+  stripePlans: { monthly: number; annual: number };
+  /** Premium sem pagar: indicação/cortesia (referral_premium_until) e programa comprado. */
+  courtesyPremium: { total: number; referral: number; ambassadors: number; program: number };
+  /** Cadastros nos 7 dias anteriores aos últimos 7 (para comparação). */
+  newUsersPrev7Days: number;
+  /** Cadastros por dia (fuso de Brasília), últimos 30 dias, do mais antigo ao mais recente. */
+  signupsLast30Days: Array<{ date: string; label: string; value: number }>;
 };
 
 export function getGoalLabel(goal?: QuizAnswers["goal"]) {
