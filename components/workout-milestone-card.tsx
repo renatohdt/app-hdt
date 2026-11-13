@@ -134,10 +134,8 @@ function SocialMilestone() {
   return (
     <div className={cardClass}>
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">🤝 Parceiro de treino</p>
-      <p className="mt-2 text-[15px] font-bold leading-snug text-white">8 treinos! Agora a gente já é parceiro de treino.</p>
-      <p className="mt-1 text-[12.5px] leading-relaxed text-white/55">
-        Me segue nas redes: lá eu posto dicas, bastidores e uns treinos que não cabem no app. — Renato
-      </p>
+      <p className="mt-2 text-[15px] font-bold leading-snug text-white">Ei! Já somos parceiros de treino!</p>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-white/55">Me siga nas redes sociais também.</p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {SOCIAL_LINKS.map((link) => (
           <a
