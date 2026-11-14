@@ -128,7 +128,10 @@ function PremiumPageContent() {
       if (response.status === 401) {
         const alreadyReturnedFromAuth = Boolean(searchParams.get("auth"));
         if (!alreadyReturnedFromAuth) {
-          router.push(`/criar-conta?next=${encodeURIComponent(`/premium?checkout=${plan}&auth=1`)}`);
+          // ?conta=1 vem dos e-mails para quem JÁ tem conta (ex.: oferta do site
+          // para usuários do app): manda para "Entrar" em vez de "Criar conta".
+          const authPage = searchParams.get("conta") === "1" ? "/login" : "/criar-conta";
+          router.push(`${authPage}?next=${encodeURIComponent(`/premium?checkout=${plan}&auth=1`)}`);
           return;
         }
         // Já voltou da autenticação e ainda deu 401: cai no erro normal (evita loop).

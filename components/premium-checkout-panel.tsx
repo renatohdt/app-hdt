@@ -1,11 +1,12 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Zap } from "lucide-react";
 import { trackEvent } from "@/lib/analytics-client";
+import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { useNativePlatform } from "@/lib/is-native-app";
 import { PremiumIcon } from "@/components/premium-badge";
 import {
@@ -47,6 +48,19 @@ export function PremiumCheckoutPanel({ origin, ctaSource, ctaLabel = "Assinar Pr
   const [selected, setSelected] = useState<PremiumPeriod>("annual");
   const stripe = useStripeCheckout(origin);
   const native = useNativePurchase(isNative, origin);
+
+  // App nativo: avisa o servidor que o popup abriu. Depois de 3 aberturas o
+  // servidor manda por E-MAIL a oferta do site (nunca mostramos isso no app).
+  const signalSentRef = useRef(false);
+  useEffect(() => {
+    if (!isNative || signalSentRef.current) return;
+    signalSentRef.current = true;
+    void fetchWithAuth("/api/premium-offer-signal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform }),
+    }).catch(() => {});
+  }, [isNative, platform]);
 
   const locked = stripe.loading || native.busy || native.status === "activating";
   useEffect(() => {
