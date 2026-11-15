@@ -19,7 +19,9 @@ import {
   formatExerciseTypeLabel,
   getExerciseEquipment,
   getExerciseLevels,
-  getExerciseMuscleGroups
+  getExerciseMuscleGroups,
+  getPrimaryExerciseMuscle,
+  normalizeExerciseMuscleGroup
 } from "@/lib/exercise-library";
 import { ExerciseRecord } from "@/lib/types";
 
@@ -88,10 +90,20 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStart = totalExercises ? (safeCurrentPage - 1) * pageSize : 0;
   const pageEnd = totalExercises ? Math.min(pageStart + pageSize, totalExercises) : 0;
+  // Filtro de músculo ativo: quem tem o músculo como PRIMÁRIO vem primeiro,
+  // quem tem só como secundário vai para o fim. Dentro de cada grupo, ordem alfabética.
+  const selectedMuscle = normalizeExerciseMuscleGroup(filters.muscleGroup);
   const sortedExercises = useMemo(() => {
-    const list = [...exercises].sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
-    return sortDir === "asc" ? list : list.reverse();
-  }, [exercises, sortDir]);
+    const direction = sortDir === "asc" ? 1 : -1;
+    return [...exercises].sort((left, right) => {
+      if (selectedMuscle) {
+        const leftPrimary = getPrimaryExerciseMuscle(left) === selectedMuscle ? 0 : 1;
+        const rightPrimary = getPrimaryExerciseMuscle(right) === selectedMuscle ? 0 : 1;
+        if (leftPrimary !== rightPrimary) return leftPrimary - rightPrimary;
+      }
+      return left.name.localeCompare(right.name, "pt-BR") * direction;
+    });
+  }, [exercises, sortDir, selectedMuscle]);
   const paginatedExercises = useMemo(
     () => sortedExercises.slice(pageStart, pageEnd),
     [sortedExercises, pageEnd, pageStart]
@@ -443,7 +455,14 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
             paginatedExercises.map((exercise) => (
               <tr key={exercise.id} className="border-b border-white/8 last:border-b-0 hover:bg-white/[0.02]">
                 <td className="px-5 py-2.5 text-sm text-white">{exercise.name}</td>
-                <td className="px-5 py-2.5 text-sm text-white/72">{formatExerciseMuscleGroups(exercise)}</td>
+                <td className="px-5 py-2.5 text-sm text-white/72">
+                  {formatExerciseMuscleGroups(exercise)}
+                  {selectedMuscle && getPrimaryExerciseMuscle(exercise) !== selectedMuscle ? (
+                    <span className="ml-2 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/45">
+                      secundário
+                    </span>
+                  ) : null}
+                </td>
                 <td className="px-5 py-2.5 text-sm text-white/72">
                   {formatExerciseTypeLabel(exercise.type ?? exercise.metadata?.type ?? null)}
                 </td>
@@ -517,7 +536,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
               <select
                 value={sortDir}
                 onChange={(event) => setSortDir(event.target.value === "desc" ? "desc" : "asc")}
-                className="min-h-9 rounded-xl border border-white/10 bg-black/20 px-2 text-sm text-white outline-none focus:border-primary"
+                className="min-h-9 rounded-xl border border-white/10 bg-black/20 px-2 text-sm text-white outline-none focus:border-primary [&_option]:bg-white [&_option]:text-black"
               >
                 <option value="asc">A → Z</option>
                 <option value="desc">Z → A</option>
@@ -528,7 +547,7 @@ export function AdminExercisesManager({ initialExercises }: { initialExercises: 
               <select
                 value={pageSize}
                 onChange={(event) => setPageSize(Number(event.target.value))}
-                className="min-h-9 rounded-xl border border-white/10 bg-black/20 px-2 text-sm text-white outline-none focus:border-primary"
+                className="min-h-9 rounded-xl border border-white/10 bg-black/20 px-2 text-sm text-white outline-none focus:border-primary [&_option]:bg-white [&_option]:text-black"
               >
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
@@ -728,7 +747,7 @@ function FilterSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-10 rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-primary"
+        className="min-h-10 rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-primary [&_option]:bg-white [&_option]:text-black"
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
