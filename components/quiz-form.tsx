@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Caveat } from "next/font/google";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -18,9 +17,6 @@ import { clientLogError, clientLogInfo } from "@/lib/client-logger";
 import { QuizAnswers } from "@/lib/types";
 import { initialAnswers, quizSteps } from "@/lib/quiz";
 import { ITEM_HEIGHT as WHEEL_ITEM_HEIGHT, VISIBLE as WHEEL_VISIBLE, WheelColumn } from "@/components/rest-timer-wheel";
-
-// Fonte "escrita à mão" usada só na prancheta do resumo.
-const handwriting = Caveat({ subsets: ["latin"], weight: ["500", "700"], display: "swap" });
 
 type AccountFields = {
   name: string;
@@ -589,7 +585,6 @@ export function QuizForm() {
           </div>
         ) : step.type === "account" ? (
           <div className="mt-8 grid grid-cols-1 gap-3">
-            <PlanSummary answers={answers} studentName={account.name.trim()} />
             <input
               type="text"
               value={account.name}
@@ -823,7 +818,9 @@ function getLoadingStages(answers: Partial<QuizAnswers>) {
     .filter((item): item is string => Boolean(item));
 
   let exercises: string;
-  if (answers.location === "condo_gym") {
+  if (answers.location === "gym") {
+    exercises = "Selecionando exercícios para a academia";
+  } else if (answers.location === "condo_gym") {
     exercises = "Selecionando exercícios para a academia do condomínio";
   } else if (equipmentLabels.length === 0) {
     exercises = "Selecionando exercícios com o peso do corpo";
@@ -849,83 +846,6 @@ function getLoadingStages(answers: Partial<QuizAnswers>) {
     },
     { label: "Bom treino!" }
   ];
-}
-
-// Resumo das respostas antes de criar a conta, no formato de uma prancheta
-// com a ficha de avaliação preenchida à mão pelo personal.
-function PlanSummary({ answers, studentName }: { answers: Partial<QuizAnswers>; studentName: string }) {
-  const items = [
-    { label: "Objetivo", value: getOptionLabel("goal", answers.goal) },
-    { label: "Nível", value: answers.experience ? LEVEL_LABELS[answers.experience] : null },
-    { label: "Local", value: getOptionLabel("location", answers.location) },
-    { label: "Frequência", value: answers.days ? `${answers.days}x por semana` : null },
-    { label: "Duração", value: answers.time ? `${answers.time} min por treino` : null },
-    { label: "Ênfase", value: getOptionLabel("focusRegion", answers.focusRegion) },
-    { label: "Método", value: getOptionLabel("trainingStyle", answers.trainingStyle) }
-  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
-
-  const today = new Date().toLocaleDateString("pt-BR");
-  const rows = [{ label: "Aluno(a)", value: studentName }, ...items];
-
-  return (
-    <div className="relative mx-auto mb-4 mt-5 w-full min-w-0 max-w-md">
-      {/* prendedor de metal */}
-      <div
-        aria-hidden
-        className="absolute left-1/2 top-0 z-10 h-9 w-28 -translate-x-1/2 -translate-y-1/2 rounded-[10px] border border-white/40 bg-gradient-to-b from-[#f3f4f6] via-[#9ca3af] to-[#4b5563] shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
-      >
-        <div className="mx-auto mt-2.5 h-2 w-12 rounded-full bg-[#1f2937]/70" />
-      </div>
-
-      {/* prancheta */}
-      <div className="rounded-[22px] bg-gradient-to-br from-[#2c2f33] via-[#1d1f22] to-[#121314] p-3 pt-7 shadow-[0_18px_40px_rgba(0,0,0,0.55)] ring-1 ring-white/10">
-        {/* folha */}
-        <div className="rounded-[10px] bg-[#f7f5ef] px-5 pb-5 pt-5 text-[#1f2937] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]">
-          <div className="flex items-start justify-between gap-3 border-b-2 border-[#1f2937]/80 pb-2">
-            <div>
-              <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-[#16a34a]">Hora do Treino</p>
-              <p className="text-base font-extrabold uppercase tracking-[0.06em]">Ficha de avaliação</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-[#6b7280]">Data</p>
-              <p className={`${handwriting.className} text-lg leading-none text-[#1e3a8a]`}>{today}</p>
-            </div>
-          </div>
-
-          <dl className="mt-2">
-            {rows.map((row) => (
-              <div key={row.label} className="flex min-h-[38px] items-end gap-3 border-b border-dashed border-[#9ca3af]/70 pb-1 pt-2">
-                <dt className="w-[5.5rem] shrink-0 pb-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#6b7280]">
-                  {row.label}
-                </dt>
-                <dd className={`${handwriting.className} min-w-0 flex-1 truncate text-[1.4rem] font-medium leading-none text-[#1e3a8a]`}>
-                  {row.value}
-                </dd>
-                {row.value ? (
-                  <span aria-hidden className="pb-0.5 text-sm font-bold text-[#16a34a]">
-                    {"\u2713"}
-                  </span>
-                ) : null}
-              </div>
-            ))}
-          </dl>
-
-          <div className="mt-5 flex flex-col items-center gap-4 text-center">
-            <p className={`${handwriting.className} max-w-[16rem] text-[1.2rem] leading-snug text-[#1e3a8a]/90`}>
-              Quanto mais você treina, mais eu ajusto os seus próximos treinos.
-            </p>
-            <div>
-              <p className="text-[0.55rem] font-semibold uppercase tracking-[0.22em] text-[#16a34a]">Método</p>
-              <p className={`${handwriting.className} text-2xl font-bold leading-none text-[#111827]`}>Renato Santiago</p>
-              <p className="mt-1 border-t border-[#1f2937]/60 pt-1 text-[0.55rem] font-semibold uppercase tracking-[0.18em] text-[#6b7280]">
-                Personal Trainer
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 const initialLoadingProgress = 4;

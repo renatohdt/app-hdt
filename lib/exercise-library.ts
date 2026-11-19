@@ -58,7 +58,11 @@ export const EXERCISE_EQUIPMENT_OPTIONS = [
   { value: "caneleira", label: "Caneleira" },
   { value: "kettlebell", label: "Kettlebell" },
   { value: "rolo_abdominal", label: "Rolo Abdominal" },
-  { value: "barra_fixa", label: "Barra Fixa" }
+  { value: "barra_fixa", label: "Barra Fixa" },
+  { value: "barra_anilhas", label: "Barra e Anilhas" },
+  { value: "paralelas", label: "Paralelas" },
+  // Discos de equilíbrio (bosu, balance disc etc.). Ainda sem exercícios: só aparece no admin.
+  { value: "disco_equilibrio", label: "Discos de Equilíbrio" }
 ] as const;
 
 const MUSCLE_LABELS = new Map<string, string>(EXERCISE_MUSCLE_OPTIONS.map((option) => [option.value, option.label]));
@@ -213,6 +217,24 @@ const EQUIPMENT_ALIASES: Record<string, string> = {
   "chin up": "barra_fixa",
   chinup: "barra_fixa",
   chinups: "barra_fixa",
+  barra_anilhas: "barra_anilhas",
+  "barra anilhas": "barra_anilhas",
+  "barra e anilhas": "barra_anilhas",
+  anilha: "barra_anilhas",
+  anilhas: "barra_anilhas",
+  barbell: "barra_anilhas",
+  paralelas: "paralelas",
+  paralela: "paralelas",
+  "barras paralelas": "paralelas",
+  dips: "paralelas",
+  dip_bar: "paralelas",
+  "dip bar": "paralelas",
+  disco_equilibrio: "disco_equilibrio",
+  "disco equilibrio": "disco_equilibrio",
+  "disco de equilibrio": "disco_equilibrio",
+  "discos de equilibrio": "disco_equilibrio",
+  bosu: "disco_equilibrio",
+  "balance disc": "disco_equilibrio",
   other: ""
 };
 

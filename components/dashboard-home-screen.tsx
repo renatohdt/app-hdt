@@ -328,7 +328,7 @@ export function DashboardHomeScreen({
           {ctaIsStart ? (
             <div className="flex h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[linear-gradient(90deg,rgba(34,197,94,0.96),rgba(20,128,61,0.96))] px-4 text-white shadow-[0_12px_24px_rgba(34,197,94,0.16)] transition duration-200 active:scale-[0.99]">
               <Play className="h-4 w-4 shrink-0 fill-current" aria-hidden />
-              <span className="text-[15px] font-bold leading-none">Iniciar treino</span>
+              <span className="text-[15px] font-bold leading-none">Ver treino</span>
             </div>
           ) : (
             <div className="flex h-12 w-full items-center justify-center gap-2 rounded-[16px] border border-white/12 bg-white/[0.04] px-4 text-white/85 transition duration-200 active:scale-[0.99]">
@@ -365,7 +365,7 @@ export function DashboardHomeScreen({
       ) : null}
 
       {/* Banner Premium (só plano free) logo abaixo do cartão principal: visível
-          sem rolar, mas sem tirar o "Iniciar treino" do topo. */}
+          sem rolar, mas sem tirar o "Ver treino" do topo. */}
       {isFreePlan ? (
         <PremiumHomeBanner
           isNative={isNative}

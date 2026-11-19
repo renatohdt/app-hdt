@@ -36,6 +36,14 @@ type ExerciseFormValues = {
   difficulty: string;
   can_warmup: boolean;
   video_url: string;
+  video_provider_id: string;
+};
+
+type YmoveSearchResult = {
+  id: string;
+  name: string;
+  muscleGroup: string | null;
+  equipment: string[];
 };
 
 const emptyValues: ExerciseFormValues = {
@@ -50,7 +58,8 @@ const emptyValues: ExerciseFormValues = {
   training_styles: [],
   difficulty: "",
   can_warmup: false,
-  video_url: ""
+  video_url: "",
+  video_provider_id: ""
 };
 
 // Escala de dificuldade: o que a pessoa precisa para EXECUTAR o exercício
@@ -78,6 +87,11 @@ export function AdminExerciseForm({
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const [loading, setLoading] = useState(false);
   const [values, setValues] = useState<ExerciseFormValues>(emptyValues);
+  // Busca de vídeos na YMove (provisórios, até o vídeo próprio ser gravado).
+  const [ymoveQuery, setYmoveQuery] = useState("");
+  const [ymoveResults, setYmoveResults] = useState<YmoveSearchResult[] | null>(null);
+  const [ymoveLoading, setYmoveLoading] = useState(false);
+  const [ymoveError, setYmoveError] = useState<string | null>(null);
 
   useEffect(() => {
     setStatus(null);
@@ -108,8 +122,11 @@ export function AdminExerciseForm({
       training_styles: initialValues.training_styles ?? [],
       difficulty: initialValues.difficulty ? String(initialValues.difficulty) : "",
       can_warmup: Boolean(initialValues.can_warmup),
-      video_url: initialValues.video_url ?? ""
+      video_url: initialValues.video_url ?? "",
+      video_provider_id: initialValues.video_provider_id ?? ""
     });
+    setYmoveResults(null);
+    setYmoveError(null);
   }, [initialValues]);
 
   const duplicateExercise = useMemo(() => {
@@ -174,7 +191,8 @@ export function AdminExerciseForm({
       training_styles: values.training_styles,
       difficulty: Number(values.difficulty),
       can_warmup: values.can_warmup,
-      video_url: values.video_url || null
+      video_url: values.video_url || null,
+      video_provider_id: values.video_provider_id.trim() || null
     };
 
     try {
@@ -201,6 +219,26 @@ export function AdminExerciseForm({
       setStatusTone("error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleYmoveSearch() {
+    const query = ymoveQuery.trim();
+    if (query.length < 2) {
+      setYmoveError("Digite pelo menos 2 letras (em inglês, ex.: bench press).");
+      return;
+    }
+    setYmoveLoading(true);
+    setYmoveError(null);
+    try {
+      const response = await fetchWithAuth(`/api/admin/ymove?q=${encodeURIComponent(query)}`);
+      const result = await parseJsonResponse<{ success: boolean; data?: YmoveSearchResult[]; error?: string }>(response);
+      if (!response.ok || !result.success) throw new Error(result.error ?? "Erro na busca.");
+      setYmoveResults(result.data ?? []);
+    } catch (error) {
+      setYmoveError(getRequestErrorMessage(error, "Não foi possível buscar na YMove."));
+    } finally {
+      setYmoveLoading(false);
     }
   }
 
@@ -296,6 +334,84 @@ export function AdminExerciseForm({
               className="min-h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-white outline-none transition focus:border-primary"
             />
           </label>
+        </div>
+
+        <div className="grid gap-3 rounded-[22px] border border-white/10 bg-black/20 p-4">
+          <div className="space-y-1">
+            <p className="text-sm text-white/72">Vídeo YMove (provisório)</p>
+            <p className="text-xs leading-5 text-white/48">
+              Usado só quando o exercício ainda não tem vídeo próprio no campo &quot;URL do vídeo&quot;. Busque pelo nome em
+              inglês e escolha o exercício, ou cole o ID. Ao salvar, a capa é buscada automaticamente.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              value={values.video_provider_id}
+              onChange={(event) => setValues((current) => ({ ...current, video_provider_id: event.target.value }))}
+              placeholder="ID do exercício na YMove"
+              className="min-h-11 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-primary"
+            />
+            {values.video_provider_id ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setValues((current) => ({ ...current, video_provider_id: "" }))}
+              >
+                Remover vídeo YMove
+              </Button>
+            ) : null}
+          </div>
+          {initialValues?.video_thumb_url && initialValues.video_provider_id === values.video_provider_id ? (
+            <img
+              src={initialValues.video_thumb_url}
+              alt="Capa do vídeo YMove"
+              className="aspect-video w-48 rounded-xl border border-white/10 object-cover"
+            />
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              value={ymoveQuery}
+              onChange={(event) => setYmoveQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleYmoveSearch();
+                }
+              }}
+              placeholder="Buscar na YMove (ex.: bench press)"
+              className="min-h-11 flex-1 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-primary"
+            />
+            <Button type="button" variant="secondary" onClick={() => void handleYmoveSearch()} disabled={ymoveLoading}>
+              {ymoveLoading ? "Buscando..." : "Buscar"}
+            </Button>
+          </div>
+          {ymoveError ? <p className="text-xs text-red-300">{ymoveError}</p> : null}
+          {ymoveResults ? (
+            ymoveResults.length ? (
+              <ul className="grid max-h-64 gap-2 overflow-y-auto">
+                {ymoveResults.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => setValues((current) => ({ ...current, video_provider_id: item.id }))}
+                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
+                        values.video_provider_id === item.id
+                          ? "border-primary/40 bg-primary/12 text-white"
+                          : "border-white/10 text-white/78 hover:border-white/20 hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="font-medium">{item.name}</span>
+                      <span className="ml-2 text-xs text-white/48">
+                        {[item.muscleGroup, ...item.equipment].filter(Boolean).join(" · ")}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-white/48">Nenhum exercício encontrado.</p>
+            )
+          ) : null}
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(15rem,0.75fr)] xl:items-start">

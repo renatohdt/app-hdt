@@ -78,9 +78,8 @@ const LOCATION_LABELS: Record<string, string> = {
   gym: "Academia"
 };
 
-// Locais que o usuário pode adicionar pelo botão "+ Local". "gym" fica oculto
-// por ora (evolução futura), embora seja suportado no back-end e nas abas.
-const SELECTABLE_LOCATIONS = ["home", "condo_gym"] as const;
+// Locais que o usuário pode adicionar pelo botão "+ Local".
+const SELECTABLE_LOCATIONS = ["gym", "home", "condo_gym"] as const;
 
 function formatLocationLabel(value?: string | null) {
   if (!value) return "";

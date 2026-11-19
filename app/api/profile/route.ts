@@ -30,6 +30,9 @@ const EQUIPMENT_OPTIONS: HomeEquipment[] = [
   "kettlebell",
   "rolo_abdominal",
   "barra_fixa",
+  "barra_anilhas",
+  "paralelas",
+  "disco_equilibrio",
   "nenhum"
 ];
 const TIME_OPTIONS = [15, 30, 45, 60, 75, 90];

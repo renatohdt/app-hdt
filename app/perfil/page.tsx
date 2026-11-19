@@ -147,10 +147,13 @@ const EQUIPMENT_OPTIONS = [
   { value: "kettlebell", label: "Kettlebell" },
   { value: "rolo_abdominal", label: "Rolo Abdominal" },
   { value: "barra_fixa", label: "Barra Fixa" },
+  { value: "barra_anilhas", label: "Barra e Anilhas" },
+  { value: "paralelas", label: "Paralelas" },
   { value: "nenhum", label: "Nenhum" }
 ];
 
 const LOCATION_OPTIONS = [
+  { value: "gym", label: "Na academia" },
   { value: "home", label: "Em casa" },
   { value: "condo_gym", label: "Na academia do condomínio" }
 ];

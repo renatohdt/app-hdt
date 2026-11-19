@@ -18,6 +18,7 @@ import { callAIForReplacement, filterReplacementCandidates, pickPrepReplacement 
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 import { getUserLevelRow } from "@/lib/user-level-store";
 import { applyPhaseLevel } from "@/lib/user-level";
+import { resolveExerciseVideoUrl } from "@/lib/exercise-video";
 
 export const dynamic = "force-dynamic";
 
@@ -395,7 +396,7 @@ export async function POST(request: NextRequest) {
     const updatedExercise = {
       ...originalExercise,
       name: replacementRecord.name,
-      videoUrl: replacementRecord.video_url ?? null,
+      videoUrl: resolveExerciseVideoUrl(replacementRecord),
       primaryMuscles: replacementRecord.muscle_groups?.length
         ? [replacementRecord.muscle_groups[0]]
         : replacementRecord.muscle

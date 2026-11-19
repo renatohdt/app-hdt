@@ -67,6 +67,8 @@ const EQUIPMENT_OPTIONS: { value: HomeEquipment; label: string }[] = [
   { value: "kettlebell", label: "KETTLEBELL" },
   { value: "rolo_abdominal", label: "ROLO ABDOMINAL" },
   { value: "barra_fixa", label: "BARRA FIXA" },
+  { value: "barra_anilhas", label: "BARRA E ANILHAS" },
+  { value: "paralelas", label: "PARALELAS" },
   { value: "nenhum", label: "NENHUM" }
 ];
 

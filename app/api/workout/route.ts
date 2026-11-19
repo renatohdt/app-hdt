@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { unstable_cache } from "next/cache";
+import { EXERCISES_CATALOG_CACHE_TAG } from "@/lib/exercise-video";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveWorkoutAge } from "@/lib/age";
 import { normalizeBodyTypeFields } from "@/lib/body-type";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/cycle-renewal";
 import { getActiveProgramEntitlement, getProgramById } from "@/lib/program-store";
 import { clampProgramWeek, getProgramTotalWeeks, getProgramWeeks, mapProgramWeekToWorkoutPlan } from "@/lib/program-workout-mapper";
+import { resolveExerciseVideoUrl } from "@/lib/exercise-video";
 // lib/workout-ai (OpenAI, ~4 mil linhas) é carregado só dentro do POST
 // (geração de treino), para o GET — chamado em toda abertura de tela — iniciar
 // mais rápido quando a função "acorda" (cold start).
@@ -394,7 +396,7 @@ async function buildProgramWorkoutResponse(
   const catalog = await getCachedExerciseCatalog();
   const videoByExerciseId = new Map<string, string | null>();
   for (const exercise of catalog) {
-    videoByExerciseId.set(exercise.id, exercise.video_url ?? null);
+    videoByExerciseId.set(exercise.id, resolveExerciseVideoUrl(exercise));
   }
 
   const workout = mapProgramWeekToWorkoutPlan(program, week, videoByExerciseId);
@@ -1063,5 +1065,7 @@ const getCachedExerciseCatalog = unstable_cache(
     return ((data ?? []) as ExerciseRecord[]).map((exercise) => normalizeExerciseRecord(exercise));
   },
   ["exercises-catalog"],
-  { revalidate: 600 } // 10 minutos
+  // A tag permite ao admin limpar o cache na hora em que salva um exercício
+  // (app/api/admin/exercises). Sem isso, a mudança levava até 10 min para aparecer.
+  { revalidate: 600, tags: [EXERCISES_CATALOG_CACHE_TAG] } // 10 minutos
 );

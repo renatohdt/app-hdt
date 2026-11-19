@@ -74,6 +74,7 @@ import type {
   WorkoutPlan,
   WorkoutSection
 } from "@/lib/types";
+import { resolveExerciseVideoUrl } from "@/lib/exercise-video";
 
 // ---------------------------------------------------------------------------
 // Serialização YAML mínima para o prompt da IA
@@ -1988,7 +1989,7 @@ function ensureSessionWarmup(input: {
     muscleGroups: getExerciseMuscleGroups(lookup.source),
     primaryMuscles: lookup.profile.primaryMuscles,
     secondaryMuscles: lookup.profile.secondaryMuscles,
-    videoUrl: lookup.source.video_url,
+    videoUrl: resolveExerciseVideoUrl(lookup.source),
     movementType: "warmup"
   };
 
@@ -2016,7 +2017,7 @@ function buildCatalogMobilityExercise(
       muscleGroups: getExerciseMuscleGroups(lookup.source),
       primaryMuscles: lookup.profile.primaryMuscles,
       secondaryMuscles: lookup.profile.secondaryMuscles,
-      videoUrl: lookup.source.video_url,
+      videoUrl: resolveExerciseVideoUrl(lookup.source),
       movementType: "mobility"
     },
     strategy
@@ -2448,7 +2449,7 @@ function buildFallbackExercise(
       muscleGroups: getExerciseMuscleGroups(lookup.source),
       primaryMuscles: lookup.profile.primaryMuscles,
       secondaryMuscles: lookup.profile.secondaryMuscles,
-      videoUrl: lookup.source.video_url,
+      videoUrl: resolveExerciseVideoUrl(lookup.source),
       movementType: lookup.profile.movementType
     },
     strategy
@@ -3109,7 +3110,7 @@ function sanitizeAiDayExercises(
         muscleGroups: getExerciseMuscleGroups(lookup.source),
         primaryMuscles: normalizeMuscleList(exercise.primaryMuscles, lookup.profile.primaryMuscles),
         secondaryMuscles: normalizeMuscleList(exercise.secondaryMuscles, lookup.profile.secondaryMuscles),
-        videoUrl: lookup.source.video_url,
+        videoUrl: resolveExerciseVideoUrl(lookup.source),
         movementType
       } satisfies SanitizedExercise;
     })
@@ -4692,6 +4693,14 @@ function normalizeEquipment(value: string) {
     rolo: "rolo_abdominal",
     rolinho: "rolo_abdominal",
     ab_wheel: "rolo_abdominal",
+    barra_fixa: "barra_fixa",
+    barra_anilhas: "barra_anilhas",
+    barra_e_anilhas: "barra_anilhas",
+    anilhas: "barra_anilhas",
+    paralelas: "paralelas",
+    paralela: "paralelas",
+    disco_equilibrio: "disco_equilibrio",
+    bosu: "disco_equilibrio",
     nenhum: "nenhum"
   };
 

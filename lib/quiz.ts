@@ -58,9 +58,10 @@ export const quizSteps = [
   {
     key: "location",
     title: "Onde você vai treinar?",
-    description: "Eu escolho os exercícios de acordo com o local. No Premium você pode ter treino em casa e no condomínio.",
+    description: "Eu escolho os exercícios de acordo com o local. No Premium você pode ter treino em mais de um local.",
     type: "choice",
     options: [
+      { label: "Na academia", value: "gym" },
       { label: "Em casa", value: "home" },
       { label: "Na academia do condomínio", value: "condo_gym" }
     ]
@@ -112,6 +113,18 @@ export const quizSteps = [
         icon: "/icon-barra-fixa.webp"
       },
       {
+        label: "Barra e Anilhas",
+        value: "barra_anilhas",
+        icon: "/icon-barra-anilhas.webp"
+      },
+      {
+        // Paralelas altas (estilo parque/calistenia)
+        label: "Paralelas",
+        value: "paralelas",
+        icon: "/icon-paralelas.webp"
+      },
+      // "Discos de Equilíbrio" (value: "disco_equilibrio", ícone "/icon-disco-equilibrio.webp") fica escondido até ter exercícios.
+      {
         label: "Nenhum",
         value: "nenhum",
         icon: null
@@ -142,12 +155,12 @@ export const quizSteps = [
     description: "Vou priorizar exercícios e volume nessa área.",
     type: "choice",
     options: [
+      { label: "Todos / Equilibrado", value: "balanced" },
       { label: "Peito", value: "chest" },
       { label: "Dorsais", value: "back" },
       { label: "Pernas", value: "legs" },
       { label: "Pernas e Glúteo", value: "legs_glutes" },
-      { label: "Braços", value: "arms" },
-      { label: "Todos / Equilibrado", value: "balanced" }
+      { label: "Braços", value: "arms" }
     ]
   },
   {
@@ -199,5 +212,6 @@ export const initialAnswers: Partial<QuizAnswers> = {
   height: 170,
   days: 3,
   time: 45,
+  focusRegion: "balanced",
   trainingStyle: "personal"
 };

@@ -18,7 +18,10 @@ import {
   normalizeExerciseRecord,
   normalizeStoredExerciseType
 } from "@/lib/exercise-library";
+import { revalidateTag } from "next/cache";
+import { EXERCISES_CATALOG_CACHE_TAG, isSafeProviderVideoId } from "@/lib/exercise-video";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { getYmoveVideo } from "@/lib/ymove";
 import { requireAdminUser } from "@/lib/server-auth";
 import { logError } from "@/lib/server-logger";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
@@ -42,6 +45,8 @@ type ExerciseRequestBody = {
   can_warmup?: boolean;
   video_url?: string | null;
   videoUrl?: string | null;
+  // ID do exercício na YMove (vazio = sem vídeo YMove). O link do vídeo nunca é salvo.
+  video_provider_id?: string | null;
 };
 
 type ExerciseNameLookupRow = Pick<ExerciseRecord, "id" | "name">;
@@ -151,6 +156,8 @@ export async function DELETE(request: Request) {
       return jsonError("Não foi possível deletar o exercício.", 500);
     }
 
+    revalidateTag(EXERCISES_CATALOG_CACHE_TAG);
+
     await recordAdminAuditLog({
       adminId: admin.user?.id ?? "unknown-admin",
       adminEmail: admin.user?.email ?? null,
@@ -192,6 +199,12 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
     const training_styles = Array.isArray(body.training_styles) ? body.training_styles : [];
     const difficulty = normalizeExerciseDifficulty(body.difficulty);
     const can_warmup = typeof body.can_warmup === "boolean" ? body.can_warmup : undefined;
+    const providerVideoId =
+      body.video_provider_id === undefined ? undefined : (body.video_provider_id ?? "").trim() || null;
+
+    if (providerVideoId && !isSafeProviderVideoId(providerVideoId)) {
+      return jsonError("ID do vídeo YMove inválido. Use apenas o ID (ex.: 69b5e89d-e2d4-...), não o link.", 400);
+    }
 
     if (method === "PATCH" && !body.id) {
       return jsonError("Exercício inválido.", 400);
@@ -223,6 +236,34 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       );
     }
 
+    // Vídeo YMove: guarda só o ID e a capa (a capa não vence). A capa é buscada uma vez,
+    // quando o ID muda ou ainda não tem capa (essa consulta conta 1 exercício no limite do plano).
+    let providerFields: Record<string, string | null> | undefined;
+    if (providerVideoId === null) {
+      providerFields = { video_provider: null, video_provider_id: null, video_thumb_url: null };
+    } else if (providerVideoId) {
+      let currentId: string | null = null;
+      let currentThumb: string | null = null;
+      if (body.id) {
+        const current = await supabase
+          .from("exercises")
+          .select("video_provider_id, video_thumb_url")
+          .eq("id", body.id)
+          .maybeSingle();
+        currentId = (current.data?.video_provider_id as string | null) ?? null;
+        currentThumb = (current.data?.video_thumb_url as string | null) ?? null;
+      }
+      let thumb = currentId === providerVideoId ? currentThumb : null;
+      if (!thumb) {
+        const video = await getYmoveVideo(providerVideoId);
+        if (video.status === "unavailable" && video.reason === "not_found") {
+          return jsonError("Esse ID não existe na YMove. Confira o ID e tente de novo.", 400);
+        }
+        thumb = video.status === "ok" ? video.thumbUrl : null;
+      }
+      providerFields = { video_provider: "ymove", video_provider_id: providerVideoId, video_thumb_url: thumb };
+    }
+
     const formattedData = removeUndefined({
       name,
       name_normalized: normalizedName,
@@ -246,7 +287,8 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
         required_equipment: required_equipment ?? [],
         level: level ?? []
       },
-      video_url: (body.video_url ?? body.videoUrl)?.trim() || null
+      video_url: (body.video_url ?? body.videoUrl)?.trim() || null,
+      ...(providerFields ?? {})
     });
 
     let data: unknown = null;
@@ -273,6 +315,9 @@ async function saveExercise(request: Request, method: "POST" | "PATCH") {
       logError("ADMIN", "Exercise save failed", { error: error.message, code: error.code });
       return jsonError("Não foi possível salvar o exercício.", 500);
     }
+
+    // O app passa a ver a mudança na hora (antes levava até 10 min).
+    revalidateTag(EXERCISES_CATALOG_CACHE_TAG);
 
     const normalizedData = Array.isArray(data) ? data[0] ?? null : data;
     const normalizedExercise =

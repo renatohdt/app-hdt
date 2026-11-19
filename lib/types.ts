@@ -27,6 +27,9 @@ export type HomeEquipment =
   | "kettlebell"
   | "rolo_abdominal"
   | "barra_fixa"
+  | "barra_anilhas"
+  | "paralelas"
+  | "disco_equilibrio"
   | "nenhum";
 
 export type UserProfile = "beginner_lost" | "false_intermediate" | "inconsistent" | "stagnated";
@@ -92,6 +95,10 @@ export type ExerciseRecord = {
     required_equipment?: string[];
   };
   video_url: string | null;
+  // Vídeo de fornecedor externo (YMove). Ver lib/exercise-video.ts.
+  video_provider?: string | null;
+  video_provider_id?: string | null;
+  video_thumb_url?: string | null;
 };
 
 export type WorkoutBlockType =

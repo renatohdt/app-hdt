@@ -15,12 +15,16 @@ import { WeightChartModal } from "@/components/weight-chart-modal";
 import { CoachTipInline } from "@/components/coach-tips";
 import type { CoachTip } from "@/lib/coach-tips";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
+import { parseProviderVideoRef } from "@/lib/exercise-video";
 import {
   exerciseDraftKey,
   readExerciseDraftRaw,
   removeExerciseDraftRaw,
   writeExerciseDraftRaw
 } from "@/lib/active-workout-session";
+
+// Vídeos de fornecedor (YMove) tocam no máximo 3 vezes por play.
+const PROVIDER_VIDEO_MAX_PLAYS = 3;
 
 type ExerciseSetEntry = {
   weightKg: string;
@@ -116,6 +120,14 @@ export function ExpandableExerciseCard({
   const [draft, setDraft] = useState<ExerciseExecutionDraft | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [showVideo, setShowVideo] = useState(false);
+  // Vídeo de fornecedor externo (YMove): o link é buscado na hora do play e vence em 48h.
+  const [providerVideoSrc, setProviderVideoSrc] = useState<string | null>(null);
+  const [loadingProviderVideo, setLoadingProviderVideo] = useState(false);
+  const [providerVideoError, setProviderVideoError] = useState(false);
+  const providerVideoRetried = useRef(false);
+  // Toca 3 vezes e para (economiza minutos do plano da YMove).
+  const providerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const providerVideoPlays = useRef(0);
   const [showWeightChart, setShowWeightChart] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [replaceReason, setReplaceReason] = useState<string | null>(null);
@@ -164,8 +176,19 @@ export function ExpandableExerciseCard({
   }, [draft, storageKey]);
 
   useEffect(() => {
+    if (!showVideo || !providerVideoSrc) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") providerVideoRef.current?.pause();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [showVideo, providerVideoSrc]);
+
+  useEffect(() => {
     if (!expanded) {
       setShowVideo(false);
+      setProviderVideoSrc(null);
+      setProviderVideoError(false);
       setFeedback(null);
       return;
     }
@@ -222,7 +245,66 @@ export function ExpandableExerciseCard({
   // Este exercício está 100% concluído quando todas as séries planejadas estão marcadas.
   const isExerciseComplete = totalSetRows > 0 && setEntries.every((entry) => entry.completed);
   const panelId = `exercise-panel-${exercise.id}`;
-  const posterUrl = resolveVideoPoster(exercise.videoUrl);
+  const providerVideo = parseProviderVideoRef(exercise.videoUrl);
+  const posterUrl = providerVideo ? providerVideo.thumbUrl : resolveVideoPoster(exercise.videoUrl);
+
+  // Play: YouTube abre o iframe; YMove busca um link novo no servidor e toca no mesmo lugar.
+  async function handlePlayVideo(forceRefresh = false) {
+    if (!exercise.videoUrl) return;
+    if (!providerVideo) {
+      setShowVideo(true);
+      return;
+    }
+    providerVideoPlays.current = 0;
+    if (providerVideoSrc && !forceRefresh) {
+      setShowVideo(true);
+      return;
+    }
+    if (loadingProviderVideo) return;
+    setLoadingProviderVideo(true);
+    setProviderVideoError(false);
+    try {
+      const params = new URLSearchParams({ provider: providerVideo.provider, id: providerVideo.id });
+      const response = await fetchWithAuth(`/api/exercise-video?${params.toString()}`);
+      const payload = (await response.json().catch(() => null)) as
+        | { success?: boolean; data?: { available?: boolean; videoUrl?: string } }
+        | null;
+      const src = payload?.data?.available ? payload.data.videoUrl : null;
+      if (src) {
+        setProviderVideoSrc(src);
+        setShowVideo(true);
+      } else {
+        setProviderVideoError(true);
+      }
+    } catch {
+      setProviderVideoError(true);
+    } finally {
+      setLoadingProviderVideo(false);
+    }
+  }
+
+  function handleProviderVideoEnded() {
+    providerVideoPlays.current += 1;
+    const video = providerVideoRef.current;
+    if (video && providerVideoPlays.current < PROVIDER_VIDEO_MAX_PLAYS) {
+      video.currentTime = 0;
+      void video.play().catch(() => undefined);
+      return;
+    }
+    setShowVideo(false);
+  }
+
+  // Se o link vencer no meio do uso, tenta buscar um novo uma única vez.
+  function handleProviderVideoError() {
+    setProviderVideoSrc(null);
+    setShowVideo(false);
+    if (!providerVideoRetried.current) {
+      providerVideoRetried.current = true;
+      void handlePlayVideo(true);
+    } else {
+      setProviderVideoError(true);
+    }
+  }
   const isMobilityExercise = exercise.isMobility;
   // Aquecimento (ex.: manguito): amarelo + etiqueta, para o aluno entender que ainda não é o treino.
   const isWarmupExercise = exercise.blockType === "warmup";
@@ -673,7 +755,24 @@ export function ExpandableExerciseCard({
             </section>
 
             <div className="overflow-hidden rounded-none bg-black/20">
-              {showVideo && exercise.videoUrl ? (
+              {showVideo && providerVideo && providerVideoSrc ? (
+                <video
+                  ref={providerVideoRef}
+                  className="aspect-video w-full bg-black object-contain"
+                  src={providerVideoSrc}
+                  poster={posterUrl ?? undefined}
+                  title={`Vídeo demonstrativo de ${exercise.name}`}
+                  autoPlay
+                  muted
+                  playsInline
+                  controls
+                  controlsList="nodownload"
+                  disablePictureInPicture
+                  onContextMenu={(event) => event.preventDefault()}
+                  onEnded={handleProviderVideoEnded}
+                  onError={handleProviderVideoError}
+                />
+              ) : showVideo && exercise.videoUrl && !providerVideo ? (
                 <iframe
                   className="aspect-video w-full"
                   src={toEmbedUrl(exercise.videoUrl)}
@@ -698,7 +797,7 @@ export function ExpandableExerciseCard({
                   <div className="absolute inset-0 flex items-center justify-center">
                     <button
                       type="button"
-                      onClick={() => exercise.videoUrl && setShowVideo(true)}
+                      onClick={() => void handlePlayVideo()}
                       data-tour={expanded && exercise.videoUrl ? "exercise-video" : undefined}
                       disabled={!exercise.videoUrl}
                       className={clsx(
@@ -708,10 +807,16 @@ export function ExpandableExerciseCard({
                           : "border-white/10 bg-black/20 text-white/30"
                       )}
                       aria-label="Ver vídeo"
+                      aria-busy={loadingProviderVideo}
                     >
-                      <PlayCircle className="h-8 w-8" />
+                      {loadingProviderVideo ? <Loader2 className="h-8 w-8 animate-spin" /> : <PlayCircle className="h-8 w-8" />}
                     </button>
                   </div>
+                  {providerVideoError ? (
+                    <p className="absolute inset-x-0 bottom-3 px-4 text-center text-[11px] font-medium text-white/70">
+                      Vídeo indisponível no momento. Tente novamente mais tarde.
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>

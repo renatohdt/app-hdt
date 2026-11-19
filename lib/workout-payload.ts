@@ -9,6 +9,7 @@ import {
 import { buildWorkoutSectionItems, flattenWorkoutSectionItems } from "@/lib/workout-section-items";
 import { formatSplitTypeLabel, normalizeBlockType } from "@/lib/workout-strategy";
 import { buildSessionTimeBudget } from "@/lib/workout-time";
+import { resolveExerciseVideoUrl } from "@/lib/exercise-video";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -401,7 +402,7 @@ function syncWorkoutExerciseWithCatalog(
   return {
     ...exercise,
     muscleGroups: getExerciseMuscleGroups(catalogExercise),
-    videoUrl: catalogExercise.video_url ?? exercise.videoUrl
+    videoUrl: resolveExerciseVideoUrl(catalogExercise) ?? exercise.videoUrl
   };
 }
 

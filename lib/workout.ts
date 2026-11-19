@@ -12,6 +12,7 @@ import {
   WorkoutPlan,
   WorkoutSection
 } from "@/lib/types";
+import { resolveExerciseVideoUrl } from "@/lib/exercise-video";
 
 const PRIMARY_MUSCLES = ["chest", "back", "quadriceps", "hamstrings", "glutes"] as const;
 const SECONDARY_MUSCLES = [
@@ -412,7 +413,7 @@ function toWorkoutExercise(
     reps: profile.reps,
     rest: profile.rest,
     technique: getTechnique(profile, index, exercise, dayPlan),
-    videoUrl: exercise.video_url
+    videoUrl: resolveExerciseVideoUrl(exercise)
   };
 }
 
