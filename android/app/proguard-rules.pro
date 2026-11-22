@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ===== Hora do Treino =====
+# Mantém número de linha nos relatórios de erro (crash) do Play Console.
+-keepattributes SourceFile,LineNumberTable,*Annotation*,Signature,InnerClasses,EnclosingMethod
+-renamesourcefileattribute SourceFile
+
+# Ponte entre o site (JavaScript) e o app nativo: não pode ser renomeada.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
