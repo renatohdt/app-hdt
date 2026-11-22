@@ -6,6 +6,7 @@ import { Card } from "@/components/ui";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { AdminDashboardData, DistributionDatum, formatDate } from "@/lib/admin-shared";
 import { formatBRL } from "@/lib/premium-pricing";
+import { AdminCancellationsList } from "@/components/admin-cancellations-list";
 
 // Painel do PostHog (funil, retenção e atividade saíram do admin em out/2026).
 const POSTHOG_DASHBOARDS_URL = "https://us.posthog.com/project/620910/dashboard";
@@ -231,6 +232,20 @@ export function AdminDashboardOverview({ data }: { data: AdminDashboardData }) {
           <PremiumPotentialTable />
         </section>
       )}
+
+      {/* Questionário de cancelamento do Premium — recolhido */}
+      <details className="group rounded-[28px] border border-white/10 bg-black/20">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+          <span className="text-sm font-semibold text-white">Cancelamentos do Premium (questionário)</span>
+          <span className="flex items-center gap-2 text-xs text-white/50">
+            motivos, comentários e quem cancelou
+            <span className="inline-block transition group-open:rotate-180">▾</span>
+          </span>
+        </summary>
+        <div className="border-t border-white/10 p-4">
+          <AdminCancellationsList />
+        </div>
+      </details>
 
       {/* Perfil do quiz — recolhido, com abas */}
       <details className="group rounded-[28px] border border-white/10 bg-black/20">

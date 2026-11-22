@@ -1,6 +1,7 @@
 "use client";
 
 import { UpsellModal } from "@/components/upsell-modal";
+import { CancellationSurvey } from "@/components/cancellation-survey";
 import { useState } from "react";
 import { Check, ChevronRight, CreditCard, ExternalLink } from "lucide-react";
 import { PremiumBadge } from "@/components/premium-badge";
@@ -60,7 +61,10 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(subscription?.cancelAtPeriodEnd ?? false);
   const [cancelsAt, setCancelsAt] = useState(subscription?.cancelsAt ?? null);
   const [renewsAt, setRenewsAt] = useState(subscription?.renewsAt ?? null);
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // Fluxo de cancelamento: botão → "Tem certeza?" → questionário → cancelamento real.
+  const [cancelStep, setCancelStep] = useState<"idle" | "confirm" | "survey">("idle");
+  // Lojas: depois do questionário a pessoa vai para a loja concluir o cancelamento.
+  const [sentToStore, setSentToStore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,7 +123,7 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
       setCancelAtPeriodEnd(Boolean(d.cancelAtPeriodEnd));
       setCancelsAt(d.cancelsAt ?? null);
       setRenewsAt(d.renewsAt ?? null);
-      setConfirmingCancel(false);
+      setCancelStep("idle");
       trackEvent("cta_click", null, { source: action === "cancel" ? "subscription_cancel" : "subscription_reactivate" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro de conexão. Tente novamente.");
@@ -139,6 +143,56 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
     if (subscription.accessUntil) statusText = `Ativo até ${formatDate(subscription.accessUntil)}`;
   } else if (source === "program") {
     statusText = "Incluso enquanto seu programa estiver ativo";
+  }
+
+  // Botão "Cancelar assinatura" → "Tem certeza?" → questionário.
+  // Usado pelo Stripe (app e web) e pelas lojas; só muda o passo final (onDone).
+  function renderCancelFlow(opts: { periodEnd: string | null; submitLabel: string; onDone: () => void | Promise<void> }) {
+    if (cancelStep === "survey") {
+      return <CancellationSurvey submitLabel={opts.submitLabel} onDone={opts.onDone} busy={loading} />;
+    }
+
+    if (cancelStep === "confirm") {
+      return (
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+          <p className="text-[13px] font-semibold text-white">Tem certeza? Ao cancelar você perde:</p>
+          <ul className="space-y-1">
+            {PREMIUM_BENEFITS.map((benefit) => (
+              <li key={benefit} className="text-[12.5px] text-white/55">
+                ✕ {benefit}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[12px] text-white/45">
+            Você mantém o Premium até o fim do período já pago{opts.periodEnd ? ` (${formatDate(opts.periodEnd)})` : ""}.
+          </p>
+          <button
+            type="button"
+            onClick={() => setCancelStep("idle")}
+            className="w-full rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3 text-sm font-black text-[#2b1d00] transition hover:opacity-95"
+          >
+            Manter meu Premium
+          </button>
+          <button
+            type="button"
+            onClick={() => setCancelStep("survey")}
+            className="w-full rounded-2xl py-2.5 text-sm font-semibold text-red-400/90 transition hover:bg-red-500/10"
+          >
+            Quero cancelar
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => setCancelStep("confirm")}
+        className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/60 transition hover:bg-white/10 hover:text-white"
+      >
+        Cancelar assinatura
+      </button>
+    );
   }
 
   return (
@@ -178,13 +232,14 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
           ) : (
             <>
               <CreditCard className="h-4 w-4" />
-              Gerenciar pagamento e assinatura
+              Atualizar forma de pagamento
             </>
           )}
         </button>
       ) : null}
 
-      {source === "stripe" && isNative && subscription.manageable ? (
+      {/* Stripe (app e web): cancelar/reativar direto pelo nosso servidor. */}
+      {source === "stripe" && subscription.manageable ? (
         cancelAtPeriodEnd ? (
           <button
             type="button"
@@ -194,47 +249,16 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
           >
             {loading ? "Reativando..." : "Reativar assinatura"}
           </button>
-        ) : confirmingCancel ? (
-          <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-            <p className="text-[13px] font-semibold text-white">Tem certeza? Ao cancelar você perde:</p>
-            <ul className="space-y-1">
-              {PREMIUM_BENEFITS.map((benefit) => (
-                <li key={benefit} className="text-[12.5px] text-white/55">
-                  ✕ {benefit}
-                </li>
-              ))}
-            </ul>
-            <p className="text-[12px] text-white/45">
-              Você mantém o Premium até o fim do período já pago{renewsAt ? ` (${formatDate(renewsAt)})` : ""}.
-            </p>
-            <button
-              type="button"
-              onClick={() => setConfirmingCancel(false)}
-              disabled={loading}
-              className="w-full rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3 text-sm font-black text-[#2b1d00] transition hover:opacity-95 disabled:opacity-50"
-            >
-              Manter meu Premium
-            </button>
-            <button
-              type="button"
-              onClick={() => void runStripeAction("cancel")}
-              disabled={loading}
-              className="w-full rounded-2xl py-2.5 text-sm font-semibold text-red-400/90 transition hover:bg-red-500/10 disabled:opacity-50"
-            >
-              {loading ? "Cancelando..." : "Cancelar mesmo assim"}
-            </button>
-          </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmingCancel(true)}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-semibold text-white/60 transition hover:bg-white/10 hover:text-white"
-          >
-            Cancelar assinatura
-          </button>
+          renderCancelFlow({
+            periodEnd: renewsAt,
+            submitLabel: "Enviar e cancelar assinatura",
+            onDone: () => runStripeAction("cancel")
+          })
         )
       ) : null}
 
+      {/* Lojas: o cancelamento só pode ser concluído na App Store / Google Play. */}
       {source === "app_store" || source === "play_store" ? (
         <div className="space-y-2">
           <button
@@ -245,10 +269,23 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
             <ExternalLink className="h-4 w-4" />
             {source === "app_store" ? "Gerenciar na App Store" : "Gerenciar no Google Play"}
           </button>
-          <p className="text-center text-[11.5px] leading-snug text-white/35">
-            Você assinou pela {source === "app_store" ? "App Store" : "Google Play"}, então troca de plano e
-            cancelamento são feitos por lá.
-          </p>
+          {sentToStore ? (
+            <p className="text-center text-[12px] leading-snug text-white/50">
+              Abrimos a página de assinaturas da {source === "app_store" ? "App Store" : "Google Play"}. O
+              cancelamento é concluído por lá.
+            </p>
+          ) : (
+            renderCancelFlow({
+              periodEnd: subscription.accessUntil ?? null,
+              submitLabel: `Enviar e ir para ${source === "app_store" ? "a App Store" : "o Google Play"}`,
+              onDone: () => {
+                openExternal(source === "app_store" ? APP_STORE_SUBSCRIPTIONS_URL : PLAY_STORE_SUBSCRIPTIONS_URL);
+                setCancelStep("idle");
+                setSentToStore(true);
+                trackEvent("cta_click", null, { source: "subscription_cancel_store_redirect" });
+              }
+            })
+          )}
         </div>
       ) : null}
 

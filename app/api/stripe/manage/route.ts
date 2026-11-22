@@ -3,7 +3,9 @@ import { stripe } from "@/lib/stripe";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { getUserSubscription } from "@/lib/subscription";
-import { logError, logInfo } from "@/lib/server-logger";
+import { logError, logInfo, logWarn } from "@/lib/server-logger";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
+import { markCancellationConfirmed } from "@/lib/cancellation-feedback";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,21 @@ export async function POST(request: NextRequest) {
     logInfo("STRIPE_MANAGE", `Assinatura ${action}`, { user_id: auth.user.id });
 
     const cancelAtPeriodEnd = updated.cancel_at_period_end;
+
+    // Questionário de cancelamento: marca a resposta da pessoa como "cancelou de verdade".
+    // Se falhar, só registra no log — o cancelamento já foi feito no Stripe.
+    if (action === "cancel" && cancelAtPeriodEnd) {
+      const admin = createSupabaseAdminClient();
+      if (admin) {
+        const result = await markCancellationConfirmed(admin, auth.user.id, ["stripe_app", "stripe_web"]);
+        if (result.error) {
+          logWarn("STRIPE_MANAGE", "Não marcou o questionário de cancelamento", {
+            user_id: auth.user.id,
+            error: result.error,
+          });
+        }
+      }
+    }
     // Na versão atual da API do Stripe, o período fica no ITEM da assinatura
     // (mesmo padrão usado no webhook), não no objeto de assinatura.
     const periodEndUnix = updated.items.data[0]?.current_period_end ?? null;

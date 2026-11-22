@@ -4,6 +4,7 @@ import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { notifyAccountEvent } from "@/lib/notify-user";
 import { pagamentoLojaFalhouText } from "@/lib/notification-copy";
+import { markCancellationConfirmed } from "@/lib/cancellation-feedback";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,19 @@ export async function POST(request: NextRequest) {
     if (error) {
       logError("REVENUECAT", "Erro ao atualizar premium da loja", { error: error.message, type });
       return jsonError("Erro ao processar.", 500);
+    }
+
+    // CANCELLATION = a pessoa desligou a renovação na loja (o acesso continua até
+    // expirar, tratado acima). Marca a resposta do questionário de cancelamento
+    // como "cancelou de verdade". Se falhar, só registra no log.
+    if (type === "CANCELLATION") {
+      const result = await markCancellationConfirmed(supabase, appUserId, ["app_store", "play_store"]);
+      if (result.error) {
+        logWarn("REVENUECAT", "Não marcou o questionário de cancelamento", {
+          user_id: appUserId,
+          error: result.error,
+        });
+      }
     }
 
     logInfo("REVENUECAT", "Premium da loja atualizado", {
