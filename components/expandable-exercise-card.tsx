@@ -1,8 +1,9 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, PlayCircle, TrendingUp, X, Crown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Maximize2, PlayCircle, TrendingUp, X, Crown } from "lucide-react";
 import { Button, Card } from "@/components/ui";
 import { UpsellModal, type UpsellReason } from "@/components/upsell-modal";
 import { ReplacementPicker, type ReplacementOption } from "@/components/replacement-picker";
@@ -130,6 +131,9 @@ export function ExpandableExerciseCard({
   // Toca 3 vezes e para (economiza minutos do plano da YMove).
   const providerVideoRef = useRef<HTMLVideoElement | null>(null);
   const providerVideoPlays = useRef(0);
+  // Tela cheia do vídeo YMove. Usa a tela cheia nativa quando o aparelho deixa;
+  // senão (ex.: WebView do app), abre o vídeo por cima de tudo, deitado se o celular estiver em pé.
+  const [providerFullscreen, setProviderFullscreen] = useState<null | { rotate: boolean }>(null);
   const [showWeightChart, setShowWeightChart] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [replaceReason, setReplaceReason] = useState<string | null>(null);
@@ -194,6 +198,7 @@ export function ExpandableExerciseCard({
 
   useEffect(() => {
     if (!expanded) {
+      setProviderFullscreen(null);
       setShowVideo(false);
       setProviderVideoSrc(null);
       setProviderVideoError(false);
@@ -253,6 +258,30 @@ export function ExpandableExerciseCard({
   // Este exercício está 100% concluído quando todas as séries planejadas estão marcadas.
   const isExerciseComplete = totalSetRows > 0 && setEntries.every((entry) => entry.completed);
   const panelId = `exercise-panel-${exercise.id}`;
+  // Em tela cheia o vídeo vai para o topo da página (portal), para não ficar preso dentro do card.
+  function renderProviderVideo(node: ReactNode) {
+    return providerFullscreen && typeof document !== "undefined" ? createPortal(node, document.body) : node;
+  }
+
+  function handleProviderFullscreen() {
+    const video = providerVideoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (!video) return;
+    // iPhone/iPad: o próprio player do sistema em tela cheia.
+    if (typeof video.webkitEnterFullscreen === "function" && !document.fullscreenEnabled) {
+      try {
+        video.webkitEnterFullscreen();
+        return;
+      } catch {
+        // segue para a alternativa abaixo
+      }
+    }
+    if (document.fullscreenEnabled && typeof video.requestFullscreen === "function") {
+      video.requestFullscreen().catch(() => setProviderFullscreen({ rotate: window.innerHeight > window.innerWidth }));
+      return;
+    }
+    setProviderFullscreen({ rotate: window.innerHeight > window.innerWidth });
+  }
+
   const providerVideo = parseProviderVideoRef(exercise.videoUrl);
   const posterUrl = providerVideo ? providerVideo.thumbUrl : resolveVideoPoster(exercise.videoUrl);
 
@@ -854,22 +883,57 @@ export function ExpandableExerciseCard({
 
             <div className="overflow-hidden rounded-none bg-black/20">
               {showVideo && providerVideo && providerVideoSrc ? (
-                <video
-                  ref={providerVideoRef}
-                  className="aspect-video w-full bg-black object-contain"
-                  src={providerVideoSrc}
-                  poster={posterUrl ?? undefined}
-                  title={`Vídeo demonstrativo de ${exercise.name}`}
-                  autoPlay
-                  muted
-                  playsInline
-                  controls
-                  controlsList="nodownload"
-                  disablePictureInPicture
-                  onContextMenu={(event) => event.preventDefault()}
-                  onEnded={handleProviderVideoEnded}
-                  onError={handleProviderVideoError}
-                />
+                renderProviderVideo(
+                <div
+                  className={clsx(
+                    "relative",
+                    providerFullscreen ? "fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black" : null
+                  )}
+                >
+                  <video
+                    ref={providerVideoRef}
+                    className={clsx("bg-black object-contain", providerFullscreen ? "max-h-none max-w-none" : "aspect-video w-full")}
+                    style={
+                      providerFullscreen
+                        ? providerFullscreen.rotate
+                          ? { width: "100vh", height: "100vw", transform: "rotate(90deg)" }
+                          : { width: "100vw", height: "100vh" }
+                        : undefined
+                    }
+                    src={providerVideoSrc}
+                    poster={posterUrl ?? undefined}
+                    title={`Vídeo demonstrativo de ${exercise.name}`}
+                    autoPlay
+                    muted
+                    playsInline
+                    controls
+                    controlsList="nodownload nofullscreen"
+                    disablePictureInPicture
+                    onContextMenu={(event) => event.preventDefault()}
+                    onEnded={handleProviderVideoEnded}
+                    onError={handleProviderVideoError}
+                  />
+                  {providerFullscreen ? (
+                    <button
+                      type="button"
+                      onClick={() => setProviderFullscreen(null)}
+                      aria-label="Sair da tela cheia"
+                      className="absolute right-4 top-[calc(env(safe-area-inset-top)+16px)] z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white"
+                    >
+                      <X className="h-5 w-5" aria-hidden />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleProviderFullscreen}
+                      aria-label="Ampliar vídeo"
+                      className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white"
+                    >
+                      <Maximize2 className="h-4 w-4" aria-hidden />
+                    </button>
+                  )}
+                </div>
+                )
               ) : showVideo && exercise.videoUrl && !providerVideo ? (
                 <iframe
                   className="aspect-video w-full"
