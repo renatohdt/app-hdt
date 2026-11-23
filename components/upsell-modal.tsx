@@ -9,6 +9,7 @@ import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 
 export type UpsellReason =
   | "replacement_limit"   // Tentou substituir o 3º exercício
+  | "replacement_choice"  // Free tocou numa opção bloqueada na tela de escolha do substituto
   | "program_completed"   // Completou o 2º programa no free (fim de ciclo)
   | "generate_workout"    // Tentou gerar novo treino sem ser premium
   | "combine_styles"         // Tentou combinar 2+ estilos de treino sem ser premium
@@ -34,8 +35,13 @@ type UpsellModalProps = {
 // pagamento, então a descrição precisa caber sem rolar a tela.
 const CONTENT: Record<UpsellReason, { title: string; description: string; cta: string }> = {
   replacement_limit: {
-    title: "Mais trocas de exercício",
-    description: "Você usou as 2 trocas do plano gratuito. No Premium são 2 trocas em cada treino (A, B, C…), e sem anúncios.",
+    title: "Trocas de exercício ilimitadas",
+    description: "Você usou as 2 trocas do plano gratuito. No Premium você troca quantas vezes precisar, e sem anúncios.",
+    cta: "Assinar Premium",
+  },
+  replacement_choice: {
+    title: "Escolha o exercício que é melhor para você",
+    description: "No Premium eu te mostro 3 opções a cada troca e você escolhe. Trocas ilimitadas e sem anúncios.",
     cta: "Assinar Premium",
   },
   program_completed: {

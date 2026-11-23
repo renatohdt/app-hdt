@@ -14,11 +14,12 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import { isPremium } from "@/lib/subscription";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
-import { callAIForReplacement, filterReplacementCandidates, pickPrepReplacement } from "@/lib/workout-ai";
+import { callAIForReplacement, filterReplacementCandidates, pickPrepReplacement, rankReplacementOptions } from "@/lib/workout-ai";
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 import { getUserLevelRow } from "@/lib/user-level-store";
 import { applyPhaseLevel } from "@/lib/user-level";
 import { resolveExerciseVideoUrl } from "@/lib/exercise-video";
+import { formatMuscleLabel } from "@/lib/workout-strategy";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,15 @@ type ReplaceExerciseBody = {
   exerciseName?: unknown;
   exerciseIndex?: unknown;
   reason?: unknown;
+  // Fase 2 (escolha entre opções):
+  // - "options": devolve as opções da IA e NÃO salva nada (Premium: até 3; Free: 1 + quantas ficam bloqueadas)
+  // - "confirm": troca pelo exercício escolhido (replacementExerciseId), validado contra a lista de candidatos
+  // - ausente: troca direta, a IA escolhe sozinha (usado por mobilidade/aquecimento)
+  mode?: unknown;
+  replacementExerciseId?: unknown;
 };
+
+type ReplaceMode = "auto" | "options" | "confirm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,6 +85,14 @@ export async function POST(request: NextRequest) {
     const workoutDayId = body.workoutDayId.trim();
     const exerciseName = body.exerciseName.trim();
     const reason = body.reason as ReplacementReason;
+    const mode: ReplaceMode = body.mode === "options" || body.mode === "confirm" ? body.mode : "auto";
+    const chosenReplacementId =
+      typeof body.replacementExerciseId === "string" && body.replacementExerciseId.trim()
+        ? body.replacementExerciseId.trim()
+        : null;
+    if (mode === "confirm" && !chosenReplacementId) {
+      return jsonError("replacementExerciseId é obrigatório para confirmar a troca.", 400);
+    }
 
     // --- Buscar workout do usuário ---
     const { data: workoutRow, error: workoutError } = await supabase
@@ -143,10 +160,14 @@ export async function POST(request: NextRequest) {
     if (isPrepOriginal && reason !== "dont_like" && reason !== "no_equipment") {
       return jsonError("Para mobilidade e aquecimento use: no_equipment ou dont_like.", 400);
     }
+    // Mobilidade/aquecimento continuam com troca direta (sem tela de escolha).
+    if (isPrepOriginal && mode !== "auto") {
+      return jsonError("Mobilidade e aquecimento usam a troca direta.", 400);
+    }
 
     // --- Verificar limite de substituições baseado no plano real do usuário ---
     // Free:    2 substituições por programa de treino
-    // Premium: 2 substituições por letra (Treino A, B, C...) durante o programa
+    // Premium: ilimitadas
     //
     // IMPORTANTE: ao gerar um programa novo, o app REAPROVEITA a mesma linha de
     // `workouts` (mesmo id) e só atualiza o created_at. Por isso contamos apenas as
@@ -187,39 +208,8 @@ export async function POST(request: NextRequest) {
         });
         return NextResponse.json({ success: false, error: "replacement_limit_reached", plan: "free" }, { status: 403 });
       }
-    } else if (!isPrepOriginal) {
-      // Premium: conta substituições apenas desta sessão (Treino A, B, C... independentes)
-      let dayCountQuery = supabase
-        .from("workout_exercise_replacements")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("workout_id", workoutId)
-        .eq("workout_day_id", workoutDayId);
-      if (programStartedAt) {
-        dayCountQuery = dayCountQuery.gte("created_at", programStartedAt);
-      }
-      const { count: dayReplacementCount, error: dayCountError } = await dayCountQuery;
-
-      if (dayCountError) {
-        logError("REPLACE_EXERCISE", "Premium day replacement count query failed", {
-          user_id: userId,
-          workout_id: workoutId,
-          workout_day_id: workoutDayId,
-          error_code: getSupabaseErrorCode(dayCountError)
-        });
-        return jsonError(REPLACE_ERROR_MESSAGE, 500);
-      }
-
-      if ((dayReplacementCount ?? 0) >= 2) {
-        logInfo("REPLACE_EXERCISE", "Premium per-day replacement limit reached", {
-          user_id: userId,
-          workout_id: workoutId,
-          workout_day_id: workoutDayId,
-          count: dayReplacementCount
-        });
-        return NextResponse.json({ success: false, error: "replacement_limit_reached", plan: "premium" }, { status: 403 });
-      }
     }
+    // Premium: substituições ilimitadas (nov/2026) — não há contagem.
 
     // --- Carregar catálogo de exercícios ---
     const exerciseLibrary = await loadExerciseCatalog(supabase, userId);
@@ -358,34 +348,80 @@ export async function POST(request: NextRequest) {
         difficulty: originalRecord.difficulty ?? null
       };
 
-      // --- Chamar a IA (validar contra a lista de candidatos, não o catálogo inteiro) ---
       const candidateIdSet = new Set(candidates.map((c) => c.id));
 
-      let aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
-
-      if (!candidateIdSet.has(aiResult.replacementExerciseId)) {
-        logWarn("REPLACE_EXERCISE", "AI returned exercise outside candidate list, retrying", {
+      // --- Fase 2: buscar opções (não salva nada) ---
+      if (mode === "options") {
+        // Premium escolhe entre 3; Free recebe só a minha escolha (as outras aparecem bloqueadas).
+        const optionIds = await rankReplacementOptions(originalForAI, reason, candidates, answers, userIsPremium ? 3 : 1);
+        const options = optionIds
+          .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+          .filter((record): record is ExerciseRecord => Boolean(record))
+          .map((record) => ({
+            id: record.id,
+            name: record.name,
+            difficulty: record.difficulty ?? null,
+            primaryMuscle: getPrimaryExerciseMuscle(record) ? formatMuscleLabel(getPrimaryExerciseMuscle(record)) : null,
+            videoUrl: resolveExerciseVideoUrl(record)
+          }));
+        if (!options.length) {
+          return jsonError(NO_CANDIDATES_MESSAGE, 422);
+        }
+        // Free: quantas opções a mais o Premium veria (no máximo 2), sem revelar quais são.
+        const lockedCount = userIsPremium ? 0 : Math.min(2, Math.max(0, candidates.length - options.length));
+        logInfo("REPLACE_EXERCISE", "Replacement options offered", {
           user_id: userId,
           workout_id: workoutId,
-          returned_id: aiResult.replacementExerciseId,
-          returned_name: aiResult.replacementExerciseName,
-          candidates_count: candidates.length
+          original_exercise_id: originalRecord.id,
+          options_count: options.length,
+          locked_count: lockedCount,
+          reason
         });
+        return jsonSuccess({ options, lockedCount });
+      }
 
-        aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
+      // --- Fase 2: confirmar a escolha do aluno ---
+      if (mode === "confirm") {
+        if (!chosenReplacementId || !candidateIdSet.has(chosenReplacementId)) {
+          logWarn("REPLACE_EXERCISE", "Chosen replacement not in candidate list", {
+            user_id: userId,
+            workout_id: workoutId,
+            chosen_id: chosenReplacementId
+          });
+          return NextResponse.json(
+            { success: false, error: "option_unavailable", message: "Essa opção não está mais disponível. Escolha outra." },
+            { status: 409 }
+          );
+        }
+        replacementRecord = exerciseLibrary.find((exercise) => exercise.id === chosenReplacementId);
+      } else {
+        // --- Troca direta: a IA escolhe sozinha (validar contra a lista de candidatos) ---
+        let aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
 
         if (!candidateIdSet.has(aiResult.replacementExerciseId)) {
-          logError("REPLACE_EXERCISE", "AI replacement not in candidate list after retry", {
+          logWarn("REPLACE_EXERCISE", "AI returned exercise outside candidate list, retrying", {
             user_id: userId,
             workout_id: workoutId,
             returned_id: aiResult.replacementExerciseId,
+            returned_name: aiResult.replacementExerciseName,
             candidates_count: candidates.length
           });
-          return NextResponse.json({ success: false, error: "replacement_not_found" }, { status: 422 });
-        }
-      }
 
-      replacementRecord = exerciseLibrary.find((exercise) => exercise.id === aiResult.replacementExerciseId);
+          aiResult = await callAIForReplacement(originalForAI, reason, candidates, answers);
+
+          if (!candidateIdSet.has(aiResult.replacementExerciseId)) {
+            logError("REPLACE_EXERCISE", "AI replacement not in candidate list after retry", {
+              user_id: userId,
+              workout_id: workoutId,
+              returned_id: aiResult.replacementExerciseId,
+              candidates_count: candidates.length
+            });
+            return NextResponse.json({ success: false, error: "replacement_not_found" }, { status: 422 });
+          }
+        }
+
+        replacementRecord = exerciseLibrary.find((exercise) => exercise.id === aiResult.replacementExerciseId);
+      }
     }
 
     if (!replacementRecord) {
@@ -480,14 +516,20 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Adicionar à lista de exercícios excluídos do usuário ---
-    const { error: excludeError } = await supabase.from("user_excluded_exercises").upsert(
-      {
-        user_id: userId,
-        exercise_id: originalRecord.id,
-        exercise_name: originalRecord.name
-      },
-      { onConflict: "user_id,exercise_id", ignoreDuplicates: true }
-    );
+    // Só exclui de vez quando o motivo é "não gostei" ou "equipamento indisponível".
+    // "Muito difícil" / "muito fácil" NÃO excluem: o exercício pode voltar quando o
+    // nível do aluno mudar, e assim o catálogo não se esgota com trocas ilimitadas.
+    const shouldExclude = reason === "dont_like" || reason === "no_equipment";
+    const { error: excludeError } = shouldExclude
+      ? await supabase.from("user_excluded_exercises").upsert(
+          {
+            user_id: userId,
+            exercise_id: originalRecord.id,
+            exercise_name: originalRecord.name
+          },
+          { onConflict: "user_id,exercise_id", ignoreDuplicates: true }
+        )
+      : { error: null };
 
     if (excludeError) {
       logWarn("REPLACE_EXERCISE", "Excluded exercise insert failed (non-blocking)", {

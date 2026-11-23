@@ -2,9 +2,10 @@
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, Lock, PlayCircle, TrendingUp, X, Crown } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Check, ChevronDown, ChevronRight, Loader2, PlayCircle, TrendingUp, X, Crown } from "lucide-react";
 import { Button, Card } from "@/components/ui";
-import { UpsellModal } from "@/components/upsell-modal";
+import { UpsellModal, type UpsellReason } from "@/components/upsell-modal";
+import { ReplacementPicker, type ReplacementOption } from "@/components/replacement-picker";
 import { useConsentPreferences } from "@/components/consent-provider";
 import { useAdMobAvailable } from "@/components/RewardedAdButton";
 import { preloadRewardedAd, showRewardedAd } from "@/lib/admob";
@@ -16,6 +17,7 @@ import { CoachTipInline } from "@/components/coach-tips";
 import type { CoachTip } from "@/lib/coach-tips";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { parseProviderVideoRef } from "@/lib/exercise-video";
+import { resolveVideoPoster, toEmbedUrl } from "@/lib/video-embed";
 import {
   exerciseDraftKey,
   readExerciseDraftRaw,
@@ -135,6 +137,12 @@ export function ExpandableExerciseCard({
   const [replaceError, setReplaceError] = useState<string | null>(null);
   const [replaceLimitError, setReplaceLimitError] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [upsellReason, setUpsellReason] = useState<UpsellReason>("replacement_limit");
+  // Tela de escolha do substituto (Fase 2): opções da IA, bloqueadas (Free) e confirmação.
+  const [pickerOptions, setPickerOptions] = useState<ReplacementOption[] | null>(null);
+  const [pickerLockedCount, setPickerLockedCount] = useState(0);
+  const [confirmingChoice, setConfirmingChoice] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
   const [wasReplaced, setWasReplaced] = useState(false);
   // Plano free no app com AdMob: cada troca é liberada com um vídeo curto.
   const adMobAvailable = useAdMobAvailable();
@@ -460,20 +468,124 @@ export function ExpandableExerciseCard({
 
   async function handleReplaceClick() {
     if (!replaceReason || isReplacing || loadingRewardedAd) return;
+    // Mobilidade/aquecimento: troca direta. Demais: tela de escolha entre opções.
+    const runStep = isPrepExercise ? handleReplaceExercise : handleFetchReplacementOptions;
     if (!replaceRequiresVideo) {
-      void handleReplaceExercise();
+      void runStep();
       return;
     }
 
     setLoadingRewardedAd(true);
     setReplaceError(null);
-    // A troca começa JUNTO com o vídeo: quando o vídeo termina, o exercício
-    // novo já está pronto. (Se não houver vídeo disponível, a troca segue
+    // A busca começa JUNTO com o vídeo: quando o vídeo termina, as opções (ou o
+    // exercício novo) já estão prontas. (Se não houver vídeo disponível, segue
     // normalmente, para a pessoa não ficar travada por falta de anúncio.)
-    const replacement = handleReplaceExercise();
+    // Fechar a tela de escolha cancela a troca; uma nova tentativa passa pelo anúncio de novo.
+    const step = runStep();
     await showRewardedAd("replace_exercise", consentPreferences.ads);
     setLoadingRewardedAd(false);
-    await replacement;
+    await step;
+  }
+
+  function handleReplacementLimit(plan?: string) {
+    setReplaceLimitError(true);
+    setShowReplaceModal(false);
+    if (plan !== "premium") {
+      setUpsellReason("replacement_limit");
+      setShowUpsell(true);
+    }
+  }
+
+  // Fase 2: busca as opções da IA (não troca nada ainda).
+  async function handleFetchReplacementOptions() {
+    if (!replaceReason || isReplacing) return;
+
+    setIsReplacing(true);
+    setReplaceError(null);
+    setReplaceLimitError(false);
+
+    try {
+      const response = await fetchWithAuth("/api/workout/replace-exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workoutId, workoutDayId, exerciseName, exerciseIndex, reason: replaceReason, mode: "options" })
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (result?.error === "replacement_limit_reached") {
+          handleReplacementLimit(result?.plan);
+          return;
+        }
+        throw new Error(result?.error ?? "Não foi possível buscar as opções agora.");
+      }
+
+      const options = (result?.data?.options ?? []) as ReplacementOption[];
+      if (!options.length) throw new Error("Não encontrei opções para esse exercício agora. Tente novamente.");
+      setPickerOptions(options);
+      setPickerLockedCount(Number(result?.data?.lockedCount ?? 0));
+      setPickerError(null);
+      setShowReplaceModal(false);
+      trackEvent("cta_click", data.user.id, {
+        source: "replacement_options_shown",
+        reason: replaceReason,
+        options_count: options.length,
+        locked_count: Number(result?.data?.lockedCount ?? 0)
+      });
+    } catch (err) {
+      setReplaceError(err instanceof Error ? err.message : "Não foi possível buscar as opções agora. Tente novamente.");
+    } finally {
+      setIsReplacing(false);
+    }
+  }
+
+  // Fase 2: confirma a opção escolhida pelo aluno.
+  async function handleConfirmReplacement(option: ReplacementOption, position: number) {
+    if (!replaceReason || confirmingChoice) return;
+    setConfirmingChoice(true);
+    setPickerError(null);
+
+    try {
+      const response = await fetchWithAuth("/api/workout/replace-exercise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workoutId,
+          workoutDayId,
+          exerciseName,
+          exerciseIndex,
+          reason: replaceReason,
+          mode: "confirm",
+          replacementExerciseId: option.id
+        })
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (result?.error === "replacement_limit_reached") {
+          setPickerOptions(null);
+          handleReplacementLimit(result?.plan);
+          return;
+        }
+        throw new Error(result?.message ?? result?.error ?? "Não foi possível trocar o exercício agora.");
+      }
+
+      trackEvent("cta_click", data.user.id, {
+        source: "replacement_option_chosen",
+        reason: replaceReason,
+        position,
+        options_count: pickerOptions?.length ?? 1
+      });
+      const newName = result?.data?.replacedExercise?.name ?? option.name;
+      const updatedWorkout = result?.data?.updatedWorkout;
+      setPickerOptions(null);
+      setWasReplaced(true);
+      onExerciseReplaced(newName, updatedWorkout);
+    } catch (err) {
+      setPickerError(err instanceof Error ? err.message : "Não foi possível trocar o exercício agora. Tente novamente.");
+    } finally {
+      setConfirmingChoice(false);
+    }
   }
 
   async function handleReplaceExercise() {
@@ -500,13 +612,7 @@ export function ExpandableExerciseCard({
 
       if (!response.ok) {
         if (result?.error === "replacement_limit_reached") {
-          setReplaceLimitError(true);
-          setShowReplaceModal(false);
-          // Premium: exibe mensagem amigável sem upsell
-          // Free: abre upsell para upgrade
-          if (result?.plan !== "premium") {
-            setShowUpsell(true);
-          }
+          handleReplacementLimit(result?.plan);
           return;
         }
         throw new Error(result?.error ?? "Não foi possível substituir o exercício agora.");
@@ -702,20 +808,12 @@ export function ExpandableExerciseCard({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isPremiumUser) setShowUpsell(true);
+                  setShowUpsell(true);
                 }}
-                className={
-                  isPremiumUser
-                    ? "inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-white/10 bg-white/[0.03] py-2 text-[12px] font-semibold text-white/28 transition hover:border-primary/20 hover:text-white/50"
-                    : "inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-premium/35 bg-premium/[0.07] py-2 text-[12px] font-semibold text-premium transition hover:bg-premium/[0.12]"
-                }
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[14px] border border-premium/35 bg-premium/[0.07] py-2 text-[12px] font-semibold text-premium transition hover:bg-premium/[0.12]"
                 aria-label="Limite de substituições atingido"
               >
-                {isPremiumUser ? (
-                  <Lock className="h-3.5 w-3.5 shrink-0" />
-                ) : (
-                  <Crown className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
-                )}
+                <Crown className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
                 Substituir
               </button>
             ) : (
@@ -970,13 +1068,11 @@ export function ExpandableExerciseCard({
                   <p className="text-xs leading-4 text-white/50">
                     {replacementFree
                       ? "Mobilidade e aquecimento têm troca livre: não contam nas suas substituições."
-                      : (replacementsRemaining ?? (2 - replacementCount)) === 1
-                      ? isPremiumUser
-                        ? "Resta 1 substituição nesta sessão de treino."
-                        : "Resta apenas 1 substituição disponível neste programa."
                       : isPremiumUser
-                        ? `Você tem ${replacementsRemaining ?? (2 - replacementCount)} de 2 substituições nesta sessão.`
-                        : `Você tem ${replacementsRemaining ?? (2 - replacementCount)} de 2 substituições neste programa.`}
+                      ? "No Premium suas substituições são ilimitadas."
+                      : (replacementsRemaining ?? (2 - replacementCount)) === 1
+                      ? "Resta apenas 1 substituição disponível neste programa."
+                      : `Você tem ${replacementsRemaining ?? (2 - replacementCount)} de 2 substituições neste programa.`}
                   </p>
                 </div>
               </div>
@@ -1003,9 +1099,7 @@ export function ExpandableExerciseCard({
 
             {replaceLimitError ? (
               <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/70">
-                {isPremiumUser
-                  ? "Você já substituiu 2 exercícios nesta sessão. Cada treino (A, B, C...) tem seu próprio limite."
-                  : "Você atingiu o limite de substituições deste plano."}
+                {"Você atingiu o limite de substituições deste plano."}
                 <button
                   type="button"
                   onClick={() => setShowReplaceModal(false)}
@@ -1023,7 +1117,7 @@ export function ExpandableExerciseCard({
             {isReplacing ? (
               <div className="mt-4 flex items-center gap-2 text-sm text-white/60">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Buscando o melhor substituto...
+                {isPrepExercise ? "Buscando o melhor substituto..." : "Separando as melhores opções para você..."}
               </div>
             ) : null}
 
@@ -1049,19 +1143,63 @@ export function ExpandableExerciseCard({
                 onClick={() => void handleReplaceClick()}
                 disabled={!replaceReason || isReplacing || loadingRewardedAd}
               >
-                {loadingRewardedAd ? "Carregando vídeo..." : replaceRequiresVideo ? "Ver vídeo e substituir" : "Substituir"}
+                {loadingRewardedAd
+                  ? "Carregando vídeo..."
+                  : isPrepExercise
+                  ? replaceRequiresVideo
+                    ? "Ver vídeo e substituir"
+                    : "Substituir"
+                  : replaceRequiresVideo
+                  ? "Ver vídeo e continuar"
+                  : "Ver opções"}
               </Button>
             </div>
           </div>
         </div>
       ) : null}
 
+      {pickerOptions ? (
+        <ReplacementPicker
+          originalName={exercise.name}
+          reasonLabel={REPLACE_REASON_SHORT[replaceReason ?? ""] ?? "Troca"}
+          options={pickerOptions}
+          lockedCount={pickerLockedCount}
+          isPremium={isPremiumUser}
+          confirming={confirmingChoice}
+          error={pickerError}
+          onConfirm={(option, position) => void handleConfirmReplacement(option, position)}
+          onClose={() => {
+            // Fechar = cancelar: nada é trocado.
+            setPickerOptions(null);
+            setPickerError(null);
+          }}
+          onBack={() => {
+            setPickerOptions(null);
+            setPickerError(null);
+            setShowReplaceModal(true);
+          }}
+          onUpsell={() => {
+            trackEvent("cta_click", data.user.id, { source: "replacement_choice_locked" });
+            setUpsellReason("replacement_choice");
+            setShowUpsell(true);
+          }}
+        />
+      ) : null}
+
       {showUpsell ? (
-        <UpsellModal reason="replacement_limit" onClose={() => setShowUpsell(false)} />
+        <UpsellModal reason={upsellReason} onClose={() => setShowUpsell(false)} />
       ) : null}
     </div>
   );
 }
+
+// Rótulo curto do motivo, exibido na tela de escolha ("Separei 3 opções para o motivo …").
+const REPLACE_REASON_SHORT: Record<string, string> = {
+  too_hard: "Muito difícil",
+  too_easy: "Muito fácil",
+  no_equipment: "Equipamento indisponível",
+  dont_like: "Não gostei"
+};
 
 const REPLACE_REASONS = [
   { value: "too_hard", label: "Muito difícil, não consigo fazer" },
@@ -1286,37 +1424,3 @@ function formatRestLabel(value?: number | null) {
   return remainingSeconds ? `${minutes}min ${remainingSeconds}s` : `${minutes}min`;
 }
 
-function toEmbedUrl(url: string) {
-  if (url.includes("youtube.com/embed/")) return url;
-  if (url.includes("watch?v=")) return url.replace("watch?v=", "embed/");
-  if (url.includes("youtu.be/")) return url.replace("youtu.be/", "youtube.com/embed/");
-  return url;
-}
-
-function resolveVideoPoster(url?: string | null) {
-  if (!url) {
-    return null;
-  }
-
-  const youtubeId = resolveYoutubeId(url);
-  if (!youtubeId) {
-    return null;
-  }
-
-  return `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
-}
-
-function resolveYoutubeId(url: string) {
-  const watchMatch = url.match(/[?&]v=([^&]+)/i);
-  if (watchMatch?.[1]) {
-    return watchMatch[1];
-  }
-
-  const shortMatch = url.match(/youtu\.be\/([^?]+)/i);
-  if (shortMatch?.[1]) {
-    return shortMatch[1];
-  }
-
-  const embedMatch = url.match(/embed\/([^?]+)/i);
-  return embedMatch?.[1] ?? null;
-}

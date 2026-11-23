@@ -1,6 +1,6 @@
 # Regras de Negócio — Hora do Treino
 > App: [app.horadotreino.com.br](https://app.horadotreino.com.br)  
-> Última atualização: setembro de 2026
+> Última atualização: novembro de 2026
 
 ---
 
@@ -10,6 +10,14 @@ O Hora do Treino é um SaaS de geração de treinos personalizados com IA. O usu
 - Banco de exercícios cadastrados pelo administrador
 - Regras de treino definidas pelo administrador
 - Respostas do formulário do usuário
+
+### 1.1 Voz do app: o personal falando com o aluno
+
+O app inteiro fala como **o personal trainer (Renato) falando com o aluno, em primeira pessoa**. A IA é a ferramenta que aplica o método; quem "fala" é o personal.
+
+- Usar primeira pessoa: *"Separei 3 opções para você"*, *"Minha indicação"*, *"Montei seu próximo programa"*.
+- Evitar textos que coloquem a IA como protagonista: ~~"A IA escolheu…"~~, ~~"A IA montou…"~~.
+- Vale para telas, popups, notificações e e-mails.
 
 ---
 
@@ -25,7 +33,7 @@ Ferramentas disponíveis sem custo:
 - Cronômetro
 
 Funcionalidades com limite de uso:
-- Substituição de exercício: **máximo 2x por programa de treino** (zera a cada novo programa)
+- Substituição de exercício: **máximo 2x por programa de treino** (zera a cada novo programa), com anúncio premiado antes de cada troca — ver Seção 4
 - Programas de treino: **máximo 2 programas no total**
   - Programa 1: gerado no cadastro
   - Programa 2: gerado automaticamente ao concluir o Programa 1
@@ -41,7 +49,7 @@ Funcionalidades **não disponíveis** no plano gratuito:
 ### 2.2 Plano Premium
 
 Inclui tudo do plano gratuito, mais:
-- Substituição de exercício 2 por treino e não por programa de treino.
+- Substituição de exercício **ilimitada** — ver Seção 4
 - Geração de novos programas de treino **ilimitada** (novo programa gerado automaticamente ao concluir o atual)
 - Evolução de treino com IA
 - **Treinos para mais de um local** (Casa **e** Condomínio), com programa próprio em cada e alternância entre eles — ver Seção 3
@@ -119,10 +127,26 @@ Implementação: `components/cycle-complete.tsx`, regra em `lib/cycle-renewal.ts
 
 ## 4. Substituição de Exercício
 
-- Usuários **freemium**: até **2 substituições por programa de treino**
-- Usuários **premium**: substituições 2 por treino.
-- A substituição é feita pela IA, respeitando o grupo muscular e nível do exercício original
-- O contador de substituições **zera automaticamente** quando um novo programa de treino é gerado
+**Limites por plano**
+- Usuários **freemium**: até **2 substituições por programa de treino**. Antes de cada troca o usuário assiste a um anúncio premiado (vídeo). O contador **zera automaticamente** quando um novo programa é gerado.
+- Usuários **premium**: substituições **ilimitadas** (desde nov/2026; antes eram 2 por treino A/B/C).
+- Mobilidade e aquecimento: no Premium a troca é livre; no Free conta no limite de 2. Motivos aceitos: só "não gostei" e "equipamento indisponível".
+
+**Como o substituto é escolhido**
+- A IA escolhe a partir de uma lista de candidatos já filtrada pelo app: mesmo grupo muscular, nível do aluno (fase de evolução do app), tipo da vaga do modelo de treino e regra de bloco combinado (nunca máquina + máquina).
+- Por motivo: "muito difícil" → mesmo nível, dificuldade menor; "muito fácil" → mesmo nível, dificuldade maior; "equipamento indisponível" → evita o mesmo equipamento (a categoria "máquina" é ignorada); "não gostei" → equivalente em função e grupo muscular.
+
+**Exclusão do exercício trocado**
+- Motivo **"não gostei"** ou **"equipamento indisponível"**: o exercício original é excluído de vez e não volta nos próximos programas. O usuário pode liberá-lo de novo em Perfil > dados do treino.
+- Motivo **"muito difícil"** ou **"muito fácil"**: o exercício sai só do treino atual e **pode voltar** em programas futuros (quando o nível do aluno mudar). Assim o catálogo não se esgota com trocas ilimitadas.
+
+**Escolha entre opções (Fase 2, nov/2026 — implementada, aguardando teste e deploy)**
+- **Premium**: a IA separa até **3 opções** e o aluno escolhe uma. A 1ª vem marcada como "Minha indicação". O vídeo de cada opção é opcional: quem já conhece o exercício troca direto.
+- **Free**: depois do anúncio premiado, vê a mesma tela. A opção escolhida pela IA fica no meio ("Minha escolha") e as outras duas aparecem bloqueadas nas laterais com o selo Premium. Tocar num card bloqueado ou em "Conhecer o Premium" abre o popup padrão de assinatura (planos + checkout direto).
+- Só o exercício trocado entra na regra de exclusão; as opções não escolhidas continuam disponíveis.
+- **Fechar a tela cancela a troca**: nada é trocado e a troca não conta no limite. No Free, cada nova tentativa passa pelo anúncio de novo (evita trocas sem fim e o anúncio compensa o custo da IA).
+- Mobilidade e aquecimento não usam a tela de escolha: continuam com troca direta.
+- O servidor só aceita a troca por um exercício que esteja na lista de candidatos válidos (regras de nível, dificuldade, vaga do modelo e bloco combinado).
 
 ---
 
@@ -184,6 +208,8 @@ Os momentos em que o usuário free verá o incentivo para assinar o premium:
 
 2. **Substituição de exercício** — ao tentar substituir um 3º exercício, exibir:
    > *"Seja Premium e substitua exercícios sem limite"*
+
+   Na tela de escolha de substituto (Fase 2), os cards bloqueados e o link "Conhecer o Premium" também abrem o popup de assinatura.
 
 3. **Perfil / Gerar novo treino** — o botão de gerar novo treino ficará visível mas bloqueado para usuários free, com CTA para o premium
 

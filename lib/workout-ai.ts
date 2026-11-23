@@ -5045,6 +5045,106 @@ Responda APENAS com JSON válido, sem texto adicional:
 
 
 
+/**
+ * Escolha entre opções (Fase 2 das substituições): a IA ordena as melhores opções
+ * da lista de candidatos (já filtrada pelas regras do app) e devolve até `count` ids.
+ * Premium recebe 3 opções para escolher; Free recebe 1 (a "minha escolha").
+ *
+ * Nunca trava a troca: se a IA falhar ou devolver ids fora da lista, completa com
+ * os primeiros candidatos (que já vêm ordenados por nível/dificuldade).
+ */
+export async function rankReplacementOptions(
+  originalExercise: { id: string; name: string; primaryMuscle: string | null; type: string | null; difficulty?: number | null },
+  reason: string,
+  candidates: ReplacementCandidate[],
+  answers: QuizAnswers,
+  count: number
+): Promise<string[]> {
+  const wanted = Math.max(1, Math.min(count, candidates.length));
+  const candidateIds = candidates.map((candidate) => candidate.id);
+  if (candidates.length <= wanted) return candidateIds.slice(0, wanted);
+
+  const levelByExperience: Record<string, string> = {
+    no_training: "Iniciante",
+    lt_6_months: "Iniciante",
+    "6_to_12_months": "Intermediário",
+    gt_1_year: "Avançado"
+  };
+  const reasonLabel: Record<string, string> = {
+    too_hard: "Muito difícil",
+    too_easy: "Muito fácil",
+    no_equipment: "Equipamento indisponível",
+    dont_like: "Não gostei"
+  };
+  const level = levelByExperience[answers.experience] ?? "Iniciante";
+  const location = answers.location === "gym" ? "Academia" : answers.location === "condo_gym" ? "Academia do condomínio" : "Casa";
+
+  const prompt = `Você é um seletor de exercícios. Sua tarefa é escolher os ${wanted} melhores exercícios substitutos a partir da lista de candidatos e ordená-los do melhor para o pior.
+
+REGRAS OBRIGATÓRIAS:
+- Escolha exatamente ${wanted} exercício(s) DIFERENTES da lista de candidatos abaixo.
+- Não invente exercícios. Use somente os ids da lista.
+- O primeiro da lista deve ser a sua melhor indicação.
+- Prefira opções variadas entre si (equipamento ou variação diferentes), para o aluno ter escolha de verdade.
+
+CONTEXTO DO USUÁRIO:
+- Objetivo: ${answers.goal}
+- Nível: ${level}
+- Local: ${location}
+
+EXERCÍCIO A SUBSTITUIR:
+- Nome: ${originalExercise.name}
+- Músculo principal: ${originalExercise.primaryMuscle}
+- Tipo: ${originalExercise.type ?? ""}
+- Dificuldade (1 a 5): ${originalExercise.difficulty ?? "não informada"}
+
+MOTIVO DA SUBSTITUICAO: ${reasonLabel[reason] ?? reason}
+
+CRITERIO DE SELECAO POR MOTIVO:
+- Os candidatos já foram filtrados pelo nível do aluno e pela dificuldade (campo "difficulty", de 1 a 5).
+- "Muito difícil": prefira as variações mais próximas em movimento/função, com dificuldade imediatamente menor.
+- "Muito fácil": prefira as variações mais próximas em movimento/função, com dificuldade imediatamente maior.
+- "Equipamento indisponível": exercícios com equipamento diferente, mesmo grupo muscular.
+- "Não gostei": alternativas equivalentes em função e grupo muscular.
+
+CANDIDATOS DISPONÍVEIS:
+${JSON.stringify(candidates, null, 2)}
+
+Responda APENAS com JSON válido, sem texto adicional:
+{
+  "optionIds": ["id_1", "id_2"]
+}`;
+
+  const picked: string[] = [];
+  try {
+    const openai = getOpenAIClient();
+    const response = await openai.chat.completions.create({
+      model: getWorkoutModel(),
+      ...getModelSamplingParams(getWorkoutModel(), 0.4),
+      messages: [{ role: "user", content: prompt }]
+    });
+    const raw = response.choices[0]?.message?.content ?? "";
+    const fencedMatch = raw.trim().match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const jsonText = fencedMatch?.[1]?.trim() ?? raw.trim();
+    const parsed = JSON.parse(jsonText) as { optionIds?: unknown };
+    if (Array.isArray(parsed.optionIds)) {
+      const valid = new Set(candidateIds);
+      for (const id of parsed.optionIds) {
+        if (typeof id === "string" && valid.has(id) && !picked.includes(id)) picked.push(id);
+        if (picked.length >= wanted) break;
+      }
+    }
+  } catch {
+    // Segue com o complemento abaixo (primeiros candidatos).
+  }
+
+  for (const id of candidateIds) {
+    if (picked.length >= wanted) break;
+    if (!picked.includes(id)) picked.push(id);
+  }
+  return picked;
+}
+
 // ── Treino Extra ────────────────────────────────────────────────────────────
 
 export type ExtraWorkoutContext = {

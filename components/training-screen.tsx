@@ -179,8 +179,6 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   const [replacementCount, setReplacementCount] = useState(data.replacementCount);
   // Mapa de nome normalizado → último peso registrado, carregado em batch ao abrir a tela
   const [lastWeightsMap, setLastWeightsMap] = useState<Record<string, number>>({});
-  // Contador de substituições por sessão (Treino A, B, C...) — usado para o limite do premium
-  const [replacementsPerWorkoutKey, setReplacementsPerWorkoutKey] = useState<Record<string, number>>({});
   const [replacedExerciseNames, setReplacedExerciseNames] = useState<Set<string>>(new Set());
   const [totalWorkoutsAllTime, setTotalWorkoutsAllTime] = useState(data.totalWorkoutsAllTime);
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null);
@@ -562,21 +560,13 @@ export function TrainingScreen({ data, reloadWorkout, applyWorkoutUpdate }: {
   // Para exibir anúncios, só consideramos "free" depois que a assinatura carregou.
   // Evita anúncio piscar para premium durante o carregamento.
   const showAds = !subscriptionLoading && !isPremiumUser;
-  // Free: limite de 2 por programa | Premium: limite de 2 por sessão (Treino A, B, C independentes)
-  const replacementsForActiveDay = replacementsPerWorkoutKey[activeWorkoutKey] ?? 0;
-  const replacementLimitReached = isPremiumUser
-    ? replacementsForActiveDay >= 2
-    : replacementCount >= 2;
-  // Quantas substituições restam no contexto atual (para exibir no modal)
-  const replacementsRemaining = Math.max(0, 2 - (isPremiumUser ? replacementsForActiveDay : replacementCount));
+  // Free: limite de 2 por programa | Premium: substituições ilimitadas
+  const replacementLimitReached = !isPremiumUser && replacementCount >= 2;
+  // Quantas substituições restam ao Free (para exibir no modal)
+  const replacementsRemaining = Math.max(0, 2 - replacementCount);
 
   async function handleExerciseReplaced(newExerciseName: string, updatedWorkout?: import("@/lib/types").WorkoutPlan) {
     setReplacementCount((prev) => prev + 1);
-    // Incrementa o contador do treino ativo (A, B, C...) para controle do limite premium
-    setReplacementsPerWorkoutKey((prev) => ({
-      ...prev,
-      [activeWorkoutKey]: (prev[activeWorkoutKey] ?? 0) + 1
-    }));
     if (newExerciseName) {
       setReplacedExerciseNames((prev) => new Set([...prev, newExerciseName]));
     }
