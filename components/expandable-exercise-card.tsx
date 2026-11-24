@@ -913,8 +913,7 @@ export function ExpandableExerciseCard({
                 renderProviderVideo(
                 <div
                   className={clsx(
-                    "relative",
-                    providerFullscreen ? "fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black" : null
+                    providerFullscreen ? "fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black" : "relative"
                   )}
                 >
                   <video
@@ -965,8 +964,7 @@ export function ExpandableExerciseCard({
                 renderYoutubeVideo(
                 <div
                   className={clsx(
-                    "relative",
-                    youtubeFullscreen ? "fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black" : null
+                    youtubeFullscreen ? "fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black" : "relative"
                   )}
                 >
                   <iframe
