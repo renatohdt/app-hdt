@@ -22,7 +22,8 @@ const config: CapacitorConfig = {
   // Marca a identidade do app (user agent) para o site conseguir detectar
   // que está rodando dentro do app e esconder o checkout do Stripe.
   android: {
-    appendUserAgent: "HoraDoTreinoApp",
+    // "HDTNativeFullscreen": esta versão do app faz tela cheia de vídeo nativa (MainActivity.java).
+    appendUserAgent: "HoraDoTreinoApp HDTNativeFullscreen",
   },
   ios: {
     appendUserAgent: "HoraDoTreinoApp",
