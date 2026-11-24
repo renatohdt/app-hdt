@@ -29,6 +29,15 @@ import {
 // Vídeos de fornecedor (YMove) tocam no máximo 3 vezes por play.
 const PROVIDER_VIDEO_MAX_PLAYS = 3;
 
+// App Android (Capacitor) sem tela cheia nativa: o Capacitor cancela qualquer pedido de tela cheia
+// (o YouTube não amplia e o vídeo da YMove some). Nesses aparelhos ampliamos o vídeo "por cima de tudo".
+// A versão do app que já sabe fazer tela cheia nativa se identifica com "HDTNativeFullscreen".
+function needsOverlayFullscreen() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Android/i.test(ua) && (/HoraDoTreinoApp/i.test(ua) || /; wv\)/i.test(ua)) && !/HDTNativeFullscreen/i.test(ua);
+}
+
 type ExerciseSetEntry = {
   weightKg: string;
   reps: string;
@@ -134,6 +143,9 @@ export function ExpandableExerciseCard({
   // Tela cheia do vídeo YMove. Usa a tela cheia nativa quando o aparelho deixa;
   // senão (ex.: WebView do app), abre o vídeo por cima de tudo, deitado se o celular estiver em pé.
   const [providerFullscreen, setProviderFullscreen] = useState<null | { rotate: boolean }>(null);
+  // YouTube no app Android antigo: botão próprio de ampliar (o do player não funciona ali).
+  const [overlayFullscreenMode, setOverlayFullscreenMode] = useState(false);
+  const [youtubeFullscreen, setYoutubeFullscreen] = useState(false);
   const [showWeightChart, setShowWeightChart] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [replaceReason, setReplaceReason] = useState<string | null>(null);
@@ -199,6 +211,7 @@ export function ExpandableExerciseCard({
   useEffect(() => {
     if (!expanded) {
       setProviderFullscreen(null);
+      setYoutubeFullscreen(false);
       setShowVideo(false);
       setProviderVideoSrc(null);
       setProviderVideoError(false);
@@ -263,14 +276,21 @@ export function ExpandableExerciseCard({
     return providerFullscreen && typeof document !== "undefined" ? createPortal(node, document.body) : node;
   }
 
+  useEffect(() => {
+    setOverlayFullscreenMode(needsOverlayFullscreen());
+  }, []);
+
+  function renderYoutubeVideo(node: ReactNode) {
+    return youtubeFullscreen && typeof document !== "undefined" ? createPortal(node, document.body) : node;
+  }
+
   function handleProviderFullscreen() {
     const video = providerVideoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
     if (!video) return;
-    // App Android (Capacitor/WebView): o sistema diz que aceita tela cheia, mas não mostra o vídeo
-    // (ele some). Ali usamos sempre o modo "por cima de tudo", que não depende do sistema.
-    const ua = navigator.userAgent;
-    if (/Android/i.test(ua) && (/HoraDoTreinoApp/i.test(ua) || /; wv\)/i.test(ua))) {
-      setProviderFullscreen({ rotate: window.innerHeight > window.innerWidth });
+    // App Android sem tela cheia nativa: abre por cima de tudo, SEM girar (o Android não desenha
+    // vídeo girado por CSS — ele sumia). Para ver deitado, a pessoa vira o celular.
+    if (needsOverlayFullscreen()) {
+      setProviderFullscreen({ rotate: false });
       return;
     }
     // iPhone/iPad: o próprio player do sistema em tela cheia.
@@ -942,14 +962,42 @@ export function ExpandableExerciseCard({
                 </div>
                 )
               ) : showVideo && exercise.videoUrl && !providerVideo ? (
-                <iframe
-                  className="aspect-video w-full"
-                  src={toEmbedUrl(exercise.videoUrl)}
-                  title={`Vídeo demonstrativo de ${exercise.name}`}
-                  loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+                renderYoutubeVideo(
+                <div
+                  className={clsx(
+                    "relative",
+                    youtubeFullscreen ? "fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-black" : null
+                  )}
+                >
+                  <iframe
+                    className={youtubeFullscreen ? "h-[100vh] w-[100vw]" : "aspect-video w-full"}
+                    src={toEmbedUrl(exercise.videoUrl)}
+                    title={`Vídeo demonstrativo de ${exercise.name}`}
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                  {youtubeFullscreen ? (
+                    <button
+                      type="button"
+                      onClick={() => setYoutubeFullscreen(false)}
+                      aria-label="Sair da tela cheia"
+                      className="absolute right-4 top-[calc(env(safe-area-inset-top)+16px)] z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white"
+                    >
+                      <X className="h-5 w-5" aria-hidden />
+                    </button>
+                  ) : overlayFullscreenMode ? (
+                    <button
+                      type="button"
+                      onClick={() => setYoutubeFullscreen(true)}
+                      aria-label="Ampliar vídeo"
+                      className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white"
+                    >
+                      <Maximize2 className="h-4 w-4" aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+                )
               ) : (
                 <div
                   className="relative aspect-video overflow-hidden bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.2),transparent_45%),linear-gradient(180deg,rgba(17,24,17,0.96),rgba(6,8,6,0.98))]"
