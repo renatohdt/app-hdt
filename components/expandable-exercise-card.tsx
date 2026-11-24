@@ -266,6 +266,13 @@ export function ExpandableExerciseCard({
   function handleProviderFullscreen() {
     const video = providerVideoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
     if (!video) return;
+    // App Android (Capacitor/WebView): o sistema diz que aceita tela cheia, mas não mostra o vídeo
+    // (ele some). Ali usamos sempre o modo "por cima de tudo", que não depende do sistema.
+    const ua = navigator.userAgent;
+    if (/Android/i.test(ua) && (/HoraDoTreinoApp/i.test(ua) || /; wv\)/i.test(ua))) {
+      setProviderFullscreen({ rotate: window.innerHeight > window.innerWidth });
+      return;
+    }
     // iPhone/iPad: o próprio player do sistema em tela cheia.
     if (typeof video.webkitEnterFullscreen === "function" && !document.fullscreenEnabled) {
       try {
