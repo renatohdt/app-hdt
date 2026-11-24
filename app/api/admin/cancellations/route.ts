@@ -28,15 +28,29 @@ export async function GET(request: Request) {
       return jsonError("Não foi possível carregar os cancelamentos.", 500);
     }
 
-    // Nome e e-mail ficam na tabela users (a resposta aponta para auth.users,
-    // por isso a busca é separada em vez de um join).
-    const userIds = Array.from(new Set((rows ?? []).map((row) => row.user_id)));
+    // O nome fica na tabela public.users; o e-mail fica só em auth.users
+    // (tabela de login do Supabase), por isso as duas buscas são separadas.
+    const userIds = Array.from(new Set((rows ?? []).map((row) => row.user_id).filter(Boolean)));
     const usersById = new Map<string, { name: string | null; email: string | null }>();
 
     if (userIds.length) {
-      const { data: users } = await supabase.from("users").select("id, name, email").in("id", userIds);
+      const { data: users, error: usersError } = await supabase.from("users").select("id, name").in("id", userIds);
+      if (usersError) {
+        logError("ADMIN CANCELLATIONS", "Users fetch failed", { error_message: usersError.message });
+      }
       for (const user of users ?? []) {
-        usersById.set(user.id, { name: user.name ?? null, email: user.email ?? null });
+        usersById.set(user.id, { name: user.name ?? null, email: null });
+      }
+
+      const authResults = await Promise.all(
+        userIds.map(async (id) => {
+          const { data, error: authError } = await supabase.auth.admin.getUserById(id);
+          return { id, email: authError ? null : data?.user?.email ?? null };
+        })
+      );
+      for (const { id, email } of authResults) {
+        const current = usersById.get(id) ?? { name: null, email: null };
+        usersById.set(id, { ...current, email });
       }
     }
 
