@@ -42,7 +42,38 @@ export async function GET(request: Request) {
       return jsonError("Não foi possível carregar os feedbacks.", 500);
     }
 
-    return jsonSuccess(data ?? [], 200);
+    const rows = data ?? [];
+
+    // Primeiro nome de cada autor (para exibir/compartilhar o comentário)
+    const userIds = Array.from(new Set(rows.map((row) => row.user_id as string).filter(Boolean)));
+    const firstNameById = new Map<string, string>();
+    if (userIds.length) {
+      const { data: usersData, error: usersError } = await supabase
+        .from("users")
+        .select("id, name")
+        .in("id", userIds);
+      if (usersError) {
+        logError("ADMIN FEEDBACKS", "Users fetch failed", { error_message: usersError.message });
+      }
+      for (const user of usersData ?? []) {
+        const raw = typeof user.name === "string" ? user.name.trim() : "";
+        const first = raw.split(/\s+/)[0] ?? "";
+        if (first) {
+          // "MARIA" ou "maria" vira "Maria"
+          firstNameById.set(
+            user.id as string,
+            first.charAt(0).toLocaleUpperCase("pt-BR") + first.slice(1).toLocaleLowerCase("pt-BR")
+          );
+        }
+      }
+    }
+
+    const result = rows.map((row) => ({
+      ...row,
+      first_name: firstNameById.get(row.user_id as string) ?? null,
+    }));
+
+    return jsonSuccess(result, 200);
   } catch (error) {
     logError("ADMIN FEEDBACKS", "Unhandled exception", {
       error: error instanceof Error ? error.message : "unknown",
