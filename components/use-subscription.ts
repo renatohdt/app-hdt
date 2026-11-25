@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { fetchWithAuth, getAccessToken } from "@/lib/authenticated-fetch";
 import { supabase } from "@/lib/supabase";
 
@@ -36,6 +36,11 @@ const DEFAULT: SubscriptionSummary = {
   accessUntil: null,
 };
 
+// Por quanto tempo uma resposta de /api/subscription é reaproveitada antes de
+// consultar de novo (abrir o app, voltar para a tela, trocar de página).
+// Compra e troca de conta sempre consultam na hora (force).
+const SUBSCRIPTION_FRESH_MS = 60_000;
+
 // Contexto compartilhado: evita multiplas chamadas a /api/subscription
 // quando varios componentes na arvore usam useSubscription ao mesmo tempo.
 const SubscriptionContext = createContext<UseSubscriptionResult>({
@@ -55,10 +60,15 @@ export function useSubscription(): UseSubscriptionResult {
 export function useSubscriptionLoader(): UseSubscriptionResult {
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  // Quando a última consulta deu certo e qual consulta está em andamento.
+  // Evita disparar várias chamadas iguais ao mesmo tempo (login + foco + aba visível).
+  const lastFetchedAtRef = useRef(0);
+  const lastSummaryRef = useRef<SubscriptionSummary | null>(null);
+  const inflightRef = useRef<Promise<SubscriptionSummary> | null>(null);
 
   // Busca o status atual da assinatura e devolve o resumo, para quem chamou poder
   // decidir se precisa tentar de novo (ex.: esperar o webhook do RevenueCat).
-  const fetchSubscription = useCallback(async (): Promise<SubscriptionSummary> => {
+  const fetchSubscriptionNow = useCallback(async (): Promise<SubscriptionSummary> => {
     try {
       // Verifica sessao local antes de chamar a API.
       // getAccessToken() le do cache do Supabase (localStorage) -- sem chamada de rede.
@@ -78,6 +88,8 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
 
       const json = await response.json();
       const summary = (json?.data ?? DEFAULT) as SubscriptionSummary;
+      lastFetchedAtRef.current = Date.now();
+      lastSummaryRef.current = summary;
       setSubscription(summary);
       return summary;
     } catch {
@@ -87,6 +99,24 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
       setLoading(false);
     }
   }, []);
+
+  // Porta de entrada única: junta chamadas simultâneas numa só e, sem `force`,
+  // reaproveita a resposta recente em vez de ir ao servidor de novo.
+  const fetchSubscription = useCallback(
+    (opts?: { force?: boolean }): Promise<SubscriptionSummary> => {
+      if (inflightRef.current) return inflightRef.current;
+      const isFresh = Date.now() - lastFetchedAtRef.current < SUBSCRIPTION_FRESH_MS;
+      if (!opts?.force && isFresh && lastSummaryRef.current) {
+        return Promise.resolve(lastSummaryRef.current);
+      }
+      const request = fetchSubscriptionNow().finally(() => {
+        inflightRef.current = null;
+      });
+      inflightRef.current = request;
+      return request;
+    },
+    [fetchSubscriptionNow]
+  );
 
   // Atualiza o status apos uma compra. O premium so e gravado no banco quando o
   // webhook do RevenueCat chega -- no Android isso levou ~1 minuto (Google ->
@@ -98,7 +128,7 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
       const attempts = opts?.attempts ?? 30;
       const intervalMs = opts?.intervalMs ?? 3000;
       for (let attempt = 0; attempt < attempts; attempt++) {
-        const summary = await fetchSubscription();
+        const summary = await fetchSubscription({ force: true });
         if (summary.isPremium) return true;
         if (attempt < attempts - 1) {
           await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -153,6 +183,8 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
       lastUserId = userId;
 
       if (event === "SIGNED_OUT") {
+        lastFetchedAtRef.current = 0;
+        lastSummaryRef.current = null;
         setSubscription(DEFAULT);
         setLoading(false);
         return;
@@ -163,9 +195,12 @@ export function useSubscriptionLoader(): UseSubscriptionResult {
       // (O Supabase também manda SIGNED_IN ao voltar para o app; só conta se mudou a conta.)
       if (event === "SIGNED_IN" && switchedAccount) setLoading(true);
 
-      // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED: refaz a busca.
-      // Não reativa o "loading" nos outros eventos para não piscar a UI em refresh de token periódico.
-      void fetchSubscription();
+      // Renovar o token (a cada ~1h) não muda o plano: não consulta de novo.
+      if (event === "TOKEN_REFRESHED") return;
+
+      // INITIAL_SESSION, SIGNED_IN, USER_UPDATED: refaz a busca. Troca de conta
+      // força a consulta; nos demais casos vale a resposta recente (até 60 s).
+      void fetchSubscription({ force: switchedAccount });
     });
 
     return () => {

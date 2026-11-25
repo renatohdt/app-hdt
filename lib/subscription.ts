@@ -73,29 +73,28 @@ function getServiceRoleClient() {
   });
 }
 
-// Verifica premium por indicação consultando a tabela users
-async function hasReferralPremium(userId: string, client: SupabaseClient): Promise<boolean> {
+type UserPremiumFields = {
+  referral_premium_until: string | null;
+  apple_premium_expires_at: string | null;
+  store_premium_source: string | null;
+};
+
+// Lê de uma vez só os campos de Premium que ficam na tabela users
+// (indicação e lojas Apple/Google). Antes eram 2 a 3 leituras separadas
+// da mesma linha a cada consulta de plano.
+async function getUserPremiumFields(userId: string, client: SupabaseClient): Promise<UserPremiumFields | null> {
   const { data, error } = await client
     .from("users")
-    .select("referral_premium_until")
+    .select("referral_premium_until, apple_premium_expires_at, store_premium_source")
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !data?.referral_premium_until) return false;
-  return new Date(data.referral_premium_until) > new Date();
+  if (error || !data) return null;
+  return data as UserPremiumFields;
 }
 
-// Verifica premium via assinatura da Apple (IAP/RevenueCat).
-// O webhook do RevenueCat mantém `apple_premium_expires_at` atualizado.
-async function hasApplePremium(userId: string, client: SupabaseClient): Promise<boolean> {
-  const { data, error } = await client
-    .from("users")
-    .select("apple_premium_expires_at")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data?.apple_premium_expires_at) return false;
-  return new Date(data.apple_premium_expires_at) > new Date();
+function isFutureDate(value: string | null | undefined) {
+  return Boolean(value) && new Date(value as string) > new Date();
 }
 
 /**
@@ -107,11 +106,10 @@ async function hasApplePremium(userId: string, client: SupabaseClient): Promise<
  */
 export async function getUserSubscription(
   userId: string,
-  userToken?: string | null
+  userToken?: string | null,
+  existingClient?: SupabaseClient
 ): Promise<Subscription | null> {
-  const supabase = userToken
-    ? getUserAuthClient(userToken)
-    : getServiceRoleClient();
+  const supabase = existingClient ?? (userToken ? getUserAuthClient(userToken) : getServiceRoleClient());
 
   const { data, error } = await supabase
     .from("subscriptions")
@@ -135,12 +133,13 @@ export async function getUserSubscription(
 export async function isPremium(userId: string, userToken?: string | null): Promise<boolean> {
   const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  const [subscription, referralPremium, programPremium, applePremium] = await Promise.all([
-    getUserSubscription(userId, userToken),
-    hasReferralPremium(userId, client),
+  const [subscription, premiumFields, programPremium] = await Promise.all([
+    getUserSubscription(userId, userToken, client),
+    getUserPremiumFields(userId, client),
     hasActiveProgramEntitlement(client, userId),
-    hasApplePremium(userId, client),
   ]);
+  const referralPremium = isFutureDate(premiumFields?.referral_premium_until);
+  const applePremium = isFutureDate(premiumFields?.apple_premium_expires_at);
 
   return subscription !== null || referralPremium || programPremium || applePremium;
 }
@@ -163,12 +162,13 @@ export async function getPlanType(userId: string, userToken?: string | null): Pr
 export async function getSubscriptionSummary(userId: string, userToken?: string | null) {
   const client = userToken ? getUserAuthClient(userToken) : getServiceRoleClient();
 
-  const [subscription, referralPremium, programPremium, applePremium] = await Promise.all([
-    getUserSubscription(userId, userToken),
-    hasReferralPremium(userId, client),
+  const [subscription, premiumFields, programPremium] = await Promise.all([
+    getUserSubscription(userId, userToken, client),
+    getUserPremiumFields(userId, client),
     hasActiveProgramEntitlement(client, userId),
-    hasApplePremium(userId, client),
   ]);
+  const referralPremium = isFutureDate(premiumFields?.referral_premium_until);
+  const applePremium = isFutureDate(premiumFields?.apple_premium_expires_at);
 
   if (!subscription && !referralPremium && !programPremium && !applePremium) {
     return {
@@ -187,12 +187,6 @@ export async function getSubscriptionSummary(userId: string, userToken?: string 
     // Premium sem assinatura Stripe: via loja (Apple/Google), indicação ou programa.
     // Loja é gerenciada nos Ajustes da App Store / Google Play, não pelo Stripe,
     // por isso manageable = false aqui; `source` diz ao perfil para onde mandar.
-    const { data: premiumFields } = await client
-      .from("users")
-      .select("apple_premium_expires_at, store_premium_source, referral_premium_until")
-      .eq("id", userId)
-      .maybeSingle();
-
     let source: PremiumSource = "program";
     let accessUntil: string | null = null;
     if (applePremium) {

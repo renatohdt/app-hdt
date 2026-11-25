@@ -4,8 +4,9 @@ Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.NODE_ENV,
 
-  // Captura 10% das transações de servidor para performance
-  tracesSampleRate: 0.1,
+  // Sem medição de performance no servidor (custava CPU em toda requisição na Vercel).
+  // Erros continuam sendo enviados normalmente.
+  tracesSampleRate: 0,
 
   debug: false
 });
