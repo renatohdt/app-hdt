@@ -3,6 +3,7 @@
 // Lembretes que aparecem DENTRO do popup de "Treino Concluído", conforme o total
 // de treinos concluídos da pessoa (desde o cadastro):
 //
+//   1º treino → Comunidade no WhatsApp (todo mundo, inclusive Premium)
 //   6º treino → Indique e Ganhe   (só plano free: Premium não ganha nada indicando)
 //   7º treino → Avaliar na loja   (só dentro do app Android / iOS liberado)
 //   8º treino → Redes sociais     (todo mundo, inclusive Premium)
@@ -14,7 +15,7 @@
 
 import { canAskStoreReview } from "@/lib/app-review";
 
-export type WorkoutMilestone = "referral" | "review" | "social";
+export type WorkoutMilestone = "community" | "referral" | "review" | "social";
 
 type MilestoneRule = {
   id: WorkoutMilestone;
@@ -24,6 +25,7 @@ type MilestoneRule = {
 };
 
 export const WORKOUT_MILESTONES: MilestoneRule[] = [
+  { id: "community", atWorkout: 1 },
   { id: "referral", atWorkout: 6, freeOnly: true },
   { id: "review", atWorkout: 7, nativeReviewOnly: true },
   { id: "social", atWorkout: 8 },

@@ -1,6 +1,6 @@
 "use client";
 
-// Cartão de lembrete dentro do popup de Treino Concluído (6º, 7º e 8º treinos).
+// Cartão de lembrete dentro do popup de Treino Concluído (1º, 6º, 7º e 8º treinos).
 // A regra de QUANDO aparece fica em lib/workout-milestones.ts.
 
 import { useEffect, useState } from "react";
@@ -9,6 +9,8 @@ import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
 import { openStoreReview } from "@/lib/app-review";
+import { COMMUNITY_URL } from "@/lib/community";
+import { WhatsAppIcon } from "@/components/community-card";
 import type { WorkoutMilestone } from "@/lib/workout-milestones";
 
 // Ícones iguais aos do rodapé da marca (components/brand-footer.tsx).
@@ -60,9 +62,33 @@ export function WorkoutMilestoneCard({ milestone }: { milestone: WorkoutMileston
     track(milestone, "view");
   }, [milestone]);
 
+  if (milestone === "community") return <CommunityMilestone />;
   if (milestone === "referral") return <ReferralMilestone />;
   if (milestone === "review") return <ReviewMilestone />;
   return <SocialMilestone />;
+}
+
+// ── 1º treino: comunidade no WhatsApp (todos, inclusive Premium) ─────────────
+function CommunityMilestone() {
+  return (
+    <div className={cardClass}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">💬 Comunidade</p>
+      <p className="mt-2 text-[15px] font-bold leading-snug text-white">Primeiro treino feito! Bora junto?</p>
+      <p className="mt-1 text-[12.5px] leading-relaxed text-white/55">
+        Entre na comunidade do Hora do Treino no WhatsApp: dicas, novidades do app e vídeos novos direto no seu celular.
+      </p>
+      <a
+        href={COMMUNITY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => track("community", "click")}
+        className={`${primaryButtonClass} inline-flex items-center justify-center gap-2`}
+      >
+        <WhatsAppIcon className="h-4 w-4" />
+        Entrar na comunidade
+      </a>
+    </div>
+  );
 }
 
 // ── 6º treino: Indique e Ganhe (só free) ─────────────────────────────────────

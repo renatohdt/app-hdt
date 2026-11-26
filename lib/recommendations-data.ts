@@ -22,6 +22,7 @@
 // ─── TIPOS ───────────────────────────────────────────────────────────────────
 
 import type { Goal, Experience, HomeEquipment, Location } from "@/lib/types";
+import { COMMUNITY_URL } from "@/lib/community";
 
 export type RecommendationCard = {
   id: string;
@@ -30,7 +31,7 @@ export type RecommendationCard = {
   /** Ícone emoji opcional exibido no card */
   emoji?: string;
   /** Ícone desenhado (quando não existe emoji adequado, ex.: halter). Tem prioridade sobre o emoji. */
-  icon?: "dumbbell";
+  icon?: "dumbbell" | "whatsapp";
   /** Link externo (afiliado, artigo, produto) */
   link?: {
     label: string;
@@ -453,12 +454,6 @@ const howTo: RecommendationCard[] = [
     body: "Toque em Iniciar treino antes da primeira série. Assim o app marca o tempo e o treino conta na sua semana, no seu nível e nas medalhas."
   }),
   forEveryone({
-    id: "howto_sets",
-    emoji: "✅",
-    title: "Marque as séries",
-    body: "Terminou uma série? Marque no exercício. A barra no rodapé mostra quanto falta para fechar o treino. Esqueceu de finalizar? Depois de um tempo sem atividade o app finaliza para você."
-  }),
-  forEveryone({
     id: "howto_loads",
     emoji: "🏋️",
     title: "Preencha as cargas",
@@ -481,6 +476,16 @@ const howTo: RecommendationCard[] = [
     emoji: "🔄",
     title: "Exercício não encaixou? Substitua",
     body: "Se um exercício incomodar ou faltar equipamento, use a opção de substituir no próprio exercício. Ele não volta a ser sugerido nos próximos programas."
+  }),
+  forEveryone({
+    id: "howto_community",
+    icon: "whatsapp",
+    title: "Entre na comunidade no WhatsApp",
+    body: "Na comunidade do Hora do Treino eu mando dicas, novidades do app e os vídeos novos do canal. É só tocar no botão abaixo para entrar.",
+    link: {
+      label: "Entrar na comunidade",
+      url: COMMUNITY_URL,
+    },
   })
 ];
 

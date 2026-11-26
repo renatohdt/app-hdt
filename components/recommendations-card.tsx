@@ -4,6 +4,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import { Building2, ChevronDown, Dumbbell, ExternalLink, Lightbulb, Salad, ShoppingBag } from "lucide-react";
 import { Card } from "@/components/ui";
+import { WhatsAppIcon } from "@/components/community-card";
 import {
   RECOMMENDATIONS_DATA,
   type RecommendationCard,
@@ -127,6 +128,8 @@ export function RecommendationsCard({ goal, level, equipment = [], location, loc
               >
                 {card.icon === "dumbbell" ? (
                   <Dumbbell className="h-[18px] w-[18px] shrink-0 text-primary" aria-hidden />
+                ) : card.icon === "whatsapp" ? (
+                  <WhatsAppIcon className="h-[18px] w-[18px] shrink-0 text-[#25D366]" />
                 ) : card.emoji ? (
                   <span className="shrink-0 text-[18px] leading-none">{card.emoji}</span>
                 ) : null}

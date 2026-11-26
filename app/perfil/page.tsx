@@ -14,6 +14,7 @@ import { UpsellModal } from "@/components/upsell-modal";
 import { useSubscription } from "@/components/use-subscription";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { RateAppCard } from "@/components/rate-app-card";
+import { CommunityCard } from "@/components/community-card";
 import { DownloadAppCard } from "@/components/download-app-card";
 import { invalidateWorkoutCache } from "@/components/use-workout-app-state";
 import { readProfileCache, writeProfileCache } from "@/lib/profile-cache";
@@ -1286,6 +1287,9 @@ export default function PerfilPage() {
 
       {/* Avalie o app (aparece só no app Android; iOS quando publicado) */}
       <RateAppCard />
+
+      {/* Comunidade no WhatsApp (todos) */}
+      <CommunityCard />
 
       {isPremiumUser ? planSection : null}
 
