@@ -35,3 +35,6 @@ docs/programa-migration-DRAFT.sql
 
 # Imagens das lojas (material de trabalho, fica só no computador)
 assets/store-v2/
+
+# Backups e rascunhos das sessões com o Claude (ficam só no computador)
+Claude outputs/
