@@ -3,7 +3,8 @@
  * para o Claude gravar as capas no banco DEV.
  *
  * Como rodar (na raiz do projeto):
- *   node scripts/ymove-thumbs.mjs
+ *   node scripts/ymove-thumbs.mjs          (lote 1)
+ *   node scripts/ymove-thumbs.mjs lote2    (outros lotes: passe o nome)
  *
  * Lê os IDs de "Claude outputs/ymove-ids-lote1.txt" (separados por vírgula)
  * e grava "Claude outputs/ymove-thumbs-lote1.json" no formato { "id": "url-da-capa" | null }.
@@ -35,8 +36,9 @@ loadEnv();
 const KEY = process.env.YMOVE_API_KEY?.trim();
 const BASE = "https://exercise-api.ymove.app/api/v2";
 const OUT_DIR = resolve(process.cwd(), "Claude outputs");
-const IDS_FILE = resolve(OUT_DIR, "ymove-ids-lote1.txt");
-const OUT_FILE = resolve(OUT_DIR, "ymove-thumbs-lote1.json");
+const LOTE = (process.argv[2] || "lote1").replace(/[^a-z0-9_-]/gi, "");
+const IDS_FILE = resolve(OUT_DIR, `ymove-ids-${LOTE}.txt`);
+const OUT_FILE = resolve(OUT_DIR, `ymove-thumbs-${LOTE}.json`);
 
 if (!KEY) {
   console.error("❌ YMOVE_API_KEY não encontrada no .env.local");
