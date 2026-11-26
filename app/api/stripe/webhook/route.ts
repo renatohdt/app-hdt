@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 import { notifyAccountEvent } from "@/lib/notify-user";
 import { pagamentoFalhouText } from "@/lib/notification-copy";
+import { queuePremiumCanceledEmail, queuePremiumWelcomeEmail } from "@/lib/strategic-emails";
 
 export const dynamic = "force-dynamic";
 
@@ -237,6 +238,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   logInfo("STRIPE_WEBHOOK", "Assinatura ativada com sucesso", { user_id: userId, plan });
+  queuePremiumWelcomeEmail(userId);
 }
 
 // Extrai o subscription ID da fatura (API 2026-03-25.dahlia — subscription ficou em parent)
@@ -394,13 +396,14 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const supabase = getServiceRoleClient();
 
-  const { error } = await supabase
+  const { data: deletedRows, error } = await supabase
     .from("subscriptions")
     .update({
       status: "canceled",
       canceled_at: new Date().toISOString(),
     })
-    .eq("stripe_subscription_id", subscription.id);
+    .eq("stripe_subscription_id", subscription.id)
+    .select("user_id");
 
   if (error) {
     logError("STRIPE_WEBHOOK", "Erro ao cancelar assinatura", {
@@ -413,6 +416,13 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   logInfo("STRIPE_WEBHOOK", "Assinatura cancelada — usuário retorna ao plano free", {
     subscription_id: subscription.id,
   });
+
+  // E-mail de cancelamento só quando a PESSOA pediu (não quando caiu por falta
+  // de pagamento). Se já recebeu ao agendar o cancelamento, não repete (mesma chave).
+  const deletedUserId = deletedRows?.[0]?.user_id as string | undefined;
+  if (deletedUserId && subscription.cancellation_details?.reason === "cancellation_requested") {
+    queuePremiumCanceledEmail(deletedUserId, subscription.id);
+  }
 }
 
 // Assinatura atualizada (mudança de plano, cancelamento agendado, etc.)
@@ -439,10 +449,11 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     updateData.canceled_at = new Date(subscription.canceled_at * 1000).toISOString();
   }
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("subscriptions")
     .update(updateData)
-    .eq("stripe_subscription_id", subscription.id);
+    .eq("stripe_subscription_id", subscription.id)
+    .select("user_id");
 
   if (error) {
     logError("STRIPE_WEBHOOK", "Erro ao atualizar assinatura", {
@@ -457,6 +468,12 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     status: subscription.status,
     cancel_at_period_end: subscription.cancel_at_period_end,
   });
+
+  // Cancelamento agendado (acesso segue até o fim do período): e-mail de cancelamento.
+  const updatedUserId = updatedRows?.[0]?.user_id as string | undefined;
+  if (updatedUserId && subscription.cancel_at_period_end) {
+    queuePremiumCanceledEmail(updatedUserId, subscription.id);
+  }
 }
 
 // Reembolso → marca o entitlement do programa como refunded (perde o acesso)

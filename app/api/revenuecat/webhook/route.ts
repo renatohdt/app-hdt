@@ -5,6 +5,7 @@ import { logError, logInfo, logWarn } from "@/lib/server-logger";
 import { notifyAccountEvent } from "@/lib/notify-user";
 import { pagamentoLojaFalhouText } from "@/lib/notification-copy";
 import { markCancellationConfirmed } from "@/lib/cancellation-feedback";
+import { queuePremiumCanceledEmail, queuePremiumWelcomeEmail } from "@/lib/strategic-emails";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,10 @@ type RevenueCatEvent = {
   store?: string | null;
   // "SANDBOX" (compra de teste) ou "PRODUCTION" (venda real).
   environment?: string | null;
+  // Em CANCELLATION: "UNSUBSCRIBE" (a pessoa desligou), "BILLING_ERROR", etc.
+  cancel_reason?: string | null;
+  // Identifica a assinatura na loja (mesma em todas as renovações).
+  original_transaction_id?: string | null;
 };
 
 // Converte o campo `store` do RevenueCat para o valor salvo no banco.
@@ -127,6 +132,18 @@ export async function POST(request: NextRequest) {
           error: result.error,
         });
       }
+
+      // E-mail de cancelamento só quando a pessoa desligou a renovação
+      // (não em falha de cobrança, que já tem aviso próprio).
+      if (event?.cancel_reason === "UNSUBSCRIBE") {
+        const cycleKey = `rc:${event?.original_transaction_id ?? new Date().toISOString().slice(0, 7)}`;
+        queuePremiumCanceledEmail(appUserId, cycleKey);
+      }
+    }
+
+    // Primeira compra na loja: e-mail de boas-vindas ao Premium (só 1x na vida).
+    if (type === "INITIAL_PURCHASE") {
+      queuePremiumWelcomeEmail(appUserId);
     }
 
     logInfo("REVENUECAT", "Premium da loja atualizado", {

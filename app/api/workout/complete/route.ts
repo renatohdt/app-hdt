@@ -5,6 +5,7 @@ import { diagnoseUser } from "@/lib/diagnosis";
 import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { logError, logInfo, logWarn } from "@/lib/server-logger";
+import { queueMilestoneEmailIfReached } from "@/lib/strategic-emails";
 import { getPlanType, isPremium } from "@/lib/subscription";
 import {
   getSupabaseErrorCode,
@@ -381,6 +382,7 @@ export async function POST(request: NextRequest) {
               });
 
               const retriedTotalWorkouts = await getAllTimeWorkoutCount(supabase, auth.user.id);
+              queueMilestoneEmailIfReached(auth.user.id, prevTotalWorkouts, retriedTotalWorkouts);
 
               return buildWorkoutCompletionSuccessResponse({
                 totalSessions: workoutState.sessionConfig.totalSessions,
@@ -457,6 +459,8 @@ export async function POST(request: NextRequest) {
       getAllTimeWorkoutCount(supabase, auth.user.id),
       countWeightIncreases(supabase, auth.user.id)
     ]);
+    // E-mail de parabéns ao cruzar 10 treinos (enviado depois da resposta).
+    queueMilestoneEmailIfReached(auth.user.id, prevTotalWorkouts, newTotalWorkouts);
 
     const weightEntries = buildWeightLogEntries({
       payload: exerciseWeightsPayload,

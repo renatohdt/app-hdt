@@ -3,7 +3,7 @@ import { requireAuthenticatedUser } from "@/lib/server-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { jsonError, jsonSuccess } from "@/lib/server-response";
 import { logError, logInfo } from "@/lib/server-logger";
-import { sendLeadLoversInterest } from "@/lib/leadlovers";
+import { sendPremiumOfferEmail } from "@/lib/strategic-emails";
 import { isPremium } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
@@ -12,16 +12,10 @@ export const dynamic = "force-dynamic";
 const VIEWS_TO_OFFER = 3; // aberturas do popup Premium para disparar o e-mail
 const COOLDOWN_DAYS = 30; // no máximo 1 e-mail de oferta a cada 30 dias
 
-// Nomes das sequências no LeadLovers (máquina "app hdt"). Precisam bater EXATAMENTE.
-// A "pausa" não tem e-mails: serve só para tirar o contato da oferta e colocar de
-// novo, garantindo que o e-mail seja reenviado depois de 30 dias.
-const OFFER_SEQUENCE = "Oferta Premium Site";
-const RESET_SEQUENCE = "Oferta Premium Site - pausa";
-
 /**
  * Chamado pelo app nativo (iOS/Android) toda vez que o popup de assinatura abre.
- * Conta a abertura e, se o usuário free atingiu a regra, coloca ele na sequência
- * de e-mail do LeadLovers que oferece os planos pelo site (Stripe).
+ * Conta a abertura e, se o usuário free atingiu a regra, envia o e-mail (Resend)
+ * que oferece os planos pelo site (Stripe).
  * A oferta acontece SÓ por e-mail: o app nunca mostra o preço do site (regra das lojas).
  */
 export async function POST(request: NextRequest) {
@@ -85,20 +79,13 @@ export async function POST(request: NextRequest) {
       return jsonSuccess({ counted: true, offerSent: false });
     }
 
-    // 3) Dados do contato.
-    const email = auth.user.email;
-    let name = email?.split("@")[0] || "Aluno";
-    const { data: profile } = await supabase.from("users").select("name").eq("id", userId).maybeSingle();
-    if (profile?.name) name = profile.name;
+    // 3) Envia o e-mail da oferta. A chave é a data da oferta: no máximo 1 a cada 30 dias.
+    //    "skipped" = sem consentimento de marketing (LGPD) ou já enviado: mantém a reserva.
+    const offerKey = new Date().toISOString().slice(0, 10);
+    const outcome = await sendPremiumOfferEmail(supabase, userId, offerKey);
+    const result = { ok: outcome === "sent", reason: outcome === "sent" ? null : outcome };
 
-    // 4) Já recebeu antes? Passa pela sequência "pausa" para o LeadLovers reenviar.
-    if (signal.offers_sent > 0) {
-      await sendLeadLoversInterest({ email, name, sequenceName: RESET_SEQUENCE });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
-    const result = await sendLeadLoversInterest({ email, name, sequenceName: OFFER_SEQUENCE });
-
-    if (!result.ok) {
+    if (outcome === "failed") {
       // Falhou: desfaz a reserva para tentar de novo na próxima abertura.
       await supabase
         .from("premium_offer_signals")
