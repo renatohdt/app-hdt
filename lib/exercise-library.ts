@@ -61,8 +61,8 @@ export const EXERCISE_EQUIPMENT_OPTIONS = [
   { value: "barra_fixa", label: "Barra Fixa" },
   { value: "barra_anilhas", label: "Barra e Anilhas" },
   { value: "paralelas", label: "Paralelas" },
-  // Discos de equilíbrio (bosu, balance disc etc.). Ainda sem exercícios: só aparece no admin.
-  { value: "disco_equilibrio", label: "Discos de Equilíbrio" }
+  // Discos de equilíbrio (meia bola/bosu, balance disc etc.). Liberado no app em 26/11/2026.
+  { value: "disco_equilibrio", label: "Meia Bola" }
 ] as const;
 
 const MUSCLE_LABELS = new Map<string, string>(EXERCISE_MUSCLE_OPTIONS.map((option) => [option.value, option.label]));

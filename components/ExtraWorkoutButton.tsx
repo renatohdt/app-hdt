@@ -69,6 +69,7 @@ const EQUIPMENT_OPTIONS: { value: HomeEquipment; label: string }[] = [
   { value: "barra_fixa", label: "BARRA FIXA" },
   { value: "barra_anilhas", label: "BARRA E ANILHAS" },
   { value: "paralelas", label: "PARALELAS" },
+  { value: "disco_equilibrio", label: "MEIA BOLA" },
   { value: "nenhum", label: "NENHUM" }
 ];
 

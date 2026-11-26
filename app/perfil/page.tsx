@@ -150,6 +150,7 @@ const EQUIPMENT_OPTIONS = [
   { value: "barra_fixa", label: "Barra Fixa" },
   { value: "barra_anilhas", label: "Barra e Anilhas" },
   { value: "paralelas", label: "Paralelas" },
+  { value: "disco_equilibrio", label: "Meia Bola" },
   { value: "nenhum", label: "Nenhum" }
 ];
 

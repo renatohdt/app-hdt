@@ -123,7 +123,12 @@ export const quizSteps = [
         value: "paralelas",
         icon: "/icon-paralelas.webp"
       },
-      // "Discos de Equilíbrio" (value: "disco_equilibrio", ícone "/icon-disco-equilibrio.webp") fica escondido até ter exercícios.
+      {
+        // Meia bola (bosu), balance disc etc.
+        label: "Meia Bola",
+        value: "disco_equilibrio",
+        icon: "/icon-disco-equilibrio.webp"
+      },
       {
         label: "Nenhum",
         value: "nenhum",

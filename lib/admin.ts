@@ -1270,7 +1270,7 @@ function getEquipmentLabel(value: string): string {
     barra_fixa: "Barra Fixa",
     barra_anilhas: "Barra e Anilhas",
     paralelas: "Paralelas",
-    disco_equilibrio: "Discos de Equilíbrio",
+    disco_equilibrio: "Meia Bola",
     nenhum: "Sem equipamento"
   };
   return labels[value] ?? value;
