@@ -24,7 +24,9 @@ export type EmailKind =
   | "premium_offer" // viu o popup Premium 3x (oferta do preço do site)
   | "premium_welcome" // acabou de assinar
   | "premium_canceled" // cancelou o plano
-  | "milestone_10_workouts"; // concluiu 10 treinos
+  | "milestone_10_workouts" // concluiu 10 treinos
+  | "premium_interest" // tocou em "Tenho interesse" no Premium (app)
+  | "program_interest"; // tocou em "Tenho interesse" em um Programa (app)
 
 // E-mails de marketing só vão para quem aceitou receber (consentimento
 // "marketing", LGPD). Os demais são avisos sobre a conta/assinatura.

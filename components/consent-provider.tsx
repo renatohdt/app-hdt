@@ -315,7 +315,7 @@ export function ConsentProvider({
                 />
                 <ConsentToggleCard
                   title="Marketing"
-                  description="Permite Meta Pixel e LeadLovers para remarketing e automações."
+                  description="Permite Meta Pixel e e-mails com dicas e ofertas do Hora do Treino."
                   checked={draftPreferences.marketing}
                   onChange={(checked) => setDraftPreferences((current) => ({ ...current, marketing: checked }))}
                 />

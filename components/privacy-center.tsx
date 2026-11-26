@@ -116,7 +116,7 @@ export function PrivacyCenter() {
       {
         key: "marketing",
         title: "Marketing",
-        description: "Usado para Meta Pixel, automações e integrações de remarketing, como LeadLovers."
+        description: "Usado para Meta Pixel e para e-mails com dicas e ofertas do Hora do Treino."
       }
     ],
     []

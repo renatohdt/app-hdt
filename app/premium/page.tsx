@@ -92,7 +92,7 @@ function PremiumPageContent() {
   function handleInterest() {
     trackEvent("premium_interest", null, { source: "app" });
     setInterested(true);
-    // Registra o interesse no LeadLovers (dispara os e-mails da sequência).
+    // Registra o interesse e envia por e-mail (Resend) como assinar pelo site.
     // "fire-and-forget": não travamos a tela do usuário esperando a resposta.
     void fetchWithAuth("/api/interest", {
       method: "POST",

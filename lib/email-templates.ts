@@ -12,6 +12,7 @@ import type { EmailContent } from "@/lib/email";
 const APP_URL = "https://app.horadotreino.com.br";
 const DASHBOARD_URL = `${APP_URL}/dashboard`;
 const PLANS_URL = `${APP_URL}/escolher-plano`;
+const PROGRAMS_URL = `${APP_URL}/programas`;
 const PRIVACY_URL = `${APP_URL}/privacidade`;
 const INSTAGRAM_URL = "https://www.instagram.com/horadotreino_oficial/";
 
@@ -101,12 +102,20 @@ ${opts.body}
 const SIGNATURE_TEXT = "\n\nBons treinos,\nRenato Santiago\nPersonal Trainer · Hora do Treino";
 
 // ─── 1. Viu o popup Premium 3x (usuário free do app) — oferta do preço do site ───
-export function premiumOfferEmail(firstName: string | null): EmailContent {
-  const subject = "Tenha mais resultado, assine o Premium e ainda pague mais barato";
+// Também usado quando a pessoa toca em "Tenho interesse" no Premium (requested = true):
+// muda só o assunto e a abertura, porque aí foi ela quem pediu.
+export function premiumOfferEmail(firstName: string | null, opts?: { requested?: boolean }): EmailContent {
+  const requested = Boolean(opts?.requested);
+  const subject = requested
+    ? "Você pediu: o Premium do jeito mais barato"
+    : "Tenha mais resultado, assine o Premium e ainda pague mais barato";
   const preheader = "No site sai a partir de R$ 9,90/mês. Menos que uma dose de whey por dia.";
+  const opening = requested
+    ? "Você pediu para saber mais sobre o Premium, então aqui vai, com um segredo que a loja do celular não conta:"
+    : "Percebi que você ficou de olho no Premium. Então deixa eu te contar um segredo que a loja do celular não conta:";
   const body = [
     p(hello(firstName)),
-    p("Percebi que você ficou de olho no Premium. Então deixa eu te contar um segredo que a loja do celular não conta:"),
+    p(opening),
     highlight(
       "Assinando pelo site, o Premium sai mais barato",
       "Na loja o mensal custa R$ 19,90. Pelo site é <strong>R$ 14,90/mês</strong> — ou <strong>R$ 9,90/mês no plano anual</strong> (R$ 118,80 no cartão ou PIX). Dá uns 33 centavos por dia: menos que uma dose de whey (e bem mais gostoso)."
@@ -126,7 +135,7 @@ export function premiumOfferEmail(firstName: string | null): EmailContent {
 
   const text = `${helloText(firstName)}
 
-Percebi que você ficou de olho no Premium. Um segredo que a loja do celular não conta: pelo site ele sai mais barato.
+${requested ? "Você pediu para saber mais sobre o Premium." : "Percebi que você ficou de olho no Premium."} Um segredo que a loja do celular não conta: pelo site ele sai mais barato.
 
 Na loja o mensal custa R$ 19,90. Pelo site é R$ 14,90/mês — ou R$ 9,90/mês no plano anual (R$ 118,80 no cartão ou PIX). Uns 33 centavos por dia.
 
@@ -307,4 +316,68 @@ Pelo site sai a partir de R$ 9,90/mês no plano anual: ${PLANS_URL}
 Próximo treino: ${DASHBOARD_URL}${SIGNATURE_TEXT}`;
 
   return { subject, html: layout({ title: subject, preheader, body, marketing: true }), text };
+}
+
+// ─── 5. Tocou em "Tenho interesse" em um Programa (app) — compra pelo site ───
+export type ProgramEmailInfo = {
+  title: string;
+  description: string | null;
+  durationWeeks: number | null;
+  sessionsPerWeek: number | null;
+  priceCents: number | null;
+  compareAtCents: number | null;
+};
+
+function formatBRL(cents: number) {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export function programInterestEmail(firstName: string | null, program: ProgramEmailInfo): EmailContent {
+  const title = escapeHtml(program.title);
+  const subject = `${program.title}: como garantir o seu`;
+  const preheader = "Montei cada semana pessoalmente. A compra é pelo site, em poucos minutos.";
+
+  const details = [
+    program.durationWeeks ? `${program.durationWeeks} semanas de treino montadas por mim, semana a semana` : null,
+    program.sessionsPerWeek ? `${program.sessionsPerWeek} treinos por semana, com vídeo de cada exercício` : null,
+    "Premium liberado durante todo o programa",
+    "Pagamento único, sem mensalidade"
+  ].filter(Boolean) as string[];
+
+  const hasAnchor = Boolean(program.priceCents && program.compareAtCents && program.compareAtCents > program.priceCents);
+  const price = program.priceCents ? formatBRL(program.priceCents) : null;
+  const anchor = hasAnchor ? formatBRL(program.compareAtCents as number) : null;
+  const priceHtml = price
+    ? anchor
+      ? `De <s>${anchor}</s> por <strong>${price}</strong>, pagamento único.`
+      : `<strong>${price}</strong>, pagamento único.`
+    : "";
+  const priceText = price ? (anchor ? `De ${anchor} por ${price}, pagamento único.` : `${price}, pagamento único.`) : "";
+
+  const body = [
+    p(hello(firstName)),
+    p(`Vi que você se interessou pelo <strong>${title}</strong>. Boa escolha: esse eu montei pessoalmente, como faria com um aluno meu.`),
+    highlight(title, program.description ? escapeHtml(program.description) : "Um programa completo, com começo, meio e fim."),
+    checklist(details.map(escapeHtml)),
+    priceHtml ? p(priceHtml) : "",
+    p("Pela regra das lojas, a compra não pode ser feita dentro do app. É pelo site, com a mesma conta, e assim que pagar o programa aparece no seu app."),
+    button("Garantir meu programa →", PROGRAMS_URL),
+    p("Ficou com dúvida se ele serve para você? Me responde este e-mail.")
+  ].join("\n");
+
+  const text = `${helloText(firstName)}
+
+Vi que você se interessou pelo ${program.title}. Esse eu montei pessoalmente, como faria com um aluno meu.
+
+${details.map((d) => `- ${d}`).join("\n")}
+
+${priceText}
+
+A compra é pelo site, com a mesma conta. Assim que pagar, o programa aparece no seu app.
+
+Garantir meu programa: ${PROGRAMS_URL}
+
+Dúvidas? É só responder este e-mail.${SIGNATURE_TEXT}`;
+
+  return { subject, html: layout({ title: subject, preheader, body, marketing: false }), text };
 }

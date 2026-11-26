@@ -6,7 +6,6 @@ import type { ConsentScope } from "@/lib/consent-types";
 import { diagnoseUser } from "@/lib/diagnosis";
 import { normalizeExerciseRecord } from "@/lib/exercise-library";
 import { recordTermsOfUseAcceptance } from "@/lib/legal-log";
-import { sendLeadLoversLead } from "@/lib/leadlovers";
 import { enforceRateLimit, getRequestFingerprint } from "@/lib/rate-limit";
 import { jsonError } from "@/lib/server-response";
 import { requireAuthenticatedUser } from "@/lib/server-auth";
@@ -277,27 +276,6 @@ export async function POST(request: Request) {
     if (answersResult.error) {
       logError("AUTH", "User answers save failed", { user_id: savedUser.id });
       return jsonError(SAVE_PROFILE_ERROR_MESSAGE, 500);
-    }
-
-    if (requestedConsents.marketing === true) {
-      logInfo("LEADLOVERS", "LeadLovers dispatch requested", {
-        user_id: savedUser.id
-      });
-
-      try {
-        await sendLeadLoversLead({
-          email: auth.user.email,
-          name,
-          answers
-        });
-      } catch {
-        logError("LEADLOVERS", "Lead send failed", { user_id: savedUser.id });
-      }
-    } else {
-      logInfo("LEADLOVERS", "LeadLovers dispatch skipped", {
-        user_id: savedUser.id,
-        reason: "marketing_consent_not_granted"
-      });
     }
 
     const currentWorkoutConfig = resolveWorkoutPlanSessionConfig({

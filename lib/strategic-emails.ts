@@ -8,7 +8,8 @@ import {
   milestone10WorkoutsEmail,
   premiumCanceledEmail,
   premiumOfferEmail,
-  premiumWelcomeEmail
+  premiumWelcomeEmail,
+  programInterestEmail
 } from "@/lib/email-templates";
 import { logError } from "@/lib/server-logger";
 import { createSupabaseAdminClient } from "@/lib/supabase-admin";
@@ -94,6 +95,50 @@ export function queueMilestoneEmailIfReached(userId: string, previousTotal: numb
       userId,
       kind: "milestone_10_workouts",
       build: (firstName) => milestone10WorkoutsEmail(firstName, premium)
+    });
+  });
+}
+
+/**
+ * Tocou em "Tenho interesse" no Premium (app nativo, onde não dá para pagar).
+ * Mesmo conteúdo da oferta do popup, com abertura de "você pediu". No máximo 1 por mês.
+ */
+export function queuePremiumInterestEmail(userId: string) {
+  const monthKey = new Date().toISOString().slice(0, 7);
+  runAfterResponse("premium_interest", (supabase) =>
+    sendUserEmailOnce(supabase, {
+      userId,
+      kind: "premium_interest",
+      dedupeKey: monthKey,
+      build: (firstName) => premiumOfferEmail(firstName, { requested: true })
+    })
+  );
+}
+
+/** Tocou em "Tenho interesse" em um Programa (app nativo). 1 e-mail por programa. */
+export function queueProgramInterestEmail(userId: string, slug: string) {
+  runAfterResponse("program_interest", async (supabase) => {
+    const { data: program } = await supabase
+      .from("programs")
+      .select("title, description, duration_weeks, sessions_per_week, price_cents, compare_at_cents")
+      .eq("slug", slug)
+      .eq("status", "published")
+      .maybeSingle();
+    if (!program) return "skipped";
+
+    return sendUserEmailOnce(supabase, {
+      userId,
+      kind: "program_interest",
+      dedupeKey: slug,
+      build: (firstName) =>
+        programInterestEmail(firstName, {
+          title: program.title,
+          description: program.description ?? null,
+          durationWeeks: program.duration_weeks ?? null,
+          sessionsPerWeek: program.sessions_per_week ?? null,
+          priceCents: program.price_cents ?? null,
+          compareAtCents: program.compare_at_cents ?? null
+        })
     });
   });
 }

@@ -80,7 +80,7 @@ export function ProgramasScreen() {
   function handleInterest(slug: string) {
     trackEvent("program_interest", null, { slug });
     setInterestedSlugs((prev) => (prev.includes(slug) ? prev : [...prev, slug]));
-    // Registra o interesse no LeadLovers (sequência "Interesse Programa").
+    // Registra o interesse e envia por e-mail (Resend) como comprar pelo site.
     // "fire-and-forget": não travamos a tela esperando a resposta.
     void fetchWithAuth("/api/interest", {
       method: "POST",
