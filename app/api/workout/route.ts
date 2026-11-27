@@ -55,11 +55,15 @@ const SAVE_WORKOUT_ERROR_MESSAGE = "Não foi possível salvar seu treino no mome
 const RATE_LIMIT_ERROR_MESSAGE = "Você atingiu o limite de tentativas. Tente novamente em alguns minutos.";
 
 export async function GET(request: NextRequest) {
+  // Medição de tempo de cada parte (header Server-Timing, visível no navegador
+  // em DevTools → Network → Timing). Não muda o conteúdo da resposta.
+  const timing = createServerTiming();
   try {
     const auth = await requireAuthenticatedUser(request);
     if (auth.response || !auth.user) {
       return auth.response ?? jsonError(SESSION_EXPIRED_MESSAGE, 401);
     }
+    timing.mark("auth");
 
     const supabase = createSupabaseUserClient(request);
     if (!supabase) {
@@ -125,6 +129,7 @@ export async function GET(request: NextRequest) {
         .eq("id", userId)
         .maybeSingle()
     ]);
+    timing.mark("etapa1");
 
     // Modo programa: se o usuário tem um programa comprado ativo, ele tem
     // prioridade sobre o fluxo de treino por IA (que segue abaixo).
@@ -186,6 +191,7 @@ export async function GET(request: NextRequest) {
             .lte("completed_at", activeGoalRow.ends_at)
         : Promise.resolve(null)
     ]);
+    timing.mark("etapa2");
 
     // Só adota o treino do local ativo quando ele EXISTE. Se o premium ainda
     // não tem programa para esse local, mantém o treino mais recente.
@@ -271,6 +277,7 @@ export async function GET(request: NextRequest) {
       // Passa a experiência do quiz para inicializar a fase corretamente na 1ª vez.
       getUserLevelSummary(supabase, user.id, savedAnswers?.experience ?? null).catch(() => null)
     ]);
+    timing.mark("etapa3");
 
     // Um programa, vários locais: contagem, último treino e próxima letra valem
     // para TODOS os locais (fez A no condomínio → o próximo é B em qualquer local).
@@ -303,7 +310,7 @@ export async function GET(request: NextRequest) {
     availableLocationsSet.add(answers.location ?? "home");
     const availableLocations = Array.from(availableLocationsSet);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         hasWorkout: true,
@@ -350,10 +357,31 @@ export async function GET(request: NextRequest) {
           : null,
       }
     });
+    timing.mark("processamento");
+    response.headers.set("Server-Timing", timing.header());
+    return response;
   } catch {
     logError("WORKOUT", "Workout GET unexpected failure", {});
     return jsonError(LOAD_WORKOUT_ERROR_MESSAGE, 500);
   }
+}
+
+// Mede quanto tempo cada parte de uma requisição levou e monta o header
+// Server-Timing (ex.: "auth;dur=2, etapa1;dur=180, ..., total;dur=420").
+function createServerTiming() {
+  const start = performance.now();
+  let last = start;
+  const parts: string[] = [];
+  return {
+    mark(name: string) {
+      const now = performance.now();
+      parts.push(`${name};dur=${Math.round(now - last)}`);
+      last = now;
+    },
+    header() {
+      return [...parts, `total;dur=${Math.round(performance.now() - start)}`].join(", ");
+    }
+  };
 }
 
 // Converte o nível do programa para o formato de "experiência" do app.
