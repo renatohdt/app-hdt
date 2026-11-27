@@ -16,6 +16,7 @@ import { createSupabaseBrowserClient, getSupabaseBrowserSetupError } from "@/lib
 import { clientLogError, clientLogInfo } from "@/lib/client-logger";
 import { QuizAnswers } from "@/lib/types";
 import { initialAnswers, quizSteps } from "@/lib/quiz";
+import { avatarSrc } from "@/lib/avatar";
 import { ITEM_HEIGHT as WHEEL_ITEM_HEIGHT, VISIBLE as WHEEL_VISIBLE, WheelColumn } from "@/components/rest-timer-wheel";
 
 type AccountFields = {
@@ -463,6 +464,18 @@ export function QuizForm() {
 
       <div key={`${step.key}-${step.type}`} className="min-h-[420px] transition-all duration-300 ease-out">
         <div className="space-y-3 transition-all duration-300 ease-out animate-in fade-in-0 slide-in-from-right-2">
+          {/* Boas-vindas do Renato, só na 1ª pergunta (sem tela extra, para não custar um toque a mais) */}
+          {safeStepIndex === 0 ? (
+            <div className="mb-3 flex items-center gap-3 rounded-[20px] border border-primary/20 bg-primary/[0.06] p-3 pr-4">
+              <img src={avatarSrc("acenando")} alt="Renato, seu personal" className="-my-1 h-auto w-[96px] shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/90">Oi, eu sou o Renato!</p>
+                <p className="mt-1 text-sm leading-5 text-white/80">
+                  Sou personal há mais de 15 anos. Responde rapidinho que eu monto seu treino com o meu método.
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-start gap-3">
             <h2 className="text-2xl font-semibold sm:text-3xl">{step.title}</h2>
             {"info" in step && step.info ? (
@@ -714,15 +727,16 @@ export function QuizForm() {
           className="mt-6 overflow-hidden rounded-[28px] border border-primary/20 bg-gradient-to-br from-primary/14 via-[#0f0f0f] to-[#151515] p-5 shadow-glow sm:p-6"
         >
           <div className="flex flex-col gap-5">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/90">Montagem do treino</p>
-              <div className="space-y-2">
+            <div className="flex items-start gap-3">
+              <img src={avatarSrc("pensativo")} alt="Renato pensando" className="-ml-1 -mt-1 h-auto w-[110px] shrink-0" />
+              <div className="min-w-0 space-y-2 pt-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/90">Montagem do treino</p>
                 <p className="text-xl font-semibold text-white sm:text-2xl">Montando seu treino personalizado...</p>
-                <p className="max-w-2xl text-sm leading-6 text-white/66">
-                  Estou analisando suas respostas para montar um treino alinhado ao seu objetivo, rotina e nível.
-                </p>
               </div>
             </div>
+            <p className="-mt-2 max-w-2xl text-sm leading-6 text-white/66">
+              Estou analisando suas respostas para montar um treino alinhado ao seu objetivo, rotina e nível.
+            </p>
 
             <div className="space-y-3">
               <div className="flex items-end gap-4">

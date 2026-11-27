@@ -103,36 +103,60 @@ export default function HomePage() {
         <Image src="/logo-app.png" alt="Hora do Treino" width={300} height={300} priority className="w-40 max-w-[50vw] animate-pulse" />
       </div>
     <main className="hdt-welcome relative flex min-h-screen min-h-[100dvh] flex-col items-center justify-between overflow-hidden bg-[#050705] px-6 py-10 text-white">
-      {/* Brilho verde da marca (decorativo) */}
+      {/* Foto do Renato ao fundo (já com luz verde e fundo escuro na própria imagem) */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-12 flex h-[78%] justify-center [@media(max-height:820px)]:top-0 [@media(max-height:820px)]:h-[62%]">
+        <img
+          src="/images/login-renato-epica.webp"
+          alt=""
+          className="h-full w-full max-w-[640px] object-cover object-top"
+          style={{
+            WebkitMaskImage: "radial-gradient(ellipse 75% 85% at 50% 35%, #000 55%, transparent 100%)",
+            maskImage: "radial-gradient(ellipse 75% 85% at 50% 35%, #000 55%, transparent 100%)"
+          }}
+        />
+      </div>
+      {/* Escurece a foto de baixo para cima, para o texto e os botões ficarem legíveis */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[60%] bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(34,197,94,0.18),transparent_70%)]"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(5,7,5,0.5)_0%,rgba(5,7,5,0.35)_28%,rgba(5,7,5,0.85)_50%,#050705_64%)]"
       />
+      {/* Leve brilho verde da marca embaixo */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%] bg-[radial-gradient(ellipse_70%_60%_at_50%_100%,rgba(34,197,94,0.08),transparent_70%)]"
       />
 
-      {/* Espaçador do topo para equilibrar a centralização */}
-      <div aria-hidden className="h-4 w-full" />
+      {/* Telas baixas: não há espaço para o logo grande sem cobrir o rosto,
+          então ele vai pequeno para o canto de cima. */}
+      <Image
+        src="/logo-app.png"
+        alt=""
+        aria-hidden
+        width={300}
+        height={300}
+        className="absolute left-5 top-5 z-10 hidden w-14 drop-shadow-[0_0_20px_rgba(0,0,0,0.6)] [@media(max-height:820px)]:block"
+      />
 
-      {/* Miolo: logo em destaque + frase curta */}
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
+      {/* Espaço para a foto aparecer */}
+      <div aria-hidden className="flex-1" />
+
+      {/* Logo em destaque + frase curta, logo acima dos botões */}
+      <div className="relative z-10 mb-7 flex w-full max-w-sm flex-col items-center text-center">
         <Image
           src="/logo-app.png"
           alt="Hora do Treino"
           width={300}
           height={300}
           priority
-          className="w-48 max-w-[62vw] drop-shadow-[0_0_40px_rgba(34,197,94,0.25)] sm:w-56"
+          className="w-36 max-w-[42vw] drop-shadow-[0_0_40px_rgba(34,197,94,0.3)] [@media(max-height:820px)]:hidden"
         />
-        <h1 className="mt-8 text-[clamp(26px,7vw,40px)] font-black leading-[1.1] tracking-tight">
+        <h1 className="mt-5 text-balance text-[clamp(26px,7vw,40px)] font-black leading-[1.1] tracking-tight">
           Seu <span className="text-primary">treino onde você estiver</span>
           <br />
           começa aqui
         </h1>
-        <p className="mt-3 max-w-xs text-[15px] leading-relaxed text-white/60">
-          Plano personalizado, montado por IA, no seu ritmo.
+        <p className="mx-auto mt-3 max-w-sm text-balance text-[15px] leading-relaxed text-white/70">
+          Eu criei o método. A IA monta seu treino. Você conquista o resultado.
         </p>
       </div>
 

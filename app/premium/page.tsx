@@ -245,9 +245,8 @@ function PremiumPageContent() {
                 {!interested ? (
                   <>
                     <p className="text-sm leading-relaxed text-white/70">
-                      A ativação do Premium é feita pela nossa equipe. Deixe seu
-                      interesse e enviamos por e-mail as novidades e como desbloquear
-                      todos os recursos.
+                      Eu mesmo ativo o seu Premium. Deixe seu interesse que eu te envio
+                      por e-mail as novidades e como desbloquear todos os recursos.
                     </p>
                     <button
                       onClick={handleInterest}

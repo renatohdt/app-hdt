@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Lock, X } from "lucide-react";
-import { PremiumBadge, PremiumIcon } from "@/components/premium-badge";
+import { PremiumBadge } from "@/components/premium-badge";
+import { avatarSrc } from "@/lib/avatar";
 import { trackEvent } from "@/lib/analytics-client";
 import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 
@@ -12,7 +13,7 @@ import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 // gráfico de evolução (curiosidade). Sempre com saída clara: "Agora não".
 const LOCKED_FEATURES = [
   "Gráfico da sua evolução de carga",
-  "Minha semana: o app organiza seus dias",
+  "Minha semana: eu organizo seus dias",
   "Programas e substituições ilimitados",
   "Treino em mais de um local, sem anúncios"
 ];
@@ -49,7 +50,7 @@ export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, day
   const stats = [
     { value: totalWorkouts, label: totalWorkouts === 1 ? "treino feito" : "treinos feitos" },
     { value: weightIncreases, label: weightIncreases === 1 ? "aumento de carga" : "aumentos de carga" },
-    { value: daysUsing, label: daysUsing === 1 ? "dia com a gente" : "dias com a gente" }
+    { value: daysUsing, label: daysUsing === 1 ? "dia treinando comigo" : "dias treinando comigo" }
   ];
 
   if (typeof document === "undefined") return null;
@@ -68,9 +69,12 @@ export function MissingOutPopup({ firstName, totalWorkouts, weightIncreases, day
           <X size={16} />
         </button>}
 
-        <div className="mb-4 flex items-center gap-3">
-          <PremiumIcon />
-          <PremiumBadge />
+        <div className="mb-3 flex items-end gap-3">
+          {/* Renato apontando, com a coroa do Premium */}
+          <img src={avatarSrc("premium")} alt="Renato, seu personal" className="-ml-2 h-auto w-[130px] shrink-0" />
+          <div className="pb-3">
+            <PremiumBadge />
+          </div>
         </div>
 
         <h2 className="text-xl font-bold leading-snug tracking-tight text-white">

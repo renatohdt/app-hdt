@@ -8,6 +8,7 @@ import { PremiumBadge } from "@/components/premium-badge";
 import type { SubscriptionSummary } from "@/components/use-subscription";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { trackEvent } from "@/lib/analytics-client";
+import { avatarSrc } from "@/lib/avatar";
 import { getWebPricePerDayLabel } from "@/lib/premium-pricing";
 
 // Páginas oficiais de assinaturas de cada loja (o cancelamento/troca de plano
@@ -154,33 +155,11 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
 
     if (cancelStep === "confirm") {
       return (
-        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-          <p className="text-[13px] font-semibold text-white">Tem certeza? Ao cancelar você perde:</p>
-          <ul className="space-y-1">
-            {PREMIUM_BENEFITS.map((benefit) => (
-              <li key={benefit} className="text-[12.5px] text-white/55">
-                ✕ {benefit}
-              </li>
-            ))}
-          </ul>
-          <p className="text-[12px] text-white/45">
-            Você mantém o Premium até o fim do período já pago{opts.periodEnd ? ` (${formatDate(opts.periodEnd)})` : ""}.
-          </p>
-          <button
-            type="button"
-            onClick={() => setCancelStep("idle")}
-            className="w-full rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3 text-sm font-black text-[#2b1d00] transition hover:opacity-95"
-          >
-            Manter meu Premium
-          </button>
-          <button
-            type="button"
-            onClick={() => setCancelStep("survey")}
-            className="w-full rounded-2xl py-2.5 text-sm font-semibold text-red-400/90 transition hover:bg-red-500/10"
-          >
-            Quero cancelar
-          </button>
-        </div>
+        <CancelConfirmCard
+          periodEndLabel={opts.periodEnd ? formatDate(opts.periodEnd) : null}
+          onKeep={() => setCancelStep("idle")}
+          onConfirm={() => setCancelStep("survey")}
+        />
       );
     }
 
@@ -302,6 +281,53 @@ export function SubscriptionCard({ subscription, isNative, formatDate, onManageS
         </button>
       ) : null}
       {source === "referral" ? upsellModal : null}
+    </div>
+  );
+}
+
+/** Passo "Tem certeza?" do cancelamento, com o Renato triste. Exportado para a página /dev/avatar. */
+export function CancelConfirmCard({
+  periodEndLabel,
+  onKeep,
+  onConfirm
+}: {
+  periodEndLabel: string | null;
+  onKeep: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+      <div className="flex items-start gap-3">
+        <img src={avatarSrc("triste")} alt="Renato triste" className="-ml-1 -mt-1 h-auto w-[88px] shrink-0" />
+        <div className="min-w-0 pt-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/90">Renato</span>
+          <p className="mt-0.5 text-[13px] font-semibold text-white">Poxa, já vai? Ao cancelar você perde:</p>
+        </div>
+      </div>
+      <ul className="space-y-1">
+        {PREMIUM_BENEFITS.map((benefit) => (
+          <li key={benefit} className="text-[12.5px] text-white/55">
+            ✕ {benefit}
+          </li>
+        ))}
+      </ul>
+      <p className="text-[12px] text-white/45">
+        Você mantém o Premium até o fim do período já pago{periodEndLabel ? ` (${periodEndLabel})` : ""}.
+      </p>
+      <button
+        type="button"
+        onClick={onKeep}
+        className="w-full rounded-2xl bg-gradient-to-r from-premium to-premiumStrong py-3 text-sm font-black text-[#2b1d00] transition hover:opacity-95"
+      >
+        Manter meu Premium
+      </button>
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="w-full rounded-2xl py-2.5 text-sm font-semibold text-red-400/90 transition hover:bg-red-500/10"
+      >
+        Quero cancelar
+      </button>
     </div>
   );
 }

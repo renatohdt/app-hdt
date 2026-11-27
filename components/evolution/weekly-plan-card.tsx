@@ -75,7 +75,7 @@ export function WeeklyPlanCard({
           <PremiumBadge size="xs" />
           <span className="mt-2 text-sm font-bold text-white">Monte sua semana como um personal</span>
           <span className="mt-1 text-xs leading-relaxed text-white/60">
-            Escolha seus dias e o app organiza a ordem ideal dos treinos, com day off na hora certa e reorganização automática.
+            Escolha seus dias e eu organizo a ordem ideal dos treinos, com day off na hora certa e reorganização automática.
           </span>
           <span className="premium-shine mt-3 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-premium to-premiumStrong px-4 py-2 text-xs font-black text-[#2b1d00]">
             <Lock className="h-3.5 w-3.5" strokeWidth={2.75} />
@@ -139,7 +139,7 @@ export function WeeklyPlanCard({
               ? "Escolha pelo menos 1 dia."
               : draft.length < weeklyTarget
                 ? `Você escolheu ${draft.length} ${draft.length === 1 ? "dia" : "dias"}; seu programa prevê ${weeklyTarget} treinos por semana. Tudo bem: o programa só vai levar um pouco mais de tempo.`
-                : "Os dias não escolhidos viram day off. O app distribui os treinos respeitando o descanso."}
+                : "Os dias não escolhidos viram day off. Eu distribuo os treinos respeitando o descanso."}
           </p>
           <div className="flex gap-2">
             <button

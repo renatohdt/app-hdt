@@ -13,7 +13,7 @@ export function treinoDoDiaText(seed: string): NotificationText {
   return pick(
     seed,
     [
-      { title: "Hoje é dia de treino 💪", body: "Daqui a pouco é a sua hora. Seu treino já está pronto no app." },
+      { title: "Hoje é dia de treino 💪", body: "Daqui a pouco é a sua hora. Seu treino já está pronto. Te espero lá!" },
       { title: "Seu treino de hoje te espera ✅", body: "Separei tudo pra você. É só abrir e dar o play." },
       { title: "A Hora do Treino está chegando ⏰", body: "No seu horário de sempre. O você de amanhã agradece." }
     ],
@@ -25,7 +25,7 @@ export function treinoAmanhaCedoText(seed: string): NotificationText {
   return pick(
     seed,
     [
-      { title: "Amanhã cedo tem treino 🌅", body: "Deixa a roupa separada. Seu treino já está pronto no app." },
+      { title: "Amanhã cedo tem treino 🌅", body: "Deixa a roupa separada. Seu treino já está pronto. Te espero lá!" },
       { title: "Despertador + treino = combo 🔥", body: "Amanhã de manhã é dia de treino. Dorme cedo que eu te espero!" }
     ],
     "/treino"
@@ -107,7 +107,7 @@ export function indicacaoText(remaining: number): NotificationText {
 export function indicacaoPremioText(): NotificationText {
   return {
     title: "Você ganhou 30 dias de Premium! 🏆",
-    body: "5 amigos entraram com seu convite. Aproveite o Premium por nossa conta.",
+    body: "5 amigos entraram com seu convite. Aproveite o Premium por minha conta.",
     url: "/dashboard"
   };
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { trackEvent } from "@/lib/analytics-client";
+import { avatarSrc } from "@/lib/avatar";
 import { CANCELLATION_REASONS, type CancellationReason } from "@/lib/cancellation-feedback";
 
 /**
@@ -73,9 +74,12 @@ export function CancellationSurvey({ submitLabel, onDone, busy = false }: Props)
 
   return (
     <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-      <div className="space-y-1">
-        <p className="text-[14px] font-bold text-white">Antes de ir, conta pra gente: por que está cancelando?</p>
-        <p className="text-[12px] text-white/45">Sua resposta ajuda a deixar o Hora do Treino melhor. Leva 10 segundos.</p>
+      <div className="flex items-start gap-3">
+        <img src={avatarSrc("neutro")} alt="Renato, seu personal" className="-ml-1 -mt-1 h-auto w-[88px] shrink-0" />
+        <div className="min-w-0 space-y-1 pt-1">
+          <p className="text-[14px] font-bold text-white">Antes de ir, conta pra mim: por que está cancelando?</p>
+          <p className="text-[12px] text-white/45">Sua resposta me ajuda a deixar o Hora do Treino melhor. Leva 10 segundos.</p>
+        </div>
       </div>
 
       <div className="space-y-1.5" role="radiogroup" aria-label="Motivo do cancelamento">
@@ -115,7 +119,7 @@ export function CancellationSurvey({ submitLabel, onDone, busy = false }: Props)
             onChange={(event) => setComment(event.target.value.slice(0, 1000))}
             disabled={locked}
             rows={3}
-            placeholder={needsComment ? "Conta o motivo pra gente (obrigatório)" : "Quer contar mais? (opcional)"}
+            placeholder={needsComment ? "Conta o motivo pra mim (obrigatório)" : "Quer contar mais? (opcional)"}
             className="w-full resize-none rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-[13px] text-white placeholder:text-white/35 focus:border-white/30 focus:outline-none disabled:opacity-50"
           />
           {needsComment && comment.trim().length === 0 ? (

@@ -172,7 +172,7 @@ export function IosPremiumPurchase({ fallback }: { fallback?: ReactNode } = {}) 
         <span className="mx-auto mb-3 block h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
         <p className="text-sm font-semibold text-primary">Ativando seu Premium...</p>
         <p className="mt-1 text-sm text-white/70">
-          Pagamento aprovado! Estamos liberando seus recursos. Isso pode levar até 1 minuto.
+          Pagamento aprovado! Estou liberando seu Premium. Isso pode levar até 1 minuto.
         </p>
       </div>
     );

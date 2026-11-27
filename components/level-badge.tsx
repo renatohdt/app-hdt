@@ -134,7 +134,7 @@ export function LevelModal({
     pre_intermediario: "Seu corpo está se adaptando e os treinos ficando mais eficientes.",
     intermediario:     "Você acessa técnicas avançadas como drop-set, bi-set e mais.",
     pre_avancado:      "Treinos de alta performance com técnicas de intensificação completas.",
-    avancado:          "Faixa preta! Você tem acesso ao melhor que o app pode oferecer.",
+    avancado:          "Faixa preta! Agora você tem acesso ao melhor que eu posso oferecer.",
   };
 
   return createPortal(

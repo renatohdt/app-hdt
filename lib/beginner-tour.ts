@@ -12,6 +12,8 @@
 // (ex.: circuito e drop-set ao chegar no intermediário), crie um novo grupo.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { AvatarExpression } from "@/lib/avatar";
+
 export type TourContext = {
   /** Ex.: "Sessão 1 de 10" (tela de treino) */
   sessionLabel?: string;
@@ -28,6 +30,8 @@ export type TourStep = {
   shape?: "rounded" | "pill";
   title: (ctx: TourContext) => string;
   text: (ctx: TourContext) => string;
+  /** Rosto do Renato que aparece na caixa da dica (ver lib/avatar.ts). */
+  avatar?: AvatarExpression;
 };
 
 export type TourGroupId = "home" | "screen" | "exercise" | "finish";
@@ -37,6 +41,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
   home: [
     {
       id: "home-level",
+      avatar: "acenando",
       target: "home-level",
       shape: "pill",
       title: () => "Seu nível",
@@ -45,6 +50,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "home-goal",
+      avatar: "sonhando",
       target: "home-goal",
       title: () => "Crie uma meta pessoal",
       text: () =>
@@ -52,6 +58,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "home-workout",
+      avatar: "bora",
       target: "home-workout",
       title: () => "Já viu seu treino do dia?",
       text: () =>
@@ -62,6 +69,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
   screen: [
     {
       id: "session",
+      avatar: "apontando-eu",
       target: "session-badge",
       shape: "pill",
       title: (ctx) => `${ctx.sessionLabel ?? "Sessões"} · Seu programa tem começo, meio e fim`,
@@ -70,6 +78,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "tabs",
+      avatar: "neutro",
       target: "workout-tabs",
       title: () => "Treino A, B, C · Sua semana de treino",
       text: () =>
@@ -77,6 +86,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "list",
+      avatar: "explicando-2",
       target: "first-exercise",
       title: () => "Lista de exercícios · Tudo tem uma ordem",
       text: () =>
@@ -84,6 +94,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "start",
+      avatar: "bora-2",
       target: "start-workout",
       shape: "pill",
       title: () => "Iniciar treino · Bora começar?",
@@ -94,6 +105,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
   exercise: [
     {
       id: "exercise-check",
+      avatar: "joinha-piscada",
       target: "exercise-check",
       shape: "pill",
       title: () => "Check do exercício · Marque o que já fez",
@@ -102,6 +114,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "video",
+      avatar: "explicando",
       target: "exercise-video",
       shape: "pill",
       title: () => "Vídeo · Veja antes de fazer",
@@ -110,6 +123,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "sets",
+      avatar: "pensativo",
       target: "exercise-set-row",
       title: () => "Séries e repetições · Como ler seu treino",
       text: () =>
@@ -117,6 +131,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "weight",
+      avatar: "desconfiado",
       target: "exercise-weight",
       title: () => "Carga · Qual peso usar?",
       text: () =>
@@ -124,6 +139,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
     },
     {
       id: "replace",
+      avatar: "explicando-2",
       target: "exercise-replace",
       title: () => "Não vai rolar esse exercício?",
       text: () =>
@@ -134,6 +150,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourStep[]> = {
   finish: [
     {
       id: "finish",
+      avatar: "joinha",
       target: "finish-feedback",
       title: () => "Finalizar o treino · Acabou, avalie e encerre!",
       text: () =>

@@ -7,6 +7,7 @@ import { Dispatch, InputHTMLAttributes, ReactNode, SetStateAction, useEffect, us
 import { useRouter } from "next/navigation";
 import { AppSessionTracker } from "@/components/app-session-tracker";
 import { AppShell } from "@/components/app-shell";
+import { avatarSrc } from "@/lib/avatar";
 import dynamic from "next/dynamic";
 import type { ComponentProps } from "react";
 import { computeAgeFromBirthDate } from "@/lib/age";
@@ -964,7 +965,7 @@ export default function PerfilPage() {
                 })}
               </div>
               <p className="text-[0.7rem] text-white/40">
-                Escolha 1 estilo (ou &quot;Personal Escolhe&quot;, em que a IA decide). Combinar 2 ou mais estilos é Premium — a IA distribui pelos treinos.
+                Escolha 1 estilo (ou &quot;Personal Escolhe&quot;, em que eu decido por você). Combinar 2 ou mais estilos é Premium — eu distribuo pelos treinos.
               </p>
             </div>
             <div className="space-y-2">
@@ -1269,6 +1270,18 @@ export default function PerfilPage() {
         </Card>
       </div>
 
+
+      {/* Quem é o seu personal */}
+      <Link href="/perfil/personal" className="block">
+        <Card className="flex items-center gap-3 p-3 pr-4 transition hover:border-primary/30">
+          <img src={avatarSrc("neutro")} alt="" className="-my-1 h-auto w-[72px] shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Seu personal</p>
+            <p className="mt-0.5 text-sm font-semibold text-white">Quem está por trás do seu treino</p>
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
+        </Card>
+      </Link>
 
       {/* Fale Conosco */}
       <Card className="space-y-2 p-4">

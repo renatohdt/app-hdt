@@ -113,7 +113,7 @@ export function PremiumCheckoutPanel({ origin, ctaSource, ctaLabel = "Assinar Pr
         <span className="mx-auto mb-3 block h-7 w-7 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
         <p className="text-base font-bold text-primary">Ativando seu Premium...</p>
         <p className="mt-1 text-sm text-white/60">
-          Pagamento aprovado! Estamos liberando seus recursos. Isso pode levar até 1 minuto.
+          Pagamento aprovado! Estou liberando seu Premium. Isso pode levar até 1 minuto.
         </p>
       </div>
     );

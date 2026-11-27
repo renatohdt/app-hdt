@@ -127,7 +127,7 @@ export function ProgramasScreen() {
       <SectionTitle
         eyebrow="Programas"
         title="Programas de treino"
-        description="Programas completos montados pelo Renato. Acesso por 3 meses, com o app completo incluso no período."
+        description="Programas completos montados por mim. Acesso por 3 meses, com o app completo incluso no período."
       />
 
       {error && <Card className="border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">{error}</Card>}

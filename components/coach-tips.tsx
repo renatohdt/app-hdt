@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { trackEvent } from "@/lib/analytics-client";
+import { avatarSrc, type AvatarExpression } from "@/lib/avatar";
 import { parseJsonResponse } from "@/lib/api";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
 import { SNOOZE_DAYS, type CoachTip } from "@/lib/coach-tips";
@@ -142,12 +143,29 @@ export function useCoachTips({
 
 // ── Assinatura ───────────────────────────────────────────────────────────────
 
-export function CoachSignature() {
+// Rosto do Renato para cada tipo de dica (imagens em public/avatar/, ver lib/avatar.ts).
+const TIP_AVATAR: Record<CoachTip["kind"], AvatarExpression> = {
+  comeback: "acenando",
+  log_weight: "explicando-2",
+  weekly_target: "pensativo",
+  skipped_workout: "desconfiado",
+  half_workout: "triste",
+  strength_gain: "impressionado",
+  final_stretch: "bora",
+  load_increase: "bora-2",
+  load_decrease: "explicando"
+};
+
+export function CoachSignature({ kind }: { kind?: CoachTip["kind"] }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/90">
-      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold tracking-normal text-primary">
-        R
-      </span>
+    <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/90">
+      {kind ? (
+        <img src={avatarSrc(TIP_AVATAR[kind])} alt="Renato, seu personal" className="h-auto w-14 shrink-0" />
+      ) : (
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold tracking-normal text-primary">
+          R
+        </span>
+      )}
       Dica do Renato
     </span>
   );
@@ -168,30 +186,47 @@ export function CoachTipSheet({ tip, onClose }: { tip: CoachTip; onClose: () => 
       aria-labelledby="coach-tip-title"
       className="fixed inset-0 z-[65] flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center"
     >
-      <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">
-        <CoachSignature />
-        <p id="coach-tip-title" className="mt-3 text-lg font-semibold leading-snug text-white">
-          {tip.title}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-white/72">{tip.text}</p>
-        <div className="mt-5 flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-12 w-full items-center justify-center rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
-          >
-            Bora treinar!
-          </button>
-          {tip.action ? (
-            <Link
-              href={tip.action.href}
-              onClick={() => trackEvent("cta_click", null, { source: `coach_tip_action_${tip.kind}` })}
-              className="flex h-11 w-full items-center justify-center rounded-[16px] border border-white/12 text-sm font-semibold text-white/80 transition hover:border-primary/40 hover:text-white"
-            >
-              {tip.action.label}
-            </Link>
-          ) : null}
+      <CoachTipCard tip={tip} onClose={onClose} />
+    </div>
+  );
+}
+
+/** O card em si (sem o fundo escuro). Separado para a página /dev/avatar mostrar todos lado a lado. */
+export function CoachTipCard({ tip, onClose }: { tip: CoachTip; onClose: () => void }) {
+  return (
+    <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-[#0f0f0f] p-5 shadow-2xl">
+      {/* Rosto do Renato (expressão do tipo de dica) + assinatura e título ao lado, dentro do card. */}
+      <div className="flex items-start gap-3">
+        <img
+          src={avatarSrc(TIP_AVATAR[tip.kind])}
+          alt="Renato, seu personal"
+          className="-ml-1 -mt-1 h-auto w-[120px] shrink-0"
+        />
+        <div className="min-w-0 pt-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/90">Dica do Renato</span>
+          <p id="coach-tip-title" className="mt-0.5 text-lg font-semibold leading-snug text-white">
+            {tip.title}
+          </p>
         </div>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-white/72">{tip.text}</p>
+      <div className="mt-5 flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-12 w-full items-center justify-center rounded-[16px] bg-primary text-sm font-semibold text-white transition hover:brightness-110"
+        >
+          Bora treinar!
+        </button>
+        {tip.action ? (
+          <Link
+            href={tip.action.href}
+            onClick={() => trackEvent("cta_click", null, { source: `coach_tip_action_${tip.kind}` })}
+            className="flex h-11 w-full items-center justify-center rounded-[16px] border border-white/12 text-sm font-semibold text-white/80 transition hover:border-primary/40 hover:text-white"
+          >
+            {tip.action.label}
+          </Link>
+        ) : null}
       </div>
     </div>
   );
@@ -202,7 +237,7 @@ export function CoachTipSheet({ tip, onClose }: { tip: CoachTip; onClose: () => 
 export function CoachTipInline({ tip, onDismiss }: { tip: CoachTip; onDismiss: () => void }) {
   return (
     <div className="rounded-[18px] border border-primary/25 bg-primary/[0.08] p-3.5">
-      <CoachSignature />
+      <CoachSignature kind={tip.kind} />
       <p className="mt-2 text-sm font-semibold text-white">{tip.title}</p>
       <p className="mt-1 text-[13px] leading-5 text-white/72">{tip.text}</p>
       <button

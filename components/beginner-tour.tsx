@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { trackEvent } from "@/lib/analytics-client";
+import { avatarSrc } from "@/lib/avatar";
 import {
   TOUR_GROUPS,
   readTourState,
@@ -19,7 +20,7 @@ import {
 
 const SPOT_PADDING = 6;
 const TOOLTIP_GAP = 14;
-const TOOLTIP_ESTIMATED_HEIGHT = 230;
+const TOOLTIP_ESTIMATED_HEIGHT = 270;
 /** Tempo máximo esperando o elemento aparecer na tela antes de pular a dica. */
 const TARGET_WAIT_MS = 900;
 
@@ -221,9 +222,20 @@ function CoachMark({
         className="absolute inset-x-4 mx-auto max-w-sm rounded-[22px] border border-white/12 bg-[#111] p-4 shadow-2xl"
         style={tooltipPosition}
       >
-        <p id="beginner-tour-title" className="text-[15px] font-semibold leading-snug text-white">
-          {step.title(context)}
-        </p>
+        {/* Rosto do Renato na dica (teste de tamanho e cor do avatar). */}
+        <div className="flex items-start gap-3">
+          <img
+            src={avatarSrc(step.avatar)}
+            alt="Renato, seu personal"
+            className="-ml-1 -mt-1 h-auto w-[120px] shrink-0"
+          />
+          <div className="min-w-0 pt-1">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/90">Dica do Renato</span>
+            <p id="beginner-tour-title" className="mt-0.5 text-[15px] font-semibold leading-snug text-white">
+              {step.title(context)}
+            </p>
+          </div>
+        </div>
         <p className="mt-1.5 text-sm leading-6 text-white/75">{step.text(context)}</p>
         <div className="mt-3 flex items-center justify-between gap-3">
           <button

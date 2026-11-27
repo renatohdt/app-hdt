@@ -30,7 +30,7 @@ export function CommunityCard() {
         </p>
       </div>
       <p className="text-[13px] leading-5 text-white/62">
-        Dicas, novidades do app e vídeos novos direto no seu WhatsApp. Entre na
+        Eu mando dicas, novidades do app e vídeos novos direto no seu WhatsApp. Entre na
         comunidade do Hora do Treino.
       </p>
       <a

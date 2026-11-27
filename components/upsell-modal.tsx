@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { trackEvent } from "@/lib/analytics-client";
-import { PremiumBadge, PremiumIcon } from "@/components/premium-badge";
+import { PremiumBadge } from "@/components/premium-badge";
+import { avatarSrc } from "@/lib/avatar";
 import { PremiumCheckoutPanel } from "@/components/premium-checkout-panel";
 
 export type UpsellReason =
@@ -46,7 +47,7 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   },
   program_completed: {
     title: "Parabéns, você concluiu o programa! 🎉",
-    description: "Você completou todos os treinos deste ciclo. Assine o Premium para a IA montar seu próximo programa e continuar evoluindo.",
+    description: "Você completou todos os treinos deste ciclo. Assine o Premium para eu montar seu próximo programa a partir da sua evolução.",
     cta: "Quero continuar evoluindo",
   },
   generate_workout: {
@@ -56,12 +57,12 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   },
   combine_styles: {
     title: "Combine estilos de treino",
-    description: "Misture estilos no mesmo programa (ex.: Musculação + Funcional) e a IA distribui pelos treinos. No gratuito é 1 estilo.",
+    description: "Misture estilos no mesmo programa (ex.: Musculação + Funcional) e eu distribuo pelos treinos. No gratuito é 1 estilo.",
     cta: "Assinar Premium",
   },
   combine_styles_locked: {
     title: "Libere mais modalidades para o seu treino!",
-    description: "Com o Premium você desbloqueia Funcional, HIIT, Calistenia e pode combinar vários estilos no mesmo programa — a IA distribui pelos treinos.",
+    description: "Com o Premium você desbloqueia Funcional, HIIT, Calistenia e pode combinar vários estilos no mesmo programa — eu distribuo pelos treinos.",
     cta: "Assinar Premium",
   },
   home_banner: {
@@ -71,7 +72,7 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   },
   weekly_plan: {
     title: "Monte sua semana como um personal",
-    description: "Escolha seus dias de treino e o app organiza a ordem ideal, com day off na hora certa. Perdeu um dia? A semana se reorganiza.",
+    description: "Escolha seus dias e eu organizo a ordem ideal, com day off na hora certa. Perdeu um dia? Eu reorganizo a semana.",
     cta: "Assinar Premium",
   },
   load_evolution: {
@@ -91,12 +92,12 @@ const CONTENT: Record<UpsellReason, { title: string; description: string; cta: s
   },
   next_program: {
     title: "Seu próximo programa te espera",
-    description: "No plano gratuito você já usou seus 2 programas. No Premium a IA monta um novo programa a cada ciclo, a partir da sua evolução.",
+    description: "No plano gratuito você já usou seus 2 programas. No Premium eu monto um programa novo a cada ciclo, a partir da sua evolução.",
     cta: "Quero continuar evoluindo",
   },
   remove_ads: {
     title: "Treine sem anúncios",
-    description: "No Premium o app fica sem anúncios e você ainda libera evolução de carga, Minha semana e programas ilimitados.",
+    description: "No Premium você treina sem anúncios e ainda libera evolução de carga, Minha semana e programas ilimitados.",
     cta: "Assinar Premium",
   },
   workout_tabs: {
@@ -170,9 +171,12 @@ export function UpsellModal({ reason, onClose }: UpsellModalProps) {
         )}
 
         {/* Ícone + selo dourado: identidade visual única do Premium */}
-        <div className="mb-4 flex items-center gap-3">
-          <PremiumIcon />
-          <PremiumBadge />
+        <div className="mb-3 flex items-end gap-3">
+          {/* Renato apontando, com a coroa do Premium */}
+          <img src={avatarSrc("premium")} alt="Renato, seu personal" className="-ml-2 h-auto w-[130px] shrink-0" />
+          <div className="pb-3">
+            <PremiumBadge />
+          </div>
         </div>
 
         <h2 className="mb-2 pr-8 text-xl font-bold leading-snug tracking-tight text-white">

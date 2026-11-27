@@ -451,7 +451,7 @@ const howTo: RecommendationCard[] = [
     id: "howto_start",
     emoji: "🏁",
     title: "Comece pelo Iniciar treino",
-    body: "Toque em Iniciar treino antes da primeira série. Assim o app marca o tempo e o treino conta na sua semana, no seu nível e nas medalhas."
+    body: "Toque em Iniciar treino antes da primeira série. Assim eu marco o tempo e o treino conta na sua semana, no seu nível e nas medalhas."
   }),
   forEveryone({
     id: "howto_loads",
@@ -503,7 +503,7 @@ const condo: RecommendationCard[] = [
     id: "condo_missing",
     emoji: "🔄",
     title: "Aparelho quebrado ou inexistente",
-    body: "Substitua o exercício no app para ter um treino melhor para você."
+    body: "Toque em Substituir que eu troco por outro exercício do mesmo grupo muscular."
   }),
   forEveryone({
     id: "condo_weights",

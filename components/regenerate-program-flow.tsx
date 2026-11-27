@@ -270,7 +270,7 @@ function GeneratingScreen({ progress }: { progress: number }) {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/90">Montagem do treino</p>
           <p className="text-xl font-semibold text-white">Montando seu novo treino...</p>
           <p className="text-sm leading-6 text-white/66">
-            Estamos usando seus dados atualizados para criar um plano alinhado ao seu objetivo e rotina.
+            Estou usando seus dados atualizados para montar um plano alinhado ao seu objetivo e rotina.
           </p>
         </div>
         <div className="space-y-3">

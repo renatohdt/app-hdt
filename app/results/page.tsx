@@ -152,7 +152,7 @@ function ResultsLoadingState() {
             <p className="mt-6 text-sm uppercase tracking-[0.28em] text-primary">Analisando</p>
             <h1 className="mt-3 text-3xl font-semibold">Montando sua sugestão de treino</h1>
             <p className="mt-3 max-w-md text-sm text-white/62">
-              Estamos organizando sua sugestão de treino para você começar agora.
+              Estou organizando seu treino para você começar agora.
             </p>
             <Disclaimer variant="compact" className="mt-6 max-w-xl text-left" />
           </div>

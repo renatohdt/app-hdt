@@ -83,7 +83,10 @@ function layout(opts: { title: string; preheader: string; body: string; marketin
     </div>
     <div style="background-color: #ffffff; border-left: 1px solid #e0e0e0; border-right: 1px solid #e0e0e0; padding: 32px;">
 ${opts.body}
-      <p style="text-align: center; margin: 32px 0 4px; ${FONT} font-size: 15px; color: #1a1a1a;">Bons treinos,</p>
+      <p style="text-align: center; margin: 32px 0 10px;">
+        <img src="${APP_URL}/email/renato-assinatura.png" width="72" height="72" alt="Renato Santiago" style="display: inline-block; width: 72px; height: 72px; border: 0; border-radius: 50%;">
+      </p>
+      <p style="text-align: center; margin: 0 0 4px; ${FONT} font-size: 15px; color: #1a1a1a;">Bons treinos,</p>
       <p style="text-align: center; margin: 0 0 4px; ${FONT} font-size: 14px; font-weight: 700; color: #1a1a1a;"><strong>Renato Santiago</strong></p>
       <p style="text-align: center; margin: 0; ${FONT} font-size: 12px; color: #888888;">Personal Trainer · Hora do Treino</p>
     </div>
@@ -229,7 +232,7 @@ export function premiumCanceledEmail(firstName: string | null, reason: Cancellat
     p("Vi que você cancelou o Premium. Sem drama: o seu acesso continua até o fim do período que você já pagou, e depois a sua conta segue no plano gratuito — com os seus treinos e o seu histórico."),
     reasonCopy
       ? p(reasonCopy.html)
-      : p("Se puder, me responde este e-mail com uma frase: <strong>o que faltou para valer a pena?</strong> Eu leio todas as respostas, e é assim que o app melhora."),
+      : p("Se puder, me responde este e-mail com uma frase: <strong>o que faltou para valer a pena?</strong> Eu leio todas as respostas, e é assim que eu melhoro o app."),
     highlight(
       "O mais importante não é o plano",
       "É você não parar de treinar. Se o gratuito é o que cabe agora, ótimo — continua comigo por lá."
@@ -271,7 +274,7 @@ export function milestone10WorkoutsEmail(firstName: string | null, isPremium: bo
     ? [
         ...shared,
         p("Quero te pedir um favor: <strong>me responde este e-mail contando como você está se sentindo</strong> desde que começou. Pode ser uma frase. Com a sua autorização, a sua história pode inspirar quem ainda está pensando em começar."),
-        p("E se postar o treino, marca a gente no Instagram que eu faço questão de ver:"),
+        p("E se postar o treino, me marca no Instagram que eu faço questão de ver:"),
         button("Marcar @horadotreino_oficial →", INSTAGRAM_URL),
         textLink("Ir para o próximo treino →", DASHBOARD_URL)
       ].join("\n")

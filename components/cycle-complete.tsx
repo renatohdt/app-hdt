@@ -4,6 +4,7 @@ import { UpsellModal } from "@/components/upsell-modal";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Loader2, RefreshCw, Sparkles, Trophy } from "lucide-react";
+import { avatarSrc } from "@/lib/avatar";
 import { parseJsonResponse } from "@/lib/api";
 import { trackEvent } from "@/lib/analytics-client";
 import { fetchWithAuth } from "@/lib/authenticated-fetch";
@@ -185,8 +186,12 @@ export function CycleCompleteCelebration({
           </div>
         ) : (
           <div className="relative px-6 pb-6 pt-7 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-primary/40 bg-primary/15 shadow-[0_0_40px_rgba(34,197,94,0.45)]">
-              <Trophy className="h-8 w-8 text-primary" strokeWidth={2.2} />
+            {/* Renato comemorando com o selo do troféu */}
+            <div className="relative mx-auto w-[160px]">
+              <img src={avatarSrc("bora-2")} alt="Renato comemorando" className="h-auto w-[160px]" />
+              <span className="absolute -right-1 bottom-3 flex h-11 w-11 items-center justify-center rounded-full border-2 border-[#0d100d] bg-primary text-white shadow-lg">
+                <Trophy className="h-5 w-5" strokeWidth={2.4} />
+              </span>
             </div>
 
             <p className="mt-4 text-[0.7rem] font-bold uppercase tracking-[0.28em] text-primary">Ciclo encerrado</p>
@@ -229,8 +234,8 @@ export function CycleCompleteCelebration({
                 <>
                   <p className="mt-1 text-base font-bold text-white">Você concluiu seus 2 programas gratuitos! 🏆</p>
                   <p className="mt-1 text-sm leading-relaxed text-white/65">
-                    Para continuar evoluindo com a IA, que monta o próximo programa a partir do seu progresso, dos seus
-                    feedbacks e do seu ritmo, assine o Premium.
+                    Para continuar evoluindo, eu monto o próximo programa a partir do seu progresso, dos seus
+                    feedbacks e do seu ritmo. É só assinar o Premium.
                   </p>
                   <p className="mt-2 text-xs leading-relaxed text-white/45">
                     Prefere seguir no plano gratuito? Você pode gerar um treino novo, só que sem a evolução da IA.

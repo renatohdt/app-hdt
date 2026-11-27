@@ -10,6 +10,10 @@ import { WorkoutMilestoneCard } from "@/components/workout-milestone-card";
 import { LevelReviewCard, type LevelReviewHint } from "@/components/level-review-card";
 import type { WorkoutMilestone } from "@/lib/workout-milestones";
 import { requestPushOptIn } from "@/lib/push-optin";
+import { avatarSrc, type AvatarExpression } from "@/lib/avatar";
+
+// Rosto do Renato no fim do treino: sorteado entre as expressões de comemoração.
+const CELEBRATION_FACES: AvatarExpression[] = ["joinha", "joinha-piscada", "bora", "bora-2"];
 
 const TRAINING_AD_SLOT = "2572593951";
 
@@ -103,6 +107,9 @@ export function WorkoutCompletionPopup({
   });
 
   const [particles] = useState<Particle[]>(() => generateParticles(30));
+  const [face] = useState<AvatarExpression>(
+    () => CELEBRATION_FACES[Math.floor(Math.random() * CELEBRATION_FACES.length)] ?? "joinha"
+  );
 
   // Fechar no X: depois da comemoração, talvez apareça o convite de notificações
   // (lib/push-optin.ts decide se é a hora). Ir para o Premium pelo cartão não dispara.
@@ -201,6 +208,13 @@ export function WorkoutCompletionPopup({
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
+          {/* Renato comemorando, saindo pelo topo do card */}
+          <img
+            src={avatarSrc(face)}
+            alt="Renato comemorando"
+            className="mx-auto -mt-24 h-auto w-[150px]"
+          />
+
           {/* "Parabéns!" com curvatura via SVG */}
           <svg viewBox="0 0 300 72" className="w-full" aria-label="Parabéns!">
             <defs>

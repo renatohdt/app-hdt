@@ -1,6 +1,7 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Trophy, X } from "lucide-react";
+import { avatarSrc } from "@/lib/avatar";
 import type { Achievement } from "@/lib/achievements";
 import { ShareButton } from "@/components/share-button";
 
@@ -30,11 +31,12 @@ export function AchievementPopup({
           <X className="h-5 w-5" />
         </button>
 
-        {/* Troféu */}
-        <div className="mb-4 flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-4xl">
-            🏆
-          </div>
+        {/* Renato comemorando (sai pelo topo do card) com o selo do troféu */}
+        <div className="relative mx-auto -mt-20 mb-3 w-[160px]">
+          <img src={avatarSrc("bora")} alt="Renato comemorando" className="h-auto w-[160px]" />
+          <span className="absolute -right-1 bottom-3 flex h-11 w-11 items-center justify-center rounded-full border-2 border-[#0d100d] bg-primary text-white shadow-lg">
+            <Trophy className="h-5 w-5" strokeWidth={2.4} />
+          </span>
         </div>
 
         {/* Texto */}
