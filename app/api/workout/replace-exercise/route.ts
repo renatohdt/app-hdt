@@ -14,7 +14,13 @@ import { createSupabaseUserClient } from "@/lib/supabase-user";
 import { isPremium } from "@/lib/subscription";
 import type { ExerciseRecord, QuizAnswers, WorkoutPlan } from "@/lib/types";
 import { getUserAnswersByUserId } from "@/lib/user-answers";
-import { callAIForReplacement, filterReplacementCandidates, pickPrepReplacement, rankReplacementOptions } from "@/lib/workout-ai";
+import {
+  adaptReplacementPrescription,
+  callAIForReplacement,
+  filterReplacementCandidates,
+  pickPrepReplacement,
+  rankReplacementOptions
+} from "@/lib/workout-ai";
 import { buildWorkoutSectionItems } from "@/lib/workout-section-items";
 import { getUserLevelRow } from "@/lib/user-level-store";
 import { applyPhaseLevel } from "@/lib/user-level";
@@ -428,9 +434,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "replacement_not_found" }, { status: 422 });
     }
 
-    // --- Substituir o exercício preservando estrutura e substituindo apenas identidade ---
+    // --- Substituir o exercício preservando a estrutura (séries, bloco combinado) ---
+    // Repetições, descanso, tipo do bloco e técnica seguem o exercício NOVO
+    // (ex.: isométrico "30s" trocado por dinâmico passa a ter repetições).
+    const prescription = isPrepOriginal
+      ? {}
+      : adaptReplacementPrescription(originalExercise, replacementRecord, answers, section.trainingStyle ?? workout.trainingStyle ?? null);
     const updatedExercise = {
       ...originalExercise,
+      ...prescription,
       name: replacementRecord.name,
       videoUrl: resolveExerciseVideoUrl(replacementRecord),
       primaryMuscles: replacementRecord.muscle_groups?.length

@@ -712,7 +712,7 @@ export function ExpandableExerciseCard({
                 : "border-primary/18 bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(255,255,255,0.02))]")
         )}
       >
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => onToggle(exercise.id)}
@@ -720,10 +720,10 @@ export function ExpandableExerciseCard({
           aria-controls={panelId}
           className="min-w-0 flex-1 text-left"
         >
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2.5">
             <div
               className={clsx(
-                "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border text-base font-semibold",
+                "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-[8px] border px-1 text-[13px] font-semibold leading-none",
                 isWarmupExercise
                   ? "border-[#facc15]/25 bg-[#facc15]/10 text-[#fde047]"
                   : isCombinedExercise
@@ -733,7 +733,7 @@ export function ExpandableExerciseCard({
                   : "border-primary/15 bg-primary/10 text-primary"
               )}
             >
-              {isExerciseComplete ? <Check className="h-5 w-5" strokeWidth={3} /> : index + 1}
+              {isExerciseComplete ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : index + 1}
             </div>
 
             <div className="min-w-0 flex-1">
@@ -770,47 +770,6 @@ export function ExpandableExerciseCard({
                   {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </span>
               </div>
-
-              <div className="mt-3 min-w-0">
-                <div className="overflow-x-auto no-scrollbar">
-                  <p
-                    className={clsx(
-                      "whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] transition-colors min-[380px]:text-[12px]",
-                      isExerciseComplete ? "text-white/30" : "text-white/62"
-                    )}
-                  >
-                    <span>Séries: {exercise.sets}</span>
-                    <span className={isMobilityExercise ? "ml-2.5 min-[380px]:ml-3" : "mx-2.5 min-[380px]:mx-3"}>
-                      {isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}
-                    </span>
-                    {!isMobilityExercise && !combinedRestLabel ? <span>Descanso: {exercise.rest}</span> : null}
-                  </p>
-                </div>
-                {combinedRestLabel ? (
-                  <p className={clsx("mt-1 text-[11px] font-medium leading-5 min-[380px]:text-[12px]", isExerciseComplete ? "text-white/30" : "text-white/62")}>
-                    {combinedRestLabel}
-                  </p>
-                ) : null}
-                {combinedWithLabel ? (
-                  <span
-                    role={nextCombinedExerciseId ? "link" : undefined}
-                    onClick={(event) => {
-                      if (!nextCombinedExerciseId) return;
-                      event.stopPropagation();
-                      onToggle(nextCombinedExerciseId);
-                    }}
-                    className="mt-2 block text-[12px] font-semibold leading-snug text-primary"
-                  >
-                    {combinedWithLabel}
-                    {nextCombinedExerciseId ? "\u00A0→" : ""}
-                  </span>
-                ) : null}
-                {hasTechniqueTag ? (
-                  <span className="mt-2 inline-flex rounded-full border border-[#f59e0b]/18 bg-[#f59e0b]/10 px-3 py-1 text-[12px] font-semibold leading-none text-[#f7b955]">
-                    Técnica: {exercise.technique}
-                  </span>
-                ) : null}
-              </div>
             </div>
           </div>
         </button>
@@ -833,6 +792,50 @@ export function ExpandableExerciseCard({
         >
           <Check className="h-5 w-5" strokeWidth={3} />
         </button>
+        </div>
+
+        <div
+          onClick={() => onToggle(exercise.id)}
+          className="mt-1.5 min-w-0 cursor-pointer"
+        >
+          <div className="overflow-x-auto no-scrollbar">
+            <p
+              className={clsx(
+                "whitespace-nowrap text-[11px] font-medium leading-5 tracking-[-0.01em] transition-colors min-[380px]:text-[12px]",
+                isExerciseComplete ? "text-white/30" : "text-white/62"
+              )}
+            >
+              <span>Séries: {exercise.sets}</span>
+              <span className={isMobilityExercise ? "ml-2.5 min-[380px]:ml-3" : "mx-2.5 min-[380px]:mx-3"}>
+                {isIsometric ? "Tempo" : "Repetições"}: {exercise.reps}
+              </span>
+              {!isMobilityExercise && !combinedRestLabel ? <span>Descanso: {exercise.rest}</span> : null}
+            </p>
+          </div>
+          {combinedRestLabel ? (
+            <p className={clsx("mt-1 text-[11px] font-medium leading-5 min-[380px]:text-[12px]", isExerciseComplete ? "text-white/30" : "text-white/62")}>
+              {combinedRestLabel}
+            </p>
+          ) : null}
+          {combinedWithLabel ? (
+            <span
+              role={nextCombinedExerciseId ? "link" : undefined}
+              onClick={(event) => {
+                if (!nextCombinedExerciseId) return;
+                event.stopPropagation();
+                onToggle(nextCombinedExerciseId);
+              }}
+              className="mt-2 block text-[12px] font-semibold leading-snug text-primary"
+            >
+              {combinedWithLabel}
+              {nextCombinedExerciseId ? "\u00A0→" : ""}
+            </span>
+          ) : null}
+          {hasTechniqueTag ? (
+            <span className="mt-2 inline-flex rounded-full border border-[#f59e0b]/18 bg-[#f59e0b]/10 px-3 py-1 text-[12px] font-semibold leading-none text-[#f7b955]">
+              Técnica: {exercise.technique}
+            </span>
+          ) : null}
         </div>
 
         {/* Ações rápidas — mobilidade/aquecimento não têm carga, mas podem ser substituídos */}

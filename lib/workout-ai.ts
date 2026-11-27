@@ -4815,6 +4815,88 @@ function selectReplacementByLevelAndDifficulty(
   return [];
 }
 
+/**
+ * Ajusta a prescrição (repetições, descanso, tipo do bloco e técnica) ao exercício
+ * que entrou na troca, seguindo as mesmas regras da geração do treino.
+ *
+ * - Isométrico → dinâmico: sai o tempo ("30s") e entram repetições; sai a técnica "isometria".
+ * - Dinâmico → isométrico: repetições viram tempo ("30s") e o bloco vira "isometria".
+ * - Dinâmico → dinâmico: só corrige reps/descanso que fiquem fora da faixa do novo tipo
+ *   (ex.: composto ↔ isolador). Drop-set em exercício composto volta a ser normal.
+ * - Séries NUNCA mudam (exercícios de um bloco combinado precisam ter as mesmas séries).
+ * - Dentro de bloco combinado o descanso é estrutura do bloco (0s no par) → não mexe.
+ * - HIIT (circuito por tempo), mobilidade e aquecimento ficam como estão.
+ */
+export function adaptReplacementPrescription(
+  original: WorkoutExercise,
+  replacement: ExerciseRecord,
+  answers: QuizAnswers,
+  sessionStyle?: string | null
+): Pick<WorkoutExercise, "reps" | "rest" | "blockType" | "method" | "technique" | "trainingTechnique"> {
+  const kept = {
+    reps: original.reps,
+    rest: original.rest,
+    blockType: original.blockType,
+    method: original.method,
+    technique: original.technique,
+    trainingTechnique: original.trainingTechnique
+  };
+
+  const originalBlockType = normalizeBlockType(original.blockType ?? null);
+  if (
+    originalBlockType === "warmup" ||
+    originalBlockType === "mobility" ||
+    originalBlockType === "circuit" ||
+    original.type === "mobility" ||
+    sessionStyle === "hiit"
+  ) {
+    return kept;
+  }
+
+  const strategy = buildWorkoutStrategy(answers);
+  const movementType = buildExerciseProfile(replacement).movementType;
+  if (movementType === "mobility") return kept;
+
+  const style = (sessionStyle ?? undefined) as TrainingStyle | undefined;
+  const isTimeReps = (value: string) => /^\d+\s*s$/i.test((value ?? "").trim());
+  const originalIsIsometric = originalBlockType === "isometria" || isTimeReps(original.reps);
+  const replacementIsIsometric = movementType === "isometric";
+
+  let blockType: WorkoutBlockType = originalBlockType;
+  if (replacementIsIsometric) {
+    blockType = "isometria";
+  } else if (blockType === "isometria") {
+    blockType = "normal";
+  } else if (blockType === "drop-set" && movementType === "compound") {
+    blockType = "normal";
+  }
+
+  let reps = original.reps;
+  if (replacementIsIsometric) {
+    reps = originalIsIsometric ? original.reps : "30s";
+  } else if (originalIsIsometric) {
+    reps = String(resolveRepBounds(strategy, movementType, blockType, style).target);
+  } else {
+    // Mantém o número se couber na faixa do novo tipo; senão encaixa na faixa.
+    reps = String(normalizeRepsForBudget(original.reps, strategy, movementType, blockType, style));
+  }
+
+  // Trocou entre isométrico e dinâmico → descanso padrão do novo tipo; senão mantém
+  // o atual se couber na faixa. Em bloco combinado o descanso é do bloco (não mexe).
+  const changedKind = originalIsIsometric !== replacementIsIsometric;
+  const inCombinedBlock = Boolean(original.blockId);
+  const rest = inCombinedBlock
+    ? original.rest
+    : `${normalizeRestForBudget(changedKind ? null : original.rest, strategy, blockType, movementType, style)}s`;
+
+  if (blockType === originalBlockType) {
+    return { ...kept, reps, rest };
+  }
+
+  const technique = resolveTrainingTechnique({}, blockType, {} as SessionBlueprint, getPrimaryExerciseMuscle(replacement) ?? undefined);
+  return { reps, rest, blockType, method: technique, technique, trainingTechnique: technique };
+}
+
 export function filterReplacementCandidates(
   originalExercise: ExerciseRecord,
   exercisesInWorkoutDay: string[],
