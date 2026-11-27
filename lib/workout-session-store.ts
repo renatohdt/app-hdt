@@ -69,11 +69,21 @@ const WORKOUT_SESSION_TIMEZONE = "America/Sao_Paulo";
 export async function getWorkoutSessionStats(supabase: SupabaseLike, input: SessionStatsInput) {
   const candidates = [] as SessionStatsCandidate[];
 
-  for (const filterMode of getSessionFilterModes(input)) {
-    const result = await readWorkoutSessionStats(supabase, input, {
-      filterMode,
-      useLegacyLatestSelect: false
-    });
+  // Busca as formas de identificar o ciclo TODAS AO MESMO TEMPO (antes era uma
+  // depois da outra: até 4 idas ao banco em fila, ~40 ms cada). As consultas e a
+  // regra de escolha abaixo continuam iguais — só deixa de esperar uma pela outra.
+  const filterModes = getSessionFilterModes(input);
+  const firstPassResults = await Promise.all(
+    filterModes.map((filterMode) =>
+      readWorkoutSessionStats(supabase, input, {
+        filterMode,
+        useLegacyLatestSelect: false
+      })
+    )
+  );
+
+  for (const [index, filterMode] of filterModes.entries()) {
+    const result = firstPassResults[index];
 
     if (isMissingSessionLogsTable(result.countResult.error) || isMissingSessionLogsTable(result.latestResult.error)) {
       logWarn("WORKOUT", "Workout session logs table unavailable", {
