@@ -20,7 +20,10 @@ import {
 
 const SPOT_PADDING = 6;
 const TOOLTIP_GAP = 14;
+/** Altura usada só no 1º quadro, antes de medir a caixa de verdade. */
 const TOOLTIP_ESTIMATED_HEIGHT = 270;
+/** Distância mínima entre a caixa da dica e as bordas da tela. */
+const VIEWPORT_MARGIN = 16;
 /** Tempo máximo esperando o elemento aparecer na tela antes de pular a dica. */
 const TARGET_WAIT_MS = 900;
 
@@ -141,6 +144,9 @@ function CoachMark({
 }) {
   const [rect, setRect] = useState<Rect | null>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
+  // Altura real da caixa da dica (muda com fonte do sistema aumentada, textos longos etc.).
+  const [tooltipHeight, setTooltipHeight] = useState(0);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const onMissingRef = useRef(onMissing);
   onMissingRef.current = onMissing;
 
@@ -167,6 +173,8 @@ function CoachMark({
         element.scrollIntoView({ block: "center", behavior: "smooth" });
       }
       setViewportHeight(window.innerHeight);
+      const measured = tooltipRef.current?.offsetHeight ?? 0;
+      if (measured) setTooltipHeight((prev) => (Math.abs(prev - measured) < 0.5 ? prev : measured));
       setRect((prev) =>
         prev &&
         Math.abs(prev.top - box.top) < 0.5 &&
@@ -192,11 +200,21 @@ function CoachMark({
     width: rect.width + SPOT_PADDING * 2,
     height: rect.height + SPOT_PADDING * 2
   };
-  const spaceBelow = viewportHeight - (spot.top + spot.height);
-  const placeBelow = spaceBelow > TOOLTIP_ESTIMATED_HEIGHT + TOOLTIP_GAP || spot.top < viewportHeight / 2;
-  const tooltipPosition = placeBelow
-    ? { top: Math.min(spot.top + spot.height + TOOLTIP_GAP, viewportHeight - TOOLTIP_ESTIMATED_HEIGHT) }
-    : { bottom: Math.max(viewportHeight - spot.top + TOOLTIP_GAP, 16) };
+  // A caixa nunca passa da altura da tela; se o conteúdo for maior, o texto rola
+  // dentro dela e os botões continuam sempre visíveis.
+  const maxTooltipHeight = Math.max(viewportHeight - VIEWPORT_MARGIN * 2, 160);
+  const boxHeight = Math.min(tooltipHeight || TOOLTIP_ESTIMATED_HEIGHT, maxTooltipHeight);
+  const spotBottom = spot.top + spot.height;
+  const spaceBelow = viewportHeight - spotBottom - TOOLTIP_GAP - VIEWPORT_MARGIN;
+  const spaceAbove = spot.top - TOOLTIP_GAP - VIEWPORT_MARGIN;
+  // 1) cabe embaixo do destaque → embaixo; 2) cabe em cima → em cima;
+  // 3) não cabe em nenhum lado (ex.: fonte do celular bem grande) → presa no rodapé da tela.
+  const tooltipPosition: { top?: number; bottom?: number } =
+    boxHeight <= spaceBelow
+      ? { top: spotBottom + TOOLTIP_GAP }
+      : boxHeight <= spaceAbove
+        ? { bottom: viewportHeight - spot.top + TOOLTIP_GAP }
+        : { bottom: VIEWPORT_MARGIN };
   const isLast = index === total - 1;
 
   return (
@@ -219,9 +237,12 @@ function CoachMark({
         }}
       />
       <div
-        className="absolute inset-x-4 mx-auto max-w-sm rounded-[22px] border border-white/12 bg-[#111] p-4 shadow-2xl"
-        style={tooltipPosition}
+        ref={tooltipRef}
+        className="absolute inset-x-4 mx-auto flex max-w-sm flex-col rounded-[22px] border border-white/12 bg-[#111] p-4 shadow-2xl"
+        style={{ ...tooltipPosition, maxHeight: maxTooltipHeight }}
       >
+        {/* Parte que rola se não couber na tela (avatar, título e texto). */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {/* Rosto do Renato na dica (teste de tamanho e cor do avatar). */}
         <div className="flex items-start gap-3">
           <img
@@ -237,7 +258,9 @@ function CoachMark({
           </div>
         </div>
         <p className="mt-1.5 text-sm leading-6 text-white/75">{step.text(context)}</p>
-        <div className="mt-3 flex items-center justify-between gap-3">
+        </div>
+        {/* Botões ficam fora da área que rola: sempre visíveis. */}
+        <div className="mt-3 flex shrink-0 items-center justify-between gap-3">
           <button
             type="button"
             onClick={onSkip}
